@@ -1,0 +1,29 @@
+# Technical Research: Perfil del Alumno, Cuestionario de Salud y Apto Médico
+
+**Feature**: `003-student-profile-and-health`
+**Date**: 2026-10-15
+
+## 1. Estrategia de Almacenamiento Protegido para Aptos Médicos (US-43, Principio III)
+
+- **Decisión**: Implementar una interfaz desacoplada `StorageService` con un adaptador local de almacenamiento privado (`LocalStorageProvider`) para el MVP inicial, guardando los binarios en un directorio seguro del servidor fuera de la raíz web pública (ej. `var/data/medical_clearances/`), y sirviendo el contenido exclusivamente a través de un endpoint autenticado (`GET /api/v1/students/{id}/medical-clearance/download`) con validación de RBAC por cada solicitud.
+- **Razón**: Cumple estrictamente con el Principio III de la Constitución (tecnología neutral, validación en backend en cada petición, sin acceso público ni URLs expuestas). Permite migrar en el futuro a almacenamiento en la nube (S3 / Google Cloud Storage) implementando `S3StorageProvider` sin alterar la lógica de negocio ni los controladores.
+- **Alternativas consideradas**:
+  - URLs prefirmadas directas a bucket público/privado: Requiere configuración e infraestructura cloud externa en el MVP; además, si la URL se comparte o filtra durante su ventana de validez, permite accesos no autorizados sin pasar por la validación de relación activa en el backend.
+  - Almacenar archivos en base de datos como BLOB: Sobrecarga el tamaño de la base de datos relacional y degrada el rendimiento de backups.
+
+## 2. Matriz de Autorización del Lado del Servidor (RBAC por Relación)
+
+- **Decisión**: Para consultar el cuestionario de salud, lesiones y certificados médicos del alumno `X`:
+  - Si el usuario es el propio alumno `X`: **PERMITIDO**.
+  - Si el usuario es un entrenador `Y`:
+    - Se consulta la existencia de un `TrainingRequest` pendiente de resolución entre `X` e `Y`: **PERMITIDO** (solo lectura de antecedentes para evaluar la postulación).
+    - Se consulta la existencia de una relación activa (`TrainingRelationship.status == 'ACTIVE'`): **PERMITIDO**.
+    - Si la relación está finalizada (`TERMINATED`), cancelada o inexistente: **DENEGADO (HTTP 403 Forbidden)** de manera inmediata (US-35 y Principio III).
+- **Razón**: Garantiza cero fugas de datos sensibles en endpoints de salud sin delegar la seguridad en el cliente.
+
+## 3. Manejo Histórico de Certificados Médicos (Alternativa A)
+
+- **Decisión**: Modelo acumulativo con clave foránea a `student_id`. Al subir un nuevo certificado:
+  - En una transacción atómica, todos los certificados previos del alumno pasan a estado `status = 'ARCHIVED'`.
+  - El nuevo certificado se inserta con `status = 'CURRENT'`.
+- **Razón**: Permite al entrenador auditar evolutivamente los aptos previos manteniendo una referencia clara y única del certificado vigente para habilitar la práctica deportiva.

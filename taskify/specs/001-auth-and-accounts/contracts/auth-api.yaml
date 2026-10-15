@@ -1,0 +1,195 @@
+openapi: 3.0.3
+info:
+  title: Set to Set - Authentication API
+  version: 1.0.0
+  description: Endpoints para registro, autenticación, gestión de sesión y recuperación de contraseña (US-01, US-38, US-75, US-76).
+
+paths:
+  /api/v1/auth/register:
+    post:
+      summary: Registro de usuario (Entrenador o Alumno)
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, role]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "entrenador@settoset.com"
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: "Passw0rdSegura"
+                role:
+                  type: string
+                  enum: [TRAINER, STUDENT]
+                  example: "TRAINER"
+      responses:
+        '201':
+          description: Usuario registrado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: Datos inválidos o contraseña débil
+        '409':
+          description: El correo electrónico ya se encuentra registrado
+
+  /api/v1/auth/login:
+    post:
+      summary: Inicio de sesión
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "alumno@settoset.com"
+                password:
+                  type: string
+                  format: password
+                  example: "Passw0rdSegura"
+      responses:
+        '200':
+          description: Inicio de sesión exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+        '401':
+          description: Credenciales incorrectas (mensaje genérico)
+        '423':
+          description: Cuenta bloqueada temporalmente por 15 minutos
+
+  /api/v1/auth/logout:
+    post:
+      summary: Cierre de sesión
+      operationId: logoutUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Sesión cerrada exitosamente
+
+  /api/v1/auth/forgot-password:
+    post:
+      summary: Solicitud de restablecimiento de contraseña
+      operationId: forgotPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "usuario@settoset.com"
+      responses:
+        '200':
+          description: Mensaje neutral de confirmación (no revela si el correo existe)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Si el correo está registrado, recibirás un enlace de recuperación."
+
+  /api/v1/auth/reset-password:
+    post:
+      summary: Restablecimiento de contraseña con token
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, new_password]
+              properties:
+                token:
+                  type: string
+                  example: "4d7a...secure_token"
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: "NuevaPassw0rd1"
+      responses:
+        '200':
+          description: Contraseña actualizada exitosamente
+        '400':
+          description: Token inválido, expirado o ya utilizado
+
+  /api/v1/auth/me:
+    get:
+      summary: Obtener perfil del usuario autenticado actual
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Datos del usuario autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          description: Token no válido o expirado
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [TRAINER, STUDENT]
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    AuthTokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          example: "bearer"
+        expires_in:
+          type: integer
+          example: 3600
+        user:
+          $ref: '#/components/schemas/UserResponse'

@@ -1,0 +1,281 @@
+openapi: 3.0.3
+info:
+  title: Set to Set - Student Profile & Health API
+  version: 1.0.0
+  description: Endpoints para datos de perfil del alumno, cuestionario clínico PAR-Q, zonas protegidas y apto médico protegido (US-39 a US-43).
+
+paths:
+  /api/v1/students/me/profile:
+    get:
+      summary: Obtener perfil del alumno autenticado
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentProfileResponse'
+    put:
+      summary: Actualizar datos personales y objetivos
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentProfileUpdateRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentProfileResponse'
+        '422':
+          description: Datos obligatorios faltantes (nombre, apellido o contacto)
+
+  /api/v1/students/me/health-questionnaire:
+    get:
+      summary: Obtener respuestas del cuestionario de salud
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthQuestionnaireResponse'
+        '404':
+          description: Cuestionario aún no completado
+    post:
+      summary: Registrar o actualizar cuestionario de salud (PAR-Q)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HealthQuestionnaireInput'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthQuestionnaireResponse'
+
+  /api/v1/students/me/protected-zones:
+    get:
+      summary: Listar zonas corporales a proteger y lesiones declaradas
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProtectedZoneResponse'
+    post:
+      summary: Registrar una nueva lesión o zona a proteger
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body_area, injury_description]
+              properties:
+                body_area:
+                  type: string
+                  example: "Rodilla derecha"
+                injury_description:
+                  type: string
+                  example: "Operación de meniscos hace 2 años; evitar impacto repetitivo"
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtectedZoneResponse'
+
+  /api/v1/students/me/medical-clearance:
+    post:
+      summary: Adjuntar nuevo certificado de apto médico (PDF o Imagen)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, issue_date]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                issue_date:
+                  type: string
+                  format: date
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalClearanceResponse'
+        '400':
+          description: Formato no soportado (solo PDF, JPEG, PNG) o archivo excede 10 MB
+
+  /api/v1/students/{student_id}/medical-clearance/download:
+    get:
+      summary: Descarga protegida del certificado médico vigente
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Archivo binario con encabezados de content-type
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: No autenticado
+        '403':
+          description: No autorizado (sin vínculo activo de entrenamiento ni solicitud pendiente)
+        '404':
+          description: Alumno o certificado no encontrado
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    StudentProfileUpdateRequest:
+      type: object
+      required: [first_name, last_name, contact_phone, fitness_goals]
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        contact_phone:
+          type: string
+        birth_date:
+          type: string
+          format: date
+        fitness_goals:
+          type: array
+          items:
+            type: string
+        personal_motivation:
+          type: string
+
+    StudentProfileResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+        last_name:
+          type: string
+        contact_phone:
+          type: string
+        fitness_goals:
+          type: array
+          items:
+            type: string
+        personal_motivation:
+          type: string
+
+    HealthQuestionnaireInput:
+      type: object
+      properties:
+        has_heart_condition:
+          type: boolean
+        has_chest_pain_activity:
+          type: boolean
+        has_dizziness_or_balance_loss:
+          type: boolean
+        has_bone_joint_problem:
+          type: boolean
+        takes_prescription_meds:
+          type: boolean
+        other_medical_conditions:
+          type: string
+
+    HealthQuestionnaireResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        has_heart_condition:
+          type: boolean
+        has_chest_pain_activity:
+          type: boolean
+        has_dizziness_or_balance_loss:
+          type: boolean
+        has_bone_joint_problem:
+          type: boolean
+        takes_prescription_meds:
+          type: boolean
+        other_medical_conditions:
+          type: string
+        completed_at:
+          type: string
+          format: date-time
+
+    ProtectedZoneResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        body_area:
+          type: string
+        injury_description:
+          type: string
+        is_active:
+          type: boolean
+
+    MedicalClearanceResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        original_filename:
+          type: string
+        mime_type:
+          type: string
+        issue_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [CURRENT, ARCHIVED]
+        created_at:
+          type: string
+          format: date-time
