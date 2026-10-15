@@ -1,0 +1,18 @@
+```yaml
+hooks:
+  before_specify:
+    - extension: git
+      command: speckit.git.branch
+      description: "Auto-create and checkout feature branch"
+      optional: false
+  after_tasks:
+    - extension: git
+      command: speckit.git.commit
+      description: "Commit task breakdown"
+      optional: true
+  after_implement:
+    - extension: git
+      command: speckit.git.commit
+      description: "Commit implemented increment"
+      optional: true
+```
