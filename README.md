@@ -44,9 +44,7 @@ La estructura del repositorio se irá consolidando a medida que avance el proyec
 
 Los archivos de configuración y las especificaciones compartidas forman parte de los artefactos del proyecto y deben mantenerse versionados cuando corresponda.
 
-## Desarrollo local: autenticación
-
-La primera funcionalidad implementada cubre el registro de entrenadores y alumnos, el inicio y cierre de sesión y la protección de la pantalla interna.
+## Desarrollo local: cómo levantar la aplicación
 
 ### Backend
 
