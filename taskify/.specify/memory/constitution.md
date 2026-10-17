@@ -1,5 +1,9 @@
 <!--
 ### Sync Impact Report
+* Version change: 1.1.0 -> 1.2.0 (MINOR - reglas de proceso tomadas de la metodología del corrector: entrega incremental, precedentes mergeados, DoR y DoD)
+* Added sections (1.2.0): Principio VII (Entrega Incremental y Precedentes Mergeados); Puertas de Gestión: Definition of Ready y Definition of Done. Principio VI y Metodología ajustados para que el gating aplique a `main` y `develop`.
+* Not adopted from the reference methodology (pending team decision): rama por story con commit por tarea, revisión obligatoria por otra persona, issues por tarea (/speckit-taskstoissues), cobertura 100% (se mantiene 90%).
+* Version 1.1.0 notes:
 * Version change: 1.0.0 -> 1.1.0 (MINOR - correcciones del corrector: reglas verificables, dominio transversal, errores y escalamiento)
 * List of modified principles (1.1.0):
   - Principle I: umbrales numéricos (contraste WCAG 2.1 AA >= 4.5:1; objetivos táctiles >= 44x44 px).
@@ -53,8 +57,14 @@ Para evitar costos de infraestructura y complejidad de almacenamiento y transcod
 ### VI. Calidad de Software y Verificación Continua en CI (NON-NEGOTIABLE)
 La calidad del código es una condición de aceptación mandatoria y no negociable:
 - **Automatización de pruebas**: Todo componente de backend DEBE contar con pruebas automatizadas (unitarias y de integración) que validen los requerimientos funcionales y casos de borde.
-- **Barrera de calidad en CI**: Ningún cambio podrá integrarse a la rama principal (`main`) si rompe pruebas existentes, si introduce errores de análisis estático o si reduce el umbral de cobertura mínimo requerido por el pipeline.
+- **Barrera de calidad en CI**: Ningún cambio podrá integrarse a `main` ni a `develop` si rompe pruebas existentes, si introduce errores de análisis estático o si reduce el umbral de cobertura mínimo requerido por el pipeline.
 - **Compilación limpia de frontend**: Todo cambio en el cliente debe superar la verificación de compilación del pipeline sin errores de construcción.
+
+### VII. Entrega Incremental y Precedentes Mergeados
+- **Una user story por Pull Request**: cada PR implementa exactamente una user story (o una fase de `tasks.md`); no se mezclan historias en un mismo PR.
+- **Precedentes mergeados (NON-NEGOTIABLE)**: antes de iniciar una story que depende de otra, todas las stories precedentes DEBEN estar revisadas y mergeadas en `develop`. Está prohibido desarrollar sobre ramas precedentes aún sin integrar.
+- **Rama al día**: toda rama de trabajo parte de `develop` actualizado (`git fetch` previo) y se actualiza con `develop` antes de abrir el PR.
+- **PR por incremento**: completado y verificado localmente el incremento, se abre el PR antes de comenzar la siguiente story.
 
 ## Reglas de Dominio Transversales
 
@@ -82,7 +92,7 @@ El equipo adopta Spec-Driven Development (SDD) como marco de trabajo para asegur
 2. **Clarificación (`/speckit-clarify`)**: Detección y resolución temprana de ambigüedades o vacíos de alcance.
 3. **Planificación (`/speckit-plan`)**: Diseño técnico, definición de contratos, modelos de datos y validación de conformidad contra esta Constitución.
 4. **Descomposición en Tareas (`/speckit-tasks`)**: Desglose del plan en tareas atómicas, secuenciadas por dependencia y verificables.
-5. **Implementación Incremental (`/speckit-implement`)**: Desarrollo en ramas dedicadas (`feature/*`), pruebas automatizadas y Pull Requests obligatorios hacia `main`.
+5. **Implementación Incremental (`/speckit-implement`)**: Desarrollo en ramas dedicadas (`feature/*`), pruebas automatizadas y Pull Requests obligatorios hacia `develop`, una user story por PR (Principio VII).
 
 ### Convenciones de Especificación
 - Los criterios de aceptación DEBEN escribirse con la estructura **Dado que [contexto] / Cuando [acción] / Entonces [resultado observable en interfaz o persistencia]**; no se aceptan escenarios narrativos.
@@ -92,6 +102,27 @@ El equipo adopta Spec-Driven Development (SDD) como marco de trabajo para asegur
 ### Escalamiento ante Ambigüedad
 Ante cualquier ambigüedad, vacío o contradicción en una spec, el equipo y los agentes automatizados NO DEBEN asumir libremente una interpretación. DEBEN detener el trabajo y resolverla mediante `/speckit-clarify` o `/grill-me`, y registrar la decisión en la spec antes de continuar con el plan o la implementación.
 
+## Puertas de Gestión: Definition of Ready y Definition of Done
+
+### Definition of Ready (DoR)
+Una user story está LISTA para implementarse solo cuando:
+1. Todas las stories precedentes de las que depende están mergeadas en `develop` y la rama de trabajo está actualizada con `develop`.
+2. `spec.md` está completa: stories priorizadas, escenarios Dado/Cuando/Entonces y casos borde, sin ambigüedades abiertas (`/speckit-clarify` resuelto).
+3. `plan.md`, `data-model.md` y `contracts/` están definidos y son consistentes con esta Constitución.
+4. La checklist de calidad de la spec (`checklists/requirements.md`) no tiene ítems sin marcar.
+5. `tasks.md` existe con tareas atómicas, ordenadas por dependencia y con rutas de archivo explícitas.
+6. `/speckit-analyze` confirma cobertura completa requisitos-tareas, sin requisitos huérfanos ni violaciones de esta Constitución.
+
+### Definition of Done (DoD)
+Una user story está TERMINADA solo cuando:
+1. Todas las tareas de la story están implementadas y marcadas `[x]` en `tasks.md`.
+2. La suite automatizada pasa con la cobertura mínima del pipeline (Principio VI) y sin romper pruebas de historias previas.
+3. El análisis estático (Ruff) y `npm run build` terminan sin errores.
+4. Se abrió un Pull Request de la story hacia `develop` con resumen claro y referencia a la spec.
+5. Todos los checks del CI reportan verde.
+6. La funcionalidad se recorrió manualmente en la aplicación contra los escenarios de aceptación de la spec.
+7. `/speckit-converge` no detecta requisitos faltantes respecto de la spec.
+
 ## Decisiones de Implementación Pendientes de Ratificación
 
 Las siguientes definiciones técnicas y metodológicas quedan expresamente delegadas a la etapa de planificación técnica o a consenso del equipo, sin constituir aún mandatos constitucionales:
@@ -100,6 +131,7 @@ Las siguientes definiciones técnicas y metodológicas quedan expresamente deleg
 3. **Mecanismo de almacenamiento privado para aptos médicos**: La elección entre almacenamiento en servidor local con endpoint autenticado o almacenamiento en objetos con URLs temporales firmadas se definirá en el plan técnico de la US-43.
 4. **Proveedor de Inteligencia Artificial**: La elección de la API o modelo para la US-13 (OpenAI, Gemini u otro) se seleccionará durante la planificación técnica de dicha funcionalidad.
 5. **Verificación de tipos estática independiente en Frontend**: La incorporación de un paso específico de type-check (ej. `tsc --noEmit`) en CI queda como propuesta de mejora para el equipo.
+6. **Reglas de proceso aún no adoptadas**: rama por story con commit atómico por tarea (`T###`), revisión obligatoria por otra persona antes de mergear y sincronización de tareas a issues (`/speckit-taskstoissues`). Se adoptarán por consenso del equipo.
 
 ## Governance
 
@@ -111,4 +143,4 @@ Las siguientes definiciones técnicas y metodológicas quedan expresamente deleg
   - Actualización formal del archivo de constitución con incremento de versión según SemVer (MAJOR para modificaciones o eliminación de principios no negociables; MINOR para adición o expansión de secciones; PATCH para aclaraciones y correcciones no semánticas).
   - Actualización del correspondiente reporte de impacto (*Sync Impact Report*).
 
-**Version**: 1.1.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-10-17
+**Version**: 1.2.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-10-17
