@@ -1,22 +1,22 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr
 
-from backend.src.core.constants import PASSWORD_MAX_LENGTH, STUDENT_ROLE, TRAINER_ROLE
+from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
 
 Role = Literal[TRAINER_ROLE, STUDENT_ROLE]
 
 
 class RegisterRequest(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=1, max_length=PASSWORD_MAX_LENGTH)
+    password: str
     role: Role
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=1, max_length=PASSWORD_MAX_LENGTH)
+    email: str
+    password: str
 
 
 class UserResponse(BaseModel):

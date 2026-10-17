@@ -4,11 +4,23 @@ interface ApiErrorResponse {
   detail?: unknown;
 }
 
-export function getApiErrorMessage(error: unknown, fallback: string): string {
+export interface ApiErrorInfo {
+  message: string;
+  status?: number;
+  retryAfterSeconds?: number;
+}
+
+export function getApiErrorInfo(error: unknown, fallback: string): ApiErrorInfo {
   if (axios.isAxiosError<ApiErrorResponse>(error)) {
     const detail = error.response?.data?.detail;
-    if (typeof detail === 'string') return detail;
+    const retryAfterHeader = error.response?.headers?.['retry-after'];
+    const retryAfterSeconds = Number(retryAfterHeader);
+    return {
+      message: typeof detail === 'string' ? detail : fallback,
+      status: error.response?.status,
+      retryAfterSeconds: Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds : undefined,
+    };
   }
 
-  return fallback;
+  return { message: fallback };
 }

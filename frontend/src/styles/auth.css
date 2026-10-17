@@ -292,8 +292,11 @@
 }
 
 .submit-button:disabled {
-  opacity: .65;
-  cursor: wait;
+  background: #aab2ac;
+  color: #f5f7f5;
+  opacity: 1;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .form-alert {
@@ -304,6 +307,10 @@
   color: #9a3939;
   font-size: 12px;
   line-height: 1.5;
+}
+
+.auth-form-alert {
+  margin: 0;
 }
 
 .auth-switch {

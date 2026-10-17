@@ -24,6 +24,7 @@ def create_app(create_tables: bool = True) -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["Retry-After"],
     )
     app.include_router(auth_router)
 

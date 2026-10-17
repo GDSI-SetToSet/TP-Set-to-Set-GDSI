@@ -39,7 +39,8 @@ def login(payload: LoginRequest, db: DbDep) -> AuthTokenResponse:
     try:
         user, token, expires_in = login_user(db, str(payload.email), payload.password)
     except AuthError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+        headers = {"Retry-After": str(exc.retry_after_seconds)} if exc.retry_after_seconds is not None else None
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail, headers=headers) from exc
     return AuthTokenResponse(access_token=token, expires_in=expires_in, user=public_user(user))
 
 

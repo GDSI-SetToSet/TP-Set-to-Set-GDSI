@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from math import ceil
 
 from fastapi import status
 from sqlalchemy import select
@@ -9,7 +10,9 @@ from backend.src.core.config import LOCKOUT_MINUTES, MAX_FAILED_LOGINS, SESSION_
 from backend.src.core.constants import (
     INVALID_CREDENTIALS_MESSAGE,
     LOCKED_ACCOUNT_MESSAGE,
+    PASSWORD_MAX_LENGTH,
     SECONDS_PER_DAY,
+    SECONDS_PER_MINUTE,
     STUDENT_ROLE,
     TRAINER_ROLE,
     VALID_USER_ROLES,
@@ -25,9 +28,10 @@ from backend.src.models.user import User, UserSession
 
 
 class AuthError(Exception):
-    def __init__(self, status_code: int, detail: str):
+    def __init__(self, status_code: int, detail: str, retry_after_seconds: int | None = None):
         self.status_code = status_code
         self.detail = detail
+        self.retry_after_seconds = retry_after_seconds
         super().__init__(detail)
 
 
@@ -66,16 +70,23 @@ def login_user(db: Session, email: str, password: str) -> tuple[User, str, int]:
     if locked_until is not None and locked_until.tzinfo is not None:
         locked_until = locked_until.replace(tzinfo=None)
     if locked_until is not None and locked_until > now:
-        detail = LOCKED_ACCOUNT_MESSAGE.format(minutes=LOCKOUT_MINUTES)
-        raise AuthError(status.HTTP_423_LOCKED, detail)
+        remaining_seconds = max(1, ceil((locked_until - now).total_seconds()))
+        remaining_minutes = ceil(remaining_seconds / SECONDS_PER_MINUTE)
+        detail = LOCKED_ACCOUNT_MESSAGE.format(minutes=remaining_minutes)
+        raise AuthError(status.HTTP_423_LOCKED, detail, retry_after_seconds=remaining_seconds)
     if locked_until is not None:
         user.locked_until = None
         user.failed_login_attempts = 0
 
-    if not verify_password(password, user.password_hash):
+    password_is_valid = len(password) <= PASSWORD_MAX_LENGTH and verify_password(password, user.password_hash)
+    if not password_is_valid:
         user.failed_login_attempts += 1
         if user.failed_login_attempts >= MAX_FAILED_LOGINS:
             user.locked_until = now + timedelta(minutes=LOCKOUT_MINUTES)
+            db.commit()
+            detail = LOCKED_ACCOUNT_MESSAGE.format(minutes=LOCKOUT_MINUTES)
+            retry_after_seconds = LOCKOUT_MINUTES * SECONDS_PER_MINUTE
+            raise AuthError(status.HTTP_423_LOCKED, detail, retry_after_seconds=retry_after_seconds)
         db.commit()
         raise AuthError(status.HTTP_401_UNAUTHORIZED, INVALID_CREDENTIALS_MESSAGE)
 

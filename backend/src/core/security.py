@@ -10,12 +10,10 @@ from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatc
 from backend.src.core.config import JWT_ALGORITHM, JWT_SECRET, SESSION_DAYS
 from backend.src.core.constants import (
     PASSWORD_LOWERCASE_PATTERN,
+    PASSWORD_MAX_LENGTH,
     PASSWORD_MIN_LENGTH,
-    PASSWORD_MISSING_LOWERCASE_MESSAGE,
-    PASSWORD_MISSING_NUMBER_MESSAGE,
-    PASSWORD_MISSING_UPPERCASE_MESSAGE,
     PASSWORD_NUMBER_PATTERN,
-    PASSWORD_TOO_SHORT_MESSAGE,
+    PASSWORD_REQUIREMENTS_MESSAGE,
     PASSWORD_UPPERCASE_PATTERN,
 )
 
@@ -27,15 +25,13 @@ def normalize_email(email: str) -> str:
 
 
 def password_policy_error(password: str) -> str | None:
-    if len(password) < PASSWORD_MIN_LENGTH:
-        return PASSWORD_TOO_SHORT_MESSAGE
-    if re.search(PASSWORD_UPPERCASE_PATTERN, password) is None:
-        return PASSWORD_MISSING_UPPERCASE_MESSAGE
-    if re.search(PASSWORD_LOWERCASE_PATTERN, password) is None:
-        return PASSWORD_MISSING_LOWERCASE_MESSAGE
-    if re.search(PASSWORD_NUMBER_PATTERN, password) is None:
-        return PASSWORD_MISSING_NUMBER_MESSAGE
-    return None
+    meets_all_requirements = (
+        PASSWORD_MIN_LENGTH <= len(password) <= PASSWORD_MAX_LENGTH
+        and re.search(PASSWORD_UPPERCASE_PATTERN, password) is not None
+        and re.search(PASSWORD_LOWERCASE_PATTERN, password) is not None
+        and re.search(PASSWORD_NUMBER_PATTERN, password) is not None
+    )
+    return None if meets_all_requirements else PASSWORD_REQUIREMENTS_MESSAGE
 
 
 def hash_password(password: str) -> str:

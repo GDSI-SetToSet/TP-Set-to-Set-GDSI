@@ -3,10 +3,11 @@ import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { AuthLayout } from '../components/AuthLayout';
 import { PasswordInput } from '../components/PasswordInput';
-import { USER_ROLES } from '../constants/auth';
+import { PASSWORD_REQUIREMENTS_MESSAGE, USER_ROLES } from '../constants/auth';
 import { ROUTES } from '../constants/routes';
 import { useAuth } from '../context/AuthContext';
-import { getApiErrorMessage } from '../services/errorMessage';
+import { getApiErrorInfo } from '../services/errorMessage';
+import { meetsPasswordRequirements } from '../services/passwordValidation';
 import { homePath } from '../constants/routes';
 import type { UserRole } from '../types/auth';
 
@@ -29,12 +30,16 @@ export function RegisterPage() {
       setError('Las contraseñas no coinciden.');
       return;
     }
+    if (!meetsPasswordRequirements(password)) {
+      setError(PASSWORD_REQUIREMENTS_MESSAGE);
+      return;
+    }
     setBusy(true);
     try {
       const registeredUser = await register(email, password, role);
       navigate(homePath(registeredUser.role), { replace: true });
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'No pudimos crear tu cuenta. Intentá de nuevo.'));
+      setError(getApiErrorInfo(requestError, 'No pudimos crear tu cuenta. Intentá de nuevo.').message);
     } finally {
       setBusy(false);
     }
@@ -60,7 +65,7 @@ export function RegisterPage() {
         </div>
         <PasswordInput id="register-password" value={password} onChange={setPassword} autoComplete="new-password" />
         <PasswordInput id="register-confirmation" name="confirmation" label="Repetí tu contraseña" value={confirmation} onChange={setConfirmation} autoComplete="new-password" showHint={false} />
-        {error && <div className="form-alert" role="alert">{error}</div>}
+        {error && <div className="form-alert auth-form-alert" role="alert">{error}</div>}
         <button className="submit-button" type="submit" disabled={busy}>{busy ? 'Creando cuenta…' : 'Crear cuenta'}<ArrowRight size={18} /></button>
       </form>
       <p className="auth-switch">¿Ya tenés cuenta? <Link to={ROUTES.login}>Iniciar sesión</Link></p>

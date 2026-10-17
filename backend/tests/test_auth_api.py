@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
+from backend.src.core.constants import PASSWORD_REQUIREMENTS_MESSAGE
 from backend.src.models.user import User
 
 
@@ -32,20 +33,24 @@ def test_register_rejects_weak_password(client):
     api, _ = client
     response = register(api, password="weak")
     assert response.status_code == 400
-    assert "8 caracteres" in response.json()["detail"]
+    assert response.json()["detail"] == PASSWORD_REQUIREMENTS_MESSAGE
 
 
 def test_register_rejects_password_missing_character_classes(client):
     api, _ = client
-    cases = [
-        ("lowercase123", "mayúscula"),
-        ("UPPERCASE123", "minúscula"),
-        ("NoDigitsHere", "número"),
-    ]
-    for index, (password, expected_message) in enumerate(cases):
+    cases = ["lowercase123", "UPPERCASE123", "NoDigitsHere"]
+    for index, password in enumerate(cases):
         response = register(api, f"weak{index}@example.com", password=password)
         assert response.status_code == 400
-        assert expected_message in response.json()["detail"]
+        assert response.json()["detail"] == PASSWORD_REQUIREMENTS_MESSAGE
+
+
+def test_register_uses_same_message_for_empty_and_overlong_password(client):
+    api, _ = client
+    for index, password in enumerate(("", "A" * 129)):
+        response = register(api, f"length{index}@example.com", password=password)
+        assert response.status_code == 400
+        assert response.json()["detail"] == PASSWORD_REQUIREMENTS_MESSAGE
 
 
 def test_register_rejects_invalid_email_and_role(client):
@@ -71,12 +76,18 @@ def test_login_returns_role_and_persistent_token(client):
 def test_invalid_login_uses_generic_message_and_lockout(client):
     api, sessions = client
     register(api)
-    for _ in range(5):
+    for attempt in range(5):
         response = api.post("/api/v1/auth/login", json={"email": "coach@example.com", "password": "WrongPass123"})
-        assert response.status_code == 401
-        assert response.json()["detail"] == "Mail o contraseña incorrectos"
+        if attempt < 4:
+            assert response.status_code == 401
+            assert response.json()["detail"] == "Mail o contraseña incorrectos"
+        else:
+            assert response.status_code == 423
+            assert response.json()["detail"] == "Se excedió el límite de intentos. Volvé a intentar en 15 minutos."
+            assert response.headers["retry-after"] == "900"
     locked = api.post("/api/v1/auth/login", json={"email": "coach@example.com", "password": "StrongPass123"})
     assert locked.status_code == 423
+    assert 1 <= int(locked.headers["retry-after"]) <= 900
     with sessions() as db:
         user = db.scalar(select(User).where(User.email == "coach@example.com"))
         assert user.failed_login_attempts == 5
@@ -102,6 +113,9 @@ def test_expired_lockout_resets_and_correct_login_succeeds(client):
 def test_unknown_email_and_inactive_account_are_generic(client):
     api, sessions = client
     assert api.post("/api/v1/auth/login", json={"email": "missing@example.com", "password": "WrongPass123"}).json()["detail"] == "Mail o contraseña incorrectos"
+    malformed_email = api.post("/api/v1/auth/login", json={"email": "martina", "password": "WrongPass123"})
+    assert malformed_email.status_code == 401
+    assert malformed_email.json()["detail"] == "Mail o contraseña incorrectos"
     register(api)
     with sessions() as db:
         user = db.scalar(select(User).where(User.email == "coach@example.com"))
