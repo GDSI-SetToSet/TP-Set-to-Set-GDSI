@@ -24,13 +24,15 @@ Como entrenador,
 
 **Acceptance Scenarios**:
 
-1. Al ingresar un mail válido, se crea la cuenta exitosamente y el entrenador puede comenzar a usar la aplicación.
+1. Dado que el entrenador ingresa un mail válido y una contraseña que cumple la política, cuando se registra, entonces la cuenta se crea exitosamente y puede comenzar a usar la aplicación.
 
-2. Al ingresar un mail inválido, no se crea la cuenta y el usuario debe intentar de vuelta con otro mail.
+2. Dado que el entrenador ingresa un mail inválido, cuando intenta registrarse, entonces la cuenta no se crea y el sistema indica que el mail es inválido para que ingrese otro.
 
-3. Al ingresar un mail válido pero que ya está en uso, no se crea la cuenta y el usuario debe intentar de vuelta con otro mail.
+3. Dado que el entrenador ingresa un mail válido pero ya está en uso, cuando intenta registrarse, entonces la cuenta no se crea y el sistema indica que el mail ya está en uso para que ingrese otro.
 
-4. La contraseña debe tener al menos 8 caractéres, mayúsculas, minúsculas y al menos 1 número para ser considerada segura. Si no cumple con esto, no se crea la cuenta y el usuario debe intentar nuevamente.
+4. Dado que la contraseña no tiene al menos 8 caracteres, mayúsculas, minúsculas y un número, cuando el entrenador intenta registrarse, entonces la cuenta no se crea y el sistema indica los requisitos que la contraseña no cumple.
+
+5. Dado que el entrenador ingresa un mail que solo difiere de otro ya registrado en mayúsculas o espacios al inicio o al final, cuando intenta registrarse, entonces la cuenta no se crea porque el mail se normaliza antes de verificar su unicidad.
 
 
 ---
@@ -47,11 +49,11 @@ Como alumno, quiero crear mi cuenta ingresando mail y contraseña, para empezar 
 
 1. Dado que el alumno ingresa un mail válido, cuando se registra, entonces la cuenta se crea exitosamente y puede comenzar a usar la aplicación.
 
-2. Dado que el alumno ingresa un mail inválido, cuando intenta registrarse, entonces la cuenta no se crea y debe intentar de vuelta con otro mail.
+2. Dado que el alumno ingresa un mail inválido, cuando intenta registrarse, entonces la cuenta no se crea y el sistema indica que el mail es inválido para que ingrese otro.
 
-3. Dado que el alumno ingresa un mail válido pero ya está en uso, cuando intenta registrarse, entonces la cuenta no se crea y debe intentar de vuelta con otro mail.
+3. Dado que el alumno ingresa un mail válido pero ya está en uso, cuando intenta registrarse, entonces la cuenta no se crea y el sistema indica que el mail ya está en uso para que ingrese otro.
 
-4. Dado que la contraseña no tiene al menos 8 caracteres, mayúsculas, minúsculas y un número, cuando el alumno intenta registrarse, entonces la cuenta no se crea y debe intentar nuevamente.
+4. Dado que la contraseña no tiene al menos 8 caracteres, mayúsculas, minúsculas y un número, cuando el alumno intenta registrarse, entonces la cuenta no se crea y el sistema indica los requisitos que la contraseña no cumple.
 
 
 ---
@@ -101,6 +103,10 @@ Como entrenador o alumno registrado,
 
 3. Dado un enlace de recuperación, cuando pasó más de 1 hora o ya fue utilizado, entonces el sistema no permite usarlo y ofrece solicitar uno nuevo.
 
+5. Dado un usuario que solicitó varios enlaces de recuperación seguidos, cuando usa un enlace que no es el último emitido, entonces el sistema lo rechaza por invalidado y ofrece solicitar uno nuevo; solo el último enlace emitido es válido.
+
+6. Dado un usuario con la cuenta bloqueada por 5 intentos fallidos, cuando restablece su contraseña con un enlace válido, entonces el bloqueo se remueve de inmediato, el contador de intentos fallidos vuelve a cero y puede iniciar sesión con la nueva contraseña sin esperar los 15 minutos.
+
 4. Dado un usuario que define una nueva contraseña, cuando no cumple la política de US-01/US-38 (8 caracteres, mayúscula, minúscula y número), entonces el sistema no la guarda y le pide intentarlo nuevamente.
 
 
@@ -114,7 +120,11 @@ Como entrenador o alumno registrado,
 
 - ¿Qué sucede si un token de recuperación supera 1 hora o ya fue utilizado? El sistema invalida la operación y redirige al usuario con opción a solicitar un nuevo enlace.
 
-- ¿Qué ocurre si un usuario registrado intenta registrarse nuevamente con el mismo email? El sistema no permite duplicados y notifica que el email ya está en uso.
+- ¿Qué ocurre si un usuario registrado intenta registrarse nuevamente con el mismo email? El sistema no permite duplicados y notifica que el email ya está en uso. La comparación se hace sobre el email normalizado (sin espacios en los extremos y en minúsculas), según la Constitución.
+
+- ¿Qué ocurre si se solicitan múltiples enlaces de recuperación seguidos? Cada nuevo enlace invalida todos los anteriores del mismo usuario; solo el último emitido puede usarse.
+
+- ¿Qué ocurre si un usuario bloqueado por intentos fallidos restablece su contraseña con éxito? El restablecimiento remueve inmediatamente el bloqueo temporal de 15 minutos y reinicia el contador de intentos fallidos.
 
 
 
@@ -122,9 +132,9 @@ Como entrenador o alumno registrado,
 
 ### Functional Requirements
 
-- **FR-001**: El sistema DEBE permitir el registro de entrenadores ingresando email válido y contraseña conforme a la política de seguridad (US-01).
+- **FR-001**: El sistema DEBE permitir el registro de entrenadores ingresando email válido y contraseña conforme a la política de seguridad (US-01). El email se normaliza antes de verificar su unicidad (Constitución, Reglas de Dominio Transversales).
 
-- **FR-002**: El sistema DEBE permitir el registro de alumnos ingresando email válido y contraseña conforme a la política de seguridad (US-38).
+- **FR-002**: El sistema DEBE permitir el registro de alumnos ingresando email válido y contraseña conforme a la política de seguridad (US-38). El email se normaliza antes de verificar su unicidad (Constitución, Reglas de Dominio Transversales).
 
 - **FR-003**: El sistema DEBE exigir una política de contraseñas de al menos 8 caracteres, conteniendo al menos una mayúscula, una minúscula y un número (US-01, US-38, US-76).
 
@@ -140,17 +150,19 @@ Como entrenador o alumno registrado,
 
 - **FR-009**: El sistema DEBE permitir solicitar el restablecimiento de contraseña mediante envío de enlace temporal al email del usuario (US-76).
 
-- **FR-010**: El sistema DEBE limitar la validez de los enlaces de recuperación a un máximo de 1 hora y a un único uso (US-76).
+- **FR-010**: El sistema DEBE limitar la validez de los enlaces de recuperación a un máximo de 1 hora y a un único uso, e invalidar los enlaces previos de un usuario cada vez que se emite uno nuevo (US-76).
+
+- **FR-011**: El sistema DEBE remover el bloqueo temporal de la cuenta y reiniciar el contador de intentos fallidos al completarse un restablecimiento de contraseña exitoso (US-76, US-75).
 
 
 
 ### Key Entities *(include if feature involves data)*
 
-- **UserAccount**: Entidad raíz del usuario que almacena email único normalizado, hash seguro de contraseña (con salt), rol del sistema ('TRAINER' o 'STUDENT'), estado de la cuenta ('ACTIVE', 'BLOCKED', 'SUSPENDED') y marcas de auditoría.
+- **UserAccount**: Entidad raíz del usuario que almacena email único normalizado, contraseña protegida de forma irreversible, rol del sistema ('TRAINER' o 'STUDENT'), estado de la cuenta ('ACTIVE', 'BLOCKED', 'SUSPENDED') y marcas de auditoría.
 
 - **UserSession**: Representa la sesión activa de un usuario autenticado, gestionando tokens seguros de acceso, expiración y revocación manual al cerrar sesión.
 
-- **PasswordResetToken**: Token criptográfico efímero de un solo uso para recuperación de credenciales, con fecha límite estricta de vigencia de 1 hora.
+- **PasswordResetToken**: Token efímero de un solo uso para recuperación de credenciales, con vigencia estricta de 1 hora; queda invalidado al emitirse uno más reciente para el mismo usuario.
 
 
 
@@ -162,7 +174,7 @@ Como entrenador o alumno registrado,
 
 - **SC-002**: El bloqueo de cuenta por fuerza bruta se activa de forma determinista exactamente al quinto intento fallido consecutivo.
 
-- **SC-003**: Los tokens de recuperación de contraseña quedan inutilizables inmediatamente después de su primer uso o al expirar los 60 minutos.
+- **SC-003**: Los tokens de recuperación de contraseña quedan inutilizables inmediatamente después de su primer uso, al expirar los 60 minutos o al emitirse un token más reciente para el mismo usuario.
 
 - **SC-004**: Usuarios no autenticados son interceptados y redirigidos al login en el 100% de los endpoints protegidos.
 

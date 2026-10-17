@@ -29,7 +29,7 @@ Tokens emitidos para el restablecimiento de contraseñas olvidadas (US-76).
 | `user_id` | UUID / String(36) | No | - | Clave foránea referenciando a `User.id` con eliminación en cascada. |
 | `token_hash` | String(64) | No | - | Hash SHA-256 del token plano generado en backend. |
 | `expires_at` | DateTime (UTC) | No | - | Fecha de expiración (exactamente 1 hora tras emisión). |
-| `used_at` | DateTime (UTC) | Sí | `None` | Fecha en que fue consumido para cambiar la contraseña. |
+| `used_at` | DateTime (UTC) | Sí | `None` | Fecha en que fue consumido para cambiar la contraseña, o invalidado al emitirse un token más reciente del mismo usuario. |
 | `created_at` | DateTime (UTC) | No | `utcnow()` | Fecha de generación. |
 
 ## Reglas de Validación y Restricciones
@@ -45,6 +45,8 @@ Tokens emitidos para el restablecimiento de contraseñas olvidadas (US-76).
    - Si `failed_login_attempts >= 5`: `locked_until = now() + 15 minutes`.
    - Si `locked_until > now()`: se deniega el acceso sin validar la contraseña.
    - Al pasar exitosamente la autenticación: `failed_login_attempts = 0` y `locked_until = None`.
+   - Al completarse un restablecimiento de contraseña exitoso: `failed_login_attempts = 0` y `locked_until = None`.
+4. **Tokens de Recuperación**: al emitir un token nuevo para un usuario, se marcan como invalidados (`used_at = now()`) todos sus tokens previos aún vigentes; solo el último emitido es utilizable.
 
 ## Diagrama de Estados de Cuenta
 

@@ -39,8 +39,16 @@ paths:
                 $ref: '#/components/schemas/UserResponse'
         '400':
           description: Datos inválidos o contraseña débil
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '409':
           description: El correo electrónico ya se encuentra registrado
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
 
   /api/v1/auth/login:
     post:
@@ -71,8 +79,16 @@ paths:
                 $ref: '#/components/schemas/AuthTokenResponse'
         '401':
           description: Credenciales incorrectas (mensaje genérico)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '423':
           description: Cuenta bloqueada temporalmente por 15 minutos
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
 
   /api/v1/auth/logout:
     post:
@@ -136,7 +152,11 @@ paths:
         '200':
           description: Contraseña actualizada exitosamente
         '400':
-          description: Token inválido, expirado o ya utilizado
+          description: Token inválido, expirado, ya utilizado o invalidado por uno más reciente; o nueva contraseña que no cumple la política
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
 
   /api/v1/auth/me:
     get:
@@ -153,6 +173,10 @@ paths:
                 $ref: '#/components/schemas/UserResponse'
         '401':
           description: Token no válido o expirado
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
 
 components:
   securitySchemes:
@@ -179,6 +203,32 @@ components:
         created_at:
           type: string
           format: date-time
+
+    ProblemDetails:
+      description: Error HTTP estándar RFC 7807 (Constitución v1.1.0)
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
 
     AuthTokenResponse:
       type: object
