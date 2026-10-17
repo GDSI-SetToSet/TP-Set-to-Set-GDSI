@@ -13,8 +13,9 @@ Datos profesionales del entrenador asociados a su cuenta de usuario.
 | `id` | UUID / String(36) | No | `uuid4()` | Identificador primario. |
 | `user_id` | UUID / String(36) | No | - | Clave foránea 1:1 referenciando a `User.id`. Índice único. |
 | `full_name` | String(150) | No | - | Nombre y apellido profesional. |
-| `contact_phone` | String(50) | No | - | Teléfono / WhatsApp de contacto obligatorio (US-02). |
-| `specialty` | String(100) | No | - | Especialidad principal obligatoria (ej. Hipertrofia, Rehabilitación) (US-02). |
+| `contact_phone` | String(50) | Sí | `None` | Teléfono / WhatsApp de contacto; obligatorio para publicar (US-02). Formato según Constitución: `+` opcional y 8 a 15 dígitos. |
+| `specialty` | String(100) | Sí | `None` | Especialidad principal; obligatoria para publicar (ej. Hipertrofia, Rehabilitación) (US-02). |
+| `status` | Enum(`DRAFT`, `PUBLISHED`) | No | `DRAFT` | `PUBLISHED` solo si `contact_phone` y `specialty` están cargados; `DRAFT` no es visible en búsquedas ni perfil público. |
 | `bio` | Text | Sí | `None` | Biografía y metodología de trabajo. |
 | `certifications` | Text | Sí | `None` | Títulos y certificaciones académicas/deportivas. |
 | `max_students` | Integer | No | `0` | Límite máximo de alumnos activos (0 a 100) (US-04). |
@@ -40,4 +41,7 @@ Paquetes o planes de entrenamiento mensuales ofrecidos por el entrenador (US-03)
 
 - **Cupos**: `0 <= max_students <= 100`. Si no se especifica, por defecto es 0.
 - **Tarifa**: `0 <= monthly_price <= 1000000.00`.
-- **Campos Mandatorios**: `contact_phone` y `specialty` no pueden ser nulos ni cadenas vacías.
+- **Campos Mandatorios**: `contact_phone` y `specialty` no pueden guardarse como cadenas vacías; mientras sean nulos el perfil permanece en `DRAFT`.
+- **Teléfono**: regex `^\+?[0-9]{8,15}$` (sin espacios ni guiones).
+- **Estado del perfil**: `status = PUBLISHED` si y solo si `contact_phone` y `specialty` no son nulos; se recalcula en cada guardado.
+- **No retroactividad**: editar `monthly_price` o archivar un `TrainingPlan` (`is_active = False`) no modifica el arancel acordado de vínculos activos; el vínculo conserva el precio vigente al momento de aceptarse.

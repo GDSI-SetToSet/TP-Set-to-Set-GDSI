@@ -33,7 +33,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/TrainerProfileResponse'
         '422':
-          description: Datos incompletos o inválidos (contacto o especialidad faltantes)
+          description: Datos inválidos (contacto o especialidad vacíos, teléfono con formato inválido)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
 
   /api/v1/trainers/me/quota:
     patch:
@@ -96,8 +100,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TrainingPlanResponse'
-        '400':
-          description: Tarifa fuera de rango o datos incompletos
+        '422':
+          description: Tarifa fuera de rango (0 a 1.000.000) o datos incompletos
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
 
 components:
   securitySchemes:
@@ -115,8 +123,11 @@ components:
           type: string
         contact_phone:
           type: string
+          pattern: '^\+?[0-9]{8,15}$'
+          example: "+5491155551234"
         specialty:
           type: string
+          minLength: 1
         bio:
           type: string
         certifications:
@@ -135,8 +146,13 @@ components:
           type: string
         contact_phone:
           type: string
+          nullable: true
         specialty:
           type: string
+          nullable: true
+        status:
+          type: string
+          enum: [DRAFT, PUBLISHED]
         bio:
           type: string
         certifications:
@@ -184,3 +200,29 @@ components:
           type: string
         is_active:
           type: boolean
+
+    ProblemDetails:
+      description: Error HTTP estándar RFC 7807 (Constitución v1.1.0)
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string

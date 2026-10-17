@@ -20,7 +20,7 @@ curl -i -X PUT http://localhost:8000/api/v1/trainers/me/profile \
     "specialty": "Fuerza e Hipertrofia"
   }'
 
-# Resultado esperado: HTTP 422 Unprocessable Entity (el contacto es obligatorio).
+# Resultado esperado: HTTP 422 (application/problem+json, RFC 7807) con errors[] indicando contact_phone obligatorio; el perfil conserva sus últimos valores válidos.
 
 # 2. Actualizar perfil con todos los campos válidos
 curl -i -X PUT http://localhost:8000/api/v1/trainers/me/profile \
@@ -28,13 +28,13 @@ curl -i -X PUT http://localhost:8000/api/v1/trainers/me/profile \
   -H "Content-Type: application/json" \
   -d '{
     "full_name": "Lucas Entrenador",
-    "contact_phone": "+54 9 11 5555-1234",
+    "contact_phone": "+5491155551234",
     "specialty": "Fuerza e Hipertrofia",
     "bio": "Profesor de Educación Física con 10 años de experiencia.",
     "certifications": "Lic. en Alto Rendimiento Deportivo"
   }'
 
-# Resultado esperado: HTTP 200 OK con el perfil persistido.
+# Resultado esperado: HTTP 200 OK con el perfil persistido y status="PUBLISHED".
 ```
 
 ## Escenario 2: Publicar Paquetes y Validación de Tarifas (US-03)
@@ -49,7 +49,7 @@ curl -i -X POST http://localhost:8000/api/v1/trainers/me/plans \
     "monthly_price": 1500000.00
   }'
 
-# Resultado esperado: HTTP 400 Bad Request / 422 Unprocessable Entity (máximo 1.000.000 ARS).
+# Resultado esperado: HTTP 422 (application/problem+json) con errors[] "La tarifa debe estar entre $0 y $1.000.000".
 
 # 2. Crear paquete válido sin indicar moneda (toma ARS por defecto)
 curl -i -X POST http://localhost:8000/api/v1/trainers/me/plans \

@@ -31,7 +31,9 @@ Implementar el módulo de configuración de perfil profesional de entrenadores, 
 **Constraints**:
 - Rango de cupos permitidos: 0 a 100 (US-04). Valor por defecto: 0.
 - Rango de tarifas por paquete: 0 a 1.000.000 ARS (US-03). Moneda por defecto: ARS.
-- Campos obligatorios de perfil: contacto y especialidad (US-02).
+- Campos obligatorios de perfil: contacto y especialidad (US-02); sin ellos el perfil queda en DRAFT (no visible). Teléfono: `+` opcional y 8 a 15 dígitos.
+- No retroactividad de tarifas: editar o archivar un paquete aplica solo a solicitudes futuras.
+- Errores de la API en formato RFC 7807 (Constitución v1.1.0).
 - Bloqueo de aceptación de solicitudes al tener cupos agotados (Decisión Alternativa A).
 
 **Scale/Scope**: Entrenadores registrados configurando su oferta comercial y capacidad operativa en el MVP.
