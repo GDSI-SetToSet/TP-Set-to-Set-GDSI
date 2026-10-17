@@ -1,0 +1,228 @@
+openapi: 3.0.3
+info:
+  title: Set to Set - Trainer Profile & Plans API
+  version: 1.0.0
+  description: Endpoints para gestión de perfil profesional del entrenador, paquetes y cupos (US-02, US-03, US-04).
+
+paths:
+  /api/v1/trainers/me/profile:
+    get:
+      summary: Obtener perfil del entrenador autenticado
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainerProfileResponse'
+    put:
+      summary: Actualizar datos de perfil del entrenador
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrainerProfileUpdateRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainerProfileResponse'
+        '422':
+          description: Datos inválidos (contacto o especialidad vacíos, teléfono con formato inválido)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/trainers/me/quota:
+    patch:
+      summary: Actualizar tope de cupos mensuales
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [max_students]
+              properties:
+                max_students:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  example: 25
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  max_students:
+                    type: integer
+                  active_students:
+                    type: integer
+                  available_slots:
+                    type: integer
+
+  /api/v1/trainers/me/plans:
+    get:
+      summary: Listar paquetes del entrenador
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrainingPlanResponse'
+    post:
+      summary: Crear nuevo paquete de entrenamiento mensual
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrainingPlanCreateRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingPlanResponse'
+        '422':
+          description: Tarifa fuera de rango (0 a 1.000.000) o datos incompletos
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    TrainerProfileUpdateRequest:
+      type: object
+      required: [full_name, contact_phone, specialty]
+      properties:
+        full_name:
+          type: string
+        contact_phone:
+          type: string
+          pattern: '^\+?[0-9]{8,15}$'
+          example: "+5491155551234"
+        specialty:
+          type: string
+          minLength: 1
+        bio:
+          type: string
+        certifications:
+          type: string
+
+    TrainerProfileResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        contact_phone:
+          type: string
+          nullable: true
+        specialty:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [DRAFT, PUBLISHED]
+        bio:
+          type: string
+        certifications:
+          type: string
+        max_students:
+          type: integer
+        active_students_count:
+          type: integer
+        available_slots:
+          type: integer
+
+    TrainingPlanCreateRequest:
+      type: object
+      required: [title, monthly_price]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        monthly_price:
+          type: number
+          minimum: 0
+          maximum: 1000000
+          example: 25000.00
+        currency:
+          type: string
+          default: "ARS"
+
+    TrainingPlanResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        trainer_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        monthly_price:
+          type: number
+        currency:
+          type: string
+        is_active:
+          type: boolean
+
+    ProblemDetails:
+      description: Error HTTP estándar RFC 7807 (Constitución v1.1.0)
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
