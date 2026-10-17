@@ -1,6 +1,10 @@
 <!--
 ### Sync Impact Report
-* Version change: 1.0.0 (Unchanged - Review Refinement)
+* Version change: 1.0.0 -> 1.1.0 (MINOR - correcciones del corrector: reglas verificables, dominio transversal, errores y escalamiento)
+* List of modified principles (1.1.0):
+  - Principle I: umbrales numéricos (contraste WCAG 2.1 AA >= 4.5:1; objetivos táctiles >= 44x44 px).
+* Added sections (1.1.0): Reglas de Dominio Transversales (normalización de emails, formatos estándar, errores RFC 7807); Convenciones de Especificación; Escalamiento ante Ambigüedad.
+* Previous review (1.0.0) notes:
 * List of modified principles:
   - Principle I (Enfoque en el Usuario y Accesibilidad): Replaced subjective wording with verifiable criteria (contrast, touch targets, readable hierarchy) and framed formal accessibility standards as design guidance.
   - Principle II (IA Asistiva con Supervisión Humana Obligatoria): Preserved human-in-the-loop requirement and provider decoupling.
@@ -21,8 +25,8 @@
 ### I. Enfoque en el Usuario y Accesibilidad Verificable
 El producto atiende a perfiles diversos que van desde entrenadores independientes de alta rotación hasta alumnos de la tercera edad o en rehabilitación física (arquetipos Carmen, Roberto, Valeria del material de diseño). Toda interfaz DEBE cumplir con criterios objetivos de usabilidad:
 - Diseño responsivo adaptado a dispositivos móviles y de escritorio.
-- Contraste visual adecuado entre tipografía y fondo para asegurar legibilidad en diversas condiciones de iluminación.
-- Área mínima de pulsación en elementos interactivos para prevenir toques accidentales durante el entrenamiento.
+- Contraste de texto sobre fondo conforme a WCAG 2.1 AA: relación mínima de 4.5 : 1 (3 : 1 para texto grande de 18 pt o 14 pt en negrita).
+- Área mínima de pulsación de 44 × 44 px en todo elemento interactivo para prevenir toques accidentales durante el entrenamiento.
 - Jerarquía visual clara y mensajes de error comprensibles para el usuario final, sin exponer trazas técnicas internas.
 - Las pantallas de ejecución de entrenamiento y reporte post-sesión (RPE en US-60, mapa de molestias en US-61) DEBEN permitir registrar los datos con el mínimo de pasos posible.
 
@@ -52,6 +56,17 @@ La calidad del código es una condición de aceptación mandatoria y no negociab
 - **Barrera de calidad en CI**: Ningún cambio podrá integrarse a la rama principal (`main`) si rompe pruebas existentes, si introduce errores de análisis estático o si reduce el umbral de cobertura mínimo requerido por el pipeline.
 - **Compilación limpia de frontend**: Todo cambio en el cliente debe superar la verificación de compilación del pipeline sin errores de construcción.
 
+## Reglas de Dominio Transversales
+
+Reglas no negociables que aplican a todas las funcionalidades y que las specs NO deben redefinir:
+
+- **Normalización de identificadores**: los emails DEBEN normalizarse en el backend (eliminar espacios al inicio y al final y convertir a minúsculas) antes de cualquier chequeo de unicidad, registro, autenticación o recuperación de contraseña.
+- **Formatos estándar**:
+  - Teléfono/WhatsApp: solo dígitos con prefijo `+` opcional, entre 8 y 15 dígitos; se rechazan cadenas vacías o con otros caracteres.
+  - Moneda por defecto: pesos argentinos (ARS) cuando no se indique otra.
+  - Fechas y horas: persistidas en UTC con formato ISO 8601.
+- **Errores HTTP unificados**: toda respuesta de error de la API DEBE seguir RFC 7807 (`application/problem+json`) con los campos `type`, `title`, `status`, `detail` e `instance`; los errores de validación por campo se informan en la extensión `errors[]` (campo y mensaje). Ningún módulo define un formato de error propio.
+
 ## Restricciones Arquitectónicas y Tecnológicas
 
 - **Estructura del Repositorio**: Las especificaciones, artefactos de Spec Kit y memoria de gobernanza residen en `taskify/`. El código fuente de la aplicación residirá en la raíz del repositorio en las carpetas `backend/` y `frontend/`, en concordancia con el pipeline de Integración Continua.
@@ -68,6 +83,14 @@ El equipo adopta Spec-Driven Development (SDD) como marco de trabajo para asegur
 3. **Planificación (`/speckit-plan`)**: Diseño técnico, definición de contratos, modelos de datos y validación de conformidad contra esta Constitución.
 4. **Descomposición en Tareas (`/speckit-tasks`)**: Desglose del plan en tareas atómicas, secuenciadas por dependencia y verificables.
 5. **Implementación Incremental (`/speckit-implement`)**: Desarrollo en ramas dedicadas (`feature/*`), pruebas automatizadas y Pull Requests obligatorios hacia `main`.
+
+### Convenciones de Especificación
+- Los criterios de aceptación DEBEN escribirse con la estructura **Dado que [contexto] / Cuando [acción] / Entonces [resultado observable en interfaz o persistencia]**; no se aceptan escenarios narrativos.
+- Los mensajes de error y estados se describen como comportamiento observable del sistema, sin lenguaje coloquial.
+- Las specs siguen el principio de caja negra: describen reglas de negocio y no mencionan tipos de datos de base de datos (`String(36)`, `UUID`, etc.); esos detalles pertenecen exclusivamente a `data-model.md`.
+
+### Escalamiento ante Ambigüedad
+Ante cualquier ambigüedad, vacío o contradicción en una spec, el equipo y los agentes automatizados NO DEBEN asumir libremente una interpretación. DEBEN detener el trabajo y resolverla mediante `/speckit-clarify` o `/grill-me`, y registrar la decisión en la spec antes de continuar con el plan o la implementación.
 
 ## Decisiones de Implementación Pendientes de Ratificación
 
@@ -88,4 +111,4 @@ Las siguientes definiciones técnicas y metodológicas quedan expresamente deleg
   - Actualización formal del archivo de constitución con incremento de versión según SemVer (MAJOR para modificaciones o eliminación de principios no negociables; MINOR para adición o expansión de secciones; PATCH para aclaraciones y correcciones no semánticas).
   - Actualización del correspondiente reporte de impacto (*Sync Impact Report*).
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-10-15
+**Version**: 1.1.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-10-17
