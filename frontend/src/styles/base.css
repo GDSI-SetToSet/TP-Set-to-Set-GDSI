@@ -1,0 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+:root {
+  font-family: 'DM Sans',sans-serif;
+  color: #1e2925;
+  background: #f6f7f2;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  font-weight: 400;
+  font-size: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+  font: 800 21px 'Manrope',sans-serif;
+  letter-spacing: -1px;
+}
+
+.brand__icon {
+  height: 32px;
+  width: 32px;
+  border-radius: 11px;
+  background: #b9ed7b;
+  color: #173a32;
+  display: grid;
+  place-items: center;
+}
+
+.brand__accent {
+  color: #b9ed7b;
+}
+
+.online-dot {
+  height: 7px;
+  width: 7px;
+  background: #b9ed7b;
+  display: inline-block;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(185,237,123,.13);
+}
+
+.loading-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  color: #61756a;
+  font-size: 12px;
+}
+
+.loading-mark {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #c7d4ca;
+  border-top-color: #205a43;
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+
+.dev-hint {
+  display: none;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
