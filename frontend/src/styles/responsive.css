@@ -1,0 +1,85 @@
+@media (max-width:900px) {
+  .auth-shell {
+    grid-template-columns: minmax(300px,.8fr) minmax(420px,1.2fr);
+  }
+  .auth-visual {
+    padding: 25px;
+  }
+  .visual-copy h1 {
+    font-size: 48px;
+  }
+  .auth-panel {
+    padding: 24px 28px;
+  }
+}
+
+@media (max-width:680px) {
+  .auth-shell {
+    display: block;
+    padding: 0;
+    background: #f7f8f4;
+  }
+  .auth-visual {
+    display: none;
+  }
+  .auth-panel {
+    min-height: 100vh;
+    padding: 25px 23px 18px;
+    justify-content: flex-start;
+  }
+  .mobile-brand {
+    display: block;
+    width: min(100%,405px);
+    margin: 2px auto 45px;
+  }
+  .mobile-brand .brand {
+    color: #1c332a;
+  }
+  .auth-card {
+    margin: 0 auto;
+    width: min(100%,405px);
+    padding: 0;
+  }
+  .form-heading h2 {
+    font-size: 29px;
+  }
+  .panel-footer {
+    width: min(100%,405px);
+    margin-top: auto;
+    padding-top: 36px;
+  }
+  .panel-footer span:first-child {
+    max-width: 230px;
+    line-height: 1.4;
+  }
+  .welcome-card {
+    margin-top: 9vh;
+    padding: 38px 28px;
+  }
+  .home-shell {
+    padding: 0 20px;
+  }
+  .home-header {
+    height: 68px;
+  }
+  .logout-button {
+    font-size: 0;
+    padding: 10px;
+  }
+  .logout-button svg {
+    width: 18px;
+    height: 18px;
+  }
+  .welcome-next {
+    margin-top: 42px;
+  }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  *,*::before,*::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
