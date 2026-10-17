@@ -58,7 +58,9 @@ cp backend/.env.example backend/.env
 uvicorn backend.src.main:app --reload
 ```
 
-La API queda disponible en `http://localhost:8000`. La documentación interactiva está en `http://localhost:8000/docs`. Para producción, configurá `APP_ENV=production` y `JWT_SECRET` con un valor aleatorio de al menos 32 caracteres. La API no inicia en producción si falta el secreto o es demasiado corto.
+La API queda disponible en `http://localhost:8000`. La documentación interactiva está en `http://localhost:8000/docs`. 
+
+Para producción, configurar `APP_ENV=production` y `JWT_SECRET` con un valor aleatorio de al menos 32 caracteres. La API no inicia en producción si falta el secreto o es demasiado corto.
 
 ### Frontend
 
@@ -72,7 +74,7 @@ Abrí `http://localhost:5173`. Se puede crear una cuenta como alumno o entrenado
 
 ### Pruebas
 
-Desde la raíz del repositorio:
+Desde la raíz del repositorio (con .venv activado):
 
 ```bash
 PYTHONPATH=. pytest backend/tests --cov=backend/src --cov-report=term-missing
