@@ -150,7 +150,15 @@ paths:
                   example: "NuevaPassw0rd1"
       responses:
         '200':
-          description: Contraseña actualizada exitosamente
+          description: Contraseña actualizada exitosamente; todas las sesiones activas del usuario quedan revocadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Tu contraseña se actualizó. Iniciá sesión con tu nueva contraseña."
         '400':
           description: Token inválido, expirado, ya utilizado o invalidado por uno más reciente; o nueva contraseña que no cumple la política
           content:

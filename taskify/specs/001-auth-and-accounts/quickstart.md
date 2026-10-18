@@ -67,6 +67,7 @@ curl -X POST http://localhost:8000/api/v1/auth/forgot-password \
   -d '{"email": "coach@settoset.com"}'
 
 # Resultado esperado: HTTP 200 OK con mensaje neutral.
+# Con EMAIL_BACKEND=console (por defecto) el enlace con el token aparece en el log de uvicorn.
 
 # 2. Restablecer contraseña con el token emitido
 curl -X POST http://localhost:8000/api/v1/auth/reset-password \
@@ -76,5 +77,15 @@ curl -X POST http://localhost:8000/api/v1/auth/reset-password \
     "new_password": "NewSecurePassword2026"
   }'
 
-# Resultado esperado: HTTP 200 OK. La cuenta queda desbloqueada y lista para login con la nueva contraseña.
+# Resultado esperado: HTTP 200 OK. La cuenta queda desbloqueada, las sesiones previas quedan revocadas
+# y se puede iniciar sesión con la nueva contraseña.
+
+# 3. Reutilizar el mismo token
+# Resultado esperado: HTTP 400 con mensaje que ofrece solicitar un nuevo enlace.
 ```
+
+### Validación en el frontend
+
+1. En `http://localhost:5173/login` seleccionar "Olvidé mi contraseña" e ingresar el mail.
+2. Abrir el enlace que aparece en el log del backend.
+3. Definir una contraseña nueva válida: se redirige al login con un aviso de confirmación.
