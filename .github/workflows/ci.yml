@@ -1,11 +1,10 @@
-```yaml
 name: CI Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
 
 jobs:
   backend-checks:
@@ -57,4 +56,3 @@ jobs:
       - name: Verify Production Build
         working-directory: frontend
         run: npm run build
-```
