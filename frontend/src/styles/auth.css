@@ -313,6 +313,32 @@
   margin: 0;
 }
 
+.form-alert--success {
+  border-color: #bfe0cc;
+  background: #eef8f2;
+  color: #1e6247;
+}
+
+.auth-form-notice {
+  margin-bottom: 16px;
+}
+
+.forgot-password-link {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: -8px;
+  color: #1e6247;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.forgot-password-link:hover {
+  text-decoration: underline;
+}
+
 .auth-switch {
   text-align: center;
   color: #77827c;
