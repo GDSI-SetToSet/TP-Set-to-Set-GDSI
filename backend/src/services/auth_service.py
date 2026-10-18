@@ -2,13 +2,20 @@ from datetime import UTC, datetime, timedelta
 from math import ceil
 
 from fastapi import status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.src.core.config import LOCKOUT_MINUTES, MAX_FAILED_LOGINS, SESSION_DAYS
+from backend.src.core.config import (
+    LOCKOUT_MINUTES,
+    MAX_FAILED_LOGINS,
+    PASSWORD_RESET_TOKEN_MINUTES,
+    PASSWORD_RESET_URL,
+    SESSION_DAYS,
+)
 from backend.src.core.constants import (
     INVALID_CREDENTIALS_MESSAGE,
+    INVALID_RESET_TOKEN_MESSAGE,
     LOCKED_ACCOUNT_MESSAGE,
     PASSWORD_MAX_LENGTH,
     SECONDS_PER_DAY,
@@ -19,12 +26,14 @@ from backend.src.core.constants import (
 )
 from backend.src.core.security import (
     create_session_credentials,
+    generate_reset_token,
     hash_password,
+    hash_reset_token,
     normalize_email,
     password_policy_error,
     verify_password,
 )
-from backend.src.models.user import User, UserSession
+from backend.src.models.user import PasswordResetToken, User, UserSession
 
 
 class AuthError(Exception):
@@ -101,4 +110,52 @@ def login_user(db: Session, email: str, password: str) -> tuple[User, str, int]:
 
 def revoke_session(db: Session, user_session: UserSession) -> None:
     user_session.revoked_at = utc_now()
+    db.commit()
+
+
+def request_password_reset(db: Session, email: str) -> tuple[str, str] | None:
+    """Emite un token de recuperación e invalida los anteriores. Devuelve (email, enlace) o None si no hay cuenta activa."""
+    now = utc_now()
+    user = db.scalar(select(User).where(User.email == normalize_email(email)))
+    if user is None or not user.is_active:
+        return None
+
+    db.execute(
+        update(PasswordResetToken)
+        .where(PasswordResetToken.user_id == user.id, PasswordResetToken.used_at.is_(None))
+        .values(used_at=now)
+    )
+    token, token_hash = generate_reset_token()
+    db.add(
+        PasswordResetToken(
+            user_id=user.id,
+            token_hash=token_hash,
+            expires_at=now + timedelta(minutes=PASSWORD_RESET_TOKEN_MINUTES),
+            created_at=now,
+        )
+    )
+    db.commit()
+    return user.email, f"{PASSWORD_RESET_URL}?token={token}"
+
+
+def reset_password(db: Session, token: str, new_password: str) -> None:
+    now = utc_now()
+    reset_token = db.scalar(select(PasswordResetToken).where(PasswordResetToken.token_hash == hash_reset_token(token)))
+    expires_at = reset_token.expires_at.replace(tzinfo=None) if reset_token is not None else None
+    if reset_token is None or reset_token.used_at is not None or expires_at <= now or not reset_token.user.is_active:
+        raise AuthError(status.HTTP_400_BAD_REQUEST, INVALID_RESET_TOKEN_MESSAGE)
+    error = password_policy_error(new_password)
+    if error:
+        raise AuthError(status.HTTP_400_BAD_REQUEST, error)
+
+    user = reset_token.user
+    user.password_hash = hash_password(new_password)
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    reset_token.used_at = now
+    db.execute(
+        update(UserSession)
+        .where(UserSession.user_id == user.id, UserSession.revoked_at.is_(None))
+        .values(revoked_at=now)
+    )
     db.commit()

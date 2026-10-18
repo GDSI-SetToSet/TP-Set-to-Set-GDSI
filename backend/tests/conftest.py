@@ -6,7 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 from backend.src.core.database import Base, get_db
 from backend.src.main import create_app
-from backend.src.models import User, UserSession  # noqa: F401
+from backend.src.models import PasswordResetToken, User, UserSession  # noqa: F401
 
 
 @pytest.fixture

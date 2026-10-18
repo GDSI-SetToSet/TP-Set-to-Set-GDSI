@@ -1,4 +1,6 @@
+import hashlib
 import re
+import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
@@ -43,6 +45,15 @@ def verify_password(password: str, password_hash: str) -> bool:
         return password_hasher.verify(password_hash, password)
     except (VerifyMismatchError, VerificationError, InvalidHashError):
         return False
+
+
+def hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def generate_reset_token() -> tuple[str, str]:
+    token = secrets.token_urlsafe(32)
+    return token, hash_reset_token(token)
 
 
 def create_access_token(user_id: str, role: str, jti: str, expires_at: datetime) -> str:

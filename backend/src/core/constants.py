@@ -19,3 +19,14 @@ PASSWORD_REQUIREMENTS_MESSAGE: Final = (
     "La contraseña debe tener entre 8 y 128 caracteres e incluir al menos una mayúscula, "
     "una minúscula y un número."
 )
+
+PASSWORD_RESET_REQUESTED_MESSAGE: Final = "Si el correo está registrado, recibirás un enlace de recuperación."
+PASSWORD_RESET_SUCCESS_MESSAGE: Final = "Tu contraseña se actualizó. Iniciá sesión con tu nueva contraseña."
+INVALID_RESET_TOKEN_MESSAGE: Final = "El enlace de recuperación no es válido o expiró. Solicitá uno nuevo."
+PASSWORD_RESET_EMAIL_SUBJECT: Final = "Restablecé tu contraseña de Set to Set"
+PASSWORD_RESET_EMAIL_BODY: Final = (
+    "Recibimos un pedido para restablecer tu contraseña.\n\n"
+    "Para definir una nueva, abrí este enlace dentro de los próximos {minutes} minutos:\n"
+    "{link}\n\n"
+    "Si no lo pediste, ignorá este correo: tu contraseña no va a cambiar."
+)
