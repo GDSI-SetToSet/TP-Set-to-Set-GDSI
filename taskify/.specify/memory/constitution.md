@@ -1,5 +1,8 @@
 <!--
 ### Sync Impact Report
+* Version change: 1.2.0 -> 1.3.0 (MINOR - flujo de integración develop -> main explícito)
+* Modified sections (1.3.0): Principio VII (ramas de trabajo con PR exclusivamente hacia `develop`; `main` se actualiza solo al cierre de sprint); Metodología paso 5.
+* Version 1.2.0 notes:
 * Version change: 1.1.0 -> 1.2.0 (MINOR - reglas de proceso tomadas de la metodología del corrector: entrega incremental, precedentes mergeados, DoR y DoD)
 * Added sections (1.2.0): Principio VII (Entrega Incremental y Precedentes Mergeados); Puertas de Gestión: Definition of Ready y Definition of Done. Principio VI y Metodología ajustados para que el gating aplique a `main` y `develop`.
 * Not adopted from the reference methodology (pending team decision): rama por story con commit por tarea, revisión obligatoria por otra persona, issues por tarea (/speckit-taskstoissues), cobertura 100% (se mantiene 90%).
@@ -65,6 +68,8 @@ La calidad del código es una condición de aceptación mandatoria y no negociab
 - **Precedentes mergeados (NON-NEGOTIABLE)**: antes de iniciar una story que depende de otra, todas las stories precedentes DEBEN estar revisadas y mergeadas en `develop`. Está prohibido desarrollar sobre ramas precedentes aún sin integrar.
 - **Rama al día**: toda rama de trabajo parte de `develop` actualizado (`git fetch` previo) y se actualiza con `develop` antes de abrir el PR.
 - **PR por incremento**: completado y verificado localmente el incremento, se abre el PR antes de comenzar la siguiente story.
+- **Destino de los PRs**: todo PR de una rama de trabajo DEBE apuntar a `develop`. Está prohibido abrir PRs de ramas de trabajo hacia `main`.
+- **Integración a `main` por sprint**: `main` solo se actualiza al cierre de cada sprint, mediante un único PR de `develop` hacia `main` abierto por un integrante designado por el equipo.
 
 ## Reglas de Dominio Transversales
 
@@ -92,7 +97,7 @@ El equipo adopta Spec-Driven Development (SDD) como marco de trabajo para asegur
 2. **Clarificación (`/speckit-clarify`)**: Detección y resolución temprana de ambigüedades o vacíos de alcance.
 3. **Planificación (`/speckit-plan`)**: Diseño técnico, definición de contratos, modelos de datos y validación de conformidad contra esta Constitución.
 4. **Descomposición en Tareas (`/speckit-tasks`)**: Desglose del plan en tareas atómicas, secuenciadas por dependencia y verificables.
-5. **Implementación Incremental (`/speckit-implement`)**: Desarrollo en ramas dedicadas (`feature/*`), pruebas automatizadas y Pull Requests obligatorios hacia `develop`, una user story por PR (Principio VII).
+5. **Implementación Incremental (`/speckit-implement`)**: Desarrollo en ramas dedicadas (`feature/*`), pruebas automatizadas y Pull Requests obligatorios hacia `develop`, una user story por PR (Principio VII). Al cierre del sprint, `develop` se integra a `main` con un único PR.
 
 ### Convenciones de Especificación
 - Los criterios de aceptación DEBEN escribirse con la estructura **Dado que [contexto] / Cuando [acción] / Entonces [resultado observable en interfaz o persistencia]**; no se aceptan escenarios narrativos.
@@ -143,4 +148,4 @@ Las siguientes definiciones técnicas y metodológicas quedan expresamente deleg
   - Actualización formal del archivo de constitución con incremento de versión según SemVer (MAJOR para modificaciones o eliminación de principios no negociables; MINOR para adición o expansión de secciones; PATCH para aclaraciones y correcciones no semánticas).
   - Actualización del correspondiente reporte de impacto (*Sync Impact Report*).
 
-**Version**: 1.2.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-10-17
+**Version**: 1.3.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-10-18
