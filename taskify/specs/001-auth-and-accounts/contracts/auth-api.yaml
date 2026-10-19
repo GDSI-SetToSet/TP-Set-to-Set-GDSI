@@ -2,7 +2,10 @@ openapi: 3.0.3
 info:
   title: Set to Set - Authentication API
   version: 1.0.0
-  description: Endpoints para registro, autenticación, gestión de sesión y recuperación de contraseña (US-01, US-38, US-75, US-76).
+  description: >-
+    Endpoints para registro, autenticación, gestión de sesión y recuperación de contraseña (US-01, US-38, US-75, US-76).
+    Todas las respuestas de error usan application/problem+json (RFC 7807, esquema ProblemDetails).
+    Los cuerpos que no pasan la validación de esquema devuelven 422 con el detalle por campo en errors[].
 
 paths:
   /api/v1/auth/register:
