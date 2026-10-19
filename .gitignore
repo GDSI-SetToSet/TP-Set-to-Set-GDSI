@@ -240,3 +240,6 @@ pnpm-debug.log*
 
 # Local editor and agent state
 .agy/
+
+# Bases SQLite locales (el backend las crea al iniciar)
+*.db
