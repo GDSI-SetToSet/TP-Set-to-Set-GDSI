@@ -14,24 +14,25 @@ Implementar el módulo de configuración de perfil profesional de entrenadores, 
 
 **Primary Dependencies**:
 - Backend: FastAPI, Pydantic v2, SQLAlchemy 2.0
-- Frontend: React 18, React Router v6, Tailwind CSS, Lucide React
+- Frontend: React 18, React Router v6, CSS modular por pantalla, Lucide React
 
 **Storage**: PostgreSQL 16 (producción/referencia) / SQLite (tests unitarios y CI)
 
-**Testing**: Pytest con `pytest-cov` ($\ge 90\%$) en backend; Jest / React Testing Library en frontend
+**Testing**: Pytest con `pytest-cov` ($\ge 90\%$) en backend; compilación TypeScript/Vite y recorrido manual en frontend
 
 **Target Platform**: Linux Server / Web responsive
 
 **Project Type**: Servicio web y frontend web application
 
 **Performance Goals**:
-- Consulta pública de perfil de entrenador < 100ms
+- Consulta autenticada de perfil publicado de entrenador < 100ms
 - Actualización de cupo y disponibilidad de paquetes < 150ms
 
 **Constraints**:
 - Rango de cupos permitidos: 0 a 100 (US-04). Valor por defecto: 0.
 - Rango de tarifas por paquete: 0 a 1.000.000 ARS (US-03). Moneda por defecto: ARS.
-- Campos obligatorios de perfil: contacto y especialidad (US-02); sin ellos el perfil queda en DRAFT (no visible). Teléfono: `+` opcional y 8 a 15 dígitos.
+- Campos obligatorios para publicar el perfil: nombre completo, contacto y especialidad (US-02). Se permiten guardados parciales en DRAFT; el perfil no es visible hasta completar los tres. Teléfono: `+` opcional y 8 a 15 dígitos.
+- Cualquier usuario autenticado puede consultar perfiles PUBLISHED; los perfiles DRAFT solo son accesibles por su entrenador propietario.
 - No retroactividad de tarifas: editar o archivar un paquete aplica solo a solicitudes futuras.
 - Errores de la API en formato RFC 7807 (Constitución v1.1.0).
 - Bloqueo de aceptación de solicitudes al tener cupos agotados (Decisión Alternativa A).
@@ -46,7 +47,7 @@ Implementar el módulo de configuración de perfil profesional de entrenadores, 
 |---|---|---|
 | I. Enfoque en el Usuario y Accesibilidad | PASSED | Formularios de edición con validaciones claras, badges de estado de cupos con alto contraste. |
 | II. IA Asistiva | N/A | No interactúa con IA. |
-| III. Privacidad y Datos de Salud | PASSED | Los datos del perfil del entrenador son de acceso público, no contienen datos médicos de alumnos. |
+| III. Privacidad y Datos de Salud | PASSED | Los datos del perfil no contienen datos médicos y los perfiles PUBLISHED requieren autenticación para su consulta. |
 | IV. Pagos Informales | PASSED | Define precios de referencia mensuales sin pasarela integrada. |
 | V. Gestión de Medios | N/A | No gestiona videos. |
 | VI. Calidad y Verificación Continua | PASSED | Pruebas de límites en cupos (0-100) y tarifas, cobertura $\ge 90\%$. |

@@ -17,7 +17,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/TrainerProfileResponse'
     put:
-      summary: Actualizar datos de perfil del entrenador
+      summary: Actualizar total o parcialmente el perfil del entrenador
       security:
         - BearerAuth: []
       requestBody:
@@ -33,7 +33,32 @@ paths:
               schema:
                 $ref: '#/components/schemas/TrainerProfileResponse'
         '422':
-          description: Datos inválidos (contacto o especialidad vacíos, teléfono con formato inválido)
+          description: Datos inválidos (cadena vacía, teléfono con formato inválido o intento de incompletar un perfil publicado)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/trainers/{trainer_id}/profile:
+    get:
+      summary: Consultar un perfil publicado como usuario autenticado
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: trainer_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainerProfileResponse'
+        '404':
+          description: Perfil inexistente o no publicado
           content:
             application/problem+json:
               schema:
@@ -117,10 +142,11 @@ components:
   schemas:
     TrainerProfileUpdateRequest:
       type: object
-      required: [full_name, contact_phone, specialty]
+      minProperties: 1
       properties:
         full_name:
           type: string
+          minLength: 1
         contact_phone:
           type: string
           pattern: '^\+?[0-9]{8,15}$'
@@ -144,6 +170,7 @@ components:
           format: uuid
         full_name:
           type: string
+          nullable: true
         contact_phone:
           type: string
           nullable: true

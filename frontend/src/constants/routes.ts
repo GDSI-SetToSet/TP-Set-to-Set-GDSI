@@ -9,6 +9,7 @@ export const ROUTES = {
   resetPassword: '/restablecer-contrasena',
   home: '/inicio',
   trainerHome: '/entrenador/inicio',
+  trainerProfile: '/entrenador/perfil',
   studentHome: '/alumno/inicio',
   fallback: '*',
 } as const;

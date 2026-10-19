@@ -44,6 +44,10 @@ def field_name(location: tuple[Any, ...]) -> str:
 
 
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    if isinstance(exc.detail, dict):
+        detail = exc.detail.get("detail", HTTPStatus(exc.status_code).phrase)
+        errors = exc.detail.get("errors")
+        return problem_response(request, exc.status_code, detail, headers=exc.headers, errors=errors)
     detail = exc.detail if isinstance(exc.detail, str) else HTTPStatus(exc.status_code).phrase
     return problem_response(request, exc.status_code, detail, headers=exc.headers)
 

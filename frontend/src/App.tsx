@@ -7,6 +7,7 @@ import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { TrainerProfileEditPage } from './pages/TrainerProfileEditPage';
 import type { UserRole } from './types/auth';
 
 function ProtectedRoute({ children, role }: { children: JSX.Element; role: UserRole }) {
@@ -33,6 +34,7 @@ export default function App() {
       <Route path={ROUTES.resetPassword} element={<ResetPasswordPage />} />
       <Route path={ROUTES.home} element={<HomeRedirect />} />
       <Route path={ROUTES.trainerHome} element={<ProtectedRoute role={USER_ROLES.trainer}><HomePage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerProfile} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerProfileEditPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentHome} element={<ProtectedRoute role={USER_ROLES.student}><HomePage /></ProtectedRoute>} />
       <Route path={ROUTES.fallback} element={<Navigate to={ROUTES.login} replace />} />
     </Routes>
