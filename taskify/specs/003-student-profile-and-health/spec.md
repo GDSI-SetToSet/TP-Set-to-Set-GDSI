@@ -12,23 +12,33 @@
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - [US-39: Carga y edición de datos de perfil del alumno] (Priority: P1, Estimación: 3 SP)
+### User Story 1 - [US-39: Carga y edición de datos de perfil del alumno] (Priority: Alta, Estimación: 3 SP)
 
-Como alumno con cuenta registrada, quiero cargar y editar mis datos personales (nombre, edad, contacto, foto), para que mi entrenador y la plataforma puedan identificarme y personalizar mi experiencia.
+Como alumno,
+quiero poder cargar y editar mis datos personales y de contacto,
+para completar mi perfil y que los entrenadores puedan conocerme.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para permitir la correcta identificación y contacto del alumno en el sistema.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y la correcta persistencia de los datos.
 
 **Acceptance Scenarios**:
 
-1. Dado un alumno que carga sus datos personales, cuando guarda los cambios, entonces quedan visibles en la sección ""Mi perfil"".
+1. Dado que el alumno se encuentra en la vista de edición de perfil.
+   Cuando completa los campos obligatorios (nombre, apellido, fecha de nacimiento y teléfono) con formatos válidos y presiona "Guardar".
+   Entonces el sistema actualiza la información, muestra un banner verde con el texto "Perfil guardado exitosamente" y redirige al usuario a la vista principal de búsqueda de entrenadores.
 
-2. Dado un alumno que no completó los datos obligatorios (nombre, apellido y contacto), cuando intenta continuar con la configuración inicial, entonces el sistema no le permite avanzar.
+2. Dado que el alumno intenta guardar los datos de su perfil.
+   Cuando deja un campo obligatorio vacío (ej. nombre).
+   Entonces el sistema deshabilita el botón "Guardar" y resalta el campo faltante en rojo con el texto "Este campo es obligatorio".
 
-3. Dado un alumno que edita los datos de su perfil, cuando guarda los cambios, entonces la aplicación muestra los datos actualizados y no los viejos.
+3. Dado que el alumno ingresa su teléfono de contacto.
+   Cuando ingresa un valor que contiene caracteres no numéricos o tiene una longitud menor a 10 dígitos y presiona "Guardar".
+   Entonces el sistema bloquea la acción y muestra debajo del campo el mensaje "El teléfono debe contener al menos 10 caracteres numéricos".
 
-4. Dado un alumno que deja en blanco algún dato obligatorio al editar su perfil, cuando intenta guardar, entonces el sistema no permite guardar los cambios hasta que se vuelva a completar.
+4. Dado que un alumno con perfil ya completo ingresa a modificar sus datos.
+   Cuando edita un campo opcional (ej. foto de perfil o biografía) y presiona "Guardar".
+   Entonces el sistema actualiza únicamente esa información, mantiene el estado activo de la cuenta y refleja los nuevos datos de forma inmediata en su perfil visible.
 
 
 ---
