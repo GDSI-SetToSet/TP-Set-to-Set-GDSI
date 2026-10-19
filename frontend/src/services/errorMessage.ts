@@ -1,7 +1,13 @@
 import axios from 'axios';
 
-interface ApiErrorResponse {
+/** Error de la API en formato RFC 7807 (application/problem+json). */
+interface ProblemDetails {
+  type?: string;
+  title?: string;
+  status?: number;
   detail?: unknown;
+  instance?: string;
+  errors?: { field: string; message: string }[];
 }
 
 export interface ApiErrorInfo {
@@ -11,7 +17,7 @@ export interface ApiErrorInfo {
 }
 
 export function getApiErrorInfo(error: unknown, fallback: string): ApiErrorInfo {
-  if (axios.isAxiosError<ApiErrorResponse>(error)) {
+  if (axios.isAxiosError<ProblemDetails>(error)) {
     const detail = error.response?.data?.detail;
     const retryAfterHeader = error.response?.headers?.['retry-after'];
     const retryAfterSeconds = Number(retryAfterHeader);

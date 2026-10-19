@@ -14,6 +14,8 @@ SECONDS_PER_DAY: Final = 24 * 60 * 60
 SECONDS_PER_MINUTE: Final = 60
 
 INVALID_CREDENTIALS_MESSAGE: Final = "Mail o contraseña incorrectos"
+VALIDATION_ERROR_MESSAGE: Final = "Los datos enviados no son válidos."
+INTERNAL_ERROR_MESSAGE: Final = "Ocurrió un error inesperado. Intentá de nuevo más tarde."
 LOCKED_ACCOUNT_MESSAGE: Final = "Se excedió el límite de intentos. Volvé a intentar en {minutes} minutos."
 PASSWORD_REQUIREMENTS_MESSAGE: Final = (
     "La contraseña debe tener entre 8 y 128 caracteres e incluir al menos una mayúscula, "

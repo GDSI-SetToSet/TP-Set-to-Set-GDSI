@@ -46,7 +46,7 @@ US-01, US-38 y US-75 ya están implementadas. Este incremento agrega la US-76 so
 - **Restablecimiento (FR-003, FR-011, FR-012)**: se valida primero el token (inexistente, usado, invalidado o vencido → 400 con un único mensaje que ofrece pedir otro enlace) y después la política de contraseña (400 con el mensaje de política, sin consumir el token). Si ambos son válidos, en una sola transacción: se actualiza el hash, se marca el token como usado, `failed_login_attempts = 0`, `locked_until = None` y se revocan todas las `UserSession` activas del usuario.
 - **Cuentas inexistentes o inactivas**: `forgot-password` responde siempre 200 con el mismo mensaje neutral y no envía correo; `reset-password` trata los tokens de cuentas inactivas como inválidos.
 - **Frontend**: páginas `ForgotPasswordPage` (`/olvide-mi-contrasena`) y `ResetPasswordPage` (`/restablecer-contrasena?token=...`), enlace "Olvidé mi contraseña" en el login y aviso de confirmación en el login después de restablecer (estado de navegación). Validación de política en el cliente reutilizando `meetsPasswordRequirements`.
-- **Formato de errores**: se mantiene el formato vigente (`{"detail": ...}`) por consistencia con el resto de los endpoints; ver Complexity Tracking.
+- **Formato de errores**: todos los endpoints responden errores RFC 7807 (`application/problem+json`) mediante handlers globales en `backend/src/api/errors.py`; los errores de validación devuelven 422 con `errors[]` (migración realizada en `chore/rfc7807-errors`, 2026-10-19).
 
 ## Constitution Check
 
@@ -122,4 +122,4 @@ frontend/
 
 | Violación | Por qué se necesita | Alternativa más simple rechazada porque |
 |---|---|---|
-| Errores con formato `{"detail": ...}` en lugar de RFC 7807 (Reglas de Dominio Transversales) | Mantener un único formato en todos los endpoints de auth mientras se migra | Implementar RFC 7807 solo en los endpoints nuevos dejaría dos formatos conviviendo; la migración global se hace en un cambio separado (clarificación 2026-10-18) |
+| Ninguna | N/A | N/A |

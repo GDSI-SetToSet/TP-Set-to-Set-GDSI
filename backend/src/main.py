@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.src.api.errors import register_exception_handlers
 from backend.src.api.v1.auth import router as auth_router
 from backend.src.core.config import API_TITLE, API_VERSION, CORS_ALLOWED_ORIGINS
 from backend.src.core.database import Base, engine
@@ -26,6 +27,7 @@ def create_app(create_tables: bool = True) -> FastAPI:
         allow_headers=["*"],
         expose_headers=["Retry-After"],
     )
+    register_exception_handlers(app)
     app.include_router(auth_router)
 
     @app.get("/health", tags=["health"])

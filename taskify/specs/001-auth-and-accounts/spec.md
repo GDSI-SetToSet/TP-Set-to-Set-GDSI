@@ -18,7 +18,7 @@
 - Q: ¿Qué pasa con las sesiones abiertas del usuario cuando restablece su contraseña? → A: Se revocan todas sus sesiones activas en todos los dispositivos.
 - Q: ¿Qué ve el usuario después de restablecer la contraseña con éxito? → A: Se lo redirige al inicio de sesión con un mensaje de confirmación y debe ingresar con la nueva contraseña.
 - Q: ¿Se limita cuántas veces se puede pedir un enlace de recuperación para el mismo mail? → A: Sin límite en el MVP; cada pedido emite un enlace nuevo e invalida los anteriores.
-- Q: ¿Los errores de los endpoints de recuperación se devuelven en formato RFC 7807? → A: Usan el formato de error vigente del backend; la migración de todos los endpoints a RFC 7807 se hace en un cambio aparte.
+- Q: ¿Los errores de los endpoints de recuperación se devuelven en formato RFC 7807? → A: Usan el formato de error vigente del backend; la migración de todos los endpoints a RFC 7807 se hace en un cambio aparte (realizada el 2026-10-19 en `chore/rfc7807-errors`).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -211,7 +211,5 @@ Como entrenador o alumno registrado,
 - No se requiere autenticación federada (OAuth/Google/Apple) en el alcance del MVP.
 
 - La limitación de frecuencia de solicitudes de recuperación queda fuera del alcance del MVP.
-
-- Los endpoints de recuperación usan el formato de error vigente del backend; la adopción de RFC 7807 en todos los endpoints se realiza en un cambio separado.
 
 
