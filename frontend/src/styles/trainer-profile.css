@@ -1,0 +1,67 @@
+.profile-shell {
+  min-height: 100vh;
+  padding: 32px max(24px, 7vw) 64px;
+  background: #f5f7f2;
+}
+
+.profile-header {
+  max-width: 880px;
+  margin: 0 auto 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.profile-back,
+.profile-save,
+.profile-cta {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 10px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.profile-back { color: #264c3c; padding: 0 12px; }
+.profile-status { padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.profile-status--draft { color: #6b4b00; background: #fff0bd; }
+.profile-status--published { color: #174b35; background: #d9f3df; }
+
+.profile-card {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: clamp(28px, 5vw, 52px);
+  border: 1px solid #dfe6dd;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 18px 55px rgba(38, 65, 51, .08);
+}
+
+.profile-heading > span { color: #397050; font: 700 11px 'Manrope'; letter-spacing: 1.4px; }
+.profile-heading h1 { margin: 10px 0 8px; color: #173a32; font: 700 clamp(30px, 5vw, 44px) 'Manrope'; letter-spacing: -1.5px; }
+.profile-heading p { margin: 0; color: #52665b; }
+.profile-form { margin-top: 38px; display: grid; gap: 22px; }
+.profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.profile-form label { display: grid; gap: 8px; color: #273d33; font-weight: 700; }
+.profile-form input,
+.profile-form textarea { width: 100%; border: 1px solid #cbd7cd; border-radius: 10px; padding: 12px 13px; color: #18251f; background: #fff; font: inherit; resize: vertical; }
+.profile-form input { min-height: 44px; }
+.profile-form input:focus,
+.profile-form textarea:focus { outline: 3px solid rgba(64, 121, 88, .18); border-color: #397050; }
+.profile-form [aria-invalid='true'] { border-color: #a22929; }
+.field-error { color: #8f2020; font-weight: 600; }
+.profile-success { display: flex; align-items: center; gap: 8px; color: #205b3e; }
+.profile-save { justify-self: start; border: 0; padding: 0 20px; background: #173a32; color: #fff; }
+.profile-save:disabled { opacity: .65; cursor: wait; }
+.profile-cta { margin-top: 22px; padding: 0 18px; background: #b9ed7b; color: #173a32; }
+
+@media (max-width: 680px) {
+  .profile-shell { padding: 20px 16px 40px; }
+  .profile-header { align-items: flex-start; }
+  .profile-grid { grid-template-columns: 1fr; }
+  .profile-save { width: 100%; }
+}

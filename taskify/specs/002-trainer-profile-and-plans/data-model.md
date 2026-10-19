@@ -12,7 +12,7 @@ Datos profesionales del entrenador asociados a su cuenta de usuario.
 |---|---|---|---|---|
 | `id` | UUID / String(36) | No | `uuid4()` | Identificador primario. |
 | `user_id` | UUID / String(36) | No | - | Clave foránea 1:1 referenciando a `User.id`. Índice único. |
-| `full_name` | String(150) | No | - | Nombre y apellido profesional. |
+| `full_name` | String(150) | Sí | `None` | Nombre y apellido profesional; obligatorio para publicar (US-02). |
 | `contact_phone` | String(50) | Sí | `None` | Teléfono / WhatsApp de contacto; obligatorio para publicar (US-02). Formato según Constitución: `+` opcional y 8 a 15 dígitos. |
 | `specialty` | String(100) | Sí | `None` | Especialidad principal; obligatoria para publicar (ej. Hipertrofia, Rehabilitación) (US-02). |
 | `status` | Enum(`DRAFT`, `PUBLISHED`) | No | `DRAFT` | `PUBLISHED` solo si `contact_phone` y `specialty` están cargados; `DRAFT` no es visible en búsquedas ni perfil público. |
@@ -41,7 +41,7 @@ Paquetes o planes de entrenamiento mensuales ofrecidos por el entrenador (US-03)
 
 - **Cupos**: `0 <= max_students <= 100`. Si no se especifica, por defecto es 0.
 - **Tarifa**: `0 <= monthly_price <= 1000000.00`.
-- **Campos Mandatorios**: `contact_phone` y `specialty` no pueden guardarse como cadenas vacías; mientras sean nulos el perfil permanece en `DRAFT`.
+- **Guardado parcial**: `full_name`, `contact_phone`, `specialty`, `bio` y `certifications` pueden actualizarse de forma parcial mientras el perfil permanece en `DRAFT`; los valores enviados no pueden ser cadenas vacías.
 - **Teléfono**: regex `^\+?[0-9]{8,15}$` (sin espacios ni guiones).
-- **Estado del perfil**: `status = PUBLISHED` si y solo si `contact_phone` y `specialty` no son nulos; se recalcula en cada guardado.
+- **Estado del perfil**: `status = PUBLISHED` si y solo si `full_name`, `contact_phone` y `specialty` no son nulos; se recalcula en cada guardado. Un perfil ya `PUBLISHED` rechaza actualizaciones que eliminen cualquiera de esos campos.
 - **No retroactividad**: editar `monthly_price` o archivar un `TrainingPlan` (`is_active = False`) no modifica el arancel acordado de vínculos activos; el vínculo conserva el precio vigente al momento de aceptarse.

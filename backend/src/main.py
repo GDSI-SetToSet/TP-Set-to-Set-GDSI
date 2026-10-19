@@ -6,9 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.src.api.errors import register_exception_handlers
 from backend.src.api.v1.auth import router as auth_router
+from backend.src.api.v1.trainers import router as trainers_router
 from backend.src.core.config import API_TITLE, API_VERSION, CORS_ALLOWED_ORIGINS
 from backend.src.core.database import Base, engine
-from backend.src.models import PasswordResetToken, User, UserSession  # noqa: F401
+from backend.src.models import PasswordResetToken, TrainerProfile, User, UserSession  # noqa: F401
 
 
 def create_app(create_tables: bool = True) -> FastAPI:
@@ -29,6 +30,7 @@ def create_app(create_tables: bool = True) -> FastAPI:
     )
     register_exception_handlers(app)
     app.include_router(auth_router)
+    app.include_router(trainers_router)
 
     @app.get("/health", tags=["health"])
     def health() -> dict[str, str]:

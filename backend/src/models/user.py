@@ -25,6 +25,9 @@ class User(Base):
 
     sessions: Mapped[list["UserSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     reset_tokens: Mapped[list["PasswordResetToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    trainer_profile: Mapped["TrainerProfile | None"] = relationship(  # noqa: F821
+        back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
 
 
 class UserSession(Base):

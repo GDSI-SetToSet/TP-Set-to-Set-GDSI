@@ -10,6 +10,13 @@
 
 **User Stories Cubiertas**: US-02, US-03, US-04
 
+## Clarifications
+
+### Session 2026-10-19
+
+- Q: ¿Un entrenador con perfil `DRAFT` puede guardar parcialmente biografía o certificaciones aunque todavía no haya completado contacto y especialidad? → A: Sí. Puede guardar avances parciales y el perfil permanece en `DRAFT` hasta completar los campos obligatorios para su publicación.
+- Q: ¿Quién puede consultar un perfil de entrenador `PUBLISHED`? → A: Cualquier usuario autenticado, sea alumno o entrenador.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-02: Carga y edición de datos de perfil del entrenador] (Priority: P1, Estimación: 4 SP)
@@ -26,15 +33,17 @@ Como entrenador con cuenta registrada,
 
 **Acceptance Scenarios**:
 
-1. Dado un entrenador con perfil completo (contacto y especialidad cargados), cuando el perfil queda guardado, entonces el perfil pasa a estado PUBLISHED y es visible para cualquier usuario que consulte al entrenador.
+1. Dado un entrenador con perfil completo (nombre, contacto y especialidad cargados), cuando el perfil queda guardado, entonces el perfil pasa a estado PUBLISHED y queda visible para cualquier usuario autenticado que consulte al entrenador.
 
 2. Dado un entrenador recién registrado sin contacto ni especialidad cargados, cuando consulta su propio perfil, entonces el perfil permanece en estado DRAFT, no aparece en las búsquedas ni en el perfil público, y el sistema muestra un aviso con los campos obligatorios pendientes (contacto y especialidad). El resto de la aplicación sigue disponible.
 
 3. Dado un entrenador con perfil PUBLISHED, cuando edita datos del perfil y guarda, entonces el sistema persiste los cambios y el perfil público y la vista de edición muestran de inmediato los valores guardados.
 
-4. Dado un entrenador que edita su perfil, cuando deja vacío el contacto o la especialidad y presiona "Guardar", entonces el sistema no guarda los cambios, resalta el campo vacío en rojo con el mensaje "Este campo es obligatorio" y el perfil conserva los últimos valores válidos y su estado.
+4. Dado un entrenador con perfil PUBLISHED que edita su perfil, cuando deja vacío el contacto o la especialidad y presiona "Guardar", entonces el sistema no guarda los cambios, resalta el campo vacío en rojo con el mensaje "Este campo es obligatorio" y el perfil conserva los últimos valores válidos y su estado.
 
 5. Dado un entrenador que ingresa un teléfono/WhatsApp con caracteres no numéricos o con menos de 8 o más de 15 dígitos, cuando presiona "Guardar", entonces el sistema no guarda los cambios y resalta el campo con el mensaje "Ingresá un teléfono válido de 8 a 15 dígitos (puede iniciar con +)".
+
+6. Dado un entrenador con perfil DRAFT, cuando guarda únicamente alguno de los campos opcionales sin completar contacto o especialidad, entonces el sistema conserva el avance y mantiene el perfil en estado DRAFT, sin publicarlo ni mostrarlo en búsquedas.
 
 
 ---
@@ -109,9 +118,11 @@ Como entrenador,
 
 ### Functional Requirements
 
-- **FR-001**: El sistema DEBE permitir al entrenador cargar y editar su biografía, especialidades, certificaciones y datos de contacto (US-02).
+- **FR-001**: El sistema DEBE permitir al entrenador cargar y editar su biografía, especialidad principal, certificaciones y datos de contacto (US-02).
 
-- **FR-002**: El sistema DEBE mantener el perfil en estado DRAFT (no visible en búsquedas ni como perfil público) hasta que estén cargados el contacto y la especialidad, y pasarlo a PUBLISHED al completarlos. El contacto debe cumplir el formato de teléfono/WhatsApp definido en la Constitución (US-02).
+- **FR-002**: El sistema DEBE permitir guardar avances parciales del perfil en estado DRAFT, sin mostrarlo en búsquedas ni como perfil público, hasta que estén cargados el nombre completo, el contacto y la especialidad; al completarlos debe pasarlo a PUBLISHED. Un perfil ya PUBLISHED no puede guardar una edición que elimine contacto o especialidad. El contacto debe cumplir el formato de teléfono/WhatsApp definido en la Constitución (US-02).
+
+- **FR-008**: El sistema DEBE permitir que cualquier usuario autenticado, alumno o entrenador, consulte un perfil de entrenador PUBLISHED, y DEBE impedir el acceso público a perfiles DRAFT (US-02).
 
 - **FR-003**: El sistema DEBE permitir al entrenador crear, editar y archivar paquetes de entrenamiento mensuales indicando título, descripción y tarifa (US-03). La edición de la tarifa o el archivado de un paquete aplica solo a solicitudes futuras y no modifica el arancel acordado de alumnos con vínculos activos.
 
@@ -143,7 +154,7 @@ Como entrenador,
 
 - **SC-002**: El bloqueo de solicitudes al agotarse los cupos ocurre de forma automática y estricta en el 100% de los casos.
 
-- **SC-003**: Ningún perfil sin contacto y especialidad válidos aparece en búsquedas ni como perfil público (permanece en DRAFT).
+- **SC-003**: Ningún perfil sin nombre completo, contacto y especialidad válidos aparece en búsquedas ni como perfil publicado (permanece en DRAFT).
 
 
 

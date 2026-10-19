@@ -10,19 +10,17 @@
 ## Escenario 1: Configuración de Perfil Obligatorio (US-02)
 
 ```bash
-# 1. Intentar actualizar perfil sin teléfono de contacto
+# 1. Guardar un avance parcial del perfil DRAFT
 curl -i -X PUT http://localhost:8000/api/v1/trainers/me/profile \
   -H "Authorization: Bearer $TRAINER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "full_name": "Lucas Entrenador",
-    "contact_phone": "",
-    "specialty": "Fuerza e Hipertrofia"
+    "bio": "Profesor de Educación Física con 10 años de experiencia."
   }'
 
-# Resultado esperado: HTTP 422 (application/problem+json, RFC 7807) con errors[] indicando contact_phone obligatorio; el perfil conserva sus últimos valores válidos.
+# Resultado esperado: HTTP 200 OK con la biografía persistida y status="DRAFT".
 
-# 2. Actualizar perfil con todos los campos válidos
+# 2. Completar los campos obligatorios y publicar el perfil
 curl -i -X PUT http://localhost:8000/api/v1/trainers/me/profile \
   -H "Authorization: Bearer $TRAINER_TOKEN" \
   -H "Content-Type: application/json" \
@@ -35,6 +33,12 @@ curl -i -X PUT http://localhost:8000/api/v1/trainers/me/profile \
   }'
 
 # Resultado esperado: HTTP 200 OK con el perfil persistido y status="PUBLISHED".
+
+# 3. Consultar el perfil publicado con otro usuario autenticado
+curl -i http://localhost:8000/api/v1/trainers/$TRAINER_ID/profile \
+  -H "Authorization: Bearer $OTHER_USER_TOKEN"
+
+# Resultado esperado: HTTP 200 OK. Sin token, o si el perfil sigue DRAFT, la consulta no expone el perfil.
 ```
 
 ## Escenario 2: Publicar Paquetes y Validación de Tarifas (US-03)
