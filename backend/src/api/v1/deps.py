@@ -9,9 +9,14 @@ from sqlalchemy.orm import Session
 from backend.src.core.database import get_db
 from backend.src.core.security import decode_access_token
 from backend.src.models.user import User, UserSession
+from backend.src.services.email_service import EmailSender, build_email_sender
 
 bearer_scheme = HTTPBearer(auto_error=False)
 DbDep = Annotated[Session, Depends(get_db)]
+
+
+def get_email_sender() -> EmailSender:
+    return build_email_sender()
 
 
 def get_current_session(

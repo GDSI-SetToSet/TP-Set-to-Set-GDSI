@@ -10,6 +10,16 @@
 
 **User Stories Cubiertas**: US-01, US-38, US-75, US-76
 
+## Clarifications
+
+### Session 2026-10-18
+
+- Q: ¿Cómo se envía el mail con el enlace de recuperación? → A: Mediante un canal de envío de correo intercambiable: en desarrollo y pruebas el enlace se registra en el log del backend; en producción se envía por SMTP configurable.
+- Q: ¿Qué pasa con las sesiones abiertas del usuario cuando restablece su contraseña? → A: Se revocan todas sus sesiones activas en todos los dispositivos.
+- Q: ¿Qué ve el usuario después de restablecer la contraseña con éxito? → A: Se lo redirige al inicio de sesión con un mensaje de confirmación y debe ingresar con la nueva contraseña.
+- Q: ¿Se limita cuántas veces se puede pedir un enlace de recuperación para el mismo mail? → A: Sin límite en el MVP; cada pedido emite un enlace nuevo e invalida los anteriores.
+- Q: ¿Los errores de los endpoints de recuperación se devuelven en formato RFC 7807? → A: Usan el formato de error vigente del backend; la migración de todos los endpoints a RFC 7807 se hace en un cambio aparte.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-01: Registro del entrenador con mail y contraseña] (Priority: P1, Estimación: 3 SP)
@@ -103,11 +113,15 @@ Como entrenador o alumno registrado,
 
 3. Dado un enlace de recuperación, cuando pasó más de 1 hora o ya fue utilizado, entonces el sistema no permite usarlo y ofrece solicitar uno nuevo.
 
+4. Dado un usuario que define una nueva contraseña, cuando no cumple la política de US-01/US-38 (8 caracteres, mayúscula, minúscula y número), entonces el sistema no la guarda y le pide intentarlo nuevamente.
+
 5. Dado un usuario que solicitó varios enlaces de recuperación seguidos, cuando usa un enlace que no es el último emitido, entonces el sistema lo rechaza por invalidado y ofrece solicitar uno nuevo; solo el último enlace emitido es válido.
 
 6. Dado un usuario con la cuenta bloqueada por 5 intentos fallidos, cuando restablece su contraseña con un enlace válido, entonces el bloqueo se remueve de inmediato, el contador de intentos fallidos vuelve a cero y puede iniciar sesión con la nueva contraseña sin esperar los 15 minutos.
 
-4. Dado un usuario que define una nueva contraseña, cuando no cumple la política de US-01/US-38 (8 caracteres, mayúscula, minúscula y número), entonces el sistema no la guarda y le pide intentarlo nuevamente.
+7. Dado un usuario que define una nueva contraseña válida con un enlace vigente, cuando confirma el cambio, entonces la contraseña se actualiza, el sistema lo redirige al inicio de sesión con un mensaje de confirmación y la contraseña anterior deja de funcionar.
+
+8. Dado un usuario con sesiones iniciadas en uno o más dispositivos, cuando restablece su contraseña, entonces todas esas sesiones quedan cerradas y debe iniciar sesión nuevamente en cada dispositivo.
 
 
 ---
@@ -125,6 +139,10 @@ Como entrenador o alumno registrado,
 - ¿Qué ocurre si se solicitan múltiples enlaces de recuperación seguidos? Cada nuevo enlace invalida todos los anteriores del mismo usuario; solo el último emitido puede usarse.
 
 - ¿Qué ocurre si un usuario bloqueado por intentos fallidos restablece su contraseña con éxito? El restablecimiento remueve inmediatamente el bloqueo temporal de 15 minutos y reinicia el contador de intentos fallidos.
+
+- ¿Qué ocurre con las sesiones abiertas cuando se restablece la contraseña? Se cierran todas, en todos los dispositivos del usuario.
+
+- ¿Qué ocurre si se solicita la recuperación muchas veces para el mismo mail? En el MVP no hay límite de solicitudes; cada una invalida los enlaces anteriores y se responde siempre el mismo mensaje neutral.
 
 
 
@@ -153,6 +171,10 @@ Como entrenador o alumno registrado,
 - **FR-010**: El sistema DEBE limitar la validez de los enlaces de recuperación a un máximo de 1 hora y a un único uso, e invalidar los enlaces previos de un usuario cada vez que se emite uno nuevo (US-76).
 
 - **FR-011**: El sistema DEBE remover el bloqueo temporal de la cuenta y reiniciar el contador de intentos fallidos al completarse un restablecimiento de contraseña exitoso (US-76, US-75).
+
+- **FR-012**: El sistema DEBE cerrar todas las sesiones activas del usuario al completarse un restablecimiento de contraseña exitoso y redirigirlo al inicio de sesión con un mensaje de confirmación (US-76).
+
+- **FR-013**: El envío del enlace de recuperación DEBE realizarse a través de un canal de correo intercambiable: en desarrollo y pruebas el enlace queda registrado en el log del backend; en producción se envía por correo electrónico (US-76).
 
 
 
@@ -187,5 +209,9 @@ Como entrenador o alumno registrado,
 - La persistencia de sesión mantiene al usuario conectado entre aperturas de la app hasta que este seleccione explícitamente cerrar sesión.
 
 - No se requiere autenticación federada (OAuth/Google/Apple) en el alcance del MVP.
+
+- La limitación de frecuencia de solicitudes de recuperación queda fuera del alcance del MVP.
+
+- Los endpoints de recuperación usan el formato de error vigente del backend; la adopción de RFC 7807 en todos los endpoints se realiza en un cambio separado.
 
 

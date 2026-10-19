@@ -1,9 +1,9 @@
 import { ArrowRight, Mail } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthLayout } from '../components/AuthLayout';
 import { PasswordInput } from '../components/PasswordInput';
-import { INVALID_CREDENTIALS_MESSAGE, LOGIN_LOCKOUT_MESSAGE, LOGIN_LOCKOUT_SECONDS } from '../constants/auth';
+import { INVALID_CREDENTIALS_MESSAGE, LOGIN_LOCKOUT_MESSAGE, LOGIN_LOCKOUT_SECONDS, PASSWORD_RESET_SUCCESS_MESSAGE } from '../constants/auth';
 import { ROUTES, homePath } from '../constants/routes';
 import { useAuth } from '../context/AuthContext';
 import { getApiErrorInfo } from '../services/errorMessage';
@@ -18,6 +18,8 @@ function formatLockoutDuration(seconds: number): string {
 export function LoginPage() {
   const { user, login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const passwordWasReset = (location.state as { passwordReset?: boolean } | null)?.passwordReset === true;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -53,12 +55,14 @@ export function LoginPage() {
 
   return (
     <AuthLayout eyebrow="QUÉ BUENO VERTE" title="Iniciá sesión" subtitle="Entrá a tu espacio y seguí con tu próximo objetivo.">
+      {passwordWasReset && !formError && <div className="form-alert form-alert--success auth-form-notice" role="status">{PASSWORD_RESET_SUCCESS_MESSAGE}</div>}
       <form className="auth-form" onSubmit={handleSubmit} noValidate>
         <div className="field">
           <label htmlFor="login-email">Email</label>
           <div className="input-wrap"><Mail size={18} className="input-icon" /><input id="login-email" name="email" type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(''); }} placeholder="nombre@ejemplo.com" autoComplete="email" required /></div>
         </div>
         <PasswordInput id="login-password" value={password} onChange={setPassword} autoComplete="current-password" />
+        <Link className="forgot-password-link" to={ROUTES.forgotPassword}>Olvidé mi contraseña</Link>
         {formError && <div className="form-alert auth-form-alert" role="alert">{formError}</div>}
         <button className="submit-button" type="submit" disabled={busy || isLocked}>
           {isLocked ? `Reintentar en ${formatLockoutDuration(remainingSeconds)}` : busy ? 'Ingresando…' : 'Iniciar sesión'}

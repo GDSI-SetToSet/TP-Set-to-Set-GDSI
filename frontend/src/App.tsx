@@ -2,9 +2,11 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { USER_ROLES } from './constants/auth';
 import { ROUTES, homePath } from './constants/routes';
 import { useAuth } from './context/AuthContext';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import type { UserRole } from './types/auth';
 
 function ProtectedRoute({ children, role }: { children: JSX.Element; role: UserRole }) {
@@ -27,6 +29,8 @@ export default function App() {
       <Route path={ROUTES.root} element={<Navigate to={ROUTES.login} replace />} />
       <Route path={ROUTES.login} element={<LoginPage />} />
       <Route path={ROUTES.register} element={<RegisterPage />} />
+      <Route path={ROUTES.forgotPassword} element={<ForgotPasswordPage />} />
+      <Route path={ROUTES.resetPassword} element={<ResetPasswordPage />} />
       <Route path={ROUTES.home} element={<HomeRedirect />} />
       <Route path={ROUTES.trainerHome} element={<ProtectedRoute role={USER_ROLES.trainer}><HomePage /></ProtectedRoute>} />
       <Route path={ROUTES.studentHome} element={<ProtectedRoute role={USER_ROLES.student}><HomePage /></ProtectedRoute>} />

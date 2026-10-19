@@ -70,6 +70,10 @@ npm run dev
 
 Abrí `http://localhost:5173`. Se puede crear una cuenta como alumno o entrenador; el registro inicia la sesión y muestra la pantalla correspondiente al rol. Las rutas internas requieren una sesión válida.
 
+### Recuperación de contraseña
+
+Por defecto (`EMAIL_BACKEND=console`) el backend no envía correos: el enlace de recuperación se escribe en el log de `uvicorn`. Para enviarlo por correo, configurar en `backend/.env` `EMAIL_BACKEND=smtp` junto con `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_USE_TLS` y `EMAIL_FROM`. `PASSWORD_RESET_URL` define la pantalla del frontend a la que apunta el enlace.
+
 ### Pruebas
 
 Desde la raíz del repositorio (con .venv activado):

@@ -23,3 +23,18 @@ JWT_ALGORITHM = "HS256"
 SESSION_DAYS = 30
 MAX_FAILED_LOGINS = 5
 LOCKOUT_MINUTES = 15
+
+PASSWORD_RESET_TOKEN_MINUTES = 60
+PASSWORD_RESET_URL = os.getenv("PASSWORD_RESET_URL", "http://localhost:5173/restablecer-contrasena")
+
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "console").strip().lower()
+if EMAIL_BACKEND not in ("console", "smtp"):
+    raise RuntimeError("EMAIL_BACKEND debe ser 'console' o 'smtp'.")
+EMAIL_FROM = os.getenv("EMAIL_FROM", "Set to Set <no-reply@settoset.local>")
+SMTP_HOST = os.getenv("SMTP_HOST")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").strip().lower() == "true"
+if EMAIL_BACKEND == "smtp" and not SMTP_HOST:
+    raise RuntimeError("SMTP_HOST debe configurarse cuando EMAIL_BACKEND es 'smtp'.")

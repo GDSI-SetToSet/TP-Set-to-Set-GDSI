@@ -1,22 +1,39 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
-from backend.src.api.v1.deps import DbDep, get_current_session, get_current_user
-from backend.src.core.config import API_V1_PREFIX
+from backend.src.api.v1.deps import (
+    DbDep,
+    get_current_session,
+    get_current_user,
+    get_email_sender,
+)
+from backend.src.core.config import API_V1_PREFIX, PASSWORD_RESET_TOKEN_MINUTES
+from backend.src.core.constants import (
+    PASSWORD_RESET_EMAIL_BODY,
+    PASSWORD_RESET_EMAIL_SUBJECT,
+    PASSWORD_RESET_REQUESTED_MESSAGE,
+    PASSWORD_RESET_SUCCESS_MESSAGE,
+)
 from backend.src.models.user import User, UserSession
 from backend.src.schemas.auth import (
     AuthTokenResponse,
+    ForgotPasswordRequest,
     LoginRequest,
+    MessageResponse,
     RegisterRequest,
+    ResetPasswordRequest,
     UserResponse,
 )
 from backend.src.services.auth_service import (
     AuthError,
     login_user,
     register_user,
+    request_password_reset,
+    reset_password,
     revoke_session,
 )
+from backend.src.services.email_service import EmailSender
 
 router = APIRouter(prefix=f"{API_V1_PREFIX}/auth", tags=["authentication"])
 
@@ -49,6 +66,30 @@ def logout(session_data: Annotated[tuple[User, UserSession], Depends(get_current
     _, user_session = session_data
     revoke_session(db, user_session)
     return {"message": "Sesión cerrada correctamente."}
+
+
+@router.post("/forgot-password", response_model=MessageResponse)
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    db: DbDep,
+    background_tasks: BackgroundTasks,
+    email_sender: Annotated[EmailSender, Depends(get_email_sender)],
+) -> MessageResponse:
+    reset_request = request_password_reset(db, str(payload.email))
+    if reset_request is not None:
+        email, link = reset_request
+        body = PASSWORD_RESET_EMAIL_BODY.format(link=link, minutes=PASSWORD_RESET_TOKEN_MINUTES)
+        background_tasks.add_task(email_sender.send, email, PASSWORD_RESET_EMAIL_SUBJECT, body)
+    return MessageResponse(message=PASSWORD_RESET_REQUESTED_MESSAGE)
+
+
+@router.post("/reset-password", response_model=MessageResponse)
+def reset_password_endpoint(payload: ResetPasswordRequest, db: DbDep) -> MessageResponse:
+    try:
+        reset_password(db, payload.token, payload.new_password)
+    except AuthError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    return MessageResponse(message=PASSWORD_RESET_SUCCESS_MESSAGE)
 
 
 @router.get("/me", response_model=UserResponse)

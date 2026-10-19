@@ -20,7 +20,18 @@ Representa la cuenta de acceso de cualquier persona registrada en la plataforma 
 | `created_at` | DateTime (UTC) | No | `utcnow()` | Fecha y hora de creación de la cuenta. |
 | `updated_at` | DateTime (UTC) | No | `utcnow()` | Fecha y hora de última modificación. |
 
-### 2. `PasswordResetToken`
+### 2. `UserSession`
+Sesión emitida en cada inicio de sesión exitoso (US-75).
+
+| Campo | Tipo | Nulo | Por Defecto | Descripción |
+|---|---|---|---|---|
+| `id` | UUID / String(36) | No | `uuid4()` | Identificador primario. |
+| `user_id` | UUID / String(36) | No | - | Clave foránea referenciando a `User.id` con eliminación en cascada. |
+| `jti` | String(36) | No | - | Identificador único del JWT emitido. Restricción de unicidad. |
+| `expires_at` | DateTime (UTC) | No | - | Fecha de expiración de la sesión. |
+| `revoked_at` | DateTime (UTC) | Sí | `None` | Fecha de revocación por cierre de sesión o restablecimiento de contraseña. |
+
+### 3. `PasswordResetToken`
 Tokens emitidos para el restablecimiento de contraseñas olvidadas (US-76).
 
 | Campo | Tipo | Nulo | Por Defecto | Descripción |
@@ -46,7 +57,8 @@ Tokens emitidos para el restablecimiento de contraseñas olvidadas (US-76).
    - Si `locked_until > now()`: se deniega el acceso sin validar la contraseña.
    - Al pasar exitosamente la autenticación: `failed_login_attempts = 0` y `locked_until = None`.
    - Al completarse un restablecimiento de contraseña exitoso: `failed_login_attempts = 0` y `locked_until = None`.
-4. **Tokens de Recuperación**: al emitir un token nuevo para un usuario, se marcan como invalidados (`used_at = now()`) todos sus tokens previos aún vigentes; solo el último emitido es utilizable.
+4. **Tokens de Recuperación**: al emitir un token nuevo para un usuario, se marcan como invalidados (`used_at = now()`) todos sus tokens previos aún vigentes; solo el último emitido es utilizable. Un token es válido solo si existe, `used_at` es nulo, `expires_at > now()` y su usuario está activo.
+5. **Restablecimiento exitoso**: actualiza `password_hash`, marca el token con `used_at = now()` y revoca (`revoked_at = now()`) todas las `UserSession` activas del usuario, en la misma transacción.
 
 ## Diagrama de Estados de Cuenta
 
