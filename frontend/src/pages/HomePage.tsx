@@ -29,7 +29,8 @@ export function HomePage() {
         <h1>{greeting}</h1>
         <p>Ingresaste como <strong>{user?.email}</strong>.</p>
         <div className="role-badge">{user?.role === USER_ROLES.trainer ? 'Entrenador/a' : 'Alumno/a'}</div>
-        {user?.role === USER_ROLES.trainer && <Link className="profile-cta" to={ROUTES.trainerProfile}>Completar mi perfil</Link>}
+        {user?.role === USER_ROLES.trainer && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerProfile}>Completar mi perfil</Link>}
+        {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentProfile}>Completar mi perfil</Link>}
         {error && <p className="form-alert" role="alert">{error}</p>}
         <div className="welcome-next"><span>Este es el primer paso de Set to Set.</span><Dumbbell size={18} /></div>
       </section>
