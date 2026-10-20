@@ -43,7 +43,13 @@ curl -i -X POST http://localhost:8000/api/v1/students/me/health-questionnaire \
     "other_medical_conditions": "Tendinitis rotuliana leve en pierna izquierda"
   }'
 
-# Resultado esperado: HTTP 200 OK con respuestas registradas.
+# Resultado esperado: HTTP 201 Created con status="CURRENT" y has_risk_answers=true (hay un "Sí").
+# Variantes:
+#  - omitir cualquiera de las 5 preguntas -> 422 (no se asume "No").
+#  - reenviar con otras respuestas -> 201; GET /students/me/health-questionnaire devuelve solo la nueva versión.
+#  - GET /api/v1/students/me/profile -> health_questionnaire_completed=true (false antes del primer envío).
+#  - GET /api/v1/students/<STUDENT_ID>/health-questionnaire con $UNAUTHORIZED_TRAINER_TOKEN -> 403; con $TRAINER_TOKEN -> 403 hasta la spec 004 (stub de acceso), 200 después.
+#  - La validación require_health_questionnaire (consumida por las specs 004 y 006) responde 403 mientras el indicador sea false.
 ```
 
 ## Escenario 2: Carga y Consulta Protegida de Apto Médico (US-43, Principio III)

@@ -1,15 +1,15 @@
-# Tasks: Perfil del Alumno, Cuestionario de Salud y Apto Médico (alcance: US-39 ajuste + US-40)
+# Tasks: Perfil del Alumno, Cuestionario de Salud y Apto Médico (alcance: US-39 ajuste + US-40 + US-41)
 
-**Input**: `specs/003-student-profile-and-health/` (plan.md, spec.md, data-model.md, research.md §4, contracts/student-health-api.yaml, quickstart.md)
+**Input**: `specs/003-student-profile-and-health/` (plan.md, spec.md, data-model.md, research.md §4-5, contracts/student-health-api.yaml, quickstart.md)
 
-**Alcance de este tasks.md**: ajuste de US-39 (nombre/apellido) y US-40 completa, según las clarificaciones del 2026-10-20. US-41, US-42 y US-43 no se incluyen; se generan en una corrida posterior.
+**Alcance de este tasks.md**: ajuste de US-39 (nombre/apellido) y US-40 completa, según las clarificaciones del 2026-10-20. Se agrega US-41 (cuestionario de salud, clarificaciones del 2026-10-21; T013–T022). US-42 y US-43 no se incluyen; se generan en una corrida posterior. T001–T012 (US-39/US-40) ya están implementadas y mergeadas (PR #10).
 
 **Estado previo**: ya existen `StudentProfile` (con `full_name`), `GET/PUT /students/me/profile`, `StudentProfileEditPage.tsx` y `backend/tests/test_student_api.py`. El esquema se crea con `Base.metadata.create_all` (no hay Alembic): ver T001.
 
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: paralelizable (archivos distintos, sin dependencias pendientes)
-- **[US1]** = US-39 (ajuste de nombre/teléfono), **[US2]** = US-40 (objetivos y onboarding)
+- **[US1]** = US-39 (ajuste de nombre/teléfono), **[US2]** = US-40 (objetivos y onboarding), **[US3]** = US-41 (cuestionario de salud)
 
 ---
 
@@ -52,17 +52,40 @@
 
 ---
 
+## Phase 4: User Story 3 — Cuestionario de salud (US-41, P1)
+
+**Goal**: el alumno completa un cuestionario de salud de 5 preguntas Sí/No; cada envío crea una versión vigente; el perfil expone si está completo; existe una validación reutilizable para las specs 004 y 006; el entrenador autorizado lee solo la versión vigente con aviso de riesgo.
+**Independent Test**: `quickstart.md` Escenario 1, paso 2 (201 con `CURRENT`; pregunta omitida → 422; reenvío deja una sola `CURRENT`; `health_questionnaire_completed` pasa a `true`).
+
+- [X] T013 [US3] Crear `backend/src/models/health_questionnaire.py` con `HealthQuestionnaire` (tabla `health_questionnaires`) y exportarlo en `backend/src/models/__init__.py`. Campos según `data-model.md` §2: `id` String(36) PK default `new_id`; `student_id` FK a `student_profiles.id` (String(36), no nulo, índice, 1:N); `status` String(16) no nulo default `CURRENT` (`CURRENT` o `ARCHIVED`); `has_heart_condition`, `has_chest_pain_activity`, `has_dizziness_or_balance_loss`, `has_bone_joint_problem`, `takes_prescription_meds` Boolean no nulos **sin valor por defecto** (respuesta explícita obligatoria); `other_medical_conditions` Text nulo; `completed_at` DateTime no nulo (fecha de creación de la versión). Sin campos de objetivos.
+- [X] T014 [P] [US3] Crear `backend/src/schemas/student_health.py`: `HealthQuestionnaireInput` con las 5 preguntas como `bool` **requeridas** (omitida → 422, no se asume "No"; `null` también 422) y `other_medical_conditions: str | None = None`; `HealthQuestionnaireResponse` con `id`, las 5 preguntas, `other_medical_conditions`, `status`, `has_risk_answers` (derivado: alguna de las 5 en `true`) y `completed_at`. Mensajes de error en inglés, como el resto del backend.
+- [X] T015 [US3] Tests en `backend/tests/test_student_health_api.py` (reutilizar fixtures de `conftest.py`): (a) POST con las 5 respuestas → 201, `status == "CURRENT"`, `has_risk_answers` correcto (true con algún Sí, false con todos No); (b) omitir cualquiera de las 5 → 422, y `null` → 422; (c) sin `other_medical_conditions` → 201; (d) segundo POST → 201 y `GET /students/me/health-questionnaire` devuelve solo la nueva, con una única fila `CURRENT` y la anterior `ARCHIVED` en base; (e) GET propio sin cuestionario → 404; (f) `GET /students/me/profile` devuelve `health_questionnaire_completed` `false` antes y `true` después; (g) rol TRAINER en `/students/me/health-questionnaire` → 403; (h) `GET /students/{student_profile_id}/health-questionnaire`: propio alumno → 200, otro alumno → 403, entrenador sin relación → 403 (stub), alumno inexistente → 404; (i) `require_health_questionnaire` lanza `StudentProfileError` 403 sin cuestionario y no lanza con `CURRENT`.
+- [X] T016 [US3] En `backend/src/services/student_service.py` agregar: `save_health_questionnaire(db, user, payload)` (exige alumno; en una sola transacción pasa la `CURRENT` previa a `ARCHIVED` e inserta la nueva `CURRENT`); `get_current_questionnaire(db, profile)` (404 si no hay); `is_questionnaire_completed(profile)` (existe fila `CURRENT`); `require_health_questionnaire(db, profile)` que lanza `StudentProfileError(403, "You must complete the health questionnaire first.")` si falta (reutilizable por las specs 004 y 006); y `get_questionnaire_for_viewer(db, viewer, student_profile_id)` con la misma regla de acceso que `get_goals_for_viewer` (propio alumno, o entrenador vía `trainer_has_access`; si no, 403; inexistente 404). Nunca devolver filas `ARCHIVED`.
+- [X] T017 [US3] En `backend/src/api/v1/students.py` agregar `GET` y `POST /students/me/health-questionnaire` (POST responde 201) y `GET /students/{student_id}/health-questionnaire` (`student_id` = `StudentProfile.id`), usando `handle_error` como los endpoints existentes. Declarar `/me/health-questionnaire` antes de `/{student_id}/...` para que `me` no se interprete como id.
+- [X] T018 [US3] Agregar `health_questionnaire_completed: bool` a `StudentProfileResponse` (`backend/src/schemas/student.py`) y poblarlo en `profile_response` de `backend/src/api/v1/students.py` con `is_questionnaire_completed` (derivado, no es columna). Ajustar los tests existentes de `backend/tests/test_student_api.py` que comparan la respuesta del perfil si hace falta.
+- [X] T019 [P] [US3] Frontend: crear `frontend/src/services/studentHealthService.ts` (`getOwnHealthQuestionnaire`, `saveHealthQuestionnaire` con `api.ts`) y tipos `HealthQuestionnaire`/`HealthQuestionnaireInput` en `frontend/src/types/student.ts`; agregar `health_questionnaire_completed: boolean` a `StudentProfile`.
+- [X] T020 [US3] Frontend: crear `frontend/src/pages/HealthQuestionnairePage.tsx` con las 5 preguntas como grupos Sí/No **sin opción preseleccionada** (radios con `<fieldset>`/`<legend>`), campo opcional "Otras condiciones médicas", envío deshabilitado hasta responder las 5 y mensaje "Respondé todas las preguntas" resaltado en rojo; precargar la versión vigente si existe; tras guardar, mostrar confirmación. Sin sección de objetivos. Registrar la ruta `studentHealth: '/alumno/salud'` en `frontend/src/constants/routes.ts` y en `frontend/src/App.tsx` (rol alumno) y enlazarla siempre desde `HomePage.tsx` para el alumno (sin consultar el perfil extra; la página precarga la versión vigente). *(Desviación: el enlace no depende de `health_questionnaire_completed`.)*
+- [X] T021 [US3] Validar que `cd frontend && npm run build` pasa y que el Escenario 1 paso 2 de `quickstart.md` queda cubierto por los tests de T015. *(Hecho: build ok; el recorrido manual con curl no se ejecutó, los casos están cubiertos por tests.)*
+- [X] T022 [US3] Correr `ruff check backend` y `python -m pytest backend/tests --cov=backend/src --cov-fail-under=90` (Principio VI) y corregir lo que falle.
+
+**Checkpoint**: US-41 completa; el acceso de entrenadores sigue pendiente de la spec 004 (`trainer_has_access` stub) y la aplicación de `require_health_questionnaire` en enviar solicitud (spec 004) y acceder a rutina (spec 006).
+
+---
+
 ## Dependencies & Execution Order
 
 - T001 → T003 → (T004, T005) y (T007, T008); T002 antes de T003.
 - US1 y US2 comparten `student_service.py` y `test_student_api.py`: ejecutar T004/T005 antes de T007/T008. Frontend T006 y T011 tocan la misma página: T006 primero.
 - T009 → T010. T012 al final.
+- US-41: T013 → T016 → T017; T014 antes de T016; T015 (tests) antes de T016/T017; T018 después de T016; T019 → T020; T021 y T022 al final. T016, T017 y T018 tocan `student_service.py`/`students.py`: secuenciales.
 
 ## Parallel Opportunities
 
+- T014 y T019 (archivos nuevos, sin dependencias) junto a T013; T015 en paralelo con T019/T020.
 - T002 junto a T001. T006 (frontend) junto a T004/T005. T007, T009 y T011 son paralelizables entre sí tras T003.
 
 ## Implementation Strategy
 
 1. MVP: Foundational + US1 (T001–T006), luego US2 (T007–T012).
-2. Pendiente fuera de alcance: reemplazar el stub de `trainer_has_access` cuando exista la spec 004; US-41–43 en otro `/speckit-tasks`.
+2. US-41 (T013–T022) en rama `feature/us41`: modelo y schemas, tests, servicio y endpoints, indicador en el perfil y luego frontend.
+3. Pendiente fuera de alcance: reemplazar el stub de `trainer_has_access` y aplicar `require_health_questionnaire` al enviar solicitud (spec 004) y acceder a rutina (spec 006); US-42 y US-43 en otro `/speckit-tasks`.

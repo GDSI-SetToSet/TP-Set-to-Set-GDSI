@@ -1,12 +1,15 @@
 from datetime import UTC, datetime
 
 from fastapi import status
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
+from backend.src.models.health_questionnaire import HealthQuestionnaire
 from backend.src.models.student_profile import StudentProfile
 from backend.src.models.user import User
 from backend.src.schemas.student import StudentProfileUpdate
+from backend.src.schemas.student_health import HealthQuestionnaireInput
 
 
 class StudentProfileError(Exception):
@@ -87,3 +90,51 @@ def get_goals_for_viewer(db: Session, viewer: User, student_profile_id: str) -> 
     if profile.user_id != viewer.id and not (viewer.role == TRAINER_ROLE and trainer_has_access(db, viewer, profile.id)):
         raise StudentProfileError(status.HTTP_403_FORBIDDEN, "You cannot view this student's goals.")
     return profile
+
+
+
+def current_questionnaire(db: Session, profile: StudentProfile) -> HealthQuestionnaire | None:
+    return db.scalars(
+        select(HealthQuestionnaire).where(
+            HealthQuestionnaire.student_id == profile.id, HealthQuestionnaire.status == "CURRENT"
+        )
+    ).first()
+
+
+def is_questionnaire_completed(db: Session, profile: StudentProfile) -> bool:
+    return current_questionnaire(db, profile) is not None
+
+
+def require_health_questionnaire(db: Session, profile: StudentProfile) -> None:
+    """Reusable gate for specs 004 (send request) and 006 (access routine)."""
+    if not is_questionnaire_completed(db, profile):
+        raise StudentProfileError(status.HTTP_403_FORBIDDEN, "You must complete the health questionnaire first.")
+
+
+def save_health_questionnaire(db: Session, user: User, payload: HealthQuestionnaireInput) -> HealthQuestionnaire:
+    profile = get_or_create_profile(db, user)
+    db.execute(
+        update(HealthQuestionnaire)
+        .where(HealthQuestionnaire.student_id == profile.id, HealthQuestionnaire.status == "CURRENT")
+        .values(status="ARCHIVED")
+    )
+    questionnaire = HealthQuestionnaire(student_id=profile.id, completed_at=utc_now(), **payload.model_dump())
+    db.add(questionnaire)
+    db.commit()
+    db.refresh(questionnaire)
+    return questionnaire
+
+
+def get_own_questionnaire(db: Session, user: User) -> HealthQuestionnaire:
+    questionnaire = current_questionnaire(db, get_or_create_profile(db, user))
+    if questionnaire is None:
+        raise StudentProfileError(status.HTTP_404_NOT_FOUND, "Health questionnaire not completed yet.")
+    return questionnaire
+
+
+def get_questionnaire_for_viewer(db: Session, viewer: User, student_profile_id: str) -> HealthQuestionnaire:
+    profile = get_goals_for_viewer(db, viewer, student_profile_id)
+    questionnaire = current_questionnaire(db, profile)
+    if questionnaire is None:
+        raise StudentProfileError(status.HTTP_404_NOT_FOUND, "Health questionnaire not completed yet.")
+    return questionnaire

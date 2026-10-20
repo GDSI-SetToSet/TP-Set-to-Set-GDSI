@@ -47,6 +47,7 @@ class StudentProfileResponse(BaseModel):
     bio: str | None
     fitness_goals: list[str]
     personal_motivation: str | None
+    health_questionnaire_completed: bool = False
     status: str
     created_at: datetime
     updated_at: datetime
