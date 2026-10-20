@@ -12,6 +12,7 @@ import type { UserRole } from './types/auth';
 import { HealthQuestionnairePage } from './pages/HealthQuestionnairePage';
 import { StudentProfileEditPage } from './pages/StudentProfileEditPage';
 import { ProtectedZonesPage } from './pages/ProtectedZonesPage';
+import { MedicalClearancePage } from './pages/MedicalClearancePage';
 
 function ProtectedRoute({ children, role }: { children: JSX.Element; role: UserRole }) {
   const { user, loading } = useAuth();
@@ -43,6 +44,7 @@ export default function App() {
       <Route path={ROUTES.studentHealth} element={<ProtectedRoute role={USER_ROLES.student}><HealthQuestionnairePage /></ProtectedRoute>} />
       <Route path={ROUTES.studentProfile} element={<ProtectedRoute role={USER_ROLES.student}><StudentProfileEditPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentProtectedZones} element={<ProtectedRoute role={USER_ROLES.student}><ProtectedZonesPage /></ProtectedRoute>} />
+      <Route path={ROUTES.studentMedical} element={<ProtectedRoute role={USER_ROLES.student}><MedicalClearancePage /></ProtectedRoute>} />
     </Routes>
   );
 }

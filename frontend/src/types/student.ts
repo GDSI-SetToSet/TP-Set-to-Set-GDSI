@@ -23,6 +23,7 @@ export interface StudentProfile {
   fitness_goals: FitnessGoal[];
   personal_motivation: string | null;
   health_questionnaire_completed: boolean;
+  medical_clearance_completed: boolean;
   status: StudentProfileStatus;
   created_at: string;
   updated_at: string;
@@ -60,6 +61,20 @@ export interface ProtectedZone {
   created_at: string;
 }
 
+export interface ProtectedZonesPayload {
+  zones: string[];
+}
+
 export interface ProtectedZonesResponse {
   zones: ProtectedZone[];
+}
+
+export interface MedicalClearance {
+  id: string;
+  original_filename: string;
+  mime_type: string;
+  file_size_bytes: number;
+  issue_date: string;
+  status: 'CURRENT' | 'ARCHIVED';
+  created_at: string;
 }
