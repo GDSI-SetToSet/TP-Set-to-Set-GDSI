@@ -33,7 +33,35 @@ paths:
               schema:
                 $ref: '#/components/schemas/StudentProfileResponse'
         '422':
-          description: Datos obligatorios faltantes (nombre, apellido o contacto)
+          description: Dato obligatorio faltante, teléfono con formato inválido u objetivo fuera del catálogo; el perfil no pasa a PUBLISHED sin al menos un objetivo
+
+  /api/v1/students/{student_id}/goals:
+    get:
+      summary: Objetivos y motivación del alumno (solo alumno o entrenador con solicitud pendiente/relación activa)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fitness_goals:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FitnessGoal'
+                  personal_motivation:
+                    type: string
+        '403':
+          description: Entrenador sin solicitud pendiente ni relación activa
 
   /api/v1/students/me/health-questionnaire:
     get:
@@ -170,9 +198,13 @@ components:
       bearerFormat: JWT
 
   schemas:
+    FitnessGoal:
+      type: string
+      enum: [fuerza, hipertrofia, resistencia, perdida_de_peso, salud_general, movilidad_rehabilitacion]
+
     StudentProfileUpdateRequest:
       type: object
-      required: [first_name, last_name, contact_phone, fitness_goals]
+      # Todos opcionales: se admiten guardados parciales (DRAFT). Para PUBLISHED se exigen first_name, last_name, birth_date, contact_phone y >=1 fitness_goals.
       properties:
         first_name:
           type: string
@@ -180,13 +212,17 @@ components:
           type: string
         contact_phone:
           type: string
+          pattern: '^\+?[0-9]{10,15}$'
+          description: '"+" opcional y 10 a 15 dígitos, sin espacios ni guiones'
         birth_date:
           type: string
           format: date
         fitness_goals:
           type: array
+          minItems: 1
+          uniqueItems: true
           items:
-            type: string
+            $ref: '#/components/schemas/FitnessGoal'
         personal_motivation:
           type: string
 
@@ -202,10 +238,13 @@ components:
           type: string
         contact_phone:
           type: string
+        status:
+          type: string
+          enum: [DRAFT, PUBLISHED]
         fitness_goals:
           type: array
           items:
-            type: string
+            $ref: '#/components/schemas/FitnessGoal'
         personal_motivation:
           type: string
 

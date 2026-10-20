@@ -10,6 +10,16 @@
 
 **User Stories Cubiertas**: US-39, US-40, US-41, US-42, US-43
 
+## Clarifications
+
+### Session 2026-10-20
+
+- Q: ¿El nombre del alumno se guarda como dos campos o como un único "nombre completo"? → A: Dos campos obligatorios, nombre (`first_name`) y apellido (`last_name`); el código existente basado en `full_name` se migra/ajusta.
+- Q: ¿Qué formato de teléfono acepta el sistema? → A: "+" opcional al inicio y 10 a 15 dígitos, sin espacios ni guiones.
+- Q: ¿Qué completa el alumno para finalizar el onboarding inicial? → A: Datos personales obligatorios (nombre, apellido, fecha de nacimiento, teléfono) + al menos un objetivo; recién entonces el perfil pasa a `PUBLISHED`. La motivación personal es opcional y el cuestionario de salud (US-41) es un paso independiente.
+- Q: ¿Cuál es el catálogo de objetivos y se admiten objetivos libres? → A: Catálogo cerrado de 6 (fuerza, hipertrofia, resistencia, pérdida de peso, salud general, movilidad/rehabilitación), selección múltiple, sin objetivos libres.
+- Q: ¿Quiénes pueden ver objetivos y motivación del alumno? → A: Solo el propio alumno y los entrenadores con solicitud pendiente o relación activa con él; el acceso se revoca al cerrarse la relación.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-39: Carga y edición de datos de perfil del alumno] (Priority: Alta, Estimación: 3 SP)
@@ -25,7 +35,7 @@ para completar mi perfil y que los entrenadores puedan conocerme.
 **Acceptance Scenarios**:
 
 1. Dado que el alumno se encuentra en la vista de edición de perfil.
-   Cuando completa los campos obligatorios (nombre, apellido, fecha de nacimiento y teléfono) con formatos válidos y presiona "Guardar".
+   Cuando completa los campos obligatorios (nombre, apellido, fecha de nacimiento y teléfono) con formatos válidos (teléfono: "+" opcional y 10 a 15 dígitos, sin espacios ni guiones) y presiona "Guardar".
    Entonces el sistema actualiza la información, muestra un banner verde con el texto "Perfil guardado exitosamente" y redirige al usuario a la vista principal de búsqueda de entrenadores.
 
 2. Dado que el alumno intenta guardar los datos de su perfil.
@@ -33,7 +43,7 @@ para completar mi perfil y que los entrenadores puedan conocerme.
    Entonces el sistema deshabilita el botón "Guardar" y resalta el campo faltante en rojo con el texto "Este campo es obligatorio".
 
 3. Dado que el alumno ingresa su teléfono de contacto.
-   Cuando ingresa un valor que contiene caracteres no numéricos o tiene una longitud menor a 10 dígitos y presiona "Guardar".
+   Cuando ingresa un valor que contiene caracteres no numéricos o tiene una longitud fuera del rango de 10 a 15 dígitos y presiona "Guardar".
    Entonces el sistema bloquea la acción y muestra debajo del campo el mensaje "El teléfono debe contener al menos 10 caracteres numéricos".
 
 4. Dado que un alumno con perfil ya completo ingresa a modificar sus datos.
@@ -55,9 +65,9 @@ Como alumno, quiero indicar mis objetivos de entrenamiento (fuerza, resistencia,
 
 1. Dado un alumno completando su perfil, cuando selecciona uno o más objetivos de la lista predefinida, entonces el sistema los guarda correctamente.
 
-2. Dado un alumno que no seleccionó ningún objetivo, cuando intenta finalizar el onboarding inicial, entonces el sistema no le permite continuar.
+2. Dado un alumno que no seleccionó ningún objetivo, cuando intenta finalizar el onboarding inicial (datos personales obligatorios + al menos un objetivo; la motivación personal es opcional), entonces el sistema no le permite continuar y el perfil no pasa a `PUBLISHED`.
 
-3. Dado un alumno con objetivos cargados, cuando el entrenador evalúa una solicitud o crea una rutina, entonces puede visualizar dichos objetivos.
+3. Dado un alumno con objetivos cargados, cuando un entrenador con solicitud pendiente o relación activa con él evalúa la solicitud o crea una rutina, entonces puede visualizar sus objetivos y motivación; un entrenador sin relación no tiene acceso, y el acceso se revoca al cerrarse la relación.
 
 4. Dado un alumno con objetivos ya cargados, cuando los modifica desde su perfil, entonces los cambios quedan reflejados de inmediato.
 
@@ -143,9 +153,11 @@ Como alumno, quiero adjuntar mi certificado de apto médico en formato PDF o ima
 
 ### Functional Requirements
 
-- **FR-001**: El sistema DEBE permitir al alumno cargar y editar sus datos personales y de perfil (US-39).
+- **FR-001**: El sistema DEBE permitir al alumno cargar y editar sus datos personales y de perfil (US-39), con nombre y apellido como campos obligatorios separados.
 
-- **FR-002**: El sistema DEBE permitir al alumno registrar objetivos de entrenamiento (fuerza, pérdida de peso, salud) y motivaciones (US-40).
+- **FR-002**: El sistema DEBE permitir al alumno registrar objetivos de entrenamiento y motivaciones (US-40), eligiendo una o más opciones del catálogo cerrado: fuerza, hipertrofia, resistencia, pérdida de peso, salud general y movilidad/rehabilitación; no se admiten objetivos libres (el texto libre va en la motivación personal).
+
+- **FR-002b**: El sistema DEBE restringir objetivos y motivación personal al alumno y a los entrenadores con solicitud pendiente o relación activa, validado en el backend (US-40).
 
 - **FR-003**: El sistema DEBE proveer un cuestionario inicial de salud obligatorio para relevar patologías y antecedentes médicos (US-41).
 
@@ -161,7 +173,7 @@ Como alumno, quiero adjuntar mi certificado de apto médico en formato PDF o ima
 
 ### Key Entities *(include if feature involves data)*
 
-- **StudentProfile**: Perfil personal y deportivo del alumno: nombre, edad, nivel de experiencia y datos de contacto.
+- **StudentProfile**: Perfil personal y deportivo del alumno: nombre y apellido (campos separados), edad, nivel de experiencia y datos de contacto.
 
 - **HealthQuestionnaire**: Cuestionario clínico inicial con antecedentes cardiovasculares, patologías diagnosticadas y objetivos de salud.
 

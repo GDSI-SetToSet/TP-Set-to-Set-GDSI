@@ -12,12 +12,13 @@ Datos personales y deportivos del alumno (US-39, US-40).
 |---|---|---|---|---|
 | `id` | UUID / String(36) | No | `uuid4()` | Identificador primario. |
 | `user_id` | UUID / String(36) | No | - | Clave foránea 1:1 a `User.id`. Índice único. |
-| `first_name` | String(100) | No | - | Nombre obligatorio. |
-| `last_name` | String(100) | No | - | Apellido obligatorio. |
-| `contact_phone` | String(50) | No | - | Teléfono de contacto obligatorio. |
-| `birth_date` | Date | Sí | `None` | Fecha de nacimiento para cálculo de edad. |
-| `fitness_goals` | JSON / Text | No | `'[]'` | Lista de objetivos seleccionados (ej. `["fuerza", "salud"]`). |
-| `personal_motivation` | Text | Sí | `None` | Motivaciones expresadas en onboarding (US-40). |
+| `first_name` | String(100) | Sí (borrador) | - | Nombre obligatorio. |
+| `last_name` | String(100) | Sí (borrador) | - | Apellido obligatorio. |
+| `contact_phone` | String(50) | Sí (borrador) | - | Teléfono obligatorio: `+` opcional y 10 a 15 dígitos, sin espacios ni guiones. |
+| `birth_date` | Date | Sí (borrador) | `None` | Fecha de nacimiento; obligatoria para publicar el perfil. |
+| `status` | String(16) | No | `DRAFT` | `DRAFT` → `PUBLISHED` cuando hay datos personales obligatorios y ≥1 objetivo (onboarding completo). |
+| `fitness_goals` | JSON / Text | No | `'[]'` | Lista (≥1 para publicar, sin repetidos) tomada del catálogo cerrado: `fuerza, hipertrofia, resistencia, perdida_de_peso, salud_general, movilidad_rehabilitacion`. No admite valores libres. |
+| `personal_motivation` | Text | Sí | `None` | Motivación personal en texto libre (US-40); opcional. |
 | `created_at` | DateTime (UTC) | No | `utcnow()` | Fecha de alta. |
 | `updated_at` | DateTime (UTC) | No | `utcnow()` | Fecha de modificación. |
 

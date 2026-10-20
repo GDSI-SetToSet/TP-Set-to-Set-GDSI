@@ -19,12 +19,16 @@ curl -i -X PUT http://localhost:8000/api/v1/students/me/profile \
   -d '{
     "first_name": "Valeria",
     "last_name": "Gómez",
-    "contact_phone": "+54 9 11 4444-5555",
-    "fitness_goals": ["rehabilitacion", "fuerza"],
+    "contact_phone": "+5491144445555",
+    "birth_date": "1994-05-12",
+    "fitness_goals": ["movilidad_rehabilitacion", "fuerza"],
     "personal_motivation": "Recuperar movilidad tras esguince de tobillo"
   }'
 
-# Resultado esperado: HTTP 200 OK.
+# Resultado esperado: HTTP 200 OK con status="PUBLISHED".
+# Variantes: fitness_goals=[] -> 422 (perfil no publicado); objetivo fuera del catálogo -> 422;
+# contact_phone "+54 9 11 4444-5555" (con espacios) -> 422.
+# Visibilidad: GET /api/v1/students/<STUDENT_ID>/goals con $TRAINER_TOKEN -> 403 hasta la spec 004 (stub de acceso), 200 después; con $UNAUTHORIZED_TRAINER_TOKEN -> 403.
 
 # 2. Completar cuestionario médico obligatorio
 curl -i -X POST http://localhost:8000/api/v1/students/me/health-questionnaire \

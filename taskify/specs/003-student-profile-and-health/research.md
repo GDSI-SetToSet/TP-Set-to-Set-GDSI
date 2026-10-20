@@ -27,3 +27,9 @@
   - En una transacción atómica, todos los certificados previos del alumno pasan a estado `status = 'ARCHIVED'`.
   - El nuevo certificado se inserta con `status = 'CURRENT'`.
 - **Razón**: Permite al entrenador auditar evolutivamente los aptos previos manteniendo una referencia clara y única del certificado vigente para habilitar la práctica deportiva.
+
+## 4. Nombre, Teléfono, Onboarding y Catálogo de Objetivos (US-39, US-40; clarificaciones 2026-10-20)
+
+- **Decisión**: `first_name` y `last_name` separados (el `full_name` del código actual se migra: columnas nuevas, datos existentes se parten por el primer espacio o se dejan en `first_name`). Teléfono validado con `^\+?[0-9]{10,15}$`. Objetivos: enum cerrado de 6 valores (`fuerza, hipertrofia, resistencia, perdida_de_peso, salud_general, movilidad_rehabilitacion`) validado en el schema; guardado como lista JSON. El perfil pasa a `PUBLISHED` solo con nombre, apellido, fecha de nacimiento, teléfono y ≥1 objetivo; la motivación es opcional. Objetivos y motivación se leen con la misma matriz de RBAC de la sección 2 (alumno, o entrenador con solicitud pendiente/relación activa).
+- **Razón**: Alinea spec, data-model, contrato y código; un catálogo cerrado simplifica validación y filtrado por el entrenador.
+- **Alternativas consideradas**: `full_name` único (rechazado: contradice US-39); objetivos libres u "Otro" (rechazado: texto libre ya cubierto por la motivación); exigir el cuestionario de salud para publicar (rechazado: acopla US-41).
