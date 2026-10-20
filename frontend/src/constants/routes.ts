@@ -12,6 +12,7 @@ export const ROUTES = {
   trainerProfile: '/entrenador/perfil',
   studentHome: '/alumno/inicio',
   studentProfile: '/alumno/perfil',
+  studentHealth: '/alumno/salud',
   fallback: '*',
 } as const;
 
