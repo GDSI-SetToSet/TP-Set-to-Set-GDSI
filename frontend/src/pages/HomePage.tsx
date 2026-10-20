@@ -32,6 +32,7 @@ export function HomePage() {
         {user?.role === USER_ROLES.trainer && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerProfile}>Completar mi perfil</Link>}
         {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentProfile}>Completar mi perfil</Link>}
         {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentHealth}>Cuestionario de salud</Link>}
+        {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentProtectedZones}>Zonas a proteger</Link>}
         {error && <p className="form-alert" role="alert">{error}</p>}
         <div className="welcome-next"><span>Este es el primer paso de Set to Set.</span><Dumbbell size={18} /></div>
       </section>

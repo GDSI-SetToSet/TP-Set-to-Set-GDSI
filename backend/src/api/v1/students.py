@@ -7,6 +7,7 @@ from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
 from backend.src.models.student_profile import StudentProfile
 from backend.src.models.user import User
+from backend.src.schemas.protected_zone import ProtectedZonesResponse, ProtectedZonesUpdate
 from backend.src.schemas.student import (
     StudentGoalsResponse,
     StudentProfileResponse,
@@ -20,9 +21,11 @@ from backend.src.services.student_service import (
     StudentProfileError,
     get_goals_for_viewer,
     get_or_create_profile,
+    get_own_protected_zones,
     get_own_questionnaire,
     get_questionnaire_for_viewer,
     is_questionnaire_completed,
+    replace_own_protected_zones,
     save_health_questionnaire,
     update_profile,
 )
@@ -56,6 +59,25 @@ def own_profile(user: CurrentUser, db: DbDep) -> StudentProfileResponse:
 def save_own_profile(payload: StudentProfileUpdate, user: CurrentUser, db: DbDep) -> StudentProfileResponse:
     try:
         return profile_response(update_profile(db, user, payload), db)
+    except StudentProfileError as error:
+        handle_error(error)
+
+
+@router.get("/me/protected-zones", response_model=ProtectedZonesResponse)
+def own_protected_zones(user: CurrentUser, db: DbDep) -> ProtectedZonesResponse:
+    try:
+        return ProtectedZonesResponse.model_validate({"zones": get_own_protected_zones(db, user)})
+    except StudentProfileError as error:
+        handle_error(error)
+
+
+@router.put("/me/protected-zones", response_model=ProtectedZonesResponse)
+def save_own_protected_zones(
+    payload: ProtectedZonesUpdate, user: CurrentUser, db: DbDep
+) -> ProtectedZonesResponse:
+    try:
+        zones = replace_own_protected_zones(db, user, payload)
+        return ProtectedZonesResponse.model_validate({"zones": zones})
     except StudentProfileError as error:
         handle_error(error)
 

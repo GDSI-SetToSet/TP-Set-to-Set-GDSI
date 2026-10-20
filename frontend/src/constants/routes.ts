@@ -13,6 +13,7 @@ export const ROUTES = {
   studentHome: '/alumno/inicio',
   studentProfile: '/alumno/perfil',
   studentHealth: '/alumno/salud',
+  studentProtectedZones: '/alumno/zonas-a-proteger',
   fallback: '*',
 } as const;
 

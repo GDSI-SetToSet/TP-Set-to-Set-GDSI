@@ -25,3 +25,7 @@ class StudentProfile(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="student_profile")  # noqa: F821
+    protected_zones: Mapped[list["ProtectedZone"]] = relationship(
+        back_populates="student",
+        cascade="all, delete-orphan",
+    )

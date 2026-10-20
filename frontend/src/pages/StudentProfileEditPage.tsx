@@ -106,6 +106,7 @@ export function StudentProfileEditPage() {
     <main className="profile-shell">
       <header className="profile-header">
         <Link to={ROUTES.studentHome} className="profile-back"><ArrowLeft size={18} /> Volver al inicio</Link>
+        <Link to={ROUTES.studentProtectedZones} className="profile-back">Zonas a proteger</Link>
         <span className={`profile-status profile-status--${profile?.status.toLowerCase()}`}>
           {profile?.status === 'PUBLISHED' ? 'Perfil publicado' : 'Perfil en borrador'}
         </span>
