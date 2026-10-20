@@ -1,5 +1,6 @@
 import re
 from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, field_validator
 
 PHONE_PATTERN = re.compile(r"^\+?[0-9]{10,15}$")

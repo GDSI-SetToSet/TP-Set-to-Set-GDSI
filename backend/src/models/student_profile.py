@@ -21,4 +21,4 @@ class StudentProfile(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    user: Mapped["User"] = relationship(back_populates="student_profile") 
+    user: Mapped["User"] = relationship(back_populates="student_profile")  # noqa: F821
