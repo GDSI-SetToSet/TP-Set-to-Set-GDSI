@@ -248,3 +248,4 @@ pnpm-debug.log*
 
 # Bases SQLite locales (el backend las crea al iniciar)
 *.db
+backend/uploads/

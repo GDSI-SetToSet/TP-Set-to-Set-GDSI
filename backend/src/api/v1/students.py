@@ -1,12 +1,15 @@
+from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
 from backend.src.models.student_profile import StudentProfile
 from backend.src.models.user import User
+from backend.src.schemas.medical_clearance import MedicalClearanceResponse
 from backend.src.schemas.protected_zone import (
     ProtectedZonesResponse,
     ProtectedZonesUpdate,
@@ -22,15 +25,19 @@ from backend.src.schemas.student_health import (
 )
 from backend.src.services.student_service import (
     StudentProfileError,
+    get_clearance_for_download,
     get_goals_for_viewer,
     get_or_create_profile,
+    get_own_clearance,
     get_own_protected_zones,
     get_own_questionnaire,
     get_questionnaire_for_viewer,
+    is_clearance_completed,
     is_questionnaire_completed,
     replace_own_protected_zones,
     save_health_questionnaire,
     update_profile,
+    upload_medical_clearance,
 )
 
 router = APIRouter(prefix=f"{API_V1_PREFIX}/students", tags=["students"])
@@ -40,6 +47,7 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 def profile_response(profile: StudentProfile, db: Session) -> StudentProfileResponse:
     response = StudentProfileResponse.model_validate(profile)
     response.health_questionnaire_completed = is_questionnaire_completed(db, profile)
+    response.medical_clearance_completed = is_clearance_completed(db, profile)
     return response
 
 
@@ -97,6 +105,41 @@ def own_questionnaire(user: CurrentUser, db: DbDep) -> HealthQuestionnaireRespon
 def save_own_questionnaire(payload: HealthQuestionnaireInput, user: CurrentUser, db: DbDep) -> HealthQuestionnaireResponse:
     try:
         return HealthQuestionnaireResponse.model_validate(save_health_questionnaire(db, user, payload))
+    except StudentProfileError as error:
+        handle_error(error)
+
+
+@router.get("/me/medical-clearance", response_model=MedicalClearanceResponse)
+def own_medical_clearance(user: CurrentUser, db: DbDep) -> MedicalClearanceResponse:
+    try:
+        return MedicalClearanceResponse.model_validate(get_own_clearance(db, user))
+    except StudentProfileError as error:
+        handle_error(error)
+
+
+@router.post("/me/medical-clearance", response_model=MedicalClearanceResponse, status_code=status.HTTP_201_CREATED)
+async def upload_own_medical_clearance(
+    user: CurrentUser,
+    db: DbDep,
+    file: Annotated[UploadFile, File()],
+    issue_date: Annotated[date, Form()],
+) -> MedicalClearanceResponse:
+    try:
+        clearance = await upload_medical_clearance(db, user, file, issue_date)
+        return MedicalClearanceResponse.model_validate(clearance)
+    except StudentProfileError as error:
+        handle_error(error)
+
+
+@router.get("/{student_id}/medical-clearance/download")
+def download_student_medical_clearance(student_id: str, user: CurrentUser, db: DbDep):
+    try:
+        clearance, path = get_clearance_for_download(db, user, student_id)
+        return FileResponse(
+            path=str(path),
+            media_type=clearance.mime_type,
+            filename=clearance.original_filename,
+        )
     except StudentProfileError as error:
         handle_error(error)
 

@@ -30,3 +30,7 @@ class StudentProfile(Base):
         back_populates="student",
         cascade="all, delete-orphan",
     )
+    medical_clearances: Mapped[list["MedicalClearance"]] = relationship(  # noqa: F821
+        back_populates="student",
+        cascade="all, delete-orphan",
+    )

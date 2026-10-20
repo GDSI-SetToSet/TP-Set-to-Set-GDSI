@@ -6,7 +6,13 @@ from sqlalchemy.pool import StaticPool
 
 from backend.src.core.database import Base, get_db
 from backend.src.main import create_app
-from backend.src.models import PasswordResetToken, TrainerProfile, User, UserSession  # noqa: F401
+from backend.src.models import (  # noqa: F401
+    MedicalClearance,
+    PasswordResetToken,
+    TrainerProfile,
+    User,
+    UserSession,
+)
 
 
 @pytest.fixture
@@ -49,13 +55,13 @@ def registered_user(client):
 @pytest.fixture
 def student_token_headers(client, registered_user):
     test_client, _ = client
-    
+
     response = test_client.post(
         "/api/v1/auth/login",
         json={"email": "alumna@example.com", "password": "StrongPass123"}
     )
-    
+
     assert response.status_code == 200
     token = response.json()["access_token"]
-    
+
     return {"Authorization": f"Bearer {token}"}

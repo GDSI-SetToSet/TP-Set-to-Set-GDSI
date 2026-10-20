@@ -1,11 +1,14 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from pathlib import Path
 
-from fastapi import status
+from fastapi import UploadFile, status
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
+from backend.src.core.storage import StorageError, open_upload, save_upload
 from backend.src.models.health_questionnaire import HealthQuestionnaire
+from backend.src.models.medical_clearance import MedicalClearance
 from backend.src.models.protected_zone import ProtectedZone
 from backend.src.models.student_profile import StudentProfile
 from backend.src.models.user import User
@@ -49,7 +52,7 @@ def get_or_create_profile(db: Session, user: User) -> StudentProfile:
 def update_profile(db: Session, user: User, payload: StudentProfileUpdate) -> StudentProfile:
     profile = get_or_create_profile(db, user)
     changes = payload.model_dump(exclude_unset=True)
-    
+
     proposed = {
         "first_name": profile.first_name,
         "last_name": profile.last_name,
@@ -58,11 +61,11 @@ def update_profile(db: Session, user: User, payload: StudentProfileUpdate) -> St
         "fitness_goals": profile.fitness_goals,
         **changes,
     }
-    
+
     # Onboarding complete = personal data + at least one goal; motivation is optional.
     missing = [field for field in REQUIRED_FIELDS if not proposed[field]]
     complete = not missing
-    
+
     if profile.status == "PUBLISHED" and not complete:
         raise StudentProfileError(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -72,7 +75,7 @@ def update_profile(db: Session, user: User, payload: StudentProfileUpdate) -> St
 
     for field, value in changes.items():
         setattr(profile, field, value)
-        
+
     profile.status = "PUBLISHED" if complete else "DRAFT"
     profile.updated_at = utc_now()
     db.commit()
@@ -113,7 +116,6 @@ def get_goals_for_viewer(db: Session, viewer: User, student_profile_id: str) -> 
     if profile.user_id != viewer.id and not (viewer.role == TRAINER_ROLE and trainer_has_access(db, viewer, profile.id)):
         raise StudentProfileError(status.HTTP_403_FORBIDDEN, "You cannot view this student's goals.")
     return profile
-
 
 
 def current_questionnaire(db: Session, profile: StudentProfile) -> HealthQuestionnaire | None:
@@ -161,3 +163,74 @@ def get_questionnaire_for_viewer(db: Session, viewer: User, student_profile_id: 
     if questionnaire is None:
         raise StudentProfileError(status.HTTP_404_NOT_FOUND, "Health questionnaire not completed yet.")
     return questionnaire
+
+
+def current_medical_clearance(db: Session, profile: StudentProfile) -> MedicalClearance | None:
+    return db.scalars(
+        select(MedicalClearance).where(
+            MedicalClearance.student_id == profile.id, MedicalClearance.status == "CURRENT"
+        )
+    ).first()
+
+
+def is_clearance_completed(db: Session, profile: StudentProfile) -> bool:
+    return current_medical_clearance(db, profile) is not None
+
+
+async def upload_medical_clearance(
+    db: Session, user: User, file: UploadFile, issue_date: date
+) -> MedicalClearance:
+    require_student(user)
+    profile = get_or_create_profile(db, user)
+
+    try:
+        file_path, file_size = await save_upload(profile.id, file)
+    except StorageError as error:
+        raise StudentProfileError(status.HTTP_400_BAD_REQUEST, error.message) from error
+
+    db.execute(
+        update(MedicalClearance)
+        .where(MedicalClearance.student_id == profile.id, MedicalClearance.status == "CURRENT")
+        .values(status="ARCHIVED")
+    )
+    clearance = MedicalClearance(
+        student_id=profile.id,
+        file_path=file_path,
+        original_filename=file.filename or "apto",
+        mime_type=file.content_type or "application/octet-stream",
+        file_size_bytes=file_size,
+        issue_date=issue_date,
+        status="CURRENT",
+        created_at=utc_now(),
+    )
+    db.add(clearance)
+    db.commit()
+    db.refresh(clearance)
+    return clearance
+
+
+def get_own_clearance(db: Session, user: User) -> MedicalClearance:
+    require_student(user)
+    profile = get_or_create_profile(db, user)
+    clearance = current_medical_clearance(db, profile)
+    if clearance is None:
+        raise StudentProfileError(status.HTTP_404_NOT_FOUND, "Certificado médico no encontrado.")
+    return clearance
+
+
+def get_clearance_for_download(
+    db: Session, viewer: User, student_profile_id: str
+) -> tuple[MedicalClearance, Path]:
+    profile = db.get(StudentProfile, student_profile_id)
+    if profile is None:
+        raise StudentProfileError(status.HTTP_404_NOT_FOUND, "Student not found.")
+    if profile.user_id != viewer.id and not (viewer.role == TRAINER_ROLE and trainer_has_access(db, viewer, profile.id)):
+        raise StudentProfileError(status.HTTP_403_FORBIDDEN, "You cannot access this student's medical clearance.")
+    clearance = current_medical_clearance(db, profile)
+    if clearance is None:
+        raise StudentProfileError(status.HTTP_404_NOT_FOUND, "No active medical clearance found.")
+    try:
+        path = open_upload(clearance.file_path)
+    except StorageError as error:
+        raise StudentProfileError(status.HTTP_404_NOT_FOUND, error.message) from error
+    return clearance, path

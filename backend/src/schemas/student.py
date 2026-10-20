@@ -48,6 +48,7 @@ class StudentProfileResponse(BaseModel):
     fitness_goals: list[str]
     personal_motivation: str | None
     health_questionnaire_completed: bool = False
+    medical_clearance_completed: bool = False
     status: str
     created_at: datetime
     updated_at: datetime

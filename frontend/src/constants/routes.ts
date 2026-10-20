@@ -14,6 +14,7 @@ export const ROUTES = {
   studentProfile: '/alumno/perfil',
   studentHealth: '/alumno/salud',
   studentProtectedZones: '/alumno/zonas-a-proteger',
+  studentMedical: '/alumno/apto-medico',
   fallback: '*',
 } as const;
 

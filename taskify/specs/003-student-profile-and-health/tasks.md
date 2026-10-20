@@ -106,3 +106,24 @@
 1. MVP: Foundational + US1 (T001–T006), luego US2 (T007–T012).
 2. US-41 (T013–T022) en rama `feature/us41`: modelo y schemas, tests, servicio y endpoints, indicador en el perfil y luego frontend.
 3. Pendiente fuera de alcance: reemplazar el stub de `trainer_has_access` y aplicar `require_health_questionnaire` al enviar solicitud (spec 004) y acceder a rutina (spec 006); US-42 y US-43 en otro `/speckit-tasks`.
+
+---
+
+## Phase 6: User Story 5 — Carga de apto médico o certificado físico (US-43, P1)
+
+**Goal**: el alumno puede adjuntar su certificado de apto médico en formato PDF o imagen, conservando el historial cronológico y manteniendo el más reciente como vigente (CURRENT).
+**Independent Test**: `POST /api/v1/students/me/medical-clearance`, `GET /api/v1/students/me/medical-clearance`, y descarga protegida `GET /api/v1/students/{student_id}/medical-clearance/download`.
+
+- [X] T030 [US5] Agregar soporte de multipart en `backend/requirements.txt` y crear directorio de almacenamiento local protegido `backend/uploads/medical_clearances/` excluido en `.gitignore`.
+- [X] T031 [P] [US5] Crear servicio de almacenamiento en `backend/src/core/storage.py` con validación de tipo MIME (PDF, JPG, PNG) y límite de 10 MB.
+- [X] T032 [P] [US5] Crear modelo `MedicalClearance` (`backend/src/models/medical_clearance.py`) con versionado `CURRENT`/`ARCHIVED` y relación en `StudentProfile`.
+- [X] T033 [P] [US5] Crear esquemas Pydantic `MedicalClearanceResponse` en `backend/src/schemas/medical_clearance.py`.
+- [X] T034 [US5] Crear pruebas de integración en `backend/tests/test_medical_clearance_api.py` cubriendo subida, formatos permitidos, rechazo de >10 MB, versionado acumulativo, descarga protegida y 403 para no autorizados.
+- [X] T035 [US5] Implementar funciones de servicio en `backend/src/services/student_service.py` para subida, metadatos y streaming del certificado médico.
+- [X] T036 [US5] Implementar endpoints `POST /me/medical-clearance`, `GET /me/medical-clearance` y `GET /{student_id}/medical-clearance/download` en `backend/src/api/v1/students.py`.
+- [X] T037 [P] [US5] Frontend: actualizar tipos en `frontend/src/types/student.ts` y crear servicio `frontend/src/services/medicalClearanceService.ts`.
+- [X] T038 [P] [US5] Frontend: crear página `frontend/src/pages/MedicalClearancePage.tsx` con soporte de descarga del certificado vigente y formulario de subida con validación accesible y feedback visual.
+- [X] T039 [US5] Frontend: registrar ruta `studentMedical: '/alumno/apto-medico'` en `routes.ts`, `App.tsx` y enlazarla desde `HomePage.tsx`.
+- [X] T040 [US5] Verificación de calidad: `ruff check backend`, `pytest` con cobertura >= 90% (alcanzado 97.8%) y `npm run build` sin errores.
+
+**Checkpoint**: US-43 completa; todas las user stories del Sprint 1 implementadas.
