@@ -3,7 +3,6 @@ from fastapi import status
 from backend.src.models import ProtectedZone
 from backend.src.schemas.protected_zone import ProtectedZonesUpdate
 
-
 URL = "/api/v1/students/me/protected-zones"
 
 

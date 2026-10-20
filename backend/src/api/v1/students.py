@@ -7,7 +7,10 @@ from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
 from backend.src.models.student_profile import StudentProfile
 from backend.src.models.user import User
-from backend.src.schemas.protected_zone import ProtectedZonesResponse, ProtectedZonesUpdate
+from backend.src.schemas.protected_zone import (
+    ProtectedZonesResponse,
+    ProtectedZonesUpdate,
+)
 from backend.src.schemas.student import (
     StudentGoalsResponse,
     StudentProfileResponse,
