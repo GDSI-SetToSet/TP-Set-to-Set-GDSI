@@ -204,7 +204,7 @@ components:
 
     StudentProfileUpdateRequest:
       type: object
-      required: [first_name, last_name, birth_date, contact_phone, fitness_goals]
+      # Todos opcionales: se admiten guardados parciales (DRAFT). Para PUBLISHED se exigen first_name, last_name, birth_date, contact_phone y >=1 fitness_goals.
       properties:
         first_name:
           type: string

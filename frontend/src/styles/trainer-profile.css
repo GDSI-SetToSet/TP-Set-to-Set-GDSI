@@ -50,6 +50,10 @@
 .profile-form input,
 .profile-form textarea { width: 100%; border: 1px solid #cbd7cd; border-radius: 10px; padding: 12px 13px; color: #18251f; background: #fff; font: inherit; resize: vertical; }
 .profile-form input { min-height: 44px; }
+.profile-form fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; }
+.profile-form legend { color: #273d33; font-weight: 700; margin-bottom: 8px; }
+.profile-form fieldset label { grid-template-columns: auto 1fr; align-items: center; font-weight: 500; }
+.profile-form input[type='checkbox'] { width: 20px; min-height: 20px; padding: 0; }
 .profile-form input:focus,
 .profile-form textarea:focus { outline: 3px solid rgba(64, 121, 88, .18); border-color: #397050; }
 .profile-form [aria-invalid='true'] { border-color: #a22929; }
