@@ -28,6 +28,9 @@ class User(Base):
     trainer_profile: Mapped["TrainerProfile | None"] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan", uselist=False
     )
+    student_profile: Mapped["StudentProfile | None"] = relationship(  # noqa: F821
+        back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
 
 
 class UserSession(Base):

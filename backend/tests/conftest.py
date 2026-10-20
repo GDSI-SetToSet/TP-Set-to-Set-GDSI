@@ -44,3 +44,18 @@ def registered_user(client):
     )
     assert response.status_code == 201
     return response.json()
+
+
+@pytest.fixture
+def student_token_headers(client, registered_user):
+    test_client, _ = client
+    
+    response = test_client.post(
+        "/api/v1/auth/login",
+        json={"email": "alumna@example.com", "password": "StrongPass123"}
+    )
+    
+    assert response.status_code == 200
+    token = response.json()["access_token"]
+    
+    return {"Authorization": f"Bearer {token}"}

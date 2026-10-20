@@ -11,6 +11,7 @@ export const ROUTES = {
   trainerHome: '/entrenador/inicio',
   trainerProfile: '/entrenador/perfil',
   studentHome: '/alumno/inicio',
+  studentProfile: '/alumno/perfil',
   fallback: '*',
 } as const;
 
