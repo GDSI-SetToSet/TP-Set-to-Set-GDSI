@@ -103,23 +103,22 @@ Como alumno, quiero completar un cuestionario inicial indicando mi historial de 
 
 ---
 
-### User Story 4 - [US-42: Indicar molestias previas o zonas a proteger] (Priority: P1, Estimación: 4 SP)
+### User Story 4 - [US-42: Indicar molestias previas o zonas a proteger] (Priority: Alta, Estimación: 4 SP)
 
 Como alumno, quiero indicar lesiones previas y zonas de mi cuerpo que debo proteger, para que el entrenador y el asistente de IA eviten asignarme ejercicios contraindicados.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar la seguridad física del usuario y evitar lesiones durante los entrenamientos.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando la correcta persistencia de las zonas protegidas y la activación de las advertencias en la interfaz del entrenador.
 
 **Acceptance Scenarios**:
-
-1.Dado un alumno en su perfil, cuando indica una lesión previa o zona a proteger, entonces el sistema la guarda como restricción física.
-
-2. Dado un alumno con restricciones cargadas, cuando el entrenador intenta asignar manualmente un ejercicio contraindicado, entonces el sistema muestra una advertencia.
-
-3. Dado un alumno con restricciones cargadas, cuando el asistente de IA genera una rutina, entonces excluye automáticamente los ejercicios de riesgo para esas zonas.
-
-4. Dado un alumno cuyas restricciones cambiaron, cuando las actualiza, entonces el sistema reemplaza la información anterior.
+1. Dado que el alumno se encuentra en la sección de salud de su perfil, cuando selecciona o ingresa una nueva zona corporal a proteger y presiona "Guardar" entonces el sistema registra la zona en la base de datos asociada a su perfil y muestra un banner de confirmación ("Zonas a proteger actualizadas").
+   
+2. Dado que un alumno tiene zonas corporales protegidas registradas en su perfil, cuando el entrenador intenta asignar manualmente un ejercicio catalogado como de riesgo para esa zona, entonces el sistema interrumpe la acción y despliega un modal de advertencia con el texto "Este ejercicio está contraindicado por el historial físico del alumno".
+   
+3. Dado que un alumno tiene zonas corporales protegidas registradas, cuando el asistente de IA procesa la generación automática de una rutina, entonces el sistema filtra la base de datos de ejercicios y excluye de los resultados todos aquellos que impacten en las zonas marcadas.
+   
+4. Dado que el alumno requiere modificar su estado físico actual, cuando elimina una zona a proteger previamente cargada y presiona "Guardar", entonces el sistema remueve la restricción de la base de datos de forma inmediata y habilita nuevamente los ejercicios asociados para futuras rutinas.
 
 
 ---
