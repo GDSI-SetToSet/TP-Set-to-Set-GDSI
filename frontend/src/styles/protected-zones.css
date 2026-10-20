@@ -1,0 +1,94 @@
+.protected-zone-add {
+  display: grid;
+  gap: 8px;
+  color: #273d33;
+  font-weight: 700;
+}
+
+.protected-zone-add__controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.protected-zone-add__controls select {
+  min-width: 190px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #cbd7cd;
+  border-radius: 10px;
+  background: #fff;
+  color: #18251f;
+  font: inherit;
+}
+
+.protected-zone-add__controls input {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #cbd7cd;
+  border-radius: 10px;
+  background: #fff;
+  color: #18251f;
+  font: inherit;
+}
+
+.protected-zone-add__button {
+  flex-shrink: 0;
+  border: 0;
+  padding: 0 16px;
+  background: #e6efe6;
+  color: #173a32;
+}
+
+.protected-zone-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.protected-zone-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+  border: 1px solid #dfe6dd;
+  border-radius: 10px;
+  color: #273d33;
+}
+
+.protected-zone-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 8px;
+  background: #fbe9e7;
+  color: #8f2020;
+  cursor: pointer;
+}
+
+.protected-zone-empty {
+  margin: 0;
+  color: #52665b;
+}
+
+@media (max-width: 680px) {
+  .protected-zone-add__controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .protected-zone-add__controls select,
+  .protected-zone-add__controls input {
+    width: 100%;
+  }
+
+  .protected-zone-add__button {
+    width: 100%;
+  }
+}

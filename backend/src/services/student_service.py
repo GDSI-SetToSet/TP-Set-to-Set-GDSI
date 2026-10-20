@@ -6,8 +6,10 @@ from sqlalchemy.orm import Session
 
 from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
 from backend.src.models.health_questionnaire import HealthQuestionnaire
+from backend.src.models.protected_zone import ProtectedZone
 from backend.src.models.student_profile import StudentProfile
 from backend.src.models.user import User
+from backend.src.schemas.protected_zone import ProtectedZonesUpdate
 from backend.src.schemas.student import StudentProfileUpdate
 from backend.src.schemas.student_health import HealthQuestionnaireInput
 
@@ -76,6 +78,27 @@ def update_profile(db: Session, user: User, payload: StudentProfileUpdate) -> St
     db.commit()
     db.refresh(profile)
     return profile
+
+
+def get_own_protected_zones(db: Session, user: User) -> list[ProtectedZone]:
+    profile = get_or_create_profile(db, user)
+    return list(profile.protected_zones)
+
+
+def replace_own_protected_zones(
+    db: Session, user: User, payload: ProtectedZonesUpdate
+) -> list[ProtectedZone]:
+    profile = get_or_create_profile(db, user)
+    now = utc_now()
+    profile.protected_zones.clear()
+    db.flush()
+    profile.protected_zones = [
+        ProtectedZone(body_area=body_area, created_at=now) for body_area in payload.zones
+    ]
+    profile.updated_at = now
+    db.commit()
+    db.refresh(profile)
+    return list(profile.protected_zones)
 
 
 def trainer_has_access(db: Session, trainer: User, student_profile_id: str) -> bool:

@@ -4,6 +4,7 @@ from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.src.core.database import Base
+from backend.src.models.protected_zone import ProtectedZone
 from backend.src.models.user import new_id
 
 
@@ -25,3 +26,7 @@ class StudentProfile(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="student_profile")  # noqa: F821
+    protected_zones: Mapped[list["ProtectedZone"]] = relationship(
+        back_populates="student",
+        cascade="all, delete-orphan",
+    )

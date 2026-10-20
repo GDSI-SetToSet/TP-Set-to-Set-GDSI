@@ -72,6 +72,23 @@
 
 ---
 
+## Phase 5: User Story 4 — Zonas a proteger / Lesiones previas (US-42, P1)
+
+**Goal**: el alumno puede registrar, consultar y eliminar zonas corporales o lesiones previas que requieren cuidado especial, alimentando las restricciones para las rutinas.
+**Independent Test**: `GET /api/v1/students/me/protected-zones` y `PUT /api/v1/students/me/protected-zones` guardan y devuelven correctamente la lista de áreas protegidas.
+
+- [X] T023 [US4] Crear el modelo de base de datos `ProtectedZone` (`backend/src/models/protected_zone.py`) vinculado a `StudentProfile` con campos `id`, `student_id`, `body_area`, `injury_description`, `is_active` y `created_at`; exportarlo en `backend/src/models/__init__.py`.
+- [X] T024 [P] [US4] Crear los esquemas en Pydantic (`backend/src/schemas/protected_zone.py`) para la validación de entrada y respuesta de las zonas protegidas.
+- [X] T025 [US4] Implementar la lógica de servicio en `backend/src/services/student_service.py` para consultar y reemplazar/actualizar las zonas protegidas del alumno autenticado.
+- [X] T026 [US4] Implementar los endpoints de la API (`GET` y `PUT /api/v1/students/me/protected-zones`) en `backend/src/api/v1/students.py` aplicando los controles de autorización correspondientes.
+- [X] T027 [P] [US4] Crear las pruebas de integración en `backend/tests/test_protected_zones_api.py` para verificar la persistencia, eliminación y validaciones de privacidad.
+- [X] T028 [P] [US4] Frontend: crear la página `frontend/src/pages/ProtectedZonesPage.tsx` permitiendo seleccionar las áreas del cuerpo, agregar zonas personalizadas ("Other"), listarlas en español y eliminarlas, con su respectiva ruta y servicio de frontend.
+- [X] T029 [US4] Validar que `npm run build` pase correctamente y que el flujo de navegación cumpla con los requerimientos visuales y de redirección.
+
+**Checkpoint**: US-42 completa;
+
+---
+
 ## Dependencies & Execution Order
 
 - T001 → T003 → (T004, T005) y (T007, T008); T002 antes de T003.

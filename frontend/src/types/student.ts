@@ -53,3 +53,13 @@ export interface HealthQuestionnaire extends HealthQuestionnaireInput {
   has_risk_answers: boolean;
   completed_at: string;
 }
+
+export interface ProtectedZone {
+  id: string;
+  body_area: string;
+  created_at: string;
+}
+
+export interface ProtectedZonesResponse {
+  zones: ProtectedZone[];
+}
