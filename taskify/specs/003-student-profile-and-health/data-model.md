@@ -36,7 +36,9 @@ Cuestionario inicial clínico obligatorio antes de entrenar.
 | `has_bone_joint_problem` | Boolean | No | - (sin valor por defecto; respuesta explícita obligatoria) | ¿Tiene problemas articulares o en huesos que empeoran con el ejercicio? |
 | `takes_prescription_meds` | Boolean | No | - (sin valor por defecto; respuesta explícita obligatoria) | ¿Toma medicamentos recetados para presión o corazón? |
 | `other_medical_conditions` | Text | Sí | `None` | Observaciones adicionales o patologías declaradas. |
-| `completed_at` | DateTime (UTC) | No | `utcnow()` | Fecha de completitud. |
+| `completed_at` | DateTime (UTC) | No | `utcnow()` | Fecha de creación de esta versión. |
+
+**Derivados (no se almacenan)**: `health_questionnaire_completed` = existe fila `CURRENT` para el alumno (se expone en `StudentProfileResponse`); `has_risk_answers` = alguna de las 5 preguntas en `true` (se expone al entrenador autorizado). Las filas `ARCHIVED` son solo de auditoría interna, sin endpoint.
 
 ### 3. `ProtectedZone` (US-42)
 Lesiones previas y zonas que requieren variantes seguras.

@@ -77,7 +77,7 @@ paths:
         '404':
           description: Cuestionario aún no completado
     post:
-      summary: Registrar o actualizar cuestionario de salud (PAR-Q)
+      summary: Registrar cuestionario de salud (PAR-Q); cada envío crea una versión nueva vigente y archiva la anterior
       security:
         - BearerAuth: []
       requestBody:
@@ -87,11 +87,36 @@ paths:
             schema:
               $ref: '#/components/schemas/HealthQuestionnaireInput'
       responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthQuestionnaireResponse'
+        '422':
+          description: Falta alguna de las 5 respuestas Sí/No (no se asume "No")
+
+  /api/v1/students/{student_id}/health-questionnaire:
+    get:
+      summary: Cuestionario vigente del alumno (solo alumno o entrenador con solicitud pendiente/relación activa)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
         '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthQuestionnaireResponse'
+        '403':
+          description: Entrenador sin solicitud pendiente ni relación activa
+        '404':
+          description: Alumno inexistente o sin cuestionario
 
   /api/v1/students/me/protected-zones:
     get:
@@ -241,6 +266,8 @@ components:
         status:
           type: string
           enum: [DRAFT, PUBLISHED]
+        health_questionnaire_completed:
+          type: boolean
         fitness_goals:
           type: array
           items:
@@ -250,6 +277,7 @@ components:
 
     HealthQuestionnaireInput:
       type: object
+      required: [has_heart_condition, has_chest_pain_activity, has_dizziness_or_balance_loss, has_bone_joint_problem, takes_prescription_meds]
       properties:
         has_heart_condition:
           type: boolean
@@ -282,6 +310,9 @@ components:
           type: boolean
         other_medical_conditions:
           type: string
+        has_risk_answers:
+          type: boolean
+          description: true si alguna de las 5 preguntas fue respondida Sí; aviso para el entrenador, no bloquea al alumno
         completed_at:
           type: string
           format: date-time

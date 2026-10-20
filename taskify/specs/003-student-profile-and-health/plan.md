@@ -103,6 +103,8 @@ frontend/
 │       └── studentHealthService.ts
 ```
 
+**US-41**: `health_questionnaire.py` con versionado `CURRENT`/`ARCHIVED`; `student_service.py` agrega `require_health_questionnaire` (reutilizable por las specs 004 y 006) y `health_questionnaire_completed` derivado en la respuesta del perfil; endpoint de lectura `GET /students/{id}/health-questionnaire` reutiliza `trainer_has_access`. Sin objetivos en el cuestionario.
+
 **Migración (US-39/US-40)**: `student_profiles.full_name` → `first_name` + `last_name`; nuevas columnas `fitness_goals` y `personal_motivation`; `PHONE_PATTERN` existente se mantiene (ya cubre `+` opcional y 10-15 dígitos); `student_service` agrega ≥1 objetivo a la regla de publicación.
 
 **Structure Decision**: Submódulo `students` y `medical` con capa de abstracción `StorageService` para desacoplar el sistema de archivos del servidor.
