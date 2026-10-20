@@ -28,12 +28,13 @@ Cuestionario inicial clínico obligatorio antes de entrenar.
 | Campo | Tipo | Nulo | Por Defecto | Descripción |
 |---|---|---|---|---|
 | `id` | UUID / String(36) | No | `uuid4()` | Identificador primario. |
-| `student_id` | UUID / String(36) | No | - | Clave foránea 1:1 a `StudentProfile.id`. |
-| `has_heart_condition` | Boolean | No | `False` | ¿Padece alguna afección cardíaca conocida? |
-| `has_chest_pain_activity` | Boolean | No | `False` | ¿Siente dolor en el pecho al realizar actividad física? |
-| `has_dizziness_or_balance_loss` | Boolean | No | `False` | ¿Sufre mareos o pérdidas de equilibrio? |
-| `has_bone_joint_problem` | Boolean | No | `False` | ¿Tiene problemas articulares o en huesos que empeoran con el ejercicio? |
-| `takes_prescription_meds` | Boolean | No | `False` | ¿Toma medicamentos recetados para presión o corazón? |
+| `student_id` | UUID / String(36) | No | - | Clave foránea a `StudentProfile.id` (1:N: una fila por versión; solo una `CURRENT` por alumno). |
+| `status` | String(16) | No | `CURRENT` | `CURRENT` o `ARCHIVED`; al actualizar, la anterior pasa a `ARCHIVED` en la misma transacción. |
+| `has_heart_condition` | Boolean | No | - (sin valor por defecto; respuesta explícita obligatoria) | ¿Padece alguna afección cardíaca conocida? |
+| `has_chest_pain_activity` | Boolean | No | - (sin valor por defecto; respuesta explícita obligatoria) | ¿Siente dolor en el pecho al realizar actividad física? |
+| `has_dizziness_or_balance_loss` | Boolean | No | - (sin valor por defecto; respuesta explícita obligatoria) | ¿Sufre mareos o pérdidas de equilibrio? |
+| `has_bone_joint_problem` | Boolean | No | - (sin valor por defecto; respuesta explícita obligatoria) | ¿Tiene problemas articulares o en huesos que empeoran con el ejercicio? |
+| `takes_prescription_meds` | Boolean | No | - (sin valor por defecto; respuesta explícita obligatoria) | ¿Toma medicamentos recetados para presión o corazón? |
 | `other_medical_conditions` | Text | Sí | `None` | Observaciones adicionales o patologías declaradas. |
 | `completed_at` | DateTime (UTC) | No | `utcnow()` | Fecha de completitud. |
 

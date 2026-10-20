@@ -20,6 +20,14 @@
 - Q: ¿Cuál es el catálogo de objetivos y se admiten objetivos libres? → A: Catálogo cerrado de 6 (fuerza, hipertrofia, resistencia, pérdida de peso, salud general, movilidad/rehabilitación), selección múltiple, sin objetivos libres.
 - Q: ¿Quiénes pueden ver objetivos y motivación del alumno? → A: Solo el propio alumno y los entrenadores con solicitud pendiente o relación activa con él; el acceso se revoca al cerrarse la relación.
 
+### Session 2026-10-21
+
+- Q: ¿El cuestionario de US-41 vuelve a pedir objetivos o solo relevó salud? → A: Solo salud; los objetivos viven únicamente en el perfil (US-40) y se muestran junto al cuestionario al entrenador autorizado.
+- Q: ¿Qué bloquea un cuestionario incompleto y quién lo hace cumplir? → A: US-41 expone el indicador `health_questionnaire_completed` en el perfil y una validación reutilizable (403 con mensaje claro si falta); las specs 004 (enviar solicitud) y 006 (acceder a rutina) deben invocarla. En US-41 se prueban el indicador y la validación.
+- Q: ¿Cuándo se considera completo el cuestionario? → A: Cuando las 5 preguntas Sí/No fueron respondidas explícitamente (sin valor por defecto; una omitida devuelve 422 y no cuenta como "No"); "otras condiciones médicas" es opcional.
+- Q: Al actualizar el cuestionario, ¿se sobrescribe o se conserva historial? → A: Cada actualización crea una versión nueva; la más reciente es la vigente (`CURRENT`) y las anteriores quedan archivadas (`ARCHIVED`), solo para auditoría interna. El entrenador autorizado ve únicamente la vigente.
+- Q: ¿Una respuesta "Sí" de riesgo exige el apto médico o solo se informa al entrenador? → A: No bloquea; el cuestionario se completa igual y el entrenador autorizado ve un aviso visible de "respuestas de riesgo" junto a las respuestas.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-39: Carga y edición de datos de perfil del alumno] (Priority: Alta, Estimación: 3 SP)
@@ -74,9 +82,9 @@ Como alumno, quiero indicar mis objetivos de entrenamiento (fuerza, resistencia,
 
 ---
 
-### User Story 3 - [US-41: Cuestionario inicial de salud y objetivos] (Priority: P1, Estimación: 3 SP)
+### User Story 3 - [US-41: Cuestionario inicial de salud] (Priority: P1, Estimación: 3 SP)
 
-Como alumno, quiero completar un cuestionario inicial indicando mi historial de salud y mis objetivos de entrenamiento, para que el entrenador diseñe una rutina segura y adaptada a mi situación.
+Como alumno, quiero completar un cuestionario inicial indicando mi historial de salud (los objetivos se cargan en el perfil, US-40), para que el entrenador diseñe una rutina segura y adaptada a mi situación.
 
 **Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
@@ -84,13 +92,13 @@ Como alumno, quiero completar un cuestionario inicial indicando mi historial de 
 
 **Acceptance Scenarios**:
 
-1. Dado un alumno completando su onboarding, cuando llena el cuestionario inicial de salud y objetivos, entonces el sistema guarda las respuestas en su perfil.
+1. Dado un alumno completando su onboarding, cuando llena el cuestionario inicial de salud, entonces el sistema guarda las respuestas en su perfil.
 
-2. Dado un alumno que no completó el cuestionario, cuando intenta enviar una solicitud a un entrenador o acceder a una rutina asignada, entonces el sistema no se lo permite.
+2. Dado un alumno que no completó el cuestionario, cuando intenta una acción que lo requiere (enviar una solicitud a un entrenador o acceder a una rutina asignada), entonces la validación reutilizable de US-41 responde 403 con un mensaje claro y el perfil muestra `health_questionnaire_completed = false`; su aplicación en esas acciones se hace en las specs 004 y 006.
 
-3. Dado un alumno con el cuestionario completo, cuando el entrenador evalúa su solicitud o crea una rutina, entonces puede visualizar las respuestas.
+3. Dado un alumno con el cuestionario completo, cuando un entrenador autorizado evalúa su solicitud o crea una rutina, entonces puede visualizar las respuestas del cuestionario junto con los objetivos del perfil.
 
-4. Dado un alumno cuya situación de salud u objetivos cambió, cuando actualiza el cuestionario, entonces el sistema guarda la nueva información.
+4. Dado un alumno cuya situación de salud cambió, cuando actualiza el cuestionario, entonces el sistema guarda una nueva versión como vigente, archiva la anterior (no visible para el entrenador) y el entrenador ve de inmediato solo la nueva.
 
 
 ---
@@ -161,6 +169,14 @@ Como alumno, quiero adjuntar mi certificado de apto médico en formato PDF o ima
 
 - **FR-003**: El sistema DEBE proveer un cuestionario inicial de salud obligatorio para relevar patologías y antecedentes médicos (US-41).
 
+- **FR-003a**: El cuestionario DEBE considerarse completo solo si las 5 preguntas Sí/No tienen respuesta explícita; una respuesta omitida se rechaza con 422 y "otras condiciones médicas" es opcional (US-41).
+
+- **FR-003c**: El sistema DEBE conservar cada versión del cuestionario: la última como `CURRENT` y las anteriores como `ARCHIVED`, accesibles solo para auditoría interna y nunca para entrenadores (US-41).
+
+- **FR-003d**: El sistema DEBE mostrar al entrenador autorizado un aviso visible de "respuestas de riesgo" cuando alguna pregunta de salud fue respondida "Sí", sin bloquear el avance del alumno (US-41).
+
+- **FR-003b**: El sistema DEBE exponer `health_questionnaire_completed` en el perfil del alumno y proveer una validación reutilizable que rechace con 403 las acciones que requieren cuestionario completo (US-41).
+
 - **FR-004**: El sistema DEBE permitir indicar molestias articulares previas o zonas corporales a proteger (US-42).
 
 - **FR-005**: El sistema DEBE permitir al alumno adjuntar su certificado de apto médico en formato PDF o imagen, conservando el historial cronológico de certificados y manteniendo el más reciente como el activo/vigente (US-43, Decisión Alternativa A).
@@ -175,7 +191,7 @@ Como alumno, quiero adjuntar mi certificado de apto médico en formato PDF o ima
 
 - **StudentProfile**: Perfil personal y deportivo del alumno: nombre y apellido (campos separados), edad, nivel de experiencia y datos de contacto.
 
-- **HealthQuestionnaire**: Cuestionario clínico inicial con antecedentes cardiovasculares, patologías diagnosticadas y objetivos de salud.
+- **HealthQuestionnaire**: Cuestionario clínico inicial con antecedentes cardiovasculares, patologías diagnosticadas y otras condiciones médicas declaradas (sin objetivos de entrenamiento, que viven en el perfil).
 
 - **ProtectedZone**: Zonas corporales o articulaciones señaladas por el alumno con molestias previas o limitaciones que requieren variantes seguras.
 
