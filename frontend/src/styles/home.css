@@ -1,0 +1,108 @@
+.home-shell {
+  min-height: 100vh;
+  background: #f5f7f2;
+  padding: 0 7vw;
+}
+
+.home-header {
+  height: 78px;
+  border-bottom: 1px solid #e4e9e2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.home-header .brand {
+  color: #1c332a;
+  font-size: 19px;
+}
+
+.logout-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #dce3db;
+  background: #fff;
+  color: #43544a;
+  padding: 10px 13px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.logout-button:hover {
+  border-color: #9db7a4;
+}
+
+.welcome-card {
+  position: relative;
+  overflow: hidden;
+  margin: 9vh auto 0;
+  max-width: 790px;
+  padding: 58px 62px;
+  border-radius: 20px;
+  background: #173a32;
+  color: #fff;
+}
+
+.welcome-card:after {
+  content: '';
+  position: absolute;
+  width: 340px;
+  height: 340px;
+  right: -95px;
+  top: -145px;
+  border: 1px solid rgba(185,237,123,.2);
+  border-radius: 50%;
+  box-shadow: 0 0 0 40px rgba(185,237,123,.035),0 0 0 80px rgba(185,237,123,.025);
+}
+
+.welcome-card>* {
+  position: relative;
+  z-index: 1;
+}
+
+.welcome-kicker {
+  font: 700 10px 'Manrope';
+  letter-spacing: 1.5px;
+  color: #b9ed7b;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.welcome-card h1 {
+  font: 700 clamp(30px,5vw,46px) 'Manrope';
+  letter-spacing: -1.9px;
+  margin: 19px 0 9px;
+}
+
+.welcome-card>p {
+  color: #c5d6cc;
+  font-size: 14px;
+}
+
+.welcome-card>p strong {
+  color: #fff;
+}
+
+.role-badge {
+  display: inline-block;
+  margin-top: 19px;
+  padding: 8px 11px;
+  border: 1px solid rgba(185,237,123,.3);
+  border-radius: 99px;
+  color: #c5e7a4;
+  font-size: 11px;
+}
+
+.welcome-next {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 58px;
+  padding-top: 17px;
+  border-top: 1px solid rgba(255,255,255,.15);
+  color: #abc1b5;
+  font-size: 12px;
+}

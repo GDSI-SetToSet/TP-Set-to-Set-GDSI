@@ -1,0 +1,267 @@
+openapi: 3.0.3
+info:
+  title: Set to Set - Discovery & Matchmaking API
+  version: 1.0.0
+  description: Endpoints para catálogo y búsqueda de entrenadores, envío y gestión de solicitudes de entrenamiento (US-44, US-46 a US-49, US-06, US-07).
+
+paths:
+  /api/v1/trainers:
+    get:
+      summary: Buscar y filtrar entrenadores en el catálogo público
+      parameters:
+        - name: specialty
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: max_price
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: only_available
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrainerCatalogItem'
+
+  /api/v1/trainers/{trainer_id}/public:
+    get:
+      summary: Visualizar perfil público completo de un entrenador
+      parameters:
+        - name: trainer_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainerPublicDetail'
+
+  /api/v1/matchmaking/requests:
+    post:
+      summary: Enviar solicitud de entrenamiento a un entrenador
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [trainer_id, plan_id]
+              properties:
+                trainer_id:
+                  type: string
+                  format: uuid
+                plan_id:
+                  type: string
+                  format: uuid
+                student_message:
+                  type: string
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingRequestResponse'
+        '409':
+          description: El entrenador no cuenta con cupos disponibles o ya existe solicitud pendiente
+
+    get:
+      summary: Listar solicitudes del usuario (inbox para entrenador, mis solicitudes para alumno)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [PENDING, ACCEPTED, REJECTED, CANCELLED]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrainingRequestResponse'
+
+  /api/v1/matchmaking/requests/{request_id}/accept:
+    post:
+      summary: Aceptar solicitud de entrenamiento (acción del entrenador)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                welcome_message:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingRelationshipResponse'
+        '409':
+          description: Cupos agotados; no se puede aceptar hasta liberar un cupo (Alternativa A)
+
+  /api/v1/matchmaking/requests/{request_id}/reject:
+    post:
+      summary: Rechazar solicitud de entrenamiento con motivo (acción del entrenador)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rejection_reason]
+              properties:
+                rejection_reason:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingRequestResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    TrainerCatalogItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        specialty:
+          type: string
+        starting_price:
+          type: number
+        currency:
+          type: string
+        has_available_quota:
+          type: boolean
+
+    TrainerPublicDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        specialty:
+          type: string
+        bio:
+          type: string
+        certifications:
+          type: string
+        has_available_quota:
+          type: boolean
+        plans:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              title:
+                type: string
+              monthly_price:
+                type: number
+              currency:
+                type: string
+
+    TrainingRequestResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        student_id:
+          type: string
+          format: uuid
+        trainer_id:
+          type: string
+          format: uuid
+        plan_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [PENDING, ACCEPTED, REJECTED, CANCELLED]
+        can_be_accepted:
+          type: boolean
+        student_message:
+          type: string
+        trainer_response_message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    TrainingRelationshipResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        student_id:
+          type: string
+          format: uuid
+        trainer_id:
+          type: string
+          format: uuid
+        plan_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [ACTIVE, EXPIRED, TERMINATED]
+        start_date:
+          type: string
+          format: date

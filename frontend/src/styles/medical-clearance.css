@@ -1,0 +1,91 @@
+.medical-clearance-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  background: #f9fbf9;
+  border: 1px solid #d5e0d7;
+  border-radius: 12px;
+  color: #273d33;
+}
+
+.medical-clearance-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.medical-clearance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #e2f4e4;
+  color: #1a622a;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.medical-clearance-details {
+  display: grid;
+  gap: 6px;
+  font-size: 0.95rem;
+}
+
+.medical-clearance-details p {
+  margin: 0;
+}
+
+.medical-clearance-download-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 18px;
+  background: #173a32;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+.medical-clearance-download-btn:hover {
+  background: #0f2621;
+}
+
+.medical-clearance-upload-box {
+  display: grid;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.medical-clearance-upload-box label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+  color: #273d33;
+}
+
+.medical-clearance-upload-box input[type="file"],
+.medical-clearance-upload-box input[type="date"] {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #cbd7cd;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #18251f;
+  font: inherit;
+}
+
+.medical-clearance-notice {
+  font-size: 0.85rem;
+  color: #556c5e;
+  line-height: 1.4;
+  margin: 0;
+}

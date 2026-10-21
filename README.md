@@ -44,13 +44,41 @@ La estructura del repositorio se irá consolidando a medida que avance el proyec
 
 Los archivos de configuración y las especificaciones compartidas forman parte de los artefactos del proyecto y deben mantenerse versionados cuando corresponda.
 
-## Flujo de colaboración
+## Desarrollo local: cómo levantar la aplicación
 
-Para mantener un historial claro y facilitar la revisión del trabajo:
+### Backend
 
-1. Cada funcionalidad se desarrolla en una rama específica.
-2. Los cambios se agrupan en commits pequeños y coherentes.
-3. La integración a `main` se realiza mediante Pull Requests.
-4. Los cambios se revisan antes de integrarse.
-5. Se verifican los controles de calidad disponibles antes de completar la integración.
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
+cp backend/.env.example backend/.env
+uvicorn backend.src.main:app --reload
+```
+
+La API queda disponible en `http://localhost:8000`. La documentación interactiva está en `http://localhost:8000/docs`. 
+
+Para producción, configurar `APP_ENV=production` y `JWT_SECRET` con un valor aleatorio de al menos 32 caracteres. La API no inicia en producción si falta el secreto o es demasiado corto.
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Abrí `http://localhost:5173`. Se puede crear una cuenta como alumno o entrenador; el registro inicia la sesión y muestra la pantalla correspondiente al rol. Las rutas internas requieren una sesión válida.
+
+### Recuperación de contraseña
+
+Por defecto (`EMAIL_BACKEND=console`) el backend no envía correos: el enlace de recuperación se escribe en el log de `uvicorn`. Para enviarlo por correo, configurar en `backend/.env` `EMAIL_BACKEND=smtp` junto con `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_USE_TLS` y `EMAIL_FROM`. `PASSWORD_RESET_URL` define la pantalla del frontend a la que apunta el enlace.
+
+### Pruebas
+
+Desde la raíz del repositorio (con .venv activado):
+
+```bash
+PYTHONPATH=. pytest backend/tests --cov=backend/src --cov-report=term-missing
+```
 
