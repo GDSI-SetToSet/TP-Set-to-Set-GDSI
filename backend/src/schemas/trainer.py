@@ -13,6 +13,9 @@ PLAN_MIN_PRICE = Decimal(0)
 PLAN_MAX_PRICE = Decimal(1000000)
 REQUIRED_FIELD_MESSAGE = "Este campo es obligatorio"
 PRICE_RANGE_MESSAGE = "La tarifa debe estar entre $0 y $1.000.000"
+MIN_QUOTA = 0
+MAX_QUOTA = 100
+QUOTA_RANGE_MESSAGE = "Los cupos deben estar entre 0 y 100"
 
 
 class TrainerProfileUpdate(BaseModel):
@@ -51,8 +54,30 @@ class TrainerProfileResponse(BaseModel):
     max_students: int
     active_students_count: int = 0
     available_slots: int = 0
+    has_available_quota: bool = False
     created_at: datetime
     updated_at: datetime
+
+
+class TrainerQuotaUpdate(BaseModel):
+    # Si no se indica el tope, se guarda 0: el perfil queda "Sin cupos disponibles" (US-04, escenario 2).
+    max_students: int | None = Field(default=None, validate_default=True)
+
+    @field_validator("max_students")
+    @classmethod
+    def validate_quota(cls, value: int | None) -> int:
+        if value is None:
+            return MIN_QUOTA
+        if not MIN_QUOTA <= value <= MAX_QUOTA:
+            raise PydanticCustomError("quota_range", QUOTA_RANGE_MESSAGE)
+        return value
+
+
+class TrainerQuotaResponse(BaseModel):
+    max_students: int
+    active_students: int
+    available_slots: int
+    has_available_quota: bool
 
 
 # PydanticCustomError evita el prefijo "Value error," para que el mensaje llegue tal cual al usuario (US-03).

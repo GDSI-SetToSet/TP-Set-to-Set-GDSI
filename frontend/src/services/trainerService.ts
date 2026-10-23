@@ -1,5 +1,5 @@
 import { api } from './api';
-import type { TrainerProfile, TrainerProfileUpdate, TrainingPlan, TrainingPlanInput } from '../types/trainer';
+import type { TrainerProfile, TrainerProfileUpdate, TrainerQuota, TrainingPlan, TrainingPlanInput } from '../types/trainer';
 
 const PROFILE_PATH = '/api/v1/trainers/me/profile';
 const PLANS_PATH = '/api/v1/trainers/me/plans';
@@ -11,6 +11,11 @@ export async function getOwnTrainerProfile(): Promise<TrainerProfile> {
 
 export async function updateOwnTrainerProfile(payload: TrainerProfileUpdate): Promise<TrainerProfile> {
   const { data } = await api.put<TrainerProfile>(PROFILE_PATH, payload);
+  return data;
+}
+
+export async function updateOwnTrainerQuota(maxStudents: number | null): Promise<TrainerQuota> {
+  const { data } = await api.patch<TrainerQuota>('/api/v1/trainers/me/quota', maxStudents === null ? {} : { max_students: maxStudents });
   return data;
 }
 

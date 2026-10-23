@@ -12,6 +12,7 @@ export interface TrainerProfile {
   max_students: number;
   active_students_count: number;
   available_slots: number;
+  has_available_quota: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -37,4 +38,11 @@ export interface TrainingPlanInput {
   title: string;
   description: string | null;
   monthly_price: number;
+}
+
+export interface TrainerQuota {
+  max_students: number;
+  active_students: number;
+  available_slots: number;
+  has_available_quota: boolean;
 }

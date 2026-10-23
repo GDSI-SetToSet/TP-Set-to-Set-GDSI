@@ -79,14 +79,15 @@ description: "Task list for 002-trainer-profile-and-plans"
 
 **Independent Test**: El entrenador configura el límite, el perfil muestra cupos disponibles y el backend rechaza nuevas solicitudes y aceptaciones pendientes cuando `active_students_count >= max_students`.
 
-- [ ] T024 [P] [US3] Crear pruebas unitarias de límites 0..100, cálculo de disponibilidad y concurrencia al aceptar solicitudes en `backend/tests/test_trainer_quota_service.py`
-- [ ] T025 [P] [US3] Crear pruebas de integración para actualización de cupos, perfil publicado y bloqueo 409 en `backend/tests/test_trainer_quota_api.py`
+- [x] T024 [P] [US3] Crear pruebas unitarias de límites 0..100, cálculo de disponibilidad y concurrencia al aceptar solicitudes en `backend/tests/test_trainer_quota_service.py` (la prueba de concurrencia queda pendiente junto con T026)
+- [x] T025 [P] [US3] Crear pruebas de integración para actualización de cupos, perfil publicado y bloqueo 409 en `backend/tests/test_trainer_quota_api.py`
 - [ ] T026 [US3] Integrar el conteo de relaciones activas y el bloqueo transaccional de aceptación en los modelos y servicios de vínculos correspondientes bajo `backend/src/models/` y `backend/src/services/`
-- [ ] T027 [P] [US3] Agregar schemas de cupo con `max_students` entre 0 y 100, `active_students`, `available_slots` y `has_available_quota` en `backend/src/schemas/trainer.py`
-- [ ] T028 [US3] Implementar actualización y cálculo de cupos en `backend/src/services/trainer_service.py` y `PATCH /api/v1/trainers/me/quota` en `backend/src/api/v1/trainers.py`
-- [ ] T029 [P] [US3] Crear `frontend/src/components/QuotaBadge.tsx` y operaciones de cupo en `frontend/src/services/trainerService.ts`
-- [ ] T030 [US3] Integrar edición y visualización accesible de cupos en las pantallas de perfil del entrenador bajo `frontend/src/pages/`
-- [ ] T031 [US3] Ejecutar calidad automatizada y recorrer el Escenario 3 de `taskify/specs/002-trainer-profile-and-plans/quickstart.md`
+  - ⏳ Pendiente: los vínculos y solicitudes llegan con las specs 004/011. Mientras tanto `count_active_students` devuelve 0 y `has_available_quota` queda listo en `backend/src/services/trainer_service.py` para bloquear solicitudes y aceptaciones (escenarios 4 y 5).
+- [x] T027 [P] [US3] Agregar schemas de cupo con `max_students` entre 0 y 100, `active_students`, `available_slots` y `has_available_quota` en `backend/src/schemas/trainer.py`
+- [x] T028 [US3] Implementar actualización y cálculo de cupos en `backend/src/services/trainer_service.py` y `PATCH /api/v1/trainers/me/quota` en `backend/src/api/v1/trainers.py`
+- [x] T029 [P] [US3] Crear `frontend/src/components/QuotaBadge.tsx` y operaciones de cupo en `frontend/src/services/trainerService.ts`
+- [x] T030 [US3] Integrar edición y visualización accesible de cupos en las pantallas de perfil del entrenador bajo `frontend/src/pages/`
+- [x] T031 [US3] Ejecutar calidad automatizada y recorrer el Escenario 3 de `taskify/specs/002-trainer-profile-and-plans/quickstart.md`
 
 ---
 

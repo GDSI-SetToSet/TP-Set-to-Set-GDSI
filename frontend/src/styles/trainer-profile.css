@@ -69,3 +69,17 @@
   .profile-grid { grid-template-columns: 1fr; }
   .profile-save { width: 100%; }
 }
+
+.quota-card { margin-top: 24px; }
+.quota-card__header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.quota-card h2 { margin: 10px 0 8px; color: #173a32; font: 700 clamp(24px, 4vw, 30px) 'Manrope'; letter-spacing: -1px; }
+.quota-form { margin-top: 24px; max-width: 320px; }
+.quota-help { color: #52665b; font-weight: 500; }
+.quota-badge { padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.quota-badge--open { color: #174b35; background: #d9f3df; }
+.quota-badge--full { color: #7a1d1d; background: #fde0dc; }
+
+@media (max-width: 680px) {
+  .quota-card__header { flex-direction: column; }
+  .quota-form { max-width: none; }
+}
