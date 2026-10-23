@@ -10,6 +10,13 @@
 
 **User Stories Cubiertas**: US-44, US-46, US-47, US-48, US-06, US-07, US-49
 
+## Clarifications
+
+### Session 2026-10-23
+
+- Q: Si el entrenador edita la tarifa o archiva un paquete mientras hay una solicitud pendiente o un vínculo activo, ¿qué arancel queda acordado? → A: El vigente al enviar la solicitud. La solicitud guarda una copia de la tarifa y la moneda al crearse, el vínculo la hereda al aceptarse y ninguno de los dos se recalcula a partir del paquete (no retroactividad, spec 002 US-03).
+- Q: ¿Se puede enviar una solicitud por un paquete archivado? → A: No. Solo se pueden seleccionar paquetes activos (`is_active = true`); las solicitudes pendientes de un paquete que se archiva después siguen siendo válidas con su arancel guardado.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-44: Búsqueda y filtrado de entrenadores] (Priority: P1, Estimación: 4 SP)
@@ -195,13 +202,15 @@ Como alumno, quiero recibir una confirmación y un mensaje de bienvenida cuando 
 
 - **FR-009**: El sistema DEBE revocar de forma inmediata e irreversible el acceso del entrenador a los datos de salud del alumno (cuestionario, molestias, apto médico) en el backend si la solicitud es rechazada o cancelada (US-06, US-07, US-48, Constitución).
 
+- **FR-010**: Al crear una solicitud, el sistema DEBE guardar en ella la tarifa mensual y la moneda vigentes del paquete seleccionado, y al aceptarla DEBE copiarlas al vínculo. Editar la tarifa o archivar el paquete después no modifica el arancel de solicitudes ya enviadas ni de vínculos existentes. Solo se pueden solicitar paquetes activos (US-47, US-48, US-07; spec 002 US-03).
+
 
 
 ### Key Entities *(include if feature involves data)*
 
 - **TrainerSearchFilter**: Criterios combinables de búsqueda: especialidad, rango de tarifa, disponibilidad horaria y modalidad.
 
-- **EnrollmentRequest**: Solicitud de vinculación enviada por un alumno a un entrenador para un paquete específico, con estado ('PENDING', 'ACCEPTED', 'REJECTED'), fecha y mensaje inicial.
+- **EnrollmentRequest**: Solicitud de vinculación enviada por un alumno a un entrenador para un paquete específico, con estado ('PENDING', 'ACCEPTED', 'REJECTED'), fecha, mensaje inicial y el arancel acordado (tarifa y moneda del paquete al momento de enviarla).
 
 - **OnboardingWelcome**: Mensaje de confirmación y bienvenida generado automáticamente al aceptar una solicitud, con instrucciones iniciales.
 

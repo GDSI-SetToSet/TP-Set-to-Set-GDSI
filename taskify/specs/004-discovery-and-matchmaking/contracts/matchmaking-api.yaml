@@ -231,6 +231,11 @@ components:
         plan_id:
           type: string
           format: uuid
+        agreed_monthly_price:
+          type: number
+          description: Tarifa del paquete al enviar la solicitud (FR-010)
+        agreed_currency:
+          type: string
         status:
           type: string
           enum: [PENDING, ACCEPTED, REJECTED, CANCELLED]
@@ -259,6 +264,11 @@ components:
         plan_id:
           type: string
           format: uuid
+        agreed_monthly_price:
+          type: number
+          description: Arancel heredado de la solicitud aceptada (FR-010)
+        agreed_currency:
+          type: string
         status:
           type: string
           enum: [ACTIVE, EXPIRED, TERMINATED]
