@@ -1,13 +1,23 @@
 import axios from 'axios';
-import { ArrowLeft, CheckCircle2, Save } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Save, Users } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { QuotaBadge } from '../components/QuotaBadge';
 import { ROUTES } from '../constants/routes';
-import { getOwnTrainerProfile, updateOwnTrainerProfile } from '../services/trainerService';
+import { getOwnTrainerProfile, updateOwnTrainerProfile, updateOwnTrainerQuota } from '../services/trainerService';
 import type { TrainerProfile, TrainerProfileUpdate } from '../types/trainer';
 
 type FormState = Record<keyof TrainerProfileUpdate, string>;
 const EMPTY_FORM: FormState = { full_name: '', contact_phone: '', specialty: '', bio: '', certifications: '' };
+const MIN_QUOTA = 0;
+const MAX_QUOTA = 100;
+const QUOTA_RANGE_MESSAGE = 'Los cupos deben estar entre 0 y 100';
+
+function quotaError(value: string): string {
+  if (!value.trim()) return '';
+  const quota = Number(value);
+  return Number.isInteger(quota) && quota >= MIN_QUOTA && quota <= MAX_QUOTA ? '' : QUOTA_RANGE_MESSAGE;
+}
 
 interface ProblemDetails {
   detail?: string;
@@ -22,11 +32,16 @@ export function TrainerProfileEditPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [quota, setQuota] = useState('');
+  const [savingQuota, setSavingQuota] = useState(false);
+  const [quotaMessage, setQuotaMessage] = useState('');
+  const [quotaFailure, setQuotaFailure] = useState('');
 
   useEffect(() => {
     getOwnTrainerProfile()
       .then((data) => {
         setProfile(data);
+        setQuota(String(data.max_students));
         setForm({
           full_name: data.full_name ?? '',
           contact_phone: data.contact_phone ?? '',
@@ -82,6 +97,35 @@ export function TrainerProfileEditPage() {
     }
   }
 
+  // Un tope fuera de rango se marca mientras se escribe y bloquea "Guardar cupos" (US-04, escenario 3).
+  const quotaRangeError = quotaError(quota);
+
+  async function handleQuotaSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (quotaRangeError) return;
+    setSavingQuota(true);
+    setQuotaMessage('');
+    setQuotaFailure('');
+    try {
+      const updated = await updateOwnTrainerQuota(quota.trim() ? Number(quota) : null);
+      setProfile((current) => current && {
+        ...current,
+        max_students: updated.max_students,
+        active_students_count: updated.active_students,
+        available_slots: updated.available_slots,
+        has_available_quota: updated.has_available_quota,
+      });
+      setQuota(String(updated.max_students));
+      setQuotaMessage(updated.active_students > updated.max_students
+        ? 'Cupos guardados. Tenés más alumnos activos que el nuevo tope: no vas a recibir solicitudes hasta liberar cupos.'
+        : 'Cupos guardados.');
+    } catch {
+      setQuotaFailure('No pudimos guardar los cupos. Intentá nuevamente.');
+    } finally {
+      setSavingQuota(false);
+    }
+  }
+
   if (loading) return <main className="loading-screen"><span className="loading-mark" /> Cargando perfil…</main>;
 
   return (
@@ -124,6 +168,28 @@ export function TrainerProfileEditPage() {
           {error && <p className="form-alert" role="alert">{error}</p>}
           {message && <p className="profile-success" role="status"><CheckCircle2 size={18} /> {message}</p>}
           <button className="profile-save" type="submit" disabled={saving}><Save size={18} /> {saving ? 'Guardando…' : 'Guardar perfil'}</button>
+        </form>
+      </section>
+
+      <section className="profile-card quota-card" aria-labelledby="quota-title">
+        <div className="quota-card__header">
+          <div className="profile-heading">
+            <span>CUPOS</span>
+            <h2 id="quota-title">¿Cuántos alumnos podés tomar?</h2>
+            <p>Al llegar al tope dejás de recibir solicitudes nuevas. Si lo dejás vacío se guarda en 0.</p>
+          </div>
+          {profile && <QuotaBadge availableSlots={profile.available_slots} hasAvailableQuota={profile.has_available_quota} />}
+        </div>
+        <form className="profile-form quota-form" onSubmit={handleQuotaSubmit} noValidate>
+          <label>Tope de alumnos
+            <input type="number" inputMode="numeric" min={MIN_QUOTA} max={MAX_QUOTA} step={1} value={quota} onChange={(event) => { setQuota(event.target.value); setQuotaMessage(''); }} aria-invalid={Boolean(quotaRangeError)} aria-describedby="quota-help" />
+            {quotaRangeError
+              ? <small className="field-error">{quotaRangeError}</small>
+              : <small id="quota-help" className="quota-help">Alumnos activos: {profile?.active_students_count ?? 0}</small>}
+          </label>
+          {quotaFailure && <p className="form-alert" role="alert">{quotaFailure}</p>}
+          {quotaMessage && <p className="profile-success" role="status"><CheckCircle2 size={18} /> {quotaMessage}</p>}
+          <button className="profile-save" type="submit" disabled={savingQuota || Boolean(quotaRangeError)}><Users size={18} /> {savingQuota ? 'Guardando…' : 'Guardar cupos'}</button>
         </form>
       </section>
     </main>

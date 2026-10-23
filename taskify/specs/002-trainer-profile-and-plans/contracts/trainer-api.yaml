@@ -75,10 +75,11 @@ paths:
           application/json:
             schema:
               type: object
-              required: [max_students]
+              description: Si se omite max_students (o es null) se guarda 0 y el perfil queda "Sin cupos disponibles".
               properties:
                 max_students:
                   type: integer
+                  nullable: true
                   minimum: 0
                   maximum: 100
                   example: 25
@@ -95,6 +96,14 @@ paths:
                     type: integer
                   available_slots:
                     type: integer
+                  has_available_quota:
+                    type: boolean
+        '422':
+          description: Tope fuera de rango ("Los cupos deben estar entre 0 y 100"); el tope vigente no se modifica
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
 
   /api/v1/trainers/me/plans:
     get:
@@ -279,6 +288,8 @@ components:
           type: integer
         available_slots:
           type: integer
+        has_available_quota:
+          type: boolean
 
     TrainingPlanCreateRequest:
       type: object
