@@ -44,4 +44,4 @@ Paquetes o planes de entrenamiento mensuales ofrecidos por el entrenador (US-03)
 - **Guardado parcial**: `full_name`, `contact_phone`, `specialty`, `bio` y `certifications` pueden actualizarse de forma parcial mientras el perfil permanece en `DRAFT`; los valores enviados no pueden ser cadenas vacías.
 - **Teléfono**: regex `^\+?[0-9]{8,15}$` (sin espacios ni guiones).
 - **Estado del perfil**: `status = PUBLISHED` si y solo si `full_name`, `contact_phone` y `specialty` no son nulos; se recalcula en cada guardado. Un perfil ya `PUBLISHED` rechaza actualizaciones que eliminen cualquiera de esos campos.
-- **No retroactividad**: editar `monthly_price` o archivar un `TrainingPlan` (`is_active = False`) no modifica el arancel acordado de vínculos activos; el vínculo conserva el precio vigente al momento de aceptarse.
+- **No retroactividad**: editar `monthly_price` o archivar un `TrainingPlan` (`is_active = False`) no modifica el arancel acordado de vínculos activos; el arancel acordado es el vigente al enviar la solicitud: `TrainingRequest` lo guarda al crearse y `TrainingRelationship` lo hereda al aceptarse (spec 004, FR-010).

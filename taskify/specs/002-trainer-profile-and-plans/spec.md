@@ -17,6 +17,11 @@
 - Q: ¿Un entrenador con perfil `DRAFT` puede guardar parcialmente biografía o certificaciones aunque todavía no haya completado contacto y especialidad? → A: Sí. Puede guardar avances parciales y el perfil permanece en `DRAFT` hasta completar los campos obligatorios para su publicación.
 - Q: ¿Quién puede consultar un perfil de entrenador `PUBLISHED`? → A: Cualquier usuario autenticado, sea alumno o entrenador.
 
+### Session 2026-10-23
+
+- Q: ¿Un entrenador con perfil `DRAFT` puede crear paquetes? → A: Sí. Puede crearlos, editarlos y archivarlos, pero no son visibles para otros usuarios hasta que el perfil pase a `PUBLISHED`.
+- Q: Si la tarifa de un paquete cambia mientras hay una solicitud pendiente, ¿qué arancel queda acordado? → A: El vigente al momento de enviar la solicitud. La solicitud lo guarda al crearse y el vínculo lo hereda al aceptarse; los cambios posteriores del paquete solo afectan a solicitudes nuevas. La implementación corresponde a la spec 004 (FR-010).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-02: Carga y edición de datos de perfil del entrenador] (Priority: P1, Estimación: 4 SP)
@@ -124,7 +129,7 @@ Como entrenador,
 
 - **FR-008**: El sistema DEBE permitir que cualquier usuario autenticado, alumno o entrenador, consulte un perfil de entrenador PUBLISHED, y DEBE impedir el acceso público a perfiles DRAFT (US-02).
 
-- **FR-003**: El sistema DEBE permitir al entrenador crear, editar y archivar paquetes de entrenamiento mensuales indicando título, descripción y tarifa (US-03). La edición de la tarifa o el archivado de un paquete aplica solo a solicitudes futuras y no modifica el arancel acordado de alumnos con vínculos activos.
+- **FR-003**: El sistema DEBE permitir al entrenador crear, editar y archivar paquetes de entrenamiento mensuales indicando título, descripción y tarifa (US-03), aun con el perfil en `DRAFT`; los paquetes solo son visibles para otros usuarios cuando el perfil está `PUBLISHED`. La edición de la tarifa o el archivado de un paquete aplica solo a solicitudes enviadas después del cambio y no modifica el arancel acordado de solicitudes pendientes ni de vínculos activos (ver spec 004, FR-010).
 
 - **FR-004**: El sistema DEBE permitir configurar un tope máximo de cupos de alumnos para el entrenador (US-04).
 
