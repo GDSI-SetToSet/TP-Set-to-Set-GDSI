@@ -10,6 +10,7 @@ from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.user import User
 from backend.src.schemas.trainer import (
     TrainerProfileUpdate,
+    TrainerQuotaUpdate,
     TrainingPlanCreate,
     TrainingPlanUpdate,
 )
@@ -74,6 +75,36 @@ def get_published_profile(db: Session, profile_id: str) -> TrainerProfile:
     profile = db.get(TrainerProfile, profile_id)
     if profile is None or profile.status != "PUBLISHED":
         raise TrainerProfileError(status.HTTP_404_NOT_FOUND, "Perfil de entrenador no encontrado.")
+    return profile
+
+
+# Los vínculos entrenador-alumno llegan con las specs 004/011: hasta entonces no hay alumnos activos.
+# Al integrarlos, este conteo y el bloqueo transaccional de aceptación completan la T026.
+def count_active_students(db: Session, profile: TrainerProfile) -> int:
+    return 0
+
+
+def quota_summary(db: Session, profile: TrainerProfile) -> dict[str, int | bool]:
+    active = count_active_students(db, profile)
+    available = max(profile.max_students - active, 0)
+    return {
+        "max_students": profile.max_students,
+        "active_students": active,
+        "available_slots": available,
+        "has_available_quota": available > 0,
+    }
+
+
+def has_available_quota(db: Session, profile: TrainerProfile) -> bool:
+    return bool(quota_summary(db, profile)["has_available_quota"])
+
+
+def update_quota(db: Session, user: User, payload: TrainerQuotaUpdate) -> TrainerProfile:
+    profile = get_or_create_profile(db, user)
+    profile.max_students = payload.max_students
+    profile.updated_at = utc_now()
+    db.commit()
+    db.refresh(profile)
     return profile
 
 
