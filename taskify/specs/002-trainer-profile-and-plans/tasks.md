@@ -60,16 +60,16 @@ description: "Task list for 002-trainer-profile-and-plans"
 
 **Independent Test**: Un entrenador con perfil PUBLISHED crea un paquete válido, ARS se aplica por defecto, las tarifas fuera de `0..1.000.000` se rechazan y el archivado no modifica vínculos activos existentes.
 
-- [ ] T014 [P] [US2] Crear pruebas unitarias de tarifa, moneda, archivado y no retroactividad en `backend/tests/test_training_plan_service.py`
-- [ ] T015 [P] [US2] Crear pruebas de integración de creación, listado, edición y archivado en `backend/tests/test_training_plan_api.py`
-- [ ] T016 [US2] Implementar `TrainingPlan` en `backend/src/models/training_plan.py`: título String(100), descripción nullable, `monthly_price` Numeric(10,2) entre 0 y 1.000.000, `currency` String(3) con defecto `ARS`, `is_active` con defecto true y timestamps UTC
-- [ ] T017 [P] [US2] Agregar schemas de creación, actualización y respuesta de paquetes en `backend/src/schemas/trainer.py`
-- [ ] T018 [US2] Implementar reglas de publicación, edición, archivado y no retroactividad en `backend/src/services/trainer_service.py`
-- [ ] T019 [US2] Implementar endpoints autenticados de paquetes en `backend/src/api/v1/trainers.py`
-- [ ] T020 [P] [US2] Agregar tipos y operaciones de paquetes en `frontend/src/types/trainer.ts` y `frontend/src/services/trainerService.ts`
-- [ ] T021 [US2] Crear gestión responsive de paquetes con validaciones por campo en `frontend/src/pages/TrainerPlansManagementPage.tsx`, `frontend/src/components/PlanCard.tsx` y `frontend/src/styles/trainer-plans.css`
-- [ ] T022 [US2] Registrar rutas y navegación de paquetes en `frontend/src/App.tsx` y `frontend/src/constants/routes.ts`
-- [ ] T023 [US2] Ejecutar calidad automatizada y recorrer el Escenario 2 de `taskify/specs/002-trainer-profile-and-plans/quickstart.md`
+- [x] T014 [P] [US2] Crear pruebas unitarias de tarifa, moneda, archivado y no retroactividad en `backend/tests/test_training_plan_service.py`
+- [x] T015 [P] [US2] Crear pruebas de integración de creación, listado, edición y archivado en `backend/tests/test_training_plan_api.py`
+- [x] T016 [US2] Implementar `TrainingPlan` en `backend/src/models/training_plan.py`: título String(100), descripción nullable, `monthly_price` Numeric(10,2) entre 0 y 1.000.000, `currency` String(3) con defecto `ARS`, `is_active` con defecto true y timestamps UTC
+- [x] T017 [P] [US2] Agregar schemas de creación, actualización y respuesta de paquetes en `backend/src/schemas/trainer.py`
+- [x] T018 [US2] Implementar reglas de publicación, edición, archivado y no retroactividad en `backend/src/services/trainer_service.py`
+- [x] T019 [US2] Implementar endpoints autenticados de paquetes en `backend/src/api/v1/trainers.py`
+- [x] T020 [P] [US2] Agregar tipos y operaciones de paquetes en `frontend/src/types/trainer.ts` y `frontend/src/services/trainerService.ts`
+- [x] T021 [US2] Crear gestión responsive de paquetes con validaciones por campo en `frontend/src/pages/TrainerPlansManagementPage.tsx`, `frontend/src/components/PlanCard.tsx` y `frontend/src/styles/trainer-plans.css`
+- [x] T022 [US2] Registrar rutas y navegación de paquetes en `frontend/src/App.tsx` y `frontend/src/constants/routes.ts`
+- [x] T023 [US2] Ejecutar calidad automatizada y recorrer el Escenario 2 de `taskify/specs/002-trainer-profile-and-plans/quickstart.md`
 
 ---
 

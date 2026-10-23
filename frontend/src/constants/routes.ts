@@ -10,6 +10,7 @@ export const ROUTES = {
   home: '/inicio',
   trainerHome: '/entrenador/inicio',
   trainerProfile: '/entrenador/perfil',
+  trainerPlans: '/entrenador/paquetes',
   studentHome: '/alumno/inicio',
   studentProfile: '/alumno/perfil',
   studentHealth: '/alumno/salud',

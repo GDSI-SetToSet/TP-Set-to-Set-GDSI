@@ -8,6 +8,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { TrainerProfileEditPage } from './pages/TrainerProfileEditPage';
+import { TrainerPlansManagementPage } from './pages/TrainerPlansManagementPage';
 import type { UserRole } from './types/auth';
 import { HealthQuestionnairePage } from './pages/HealthQuestionnairePage';
 import { StudentProfileEditPage } from './pages/StudentProfileEditPage';
@@ -39,6 +40,7 @@ export default function App() {
       <Route path={ROUTES.home} element={<HomeRedirect />} />
       <Route path={ROUTES.trainerHome} element={<ProtectedRoute role={USER_ROLES.trainer}><HomePage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerProfile} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerProfileEditPage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerPlans} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerPlansManagementPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentHome} element={<ProtectedRoute role={USER_ROLES.student}><HomePage /></ProtectedRoute>} />
       <Route path={ROUTES.fallback} element={<Navigate to={ROUTES.login} replace />} />
       <Route path={ROUTES.studentHealth} element={<ProtectedRoute role={USER_ROLES.student}><HealthQuestionnairePage /></ProtectedRoute>} />

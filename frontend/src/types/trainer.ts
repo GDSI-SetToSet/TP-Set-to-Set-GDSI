@@ -20,3 +20,21 @@ export type TrainerProfileUpdate = Partial<Pick<
   TrainerProfile,
   'full_name' | 'contact_phone' | 'specialty' | 'bio' | 'certifications'
 >>;
+
+export interface TrainingPlan {
+  id: string;
+  trainer_id: string;
+  title: string;
+  description: string | null;
+  monthly_price: number;
+  currency: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrainingPlanInput {
+  title: string;
+  description: string | null;
+  monthly_price: number;
+}
