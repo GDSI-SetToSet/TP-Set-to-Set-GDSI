@@ -1,5 +1,6 @@
 from backend.src.models.medical_clearance import MedicalClearance
 from backend.src.models.trainer_profile import TrainerProfile
+from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.user import PasswordResetToken, User, UserSession
 
 from .health_questionnaire import HealthQuestionnaire
@@ -13,6 +14,7 @@ __all__ = [
     "ProtectedZone",
     "StudentProfile",
     "TrainerProfile",
+    "TrainingPlan",
     "User",
     "UserSession",
 ]

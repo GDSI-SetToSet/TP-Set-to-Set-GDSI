@@ -10,6 +10,7 @@ from backend.src.models import (  # noqa: F401
     MedicalClearance,
     PasswordResetToken,
     TrainerProfile,
+    TrainingPlan,
     User,
     UserSession,
 )

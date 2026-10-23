@@ -15,6 +15,7 @@ from backend.src.models import (  # noqa: F401
     PasswordResetToken,
     StudentProfile,
     TrainerProfile,
+    TrainingPlan,
     User,
     UserSession,
 )

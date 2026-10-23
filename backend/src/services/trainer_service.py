@@ -1,12 +1,18 @@
 from datetime import UTC, datetime
 
 from fastapi import status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.src.core.constants import TRAINER_ROLE
 from backend.src.models.trainer_profile import TrainerProfile
+from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.user import User
-from backend.src.schemas.trainer import TrainerProfileUpdate
+from backend.src.schemas.trainer import (
+    TrainerProfileUpdate,
+    TrainingPlanCreate,
+    TrainingPlanUpdate,
+)
 
 
 class TrainerProfileError(Exception):
@@ -69,3 +75,57 @@ def get_published_profile(db: Session, profile_id: str) -> TrainerProfile:
     if profile is None or profile.status != "PUBLISHED":
         raise TrainerProfileError(status.HTTP_404_NOT_FOUND, "Perfil de entrenador no encontrado.")
     return profile
+
+
+def list_own_plans(db: Session, user: User) -> list[TrainingPlan]:
+    profile = get_or_create_profile(db, user)
+    return list(profile.plans)
+
+
+def create_plan(db: Session, user: User, payload: TrainingPlanCreate) -> TrainingPlan:
+    profile = get_or_create_profile(db, user)
+    now = utc_now()
+    plan = TrainingPlan(trainer_id=profile.id, **payload.model_dump(), is_active=True, created_at=now, updated_at=now)
+    db.add(plan)
+    db.commit()
+    db.refresh(plan)
+    return plan
+
+
+def get_own_plan(db: Session, user: User, plan_id: str) -> TrainingPlan:
+    profile = get_or_create_profile(db, user)
+    plan = db.get(TrainingPlan, plan_id)
+    if plan is None or plan.trainer_id != profile.id:
+        raise TrainerProfileError(status.HTTP_404_NOT_FOUND, "Paquete no encontrado.")
+    return plan
+
+
+# No retroactividad (US-03): editar o archivar solo cambia la oferta para solicitudes futuras.
+# Los vínculos activos deben guardar su propio arancel al aceptarse, sin referenciar el precio vigente del paquete.
+def update_plan(db: Session, user: User, plan_id: str, payload: TrainingPlanUpdate) -> TrainingPlan:
+    plan = get_own_plan(db, user, plan_id)
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(plan, field, value)
+    plan.updated_at = utc_now()
+    db.commit()
+    db.refresh(plan)
+    return plan
+
+
+def archive_plan(db: Session, user: User, plan_id: str) -> TrainingPlan:
+    plan = get_own_plan(db, user, plan_id)
+    plan.is_active = False
+    plan.updated_at = utc_now()
+    db.commit()
+    db.refresh(plan)
+    return plan
+
+
+def list_published_plans(db: Session, profile_id: str) -> list[TrainingPlan]:
+    profile = get_published_profile(db, profile_id)
+    query = (
+        select(TrainingPlan)
+        .where(TrainingPlan.trainer_id == profile.id, TrainingPlan.is_active.is_(True))
+        .order_by(TrainingPlan.created_at)
+    )
+    return list(db.scalars(query))
