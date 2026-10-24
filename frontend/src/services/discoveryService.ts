@@ -5,8 +5,11 @@ import type {
   StudentGoalsSummary,
   TrainerPublicDetail,
   TrainerSearchFilters,
+  TrainingRelationshipResponse,
+  TrainingRequestAcceptPayload,
   TrainingRequestCreate,
   TrainingRequestDetailResponse,
+  TrainingRequestRejectPayload,
   TrainingRequestResponse,
   TrainingRequestStatus,
 } from '../types/discovery';
@@ -46,6 +49,28 @@ export async function getTrainerRequestDetail(
 ): Promise<TrainingRequestDetailResponse> {
   const { data } = await api.get<TrainingRequestDetailResponse>(
     `/api/v1/matchmaking/requests/${requestId}`,
+  );
+  return data;
+}
+
+export async function acceptTrainingRequest(
+  requestId: string,
+  payload?: TrainingRequestAcceptPayload,
+): Promise<TrainingRelationshipResponse> {
+  const { data } = await api.post<TrainingRelationshipResponse>(
+    `/api/v1/matchmaking/requests/${requestId}/accept`,
+    payload ?? {},
+  );
+  return data;
+}
+
+export async function rejectTrainingRequest(
+  requestId: string,
+  payload?: TrainingRequestRejectPayload,
+): Promise<TrainingRequestResponse> {
+  const { data } = await api.post<TrainingRequestResponse>(
+    `/api/v1/matchmaking/requests/${requestId}/reject`,
+    payload ?? {},
   );
   return data;
 }

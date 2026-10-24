@@ -70,7 +70,7 @@ description: "Task list for 004-discovery-and-matchmaking (US-06 and US-07)"
 
 ### Tests for User Story 6 (US-07)
 
-- [ ] T014 [P] [US6] Crear pruebas de integración en `backend/tests/test_trainer_requests_actions_api.py` para:
+- [x] T014 [P] [US6] Crear pruebas de integración en `backend/tests/test_trainer_requests_actions_api.py` para:
   - `POST /api/v1/matchmaking/requests/{id}/accept`: crea `TrainingRelationship` en estado `ACTIVE`, copia arancel y moneda acordados, suma 1 a `count_active_students` y cambia estado a `ACCEPTED`.
   - Aceptación con cupo lleno (`active_students >= max_students`): devuelve HTTP 409 Conflict con mensaje RFC 7807 *"Cupos agotados; libere un cupo para poder aceptar."* y no modifica la base de datos.
   - `POST /api/v1/matchmaking/requests/{id}/reject`: actualiza a `REJECTED`, persiste motivo opcional (o `null` si no se envía) y fecha de resolución, no altera cupo.
@@ -80,14 +80,14 @@ description: "Task list for 004-discovery-and-matchmaking (US-06 and US-07)"
 
 ### Implementation for User Story 6 (US-07)
 
-- [ ] T015 [US6] Crear el modelo `TrainingRelationship` en `backend/src/models/training_relationship.py` según `data-model.md` (`id`, `student_id`, `trainer_id`, `plan_id`, `agreed_monthly_price`, `agreed_currency`, `status`, `start_date`, `end_date`, `terminated_at`, `termination_reason`) y registrarlo en `backend/src/models/__init__.py`, `backend/src/main.py` y `backend/tests/conftest.py`.
-- [ ] T016 [US6] Actualizar [`count_active_students(db, profile)`](file:///mnt/r/Proyectos/GDSI/TP-Set-to-Set-GDSI/backend/src/services/trainer_service.py#L83) en `backend/src/services/trainer_service.py` para consultar la cantidad real de `TrainingRelationship` con `status == 'ACTIVE'` de ese entrenador (**completa y cierra formalmente la tarea T026 de la spec 002**) (depende de T015).
-- [ ] T017 [P] [US6] Crear schemas `TrainingRequestAcceptPayload` (`welcome_message: str | None`), `TrainingRequestRejectPayload` (`rejection_reason: str | None`) y `TrainingRelationshipResponse` en `backend/src/schemas/discovery.py`.
-- [ ] T018 [US6] Implementar funciones transaccionales atómicas `accept_training_request` (con `with_for_update` sobre `TrainerProfile`, verificación de cupo disponible e inserción de `TrainingRelationship`) y `reject_training_request` en `backend/src/services/discovery_service.py` (depende de T015, T016, T017).
-- [ ] T019 [US6] Exponer endpoints `POST /api/v1/matchmaking/requests/{request_id}/accept` y `POST /api/v1/matchmaking/requests/{request_id}/reject` en `backend/src/api/v1/discovery.py` manejando excepciones de cupo y conflicto RFC 7807 (depende de T018).
-- [ ] T020 [P] [US6] Crear el componente modal de confirmación `RequestActionModal.tsx` en `frontend/src/components/RequestActionModal.tsx` para aceptar (con campo opcional de bienvenida) y rechazar (con textarea opcional de motivo).
-- [ ] T021 [US6] Integrar acciones de aceptar y rechazar en `TrainerRequestDetailPage.tsx`, inhabilitando el botón Aceptar si `can_be_accepted == False` con mensaje descriptivo de cupo agotado, y redirigiendo a la bandeja con feedback visual de éxito (depende de T019, T020).
-- [ ] T022 [US6] Ejecutar suite de pruebas completa backend y frontend, verificando cobertura $\ge 90\%$, linter Ruff y recorrido de los 6 escenarios de aceptación de US-07.
+- [x] T015 [US6] Crear el modelo `TrainingRelationship` en `backend/src/models/training_relationship.py` según `data-model.md` (`id`, `student_id`, `trainer_id`, `plan_id`, `agreed_monthly_price`, `agreed_currency`, `status`, `start_date`, `end_date`, `terminated_at`, `termination_reason`) y registrarlo en `backend/src/models/__init__.py`, `backend/src/main.py` y `backend/tests/conftest.py`.
+- [x] T016 [US6] Actualizar [`count_active_students(db, profile)`](file:///mnt/r/Proyectos/GDSI/TP-Set-to-Set-GDSI/backend/src/services/trainer_service.py#L83) en `backend/src/services/trainer_service.py` para consultar la cantidad real de `TrainingRelationship` con `status == 'ACTIVE'` de ese entrenador (**completa y cierra formalmente la tarea T026 de la spec 002**) (depende de T015).
+- [x] T017 [P] [US6] Crear schemas `TrainingRequestAcceptPayload` (`welcome_message: str | None`), `TrainingRequestRejectPayload` (`rejection_reason: str | None`) y `TrainingRelationshipResponse` en `backend/src/schemas/discovery.py`.
+- [x] T018 [US6] Implementar funciones transaccionales atómicas `accept_training_request` (con `with_for_update` sobre `TrainerProfile`, verificación de cupo disponible e inserción de `TrainingRelationship`) y `reject_training_request` en `backend/src/services/discovery_service.py` (depende de T015, T016, T017).
+- [x] T019 [US6] Exponer endpoints `POST /api/v1/matchmaking/requests/{request_id}/accept` y `POST /api/v1/matchmaking/requests/{request_id}/reject` en `backend/src/api/v1/discovery.py` manejando excepciones de cupo y conflicto RFC 7807 (depende de T018).
+- [x] T020 [P] [US6] Crear el componente modal de confirmación `RequestActionModal.tsx` en `frontend/src/components/RequestActionModal.tsx` para aceptar (con campo opcional de bienvenida) y rechazar (con textarea opcional de motivo).
+- [x] T021 [US6] Integrar acciones de aceptar y rechazar en `TrainerRequestDetailPage.tsx`, inhabilitando el botón Aceptar si `can_be_accepted == False` con mensaje descriptivo de cupo agotado, y redirigiendo a la bandeja con feedback visual de éxito (depende de T019, T020).
+- [x] T022 [US6] Ejecutar suite de pruebas completa backend y frontend, verificando cobertura $\ge 90\%$, linter Ruff y recorrido de los 6 escenarios de aceptación de US-07.
 
 **Checkpoint**: US-07 está completa de punta a punta, probada y lista para abrir PR hacia `develop`.
 
@@ -97,6 +97,6 @@ description: "Task list for 004-discovery-and-matchmaking (US-06 and US-07)"
 
 **Purpose**: Cerrar tareas cruzadas y actualizar guías de verificación.
 
-- [ ] T023 Actualizar `taskify/specs/004-discovery-and-matchmaking/quickstart.md` documentando los comandos curl y pasos de verificación de bandeja y resolución de solicitudes para US-06 y US-07.
-- [ ] T024 Marcar como completada la tarea `T026` en `taskify/specs/002-trainer-profile-and-plans/tasks.md` referenciando el conteo activo de `TrainingRelationship`.
-- [ ] T025 Ejecutar regresión completa del proyecto (`pytest backend/tests`, `ruff check backend`, `cd frontend && npm run build`) confirmando 0 errores.
+- [x] T023 Actualizar `taskify/specs/004-discovery-and-matchmaking/quickstart.md` documentando los comandos curl y pasos de verificación de bandeja y resolución de solicitudes para US-06 y US-07.
+- [x] T024 Marcar como completada la tarea `T026` en `taskify/specs/002-trainer-profile-and-plans/tasks.md` referenciando el conteo activo de `TrainingRelationship`.
+- [x] T025 Ejecutar regresión completa del proyecto (`pytest backend/tests`, `ruff check backend`, `cd frontend && npm run build`) confirmando 0 errores.

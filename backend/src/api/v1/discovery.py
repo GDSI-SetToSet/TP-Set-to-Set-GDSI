@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 
 from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
@@ -9,18 +9,23 @@ from backend.src.schemas.discovery import (
     PaginatedTrainers,
     TrainerPublicDetail,
     TrainerSearchFilters,
+    TrainingRelationshipResponse,
+    TrainingRequestAcceptPayload,
     TrainingRequestCreate,
     TrainingRequestDetailResponse,
+    TrainingRequestRejectPayload,
     TrainingRequestResponse,
     TrainingRequestStatus,
 )
 from backend.src.services.discovery_service import (
     DiscoveryError,
+    accept_training_request,
     create_training_request,
     get_public_detail,
     get_trainer_request_detail,
     list_student_requests,
     list_trainer_requests,
+    reject_training_request,
     search_trainers,
 )
 from backend.src.services.trainer_service import TrainerProfileError
@@ -101,5 +106,39 @@ def trainer_request_detail(
 ) -> TrainingRequestDetailResponse:
     try:
         return get_trainer_request_detail(db, user, request_id)
+    except DiscoveryError as error:
+        handle_error(error)
+
+
+@router.post(
+    "/matchmaking/requests/{request_id}/accept",
+    response_model=TrainingRelationshipResponse,
+    status_code=status.HTTP_200_OK,
+)
+def accept_request_endpoint(
+    request_id: str,
+    user: CurrentUser,
+    db: DbDep,
+    payload: Annotated[TrainingRequestAcceptPayload | None, Body()] = None,
+) -> TrainingRelationshipResponse:
+    try:
+        return accept_training_request(db, user, request_id, payload)
+    except DiscoveryError as error:
+        handle_error(error)
+
+
+@router.post(
+    "/matchmaking/requests/{request_id}/reject",
+    response_model=TrainingRequestResponse,
+    status_code=status.HTTP_200_OK,
+)
+def reject_request_endpoint(
+    request_id: str,
+    user: CurrentUser,
+    db: DbDep,
+    payload: Annotated[TrainingRequestRejectPayload | None, Body()] = None,
+) -> TrainingRequestResponse:
+    try:
+        return reject_training_request(db, user, request_id, payload)
     except DiscoveryError as error:
         handle_error(error)

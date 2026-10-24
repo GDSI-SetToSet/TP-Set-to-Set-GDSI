@@ -1,12 +1,13 @@
 from datetime import UTC, datetime
 
 from fastapi import status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.src.core.constants import TRAINER_ROLE
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_plan import TrainingPlan
+from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.user import User
 from backend.src.schemas.trainer import (
     TrainerProfileUpdate,
@@ -78,10 +79,14 @@ def get_published_profile(db: Session, profile_id: str) -> TrainerProfile:
     return profile
 
 
-# Los vínculos entrenador-alumno llegan con las specs 004/011: hasta entonces no hay alumnos activos.
-# Al integrarlos, este conteo y el bloqueo transaccional de aceptación completan la T026.
 def count_active_students(db: Session, profile: TrainerProfile) -> int:
-    return 0
+    count = db.scalar(
+        select(func.count(TrainingRelationship.id)).where(
+            TrainingRelationship.trainer_id == profile.id,
+            TrainingRelationship.status == "ACTIVE",
+        )
+    )
+    return int(count or 0)
 
 
 def quota_summary(db: Session, profile: TrainerProfile) -> dict[str, int | bool]:

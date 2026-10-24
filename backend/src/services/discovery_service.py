@@ -1,12 +1,15 @@
+import threading
 from datetime import UTC, datetime
 
 from fastapi import status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_plan import TrainingPlan
+from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.training_request import TrainingRequest
 from backend.src.models.user import User
 from backend.src.schemas.discovery import (
@@ -15,8 +18,11 @@ from backend.src.schemas.discovery import (
     TrainerSearchFilters,
     TrainerSearchResult,
     TrainingPlanPublic,
+    TrainingRelationshipResponse,
+    TrainingRequestAcceptPayload,
     TrainingRequestCreate,
     TrainingRequestDetailResponse,
+    TrainingRequestRejectPayload,
     TrainingRequestResponse,
     TrainingRequestStatus,
     TrainingRequestStudentSummary,
@@ -36,6 +42,9 @@ from backend.src.services.trainer_service import (
     list_published_plans,
     quota_summary,
 )
+
+# Serializes request resolution in single-process / SQLite test pools alongside SQL `FOR UPDATE` row locks.
+_REQUEST_RESOLUTION_LOCK = threading.Lock()
 
 
 class DiscoveryError(Exception):
@@ -57,6 +66,17 @@ def _require_student(user: User) -> None:
 def _require_trainer(user: User) -> None:
     if user.role != TRAINER_ROLE:
         raise DiscoveryError(status.HTTP_403_FORBIDDEN, "Esta acción está disponible solo para entrenadores.")
+
+
+def _require_existing_trainer_profile(db: Session, user: User) -> TrainerProfile:
+    _require_trainer(user)
+    profile = db.scalar(select(TrainerProfile).where(TrainerProfile.user_id == user.id))
+    if profile is None or profile.status != "PUBLISHED":
+        raise DiscoveryError(
+            status.HTTP_403_FORBIDDEN,
+            "Debés tener un perfil de entrenador publicado para gestionar solicitudes.",
+        )
+    return profile
 
 
 BIO_PREVIEW_LENGTH = 200
@@ -104,7 +124,11 @@ def search_trainers(db: Session, filters: TrainerSearchFilters) -> PaginatedTrai
         qs = quota_summary(db, profile)
         if filters.only_available and not qs["has_available_quota"]:
             continue
-        bio_preview = profile.bio[:BIO_PREVIEW_LENGTH] + "…" if profile.bio and len(profile.bio) > BIO_PREVIEW_LENGTH else profile.bio
+        bio_preview = (
+            profile.bio[:BIO_PREVIEW_LENGTH] + "…"
+            if profile.bio and len(profile.bio) > BIO_PREVIEW_LENGTH
+            else profile.bio
+        )
         items.append(
             TrainerSearchResult(
                 id=profile.id,
@@ -122,7 +146,10 @@ def search_trainers(db: Session, filters: TrainerSearchFilters) -> PaginatedTrai
 
     start = (filters.page - 1) * filters.page_size
     return PaginatedTrainers(
-        items=items[start : start + filters.page_size], total=len(items), page=filters.page, page_size=filters.page_size
+        items=items[start : start + filters.page_size],
+        total=len(items),
+        page=filters.page,
+        page_size=filters.page_size,
     )
 
 
@@ -179,6 +206,19 @@ def create_training_request(
         raise DiscoveryError(
             status.HTTP_409_CONFLICT,
             "Ya tenés una solicitud pendiente con este entrenador.",
+        )
+
+    active_rel = db.scalar(
+        select(TrainingRelationship).where(
+            TrainingRelationship.student_id == student_profile.id,
+            TrainingRelationship.trainer_id == trainer_profile.id,
+            TrainingRelationship.status == "ACTIVE",
+        )
+    )
+    if active_rel is not None:
+        raise DiscoveryError(
+            status.HTTP_409_CONFLICT,
+            "Ya tenés un vínculo activo con este entrenador.",
         )
 
     # Check quota
@@ -276,3 +316,163 @@ def get_trainer_request_detail(
         )
     can_accept_quota = has_available_quota(db, trainer_profile)
     return _to_request_detail_response(request, can_accept_quota)
+
+
+def accept_training_request(
+    db: Session,
+    user: User,
+    request_id: str,
+    payload: TrainingRequestAcceptPayload | None = None,
+) -> TrainingRelationshipResponse:
+    with _REQUEST_RESOLUTION_LOCK:
+        trainer_profile = _require_existing_trainer_profile(db, user)
+
+        # Acquire row-level lock on trainer profile and request (PostgreSQL FOR UPDATE)
+        locked_trainer = db.scalar(
+            select(TrainerProfile)
+            .where(TrainerProfile.id == trainer_profile.id)
+            .with_for_update()
+        )
+        request = db.scalar(
+            select(TrainingRequest)
+            .where(TrainingRequest.id == request_id)
+            .with_for_update()
+        )
+
+        if request is None:
+            db.rollback()
+            raise DiscoveryError(status.HTTP_404_NOT_FOUND, "Solicitud no encontrada.")
+        if request.trainer_id != locked_trainer.id:
+            db.rollback()
+            raise DiscoveryError(
+                status.HTTP_403_FORBIDDEN,
+                "No autorizado para gestionar esta solicitud.",
+            )
+        if request.status != "PENDING":
+            db.rollback()
+            raise DiscoveryError(
+                status.HTTP_409_CONFLICT,
+                "La solicitud ya fue procesada.",
+            )
+        if not has_available_quota(db, locked_trainer):
+            db.rollback()
+            raise DiscoveryError(
+                status.HTTP_409_CONFLICT,
+                "Cupos agotados; libere un cupo para poder aceptar.",
+            )
+
+        student_id = request.student_id
+        trainer_id = locked_trainer.id
+
+        existing_active = db.scalar(
+            select(TrainingRelationship).where(
+                TrainingRelationship.student_id == student_id,
+                TrainingRelationship.trainer_id == trainer_id,
+                TrainingRelationship.status == "ACTIVE",
+            )
+        )
+        if existing_active is not None:
+            db.rollback()
+            raise DiscoveryError(
+                status.HTTP_409_CONFLICT,
+                "La solicitud ya fue procesada.",
+            )
+
+        now = utc_now()
+        welcome_msg = (
+            payload.welcome_message.strip()
+            if payload and payload.welcome_message and payload.welcome_message.strip()
+            else None
+        )
+
+        try:
+            request.status = "ACCEPTED"
+            request.trainer_response_message = welcome_msg
+            request.resolved_at = now
+
+            relationship = TrainingRelationship(
+                student_id=student_id,
+                trainer_id=trainer_id,
+                plan_id=request.plan_id,
+                agreed_monthly_price=request.agreed_monthly_price,
+                agreed_currency=request.agreed_currency,
+                status="ACTIVE",
+                start_date=now.date(),
+            )
+            db.add(relationship)
+            db.commit()
+            db.refresh(relationship)
+            return TrainingRelationshipResponse.model_validate(relationship)
+        except IntegrityError as exc:
+            db.rollback()
+            err_msg = str(getattr(exc, "orig", exc))
+            has_active = (
+                db.scalar(
+                    select(TrainingRelationship.id).where(
+                        TrainingRelationship.student_id == student_id,
+                        TrainingRelationship.trainer_id == trainer_id,
+                        TrainingRelationship.status == "ACTIVE",
+                    )
+                )
+                is not None
+            )
+            if (
+                has_active
+                or "uq_active_training_relationship" in err_msg
+                or "training_relationships.student_id, training_relationships.trainer_id" in err_msg
+            ):
+                raise DiscoveryError(
+                    status.HTTP_409_CONFLICT,
+                    "La solicitud ya fue procesada.",
+                ) from exc
+            raise
+        except Exception:
+            db.rollback()
+            raise
+
+
+def reject_training_request(
+    db: Session,
+    user: User,
+    request_id: str,
+    payload: TrainingRequestRejectPayload | None = None,
+) -> TrainingRequestResponse:
+    with _REQUEST_RESOLUTION_LOCK:
+        trainer_profile = _require_existing_trainer_profile(db, user)
+
+        request = db.scalar(
+            select(TrainingRequest)
+            .where(TrainingRequest.id == request_id)
+            .with_for_update()
+        )
+        if request is None:
+            db.rollback()
+            raise DiscoveryError(status.HTTP_404_NOT_FOUND, "Solicitud no encontrada.")
+        if request.trainer_id != trainer_profile.id:
+            db.rollback()
+            raise DiscoveryError(
+                status.HTTP_403_FORBIDDEN,
+                "No autorizado para gestionar esta solicitud.",
+            )
+        if request.status != "PENDING":
+            db.rollback()
+            raise DiscoveryError(
+                status.HTTP_409_CONFLICT,
+                "La solicitud ya fue procesada.",
+            )
+
+        reason = (
+            payload.rejection_reason.strip()
+            if payload and payload.rejection_reason and payload.rejection_reason.strip()
+            else None
+        )
+        try:
+            request.status = "REJECTED"
+            request.trainer_response_message = reason
+            request.resolved_at = utc_now()
+            db.commit()
+            db.refresh(request)
+            return _to_request_response(request, can_accept_quota=False)
+        except Exception:
+            db.rollback()
+            raise

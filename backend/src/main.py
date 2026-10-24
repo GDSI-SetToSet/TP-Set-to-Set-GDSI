@@ -17,6 +17,7 @@ from backend.src.models import (  # noqa: F401
     StudentProfile,
     TrainerProfile,
     TrainingPlan,
+    TrainingRelationship,
     TrainingRequest,
     User,
     UserSession,

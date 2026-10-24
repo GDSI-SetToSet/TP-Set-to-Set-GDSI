@@ -1,9 +1,29 @@
-import { AlertTriangle, ArrowLeft, Calendar, DollarSign, Inbox, RefreshCw, User } from 'lucide-react';
+import axios from 'axios';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Calendar,
+  CheckCircle2,
+  DollarSign,
+  Inbox,
+  RefreshCw,
+  User,
+} from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { RequestActionModal, type RequestActionType } from '../components/RequestActionModal';
 import { ROUTES } from '../constants/routes';
-import { getTrainerRequestDetail, getTrainerRequests } from '../services/discoveryService';
+import {
+  acceptTrainingRequest,
+  getTrainerRequestDetail,
+  getTrainerRequests,
+  rejectTrainingRequest,
+} from '../services/discoveryService';
 import type { TrainingRequestDetailResponse } from '../types/discovery';
+
+interface LocationState {
+  flashMessage?: string;
+}
 
 function formatStudentName(request: TrainingRequestDetailResponse): string {
   const full = [request.student?.first_name, request.student?.last_name]
@@ -24,10 +44,18 @@ function formatDate(iso: string): string {
 }
 
 export function TrainerRequestsInboxPage() {
+  const location = useLocation();
+  const state = location.state as LocationState | null;
   const [requests, setRequests] = useState<TrainingRequestDetailResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState(state?.flashMessage ?? '');
+
+  const [selectedRequest, setSelectedRequest] = useState<TrainingRequestDetailResponse | null>(null);
+  const [modalAction, setModalAction] = useState<RequestActionType | null>(null);
+  const [submittingAction, setSubmittingAction] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   const loadRequests = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) {
@@ -53,6 +81,36 @@ export function TrainerRequestsInboxPage() {
   useEffect(() => {
     void loadRequests(false);
   }, [loadRequests]);
+
+  async function handleConfirmAction(message: string | null) {
+    if (!selectedRequest || !modalAction || submittingAction) return;
+    setSubmittingAction(true);
+    setActionError('');
+    try {
+      const studentName = formatStudentName(selectedRequest);
+      if (modalAction === 'accept') {
+        await acceptTrainingRequest(selectedRequest.id, { welcome_message: message });
+        setSuccessMessage(`Solicitud de ${studentName} aceptada. El vínculo activo fue creado.`);
+      } else {
+        await rejectTrainingRequest(selectedRequest.id, { rejection_reason: message });
+        setSuccessMessage(`Solicitud de ${studentName} rechazada.`);
+      }
+      setModalAction(null);
+      setSelectedRequest(null);
+      await loadRequests(true);
+    } catch (caught: unknown) {
+      if (axios.isAxiosError<{ detail?: string }>(caught)) {
+        setActionError(
+          caught.response?.data?.detail ?? 'No pudimos procesar la solicitud. Intentá nuevamente.',
+        );
+      } else {
+        setActionError('No pudimos procesar la solicitud. Intentá nuevamente.');
+      }
+      await loadRequests(true);
+    } finally {
+      setSubmittingAction(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -99,6 +157,12 @@ export function TrainerRequestsInboxPage() {
         {error && (
           <p className="form-alert" role="alert">
             {error}
+          </p>
+        )}
+
+        {successMessage && (
+          <p className="profile-success inbox-success-banner" role="status">
+            <CheckCircle2 size={18} /> {successMessage}
           </p>
         )}
 
@@ -161,11 +225,16 @@ export function TrainerRequestsInboxPage() {
                   <button
                     type="button"
                     className="inbox-action-btn inbox-action-btn--accept"
-                    disabled={!req.can_be_accepted}
+                    disabled={!req.can_be_accepted || submittingAction}
+                    onClick={() => {
+                      setActionError('');
+                      setSelectedRequest(req);
+                      setModalAction('accept');
+                    }}
                     title={
                       !req.can_be_accepted
                         ? 'Cupos agotados; libere un cupo para poder aceptar'
-                        : 'Disponible en el detalle de la solicitud'
+                        : 'Aceptar solicitud'
                     }
                   >
                     Aceptar
@@ -173,6 +242,12 @@ export function TrainerRequestsInboxPage() {
                   <button
                     type="button"
                     className="inbox-action-btn inbox-action-btn--reject"
+                    disabled={submittingAction}
+                    onClick={() => {
+                      setActionError('');
+                      setSelectedRequest(req);
+                      setModalAction('reject');
+                    }}
                   >
                     Rechazar
                   </button>
@@ -182,6 +257,24 @@ export function TrainerRequestsInboxPage() {
           </div>
         )}
       </section>
+
+      {modalAction && selectedRequest && (
+        <RequestActionModal
+          action={modalAction}
+          studentName={formatStudentName(selectedRequest)}
+          planTitle={selectedRequest.plan_title ?? 'Paquete solicitado'}
+          submitting={submittingAction}
+          error={actionError}
+          onConfirm={handleConfirmAction}
+          onClose={() => {
+            if (!submittingAction) {
+              setModalAction(null);
+              setSelectedRequest(null);
+              setActionError('');
+            }
+          }}
+        />
+      )}
     </main>
   );
 }
