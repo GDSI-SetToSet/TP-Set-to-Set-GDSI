@@ -19,7 +19,7 @@ export function HomePage() {
   }
 
   return (
-    <main className="home-shell">
+    <main className={`home-shell${user?.role === USER_ROLES.trainer ? ' home-shell--trainer' : ''}`}>
       <header className="home-header">
         <Link className="brand" to={homePath(user?.role ?? USER_ROLES.student)}><span className="brand__icon"><Sparkles size={19} /></span><span>set<span className="brand__accent">to</span>set</span></Link>
         <button type="button" className="logout-button" onClick={handleLogout}><LogOut size={17} /> Cerrar sesión</button>

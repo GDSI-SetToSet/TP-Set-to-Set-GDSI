@@ -6,9 +6,9 @@
   align-items: center;
   gap: 6px;
   padding: 0 16px;
-  border: 1px solid #cbd7cd;
+  border: 1px solid var(--pf-input-border);
   border-radius: 10px;
-  color: #173a32;
+  color: var(--pf-ink);
   background: #fff;
   font-weight: 700;
   cursor: pointer;
@@ -24,28 +24,28 @@
   gap: 16px;
 }
 
-.plan-empty { color: #52665b; }
+.plan-empty { color: var(--pf-muted); }
 
 .plan-card {
   padding: 22px;
-  border: 1px solid #dfe6dd;
+  border: 1px solid var(--pf-border);
   border-radius: 16px;
   background: #fff;
   display: grid;
   gap: 10px;
   align-content: start;
 }
-.plan-card--archived { background: #f0f2ee; }
+.plan-card--archived { background: var(--pf-arch-bg); }
 .plan-card__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-.plan-card h3 { margin: 0; color: #173a32; font: 700 18px 'Manrope'; }
-.plan-card__price { margin: 0; color: #173a32; font: 700 24px 'Manrope'; }
-.plan-card__price span { color: #52665b; font-size: 14px; font-weight: 500; }
-.plan-card__description { margin: 0; color: #3d5047; white-space: pre-line; }
+.plan-card h3 { margin: 0; color: var(--pf-ink); font: 700 18px 'Manrope'; }
+.plan-card__price { margin: 0; color: var(--pf-ink); font: 700 24px 'Manrope'; }
+.plan-card__price span { color: var(--pf-muted); font-size: 14px; font-weight: 500; }
+.plan-card__description { margin: 0; color: var(--pf-body); white-space: pre-line; }
 .plan-card__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 
 .plan-badge { padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-.plan-badge--active { color: #174b35; background: #d9f3df; }
-.plan-badge--archived { color: #3d4a43; background: #dde3dc; }
+.plan-badge--active { color: var(--pf-ok-text); background: var(--pf-ok-bg); }
+.plan-badge--archived { color: var(--pf-arch-text); background: var(--pf-arch-badge); }
 
 @media (max-width: 680px) {
   .plan-list { grid-template-columns: 1fr; }

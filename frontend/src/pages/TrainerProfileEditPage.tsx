@@ -132,7 +132,7 @@ export function TrainerProfileEditPage() {
   if (loading) return <main className="loading-screen"><span className="loading-mark" /> Cargando perfil…</main>;
 
   return (
-    <main className="profile-shell">
+    <main className="profile-shell profile-shell--trainer">
       <header className="profile-header">
         <Link to={ROUTES.trainerHome} className="profile-back"><ArrowLeft size={18} /> Volver al inicio</Link>
         <span className={`profile-status profile-status--${profile?.status.toLowerCase()}`}>

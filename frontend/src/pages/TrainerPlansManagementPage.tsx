@@ -137,7 +137,7 @@ export function TrainerPlansManagementPage() {
   const monthlyPriceError = rangeError || fieldErrors.monthly_price;
 
   return (
-    <main className="profile-shell">
+    <main className="profile-shell profile-shell--trainer">
       <header className="profile-header">
         <Link to={ROUTES.trainerHome} className="profile-back"><ArrowLeft size={18} /> Volver al inicio</Link>
       </header>

@@ -2,14 +2,15 @@ import { Activity, BadgeCheck, Dumbbell, HeartPulse } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Brand } from './Brand';
 
-export function AuthLayout({ children, eyebrow, title, subtitle }: {
+export function AuthLayout({ children, eyebrow, title, subtitle, trainer = false }: {
   children: ReactNode;
   eyebrow: string;
   title: string;
   subtitle: string;
+  trainer?: boolean;
 }) {
   return (
-    <main className="auth-shell">
+    <main className={`auth-shell${trainer ? ' auth-shell--trainer' : ''}`}>
       <section className="auth-visual" aria-label="Entrenamiento conectado">
         <div className="visual-top"><Brand /><span className="visual-tag"><span className="online-dot" /> Entrená a tu ritmo</span></div>
         <div className="visual-copy">
