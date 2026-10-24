@@ -16,6 +16,10 @@ export const ROUTES = {
   studentHealth: '/alumno/salud',
   studentProtectedZones: '/alumno/zonas-a-proteger',
   studentMedical: '/alumno/apto-medico',
+  trainerSearch: '/alumno/buscar-entrenadores',
+  trainerPublicDetail: '/entrenadores/:trainerId',
+  trainerRequest: '/entrenadores/:trainerId/solicitar',
+  studentRequests: '/alumno/mis-solicitudes',
   fallback: '*',
 } as const;
 

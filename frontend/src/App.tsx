@@ -14,6 +14,9 @@ import { HealthQuestionnairePage } from './pages/HealthQuestionnairePage';
 import { StudentProfileEditPage } from './pages/StudentProfileEditPage';
 import { ProtectedZonesPage } from './pages/ProtectedZonesPage';
 import { MedicalClearancePage } from './pages/MedicalClearancePage';
+import { TrainerSearchPage } from './pages/TrainerSearchPage';
+import { TrainerPublicDetailPage } from './pages/TrainerPublicDetailPage';
+import { TrainerRequestPage } from './pages/TrainerRequestPage';
 
 function ProtectedRoute({ children, role }: { children: JSX.Element; role: UserRole }) {
   const { user, loading } = useAuth();
@@ -42,6 +45,9 @@ export default function App() {
       <Route path={ROUTES.trainerProfile} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerProfileEditPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerPlans} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerPlansManagementPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentHome} element={<ProtectedRoute role={USER_ROLES.student}><HomePage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerSearch} element={<ProtectedRoute role={USER_ROLES.student}><TrainerSearchPage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerPublicDetail} element={<ProtectedRoute role={USER_ROLES.student}><TrainerPublicDetailPage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerRequest} element={<ProtectedRoute role={USER_ROLES.student}><TrainerRequestPage /></ProtectedRoute>} />
       <Route path={ROUTES.fallback} element={<Navigate to={ROUTES.login} replace />} />
       <Route path={ROUTES.studentHealth} element={<ProtectedRoute role={USER_ROLES.student}><HealthQuestionnairePage /></ProtectedRoute>} />
       <Route path={ROUTES.studentProfile} element={<ProtectedRoute role={USER_ROLES.student}><StudentProfileEditPage /></ProtectedRoute>} />
