@@ -4,6 +4,7 @@ import { type FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { getOwnStudentProfile, updateOwnStudentProfile } from '../services/studentService';
+import { phoneError } from '../utils/phone';
 import { FITNESS_GOALS, type FitnessGoal, type StudentProfile, type StudentProfileUpdate } from '../types/student';
 
 type TextField = Exclude<keyof StudentProfileUpdate, 'fitness_goals'>;
@@ -57,6 +58,8 @@ export function StudentProfileEditPage() {
     setForm((current) => ({ ...current, [field]: value }));
     setFieldErrors((current) => ({ ...current, [field]: '' }));
   }
+
+  const phoneRangeError = phoneError(form.contact_phone, 10);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -132,8 +135,8 @@ export function StudentProfileEditPage() {
           </div>
           <div className="profile-grid">
             <label>Teléfono / WhatsApp
-              <input value={form.contact_phone} onChange={(event) => updateField('contact_phone', event.target.value)} placeholder="+5491155551234" aria-invalid={Boolean(fieldErrors.contact_phone)} />
-              {fieldErrors.contact_phone && <small className="field-error">{fieldErrors.contact_phone}</small>}
+              <input value={form.contact_phone} onChange={(event) => updateField('contact_phone', event.target.value)} placeholder="+5491155551234" aria-invalid={Boolean(phoneRangeError || fieldErrors.contact_phone)} />
+              {(phoneRangeError || fieldErrors.contact_phone) && <small className="field-error">{phoneRangeError || fieldErrors.contact_phone}</small>}
             </label>
             <label>Fecha de nacimiento
               <input type="date" value={form.birth_date} onChange={(event) => updateField('birth_date', event.target.value)} aria-invalid={Boolean(fieldErrors.birth_date)} />
@@ -158,7 +161,7 @@ export function StudentProfileEditPage() {
           </label>
           {error && <p className="form-alert" role="alert">{error}</p>}
           {message && <p className="profile-success" role="status"><CheckCircle2 size={18} /> {message}</p>}
-          <button className="profile-save" type="submit" disabled={saving}><Save size={18} /> {saving ? 'Guardando…' : 'Guardar perfil'}</button>
+          <button className="profile-save" type="submit" disabled={saving || Boolean(phoneRangeError)}><Save size={18} /> {saving ? 'Guardando…' : 'Guardar perfil'}</button>
         </form>
       </section>
     </main>
