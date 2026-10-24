@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.src.api.errors import register_exception_handlers
 from backend.src.api.v1.auth import router as auth_router
+from backend.src.api.v1.discovery import router as discovery_router
 from backend.src.api.v1.students import router as students_router
 from backend.src.api.v1.trainers import router as trainers_router
 from backend.src.core.config import API_TITLE, API_VERSION, CORS_ALLOWED_ORIGINS
@@ -16,6 +17,7 @@ from backend.src.models import (  # noqa: F401
     StudentProfile,
     TrainerProfile,
     TrainingPlan,
+    TrainingRequest,
     User,
     UserSession,
 )
@@ -41,6 +43,7 @@ def create_app(create_tables: bool = True) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(trainers_router)
     app.include_router(students_router)
+    app.include_router(discovery_router)
 
     @app.get("/health", tags=["health"])
     def health() -> dict[str, str]:
