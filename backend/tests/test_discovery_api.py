@@ -31,10 +31,13 @@ def auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def setup_published_trainer(api, email: str, max_students: int = 5) -> tuple[str, str]:
+def setup_published_trainer(
+    api, email: str, max_students: int = 5, full_name: str = TRAINER_PUBLISHED["full_name"]
+) -> tuple[str, str]:
     """Create a published trainer with quota. Returns (token, profile_id)."""
     token = register_and_login(api, email, "TRAINER")
-    profile = api.put("/api/v1/trainers/me/profile", headers=auth(token), json=TRAINER_PUBLISHED).json()
+    body = {**TRAINER_PUBLISHED, "full_name": full_name}
+    profile = api.put("/api/v1/trainers/me/profile", headers=auth(token), json=body).json()
     api.patch("/api/v1/trainers/me/quota", headers=auth(token), json={"max_students": max_students})
     return token, profile["id"]
 
@@ -112,6 +115,30 @@ def test_search_draft_trainer_not_visible(client):
     resp = api.get(SEARCH_PATH, headers=auth(student_token), params={"only_available": False})
     assert resp.status_code == 200
     assert resp.json()["total"] == 0
+
+
+def test_search_pagination_counts_only_available_trainers(client):
+    api, _ = client
+    # "Ana" sorts first but has no quota: with the default only_available filter she must not
+    # take up a slot in the page nor in the total.
+    no_quota_token, _ = setup_published_trainer(api, "ana@example.com", max_students=0, full_name="Ana Sin Cupo")
+    create_plan(api, no_quota_token)
+    quota_token, quota_id = setup_published_trainer(api, "zoe@example.com", max_students=3, full_name="Zoe Con Cupo")
+    create_plan(api, quota_token)
+    student_token = register_and_login(api, "student@example.com", "STUDENT")
+
+    resp = api.get(SEARCH_PATH, headers=auth(student_token), params={"page_size": 1})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+    assert [t["id"] for t in data["items"]] == [quota_id]
+
+    page_two = api.get(SEARCH_PATH, headers=auth(student_token), params={"page_size": 1, "page": 2}).json()
+    assert page_two["total"] == 1
+    assert page_two["items"] == []
+
+    everyone = api.get(SEARCH_PATH, headers=auth(student_token), params={"only_available": False}).json()
+    assert everyone["total"] == 2
 
 
 def test_search_requires_authentication(client):

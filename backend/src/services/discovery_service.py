@@ -67,12 +67,7 @@ def search_trainers(db: Session, filters: TrainerSearchFilters) -> PaginatedTrai
 
     base = (
         select(
-            TrainerProfile.id,
-            TrainerProfile.user_id,
-            TrainerProfile.full_name,
-            TrainerProfile.specialty,
-            TrainerProfile.bio,
-            TrainerProfile.max_students,
+            TrainerProfile,
             plan_agg.c.plans_count,
             plan_agg.c.min_price,
             plan_agg.c.max_price,
@@ -90,26 +85,21 @@ def search_trainers(db: Session, filters: TrainerSearchFilters) -> PaginatedTrai
     if filters.max_price is not None:
         base = base.where(plan_agg.c.min_price <= filters.max_price)
 
-    # Get total before pagination
-    count_query = select(func.count()).select_from(base.subquery())
-    total = db.scalar(count_query) or 0
-
-    rows = db.execute(
-        base.order_by(TrainerProfile.full_name).offset((filters.page - 1) * filters.page_size).limit(filters.page_size)
-    ).all()
-
+    # ponytail: loads every matching trainer to filter by quota before paginating; move the quota
+    # filter into SQL (and paginate there) once count_active_students is a real query.
     items: list[TrainerSearchResult] = []
-    for row in rows:
-        qs = quota_summary(db, db.get(TrainerProfile, row.id))
+    for row in db.execute(base.order_by(TrainerProfile.full_name, TrainerProfile.id)):
+        profile = row.TrainerProfile
+        qs = quota_summary(db, profile)
         if filters.only_available and not qs["has_available_quota"]:
             continue
-        bio_preview = row.bio[:BIO_PREVIEW_LENGTH] + "…" if row.bio and len(row.bio) > BIO_PREVIEW_LENGTH else row.bio
+        bio_preview = profile.bio[:BIO_PREVIEW_LENGTH] + "…" if profile.bio and len(profile.bio) > BIO_PREVIEW_LENGTH else profile.bio
         items.append(
             TrainerSearchResult(
-                id=row.id,
-                user_id=row.user_id,
-                full_name=row.full_name,
-                specialty=row.specialty,
+                id=profile.id,
+                user_id=profile.user_id,
+                full_name=profile.full_name,
+                specialty=profile.specialty,
                 bio_preview=bio_preview,
                 min_price=float(row.min_price) if row.min_price else None,
                 max_price=float(row.max_price) if row.max_price else None,
@@ -119,7 +109,11 @@ def search_trainers(db: Session, filters: TrainerSearchFilters) -> PaginatedTrai
             )
         )
 
-    return PaginatedTrainers(items=items, total=total, page=filters.page, page_size=filters.page_size)
+    start = (filters.page - 1) * filters.page_size
+    return PaginatedTrainers(
+        items=items[start : start + filters.page_size], total=len(items), page=filters.page, page_size=filters.page_size
+    )
+
 
 
 def get_public_detail(db: Session, trainer_id: str) -> TrainerPublicDetail:
