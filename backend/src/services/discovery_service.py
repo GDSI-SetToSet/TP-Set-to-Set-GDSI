@@ -4,7 +4,7 @@ from fastapi import status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from backend.src.core.constants import STUDENT_ROLE
+from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.training_request import TrainingRequest
@@ -16,13 +16,19 @@ from backend.src.schemas.discovery import (
     TrainerSearchResult,
     TrainingPlanPublic,
     TrainingRequestCreate,
+    TrainingRequestDetailResponse,
     TrainingRequestResponse,
+    TrainingRequestStatus,
+    TrainingRequestStudentSummary,
 )
 from backend.src.services.student_service import (
     get_or_create_profile as get_student_profile,
 )
 from backend.src.services.student_service import (
     is_questionnaire_completed,
+)
+from backend.src.services.trainer_service import (
+    get_or_create_profile as get_trainer_profile,
 )
 from backend.src.services.trainer_service import (
     get_published_profile,
@@ -46,6 +52,11 @@ def utc_now() -> datetime:
 def _require_student(user: User) -> None:
     if user.role != STUDENT_ROLE:
         raise DiscoveryError(status.HTTP_403_FORBIDDEN, "Esta acción está disponible solo para alumnos.")
+
+
+def _require_trainer(user: User) -> None:
+    if user.role != TRAINER_ROLE:
+        raise DiscoveryError(status.HTTP_403_FORBIDDEN, "Esta acción está disponible solo para entrenadores.")
 
 
 BIO_PREVIEW_LENGTH = 200
@@ -113,7 +124,6 @@ def search_trainers(db: Session, filters: TrainerSearchFilters) -> PaginatedTrai
     return PaginatedTrainers(
         items=items[start : start + filters.page_size], total=len(items), page=filters.page, page_size=filters.page_size
     )
-
 
 
 def get_public_detail(db: Session, trainer_id: str) -> TrainerPublicDetail:
@@ -191,7 +201,9 @@ def create_training_request(
     db.add(request)
     db.commit()
     db.refresh(request)
-    return TrainingRequestResponse.model_validate(request)
+    return TrainingRequestResponse.model_validate(request).model_copy(
+        update={"can_be_accepted": True}
+    )
 
 
 def list_student_requests(db: Session, user: User) -> list[TrainingRequestResponse]:
@@ -202,4 +214,65 @@ def list_student_requests(db: Session, user: User) -> list[TrainingRequestRespon
         .where(TrainingRequest.student_id == student_profile.id)
         .order_by(TrainingRequest.created_at.desc())
     ).all()
-    return [TrainingRequestResponse.model_validate(r) for r in requests]
+    return [
+        TrainingRequestResponse.model_validate(r).model_copy(
+            update={
+                "can_be_accepted": r.status == "PENDING"
+                and (has_available_quota(db, r.trainer) if r.trainer else False)
+            }
+        )
+        for r in requests
+    ]
+
+
+def _to_request_response(
+    request: TrainingRequest, can_accept_quota: bool
+) -> TrainingRequestResponse:
+    can_be_accepted = request.status == "PENDING" and can_accept_quota
+    return TrainingRequestResponse.model_validate(request).model_copy(
+        update={"can_be_accepted": can_be_accepted}
+    )
+
+
+def _to_request_detail_response(
+    request: TrainingRequest, can_accept_quota: bool
+) -> TrainingRequestDetailResponse:
+    base = _to_request_response(request, can_accept_quota)
+    return TrainingRequestDetailResponse(
+        **base.model_dump(),
+        student=TrainingRequestStudentSummary.model_validate(request.student),
+        plan_title=request.plan.title if request.plan is not None else None,
+    )
+
+
+def list_trainer_requests(
+    db: Session, user: User, status_filter: TrainingRequestStatus | None = None
+) -> list[TrainingRequestResponse]:
+    _require_trainer(user)
+    trainer_profile = get_trainer_profile(db, user)
+    can_accept_quota = has_available_quota(db, trainer_profile)
+
+    query = select(TrainingRequest).where(TrainingRequest.trainer_id == trainer_profile.id)
+    if status_filter is not None:
+        query = query.where(TrainingRequest.status == status_filter)
+    query = query.order_by(TrainingRequest.created_at.desc(), TrainingRequest.id.desc())
+
+    requests = db.scalars(query).all()
+    return [_to_request_response(r, can_accept_quota) for r in requests]
+
+
+def get_trainer_request_detail(
+    db: Session, user: User, request_id: str
+) -> TrainingRequestDetailResponse:
+    _require_trainer(user)
+    trainer_profile = get_trainer_profile(db, user)
+    request = db.get(TrainingRequest, request_id)
+    if request is None:
+        raise DiscoveryError(status.HTTP_404_NOT_FOUND, "Solicitud no encontrada.")
+    if request.trainer_id != trainer_profile.id:
+        raise DiscoveryError(
+            status.HTTP_403_FORBIDDEN,
+            "No autorizado para consultar esta solicitud.",
+        )
+    can_accept_quota = has_available_quota(db, trainer_profile)
+    return _to_request_detail_response(request, can_accept_quota)

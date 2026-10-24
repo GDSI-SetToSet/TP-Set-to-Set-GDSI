@@ -37,7 +37,7 @@ description: "Task list for 004-discovery-and-matchmaking (US-06 and US-07)"
 
 ### Tests for User Story 5 (US-06)
 
-- [ ] T003 [P] [US5] Crear pruebas de integración en `backend/tests/test_trainer_requests_inbox_api.py` para:
+- [x] T003 [P] [US5] Crear pruebas de integración en `backend/tests/test_trainer_requests_inbox_api.py` para:
   - Listado de solicitudes de entrenador con filtro `status=PENDING` (solo ve sus solicitudes, no las de otros entrenadores).
   - Consulta de detalle `GET /api/v1/matchmaking/requests/{id}` con datos de alumno y paquete.
   - Alumnos que intentan consultar la bandeja de entrenador reciben HTTP 403 Forbidden.
@@ -47,16 +47,16 @@ description: "Task list for 004-discovery-and-matchmaking (US-06 and US-07)"
 
 ### Implementation for User Story 5 (US-06)
 
-- [ ] T004 [US5] Implementar en `backend/src/services/student_service.py` la lógica de autorización en [`trainer_has_access(db, trainer, student_profile_id)`](file:///mnt/r/Proyectos/GDSI/TP-Set-to-Set-GDSI/backend/src/services/student_service.py#L107) validando existencia de `TrainingRequest` con `status == 'PENDING'` o `TrainingRelationship` con `status == 'ACTIVE'` entre el entrenador y el alumno (depende de T003).
-- [ ] T005 [P] [US5] Implementar schemas `TrainingRequestStudentSummary`, `TrainingRequestDetailResponse` y query params de bandeja en `backend/src/schemas/discovery.py`.
-- [ ] T006 [US5] Implementar servicios `list_trainer_requests` y `get_trainer_request_detail` con cálculo dinámico de `can_be_accepted` en `backend/src/services/discovery_service.py` (depende de T004, T005).
-- [ ] T007 [US5] Exponer endpoints `GET /api/v1/matchmaking/requests` (con soporte para entrenador autenticado y filtro `status`) y `GET /api/v1/matchmaking/requests/{request_id}` en `backend/src/api/v1/discovery.py` (depende de T006).
-- [ ] T008 [P] [US5] Agregar tipos TypeScript y métodos de API para la bandeja de entrenador y detalle de solicitud en `frontend/src/types/discovery.ts` y `frontend/src/services/discoveryService.ts`.
-- [ ] T009 [US5] Crear la página `TrainerRequestsInboxPage.tsx` con listado de solicitudes pendientes, tarjeta de resumen, estado vacío, botón de refresco manual y estilos accesibles bajo la paleta azul del entrenador en `frontend/src/pages/TrainerRequestsInboxPage.tsx` y `frontend/src/styles/discovery.css`.
-- [ ] T010 [US5] Crear la página `TrainerRequestDetailPage.tsx` mostrando información de contacto del alumno, arancel acordado, mensaje inicial, sección de objetivos, link al cuestionario de salud y descarga del apto médico en `frontend/src/pages/TrainerRequestDetailPage.tsx`.
-- [ ] T011 [US5] Registrar rutas `trainerRequests: '/entrenador/solicitudes'` y `trainerRequestDetail: '/entrenador/solicitudes/:requestId'` en `frontend/src/constants/routes.ts` y `frontend/src/App.tsx`.
-- [ ] T012 [US5] Agregar badge con contador de solicitudes pendientes y acceso directo a la bandeja en `frontend/src/pages/HomePage.tsx` para el rol entrenador.
-- [ ] T013 [US5] Ejecutar suite de pruebas (`pytest backend/tests --cov=backend/src --cov-fail-under=90`), `ruff check backend`, `npm run build` y validación manual de los 5 escenarios de aceptación de US-06.
+- [x] T004 [US5] Implementar en `backend/src/services/student_service.py` la lógica de autorización en [`trainer_has_access(db, trainer, student_profile_id)`](file:///mnt/r/Proyectos/GDSI/TP-Set-to-Set-GDSI/backend/src/services/student_service.py#L107) validando existencia de `TrainingRequest` con `status == 'PENDING'` o `TrainingRelationship` con `status == 'ACTIVE'` entre el entrenador y el alumno (depende de T003).
+- [x] T005 [P] [US5] Implementar schemas `TrainingRequestStudentSummary`, `TrainingRequestDetailResponse` y query params de bandeja en `backend/src/schemas/discovery.py`.
+- [x] T006 [US5] Implementar servicios `list_trainer_requests` y `get_trainer_request_detail` con cálculo dinámico de `can_be_accepted` en `backend/src/services/discovery_service.py` (depende de T004, T005).
+- [x] T007 [US5] Exponer endpoints `GET /api/v1/matchmaking/requests` (con soporte para entrenador autenticado y filtro `status`) y `GET /api/v1/matchmaking/requests/{request_id}` en `backend/src/api/v1/discovery.py` (depende de T006).
+- [x] T008 [P] [US5] Agregar tipos TypeScript y métodos de API para la bandeja de entrenador y detalle de solicitud en `frontend/src/types/discovery.ts` y `frontend/src/services/discoveryService.ts`.
+- [x] T009 [US5] Crear la página `TrainerRequestsInboxPage.tsx` con listado de solicitudes pendientes, tarjeta de resumen, estado vacío, botón de refresco manual y estilos accesibles bajo la paleta azul del entrenador en `frontend/src/pages/TrainerRequestsInboxPage.tsx` y `frontend/src/styles/discovery.css`.
+- [x] T010 [US5] Crear la página `TrainerRequestDetailPage.tsx` mostrando información de contacto del alumno, arancel acordado, mensaje inicial, sección de objetivos, link al cuestionario de salud y descarga del apto médico en `frontend/src/pages/TrainerRequestDetailPage.tsx`.
+- [x] T011 [US5] Registrar rutas `trainerRequests: '/entrenador/solicitudes'` y `trainerRequestDetail: '/entrenador/solicitudes/:requestId'` en `frontend/src/constants/routes.ts` y `frontend/src/App.tsx`.
+- [x] T012 [US5] Agregar badge con contador de solicitudes pendientes y acceso directo a la bandeja en `frontend/src/pages/HomePage.tsx` para el rol entrenador.
+- [x] T013 [US5] Ejecutar suite de pruebas (`pytest backend/tests --cov=backend/src --cov-fail-under=90`), `ruff check backend`, `npm run build` y validación manual de los 5 escenarios de aceptación de US-06.
 
 **Checkpoint**: US-06 está completa de punta a punta, probada y lista para abrir PR hacia `develop`.
 

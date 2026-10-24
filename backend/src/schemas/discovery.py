@@ -1,6 +1,9 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+TrainingRequestStatus = Literal["PENDING", "ACCEPTED", "REJECTED", "CANCELLED"]
 
 
 class TrainerSearchResult(BaseModel):
@@ -74,5 +77,27 @@ class TrainingRequestResponse(BaseModel):
     agreed_monthly_price: float
     agreed_currency: str
     status: str
-    student_message: str | None
+    can_be_accepted: bool = False
+    student_message: str | None = None
+    trainer_response_message: str | None = None
     created_at: datetime
+    resolved_at: datetime | None = None
+
+
+class TrainingRequestStudentSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    first_name: str | None = None
+    last_name: str | None = None
+    contact_phone: str | None = None
+    birth_date: datetime | None = None
+
+
+class TrainingRequestDetailResponse(TrainingRequestResponse):
+    student: TrainingRequestStudentSummary
+    plan_title: str | None = None
+
+
+class TrainerInboxFilters(BaseModel):
+    status: TrainingRequestStatus | None = None

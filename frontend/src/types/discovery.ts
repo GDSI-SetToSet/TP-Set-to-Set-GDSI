@@ -1,3 +1,7 @@
+import type { FitnessGoal } from './student';
+
+export type TrainingRequestStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED';
+
 export interface TrainerSearchResult {
   id: string;
   user_id: string;
@@ -60,7 +64,28 @@ export interface TrainingRequestResponse {
   plan_id: string;
   agreed_monthly_price: number;
   agreed_currency: string;
-  status: string;
+  status: TrainingRequestStatus;
+  can_be_accepted: boolean;
   student_message: string | null;
+  trainer_response_message: string | null;
   created_at: string;
+  resolved_at: string | null;
+}
+
+export interface TrainingRequestStudentSummary {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  contact_phone: string | null;
+  birth_date: string | null;
+}
+
+export interface TrainingRequestDetailResponse extends TrainingRequestResponse {
+  student: TrainingRequestStudentSummary;
+  plan_title: string | null;
+}
+
+export interface StudentGoalsSummary {
+  fitness_goals: FitnessGoal[];
+  personal_motivation: string | null;
 }
