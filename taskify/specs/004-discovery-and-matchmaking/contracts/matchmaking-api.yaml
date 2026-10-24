@@ -101,6 +101,30 @@ paths:
                 items:
                   $ref: '#/components/schemas/TrainingRequestResponse'
 
+  /api/v1/matchmaking/requests/{request_id}:
+    get:
+      summary: Consultar detalle de una solicitud específica
+      description: Retorna el detalle de la solicitud incluyendo el resumen del alumno y plan solicitado (US-06, US-48).
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingRequestDetailResponse'
+        '403':
+          description: No autorizado para consultar esta solicitud
+        '404':
+          description: Solicitud no encontrada
+
   /api/v1/matchmaking/requests/{request_id}/accept:
     post:
       summary: Aceptar solicitud de entrenamiento (acción del entrenador)
@@ -129,11 +153,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/TrainingRelationshipResponse'
         '409':
-          description: Cupos agotados; no se puede aceptar hasta liberar un cupo (Alternativa A)
+          description: Cupos agotados ("Cupos agotados; libere un cupo para poder aceptar.") o solicitud ya resuelta
 
   /api/v1/matchmaking/requests/{request_id}/reject:
     post:
-      summary: Rechazar solicitud de entrenamiento con motivo (acción del entrenador)
+      summary: Rechazar solicitud de entrenamiento (acción del entrenador)
+      description: Permite al entrenador rechazar una solicitud pendiente. El motivo explicativo es opcional (alineado con US-48).
       security:
         - BearerAuth: []
       parameters:
@@ -144,21 +169,24 @@ paths:
             type: string
             format: uuid
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
               type: object
-              required: [rejection_reason]
               properties:
                 rejection_reason:
                   type: string
+                  nullable: true
+                  description: Motivo o explicación opcional del rechazo
       responses:
         '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TrainingRequestResponse'
+        '409':
+          description: La solicitud ya fue resuelta previamente
 
 components:
   securitySchemes:
@@ -248,6 +276,41 @@ components:
         created_at:
           type: string
           format: date-time
+        resolved_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    TrainingRequestStudentSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+          nullable: true
+        last_name:
+          type: string
+          nullable: true
+        contact_phone:
+          type: string
+          nullable: true
+        birth_date:
+          type: string
+          format: date-time
+          nullable: true
+
+    TrainingRequestDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/TrainingRequestResponse'
+        - type: object
+          properties:
+            student:
+              $ref: '#/components/schemas/TrainingRequestStudentSummary'
+            plan_title:
+              type: string
+              nullable: true
 
     TrainingRelationshipResponse:
       type: object
