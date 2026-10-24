@@ -10,13 +10,17 @@ from backend.src.schemas.discovery import (
     TrainerPublicDetail,
     TrainerSearchFilters,
     TrainingRequestCreate,
+    TrainingRequestDetailResponse,
     TrainingRequestResponse,
+    TrainingRequestStatus,
 )
 from backend.src.services.discovery_service import (
     DiscoveryError,
     create_training_request,
     get_public_detail,
+    get_trainer_request_detail,
     list_student_requests,
+    list_trainer_requests,
     search_trainers,
 )
 from backend.src.services.trainer_service import TrainerProfileError
@@ -71,9 +75,31 @@ def send_training_request(
         handle_error(error)
 
 
+@router.get("/matchmaking/requests", response_model=list[TrainingRequestResponse])
+def trainer_requests_inbox(
+    user: CurrentUser,
+    db: DbDep,
+    status_filter: Annotated[TrainingRequestStatus | None, Query(alias="status")] = None,
+) -> list[TrainingRequestResponse]:
+    try:
+        return list_trainer_requests(db, user, status_filter=status_filter)
+    except DiscoveryError as error:
+        handle_error(error)
+
+
 @router.get("/matchmaking/requests/mine", response_model=list[TrainingRequestResponse])
 def my_training_requests(user: CurrentUser, db: DbDep) -> list[TrainingRequestResponse]:
     try:
         return list_student_requests(db, user)
+    except DiscoveryError as error:
+        handle_error(error)
+
+
+@router.get("/matchmaking/requests/{request_id}", response_model=TrainingRequestDetailResponse)
+def trainer_request_detail(
+    request_id: str, user: CurrentUser, db: DbDep
+) -> TrainingRequestDetailResponse:
+    try:
+        return get_trainer_request_detail(db, user, request_id)
     except DiscoveryError as error:
         handle_error(error)

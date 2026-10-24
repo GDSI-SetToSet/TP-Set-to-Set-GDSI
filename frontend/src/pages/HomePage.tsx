@@ -1,14 +1,31 @@
-import { Dumbbell, LogOut, Sparkles } from 'lucide-react';
+import { Dumbbell, Inbox, LogOut, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { USER_ROLES } from '../constants/auth';
 import { useAuth } from '../context/AuthContext';
 import { homePath, ROUTES } from '../constants/routes';
+import { getTrainerRequests } from '../services/discoveryService';
 
 export function HomePage() {
   const { user, logout } = useAuth();
   const [error, setError] = useState('');
+  const [pendingRequestsCount, setPendingRequestsCount] = useState<number>(0);
   const greeting = user?.role === USER_ROLES.trainer ? 'Tu espacio de entrenador' : 'Tu espacio de entrenamiento';
+
+  useEffect(() => {
+    if (user?.role !== USER_ROLES.trainer) return;
+    let active = true;
+    getTrainerRequests('PENDING')
+      .then((requests) => {
+        if (active) setPendingRequestsCount(requests.length);
+      })
+      .catch(() => {
+        if (active) setPendingRequestsCount(0);
+      });
+    return () => {
+      active = false;
+    };
+  }, [user?.role]);
 
   async function handleLogout() {
     try {
@@ -31,6 +48,14 @@ export function HomePage() {
         <div className="role-badge">{user?.role === USER_ROLES.trainer ? 'Entrenador/a' : 'Alumno/a'}</div>
         {user?.role === USER_ROLES.trainer && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerProfile}>Completar mi perfil</Link>}
         {user?.role === USER_ROLES.trainer && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerPlans}>Mis paquetes</Link>}
+        {user?.role === USER_ROLES.trainer && (
+          <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerRequests}>
+            <Inbox size={16} /> Solicitudes pendientes
+            <span className="inbox-badge-count" aria-label={`${pendingRequestsCount} solicitudes pendientes`}>
+              {pendingRequestsCount}
+            </span>
+          </Link>
+        )}
         {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentProfile}>Completar mi perfil</Link>}
         {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentHealth}>Cuestionario de salud</Link>}
         {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentProtectedZones}>Zonas a proteger</Link>}
