@@ -17,6 +17,17 @@
 - Q: Si el entrenador edita la tarifa o archiva un paquete mientras hay una solicitud pendiente o un vínculo activo, ¿qué arancel queda acordado? → A: El vigente al enviar la solicitud. La solicitud guarda una copia de la tarifa y la moneda al crearse, el vínculo la hereda al aceptarse y ninguno de los dos se recalcula a partir del paquete (no retroactividad, spec 002 US-03).
 - Q: ¿Se puede enviar una solicitud por un paquete archivado? → A: No. Solo se pueden seleccionar paquetes activos (`is_active = true`); las solicitudes pendientes de un paquete que se archiva después siguen siendo válidas con su arancel guardado.
 
+### Session 2026-10-24
+
+- Q: En US-06, ¿qué significa «solicitudes pendientes de alumnos para el mes»? → A: La bandeja del entrenador muestra todas las solicitudes en estado `PENDING` dirigidas a su perfil, ordenadas de forma descendente por fecha de creación (`created_at DESC`), independientemente del mes calendario en que se enviaron. "Para el mes" refiere a la contratación del servicio mensual del paquete, evitando descartar solicitudes pendientes de meses anteriores.
+- Q: En US-04 y US-07, ¿cómo se define el «cupo mensual» del entrenador? → A: El cupo (`max_students`) es la capacidad máxima concurrente de alumnos activos (`TrainingRelationship` con `status == 'ACTIVE'`). No se reinicia automáticamente al inicio de mes calendario; se libera únicamente cuando un vínculo activo pasa a `TERMINATED` o `EXPIRED`.
+- Q: ¿Cómo opera el bloqueo por cupos agotados en creación y aceptación? → A: 1) Creación (`POST /requests`): si `available_slots <= 0`, se bloquea el envío y responde HTTP 409 Conflict con mensaje `"Este entrenador no tiene cupos disponibles."`. 2) Existentes: las solicitudes `PENDING` previas permanecen visibles en la bandeja del entrenador; la UI deshabilita el botón "Aceptar" (`can_be_accepted = false`) mostrando `"Cupos agotados; libere un cupo para poder aceptar"`, manteniendo habilitado el botón de rechazo. 3) Aceptación forzada (`POST /requests/{id}/accept`): si no hay cupo al intentar aceptar, responde HTTP 409 Conflict con mensaje `"Cupos agotados; libere un cupo para poder aceptar."`.
+- Q: ¿Cómo se actualiza la bandeja y el contador de solicitudes pendientes? → A: Al cargar la pantalla, al navegar a la misma y mediante refresco manual. El MVP no incorpora WebSockets, SSE ni infraestructura adicional en tiempo real.
+- Q: ¿Qué datos del alumno están disponibles para evaluación en US-06 y cómo se autoriza su acceso? → A: El entrenador puede visualizar la información básica del alumno (nombre, apellido, teléfono, fecha de nacimiento/edad y mensaje introductorio) en el detalle de la solicitud, y tiene autorización temporal para consultar sus objetivos (`GET /students/{id}/goals`), cuestionario de salud (`GET /students/{id}/health-questionnaire`) y descargar su apto médico (`GET /students/{id}/medical-clearance/download`). La autorización se valida en el backend mediante `trainer_has_access`, verificando que el entrenador autenticado sea el destinatario de una solicitud `PENDING` o de un vínculo `ACTIVE`. No se habilita acceso público ni genérico a perfiles.
+- Q: En US-07, ¿qué abarca «el alumno debe aparecer en el listado de activos»? → A: La aceptación en US-07 crea formalmente el vínculo `TrainingRelationship` con `status = 'ACTIVE'`, descuenta un cupo disponible y retira la solicitud de la bandeja de pendientes. La pantalla completa de alumnos activos, su buscador y filtros por paquete pertenecen a US-18 (spec 009).
+- Q: En US-07, ¿el motivo de rechazo (`rejection_reason`) es obligatorio u opcional? → A: Es opcional en el backend y en la interfaz (se alinea con US-48 escenario 4: "mensaje explicativo, si lo hubiera"). La discrepancia con el contrato OpenAPI original (que lo requería obligatoriamente) se resuelve relajando el campo a opcional/nullable, sin que esto rompa compatibilidad con clientes o pruebas existentes.
+- Q: ¿Cómo se gestiona la concurrencia y la idempotencia en la aceptación/rechazo? → A: La aceptación se procesa en una transacción atómica con bloqueo a nivel de fila (`with_for_update`) sobre el perfil del entrenador para evitar sobreasignación de cupos. Si una solicitud ya no está en estado `PENDING` (por ejemplo, ya fue aceptada, rechazada o cancelada), cualquier intento de resolverla nuevamente se rechaza con HTTP 409 Conflict (*"La solicitud ya fue procesada."*).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-44: Búsqueda y filtrado de entrenadores] (Priority: P1, Estimación: 4 SP)
@@ -111,13 +122,15 @@ Como entrenador personal,
 
 **Acceptance Scenarios**:
 
-1. Se deben poder ver todas las solicitudes pendientes de alumnos para el mes.
+1. Dado un entrenador personal con solicitudes pendientes, cuando accede a su bandeja de solicitudes, entonces el sistema lista todas sus solicitudes en estado `PENDING` ordenadas desde la más reciente, mostrando nombre del alumno, paquete solicitado, tarifa mensual acordada y fecha de envío.
 
-2. Al llegar una nueva solicitud, se debe reflejar en la aplicación aumentando el número de solicitudes pendientes.
+2. Dado un entrenador con solicitudes pendientes recibidas, cuando consulta su panel de inicio o refresca la bandeja, entonces el sistema refleja el número total de solicitudes pendientes sin atender.
 
-3. Al entrar a una solicitud, se debe poder ver el perfil del alumno y sus objetivos.
+3. Dado un alumno que envía una solicitud a un entrenador, cuando el entrenador abre o refresca su bandeja de solicitudes, entonces el contador de pendientes aumenta en 1 y la solicitud aparece listada.
 
-4. Si el cupo mensual del entrenador está lleno, entonces no deben entrar nuevas solicitudes
+4. Dado un entrenador que abre una solicitud pendiente específica, cuando accede al detalle, entonces puede ver los datos de contacto del alumno, sus objetivos deportivos, motivación personal, y consultar su cuestionario de salud y apto médico mediante autorización validada en el backend.
+
+5. Dado un entrenador con el cupo completo (`active_students >= max_students`) que tiene solicitudes pendientes previas, cuando consulta su bandeja, entonces las solicitudes siguen visibles, pero el botón "Aceptar" se muestra deshabilitado indicando "Cupos agotados; libere un cupo para poder aceptar" y el botón "Rechazar" permanece habilitado.
 
 
 ---
@@ -134,15 +147,17 @@ Como entrenador personal,
 
 **Acceptance Scenarios**:
 
-1. Al ingresar a la solicitud de un alumno, debe haber una opción para aceptar o rechazar su solicitud.
+1. Dado un entrenador en el detalle de una solicitud pendiente, cuando revisa las opciones de gestión, entonces dispone de las acciones para aceptar o rechazar la solicitud.
 
-2. Al aceptar una solicitud, entonces el alumno debe aparecer en el listado de activos del entrenador.
+2. Dado un entrenador con cupo disponible que acepta una solicitud pendiente, cuando confirma la aceptación (con mensaje de bienvenida opcional), entonces el sistema cambia la solicitud a `ACCEPTED`, crea un vínculo de entrenamiento activo (`TrainingRelationship`), incrementa la cantidad de alumnos activos y remueve la solicitud de la bandeja de pendientes.
 
-3. Al aceptar una solicitud, el cupo mensual del entrenador se actualiza y la solicitud ya no está visible para el entrenador.
+3. Dado un entrenador con cupos agotados (`active_students >= max_students`), cuando intenta forzar la aceptación de una solicitud pendiente vía API, entonces el sistema rechaza la operación con HTTP 409 Conflict y el mensaje "Cupos agotados; libere un cupo para poder aceptar.", manteniendo la solicitud en `PENDING` y el cupo inalterado.
 
-4. Si el cupo mensual del entrenador está lleno, al intentar aceptar un nuevo alumno el sistema no permite y notifica al entrenador que su cupo ya está completo.
+4. Dado un entrenador que rechaza una solicitud pendiente, cuando confirma el rechazo (pudiendo indicar un motivo explicativo opcional), entonces el sistema actualiza la solicitud a `REJECTED`, registra la fecha de resolución y el motivo (si se ingresó), remueve la solicitud de la bandeja y mantiene el cupo inalterado.
 
-5. Al rechazar una solicitud, entonces el cupo mensual del entrenador no se actualiza y la solicitud ya no está visible para el entrenador
+5. Dado un entrenador que rechazó una solicitud, cuando intenta acceder posteriormente a los datos de salud o certificado médico del alumno, entonces el backend deniega el acceso con HTTP 403 Forbidden por no existir solicitud pendiente ni vínculo activo.
+
+6. Dado que una solicitud ya fue resuelta previamente (`ACCEPTED`, `REJECTED` o `CANCELLED`), cuando se intenta aceptar o rechazar nuevamente, entonces el sistema rechaza la petición con HTTP 409 Conflict informando que la solicitud ya fue procesada.
 
 
 ---
@@ -194,13 +209,15 @@ Como alumno, quiero recibir una confirmación y un mensaje de bienvenida cuando 
 
 - **FR-005**: El sistema DEBE permitir al alumno enviar una solicitud formal de entrenamiento adjuntando su perfil y objetivos (US-48).
 
-- **FR-006**: El sistema DEBE listar al entrenador las solicitudes entrantes pendientes, otorgando permiso de lectura temporal exclusivo sobre la información básica, cuestionario de salud y apto médico para evaluación (US-06).
+- **FR-006**: El sistema DEBE listar al entrenador las solicitudes entrantes pendientes (`TrainingRequest` con estado `PENDING`) ordenadas por fecha descendente, exponiendo el resumen de la solicitud y otorgando permiso de lectura temporal exclusivo sobre la información básica, cuestionario de salud y apto médico del alumno mientras la solicitud esté en evaluación (US-06).
 
-- **FR-007**: El sistema DEBE permitir al entrenador aceptar o rechazar solicitudes de alumnos (US-07). Si los cupos están agotados, el botón 'Aceptar' se bloquea manteniendo las solicitudes en bandeja para gestión manual (Decisión Alternativa A).
+- **FR-007**: El sistema DEBE permitir al entrenador aceptar o rechazar solicitudes de alumnos (US-07). Si los cupos están agotados, la acción de aceptar se bloquea respondiendo HTTP 409 Conflict y deshabilitando el botón en la interfaz con la advertencia "Cupos agotados; libere un cupo para poder aceptar", manteniendo las solicitudes en bandeja para gestión manual y rechazo disponible (Decisión Alternativa A).
 
-- **FR-008**: Al aceptar una solicitud, el sistema DEBE descontar un cupo disponible y emitir el mensaje de bienvenida y confirmación al alumno (US-07, US-49).
+- **FR-007a**: El sistema DEBE permitir al entrenador indicar un motivo explicativo opcional al rechazar una solicitud (`POST /matchmaking/requests/{id}/reject`), actualizando el estado a `REJECTED` y conservando la fecha de resolución y el motivo (si existiera) sin alterar los cupos del entrenador (US-07, US-48).
 
-- **FR-009**: El sistema DEBE revocar de forma inmediata e irreversible el acceso del entrenador a los datos de salud del alumno (cuestionario, molestias, apto médico) en el backend si la solicitud es rechazada o cancelada (US-06, US-07, US-48, Constitución).
+- **FR-008**: Al aceptar una solicitud, el sistema DEBE crear un vínculo de entrenamiento activo (`TrainingRelationship`), descontar un cupo disponible (`active_students` +1), copiar la tarifa y moneda acordadas de forma inmutable, y emitir el mensaje de confirmación al alumno (US-07, US-49).
+
+- **FR-009**: El sistema DEBE revocar de forma inmediata e irreversible el acceso del entrenador a los datos de salud del alumno (cuestionario, molestias, apto médico) en el backend si la solicitud es rechazada o cancelada, denegando accesos posteriores con HTTP 403 Forbidden (US-06, US-07, US-48, Constitución).
 
 - **FR-010**: Al crear una solicitud, el sistema DEBE guardar en ella la tarifa mensual y la moneda vigentes del paquete seleccionado, y al aceptarla DEBE copiarlas al vínculo. Editar la tarifa o archivar el paquete después no modifica el arancel de solicitudes ya enviadas ni de vínculos existentes. Solo se pueden solicitar paquetes activos (US-47, US-48, US-07; spec 002 US-03).
 
@@ -210,7 +227,9 @@ Como alumno, quiero recibir una confirmación y un mensaje de bienvenida cuando 
 
 - **TrainerSearchFilter**: Criterios combinables de búsqueda: especialidad, rango de tarifa, disponibilidad horaria y modalidad.
 
-- **EnrollmentRequest**: Solicitud de vinculación enviada por un alumno a un entrenador para un paquete específico, con estado ('PENDING', 'ACCEPTED', 'REJECTED'), fecha, mensaje inicial y el arancel acordado (tarifa y moneda del paquete al momento de enviarla).
+- **TrainingRequest**: Solicitud de vinculación enviada por un alumno a un entrenador para un paquete específico, con estado (`PENDING`, `ACCEPTED`, `REJECTED`, `CANCELLED`), fecha de creación, fecha de resolución, mensaje del alumno, respuesta/motivo del entrenador y el arancel acordado (tarifa y moneda del paquete al momento de enviarla).
+
+- **TrainingRelationship**: Vínculo activo de entrenamiento entre un alumno y un entrenador, con estado (`ACTIVE`, `TERMINATED`, `EXPIRED`), fecha de inicio, tarifa mensual y moneda acordadas inmutables heredadas de la solicitud.
 
 - **OnboardingWelcome**: Mensaje de confirmación y bienvenida generado automáticamente al aceptar una solicitud, con instrucciones iniciales.
 
