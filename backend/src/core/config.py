@@ -8,10 +8,25 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 API_TITLE = "Set to Set API"
 API_VERSION = "0.1.0"
 API_V1_PREFIX = "/api/v1"
-CORS_ALLOWED_ORIGINS = ("http://localhost:5173", "http://127.0.0.1:5173")
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./set_to_set.db")
 APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
+CORS_ALLOWED_ORIGINS = tuple(
+    origin.strip().rstrip("/")
+    for origin in os.getenv(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173" if APP_ENV != "production" else "",
+    ).split(",")
+    if origin.strip()
+)
+if APP_ENV == "production" and not CORS_ALLOWED_ORIGINS:
+    raise RuntimeError("CORS_ALLOWED_ORIGINS debe incluir el dominio del frontend en producción.")
+
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./set_to_set.db").strip()
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+
 JWT_SECRET = os.getenv("JWT_SECRET")
 if not JWT_SECRET:
     if APP_ENV == "production":
