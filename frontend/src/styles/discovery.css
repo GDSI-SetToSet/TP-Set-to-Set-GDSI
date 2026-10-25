@@ -725,3 +725,37 @@
     justify-content: center;
   }
 }
+
+
+/* ── Request Action Modal & Feedback Banner (US-07) ── */
+
+.inbox-success-banner {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.request-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 20, 38, 0.56);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 60;
+}
+
+.request-modal {
+  width: min(560px, 100%);
+  background: var(--pf-card);
+  border: 1px solid var(--pf-border);
+  border-radius: 22px;
+  padding: 28px;
+  box-shadow: 0 24px 60px rgba(11, 20, 38, 0.24);
+}
+
+.request-modal__form {
+  margin-top: 20px;
+}

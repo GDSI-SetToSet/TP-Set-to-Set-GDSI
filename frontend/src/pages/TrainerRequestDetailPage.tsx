@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Calendar,
+  CheckCircle2,
   DollarSign,
   Download,
   FileText,
@@ -11,13 +12,16 @@ import {
   Target,
   User,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { RequestActionModal, type RequestActionType } from '../components/RequestActionModal';
 import { ROUTES } from '../constants/routes';
 import {
+  acceptTrainingRequest,
   getStudentGoalsForTrainer,
   getStudentHealthForTrainer,
   getTrainerRequestDetail,
+  rejectTrainingRequest,
 } from '../services/discoveryService';
 import { downloadMedicalClearance } from '../services/medicalClearanceService';
 import type { StudentGoalsSummary, TrainingRequestDetailResponse } from '../types/discovery';
@@ -67,6 +71,7 @@ function formatDateTime(iso: string): string {
 
 export function TrainerRequestDetailPage() {
   const { requestId } = useParams<{ requestId: string }>();
+  const navigate = useNavigate();
   const [detail, setDetail] = useState<TrainingRequestDetailResponse | null>(null);
   const [goals, setGoals] = useState<StudentGoalsSummary | null>(null);
   const [questionnaire, setQuestionnaire] = useState<HealthQuestionnaire | null>(null);
@@ -76,6 +81,31 @@ export function TrainerRequestDetailPage() {
   const [downloadingClearance, setDownloadingClearance] = useState(false);
   const [clearanceMessage, setClearanceMessage] = useState('');
 
+  const [modalAction, setModalAction] = useState<RequestActionType | null>(null);
+  const [submittingAction, setSubmittingAction] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [actionSuccess, setActionSuccess] = useState('');
+
+  const loadDetail = useCallback(async (id: string) => {
+    const requestData = await getTrainerRequestDetail(id);
+    setDetail(requestData);
+    try {
+      const [goalsData, healthData] = await Promise.all([
+        getStudentGoalsForTrainer(requestData.student_id),
+        getStudentHealthForTrainer(requestData.student_id),
+      ]);
+      setGoals(goalsData);
+      setQuestionnaire(healthData);
+      setHealthAccessError('');
+    } catch {
+      setGoals(null);
+      setQuestionnaire(null);
+      setHealthAccessError(
+        'El acceso a los objetivos y datos de salud requiere una solicitud pendiente o un vínculo activo.',
+      );
+    }
+  }, []);
+
   useEffect(() => {
     if (!requestId) return;
     let active = true;
@@ -83,25 +113,7 @@ export function TrainerRequestDetailPage() {
     setError('');
     setHealthAccessError('');
 
-    getTrainerRequestDetail(requestId)
-      .then(async (requestData) => {
-        if (!active) return;
-        setDetail(requestData);
-        try {
-          const [goalsData, healthData] = await Promise.all([
-            getStudentGoalsForTrainer(requestData.student_id),
-            getStudentHealthForTrainer(requestData.student_id),
-          ]);
-          if (!active) return;
-          setGoals(goalsData);
-          setQuestionnaire(healthData);
-        } catch {
-          if (!active) return;
-          setHealthAccessError(
-            'El acceso a los objetivos y datos de salud requiere una solicitud pendiente o un vínculo activo.',
-          );
-        }
-      })
+    loadDetail(requestId)
       .catch((caught: unknown) => {
         if (!active) return;
         if (axios.isAxiosError<{ detail?: string }>(caught)) {
@@ -117,7 +129,7 @@ export function TrainerRequestDetailPage() {
     return () => {
       active = false;
     };
-  }, [requestId]);
+  }, [requestId, loadDetail]);
 
   async function handleDownloadClearance() {
     if (!detail) return;
@@ -135,6 +147,46 @@ export function TrainerRequestDetailPage() {
       }
     } finally {
       setDownloadingClearance(false);
+    }
+  }
+
+  async function handleConfirmAction(message: string | null) {
+    if (!detail || !modalAction || submittingAction) return;
+    setSubmittingAction(true);
+    setActionError('');
+    setActionSuccess('');
+    try {
+      const studentName = formatStudentName(detail);
+      if (modalAction === 'accept') {
+        await acceptTrainingRequest(detail.id, { welcome_message: message });
+        const feedback = `Solicitud de ${studentName} aceptada. El vínculo activo fue creado.`;
+        setActionSuccess(feedback);
+        setModalAction(null);
+        navigate(ROUTES.trainerRequests, { state: { flashMessage: feedback } });
+      } else {
+        await rejectTrainingRequest(detail.id, { rejection_reason: message });
+        const feedback = `Solicitud de ${studentName} rechazada.`;
+        setActionSuccess(feedback);
+        setModalAction(null);
+        navigate(ROUTES.trainerRequests, { state: { flashMessage: feedback } });
+      }
+    } catch (caught: unknown) {
+      if (axios.isAxiosError<{ detail?: string }>(caught)) {
+        setActionError(
+          caught.response?.data?.detail ?? 'No pudimos procesar la solicitud. Intentá nuevamente.',
+        );
+      } else {
+        setActionError('No pudimos procesar la solicitud. Intentá nuevamente.');
+      }
+      if (requestId) {
+        try {
+          await loadDetail(requestId);
+        } catch {
+          // Keep current detail if refresh fails
+        }
+      }
+    } finally {
+      setSubmittingAction(false);
     }
   }
 
@@ -182,6 +234,12 @@ export function TrainerRequestDetailPage() {
           <h1>{formatStudentName(detail)}</h1>
           <p>Revisá los datos del alumno y verificá que sus objetivos se alineen con tu propuesta.</p>
         </div>
+
+        {actionSuccess && (
+          <p className="profile-success" role="status">
+            <CheckCircle2 size={18} /> {actionSuccess}
+          </p>
+        )}
 
         <div className="request-detail-grid">
           <div className="request-detail-box">
@@ -339,7 +397,11 @@ export function TrainerRequestDetailPage() {
             <button
               type="button"
               className="profile-save"
-              disabled={!detail.can_be_accepted}
+              disabled={!detail.can_be_accepted || detail.status !== 'PENDING' || submittingAction}
+              onClick={() => {
+                setActionError('');
+                setModalAction('accept');
+              }}
               title={
                 !detail.can_be_accepted
                   ? 'Cupos agotados; libere un cupo para poder aceptar'
@@ -351,13 +413,34 @@ export function TrainerRequestDetailPage() {
             <button
               type="button"
               className="inbox-action-btn inbox-action-btn--reject"
-              disabled={detail.status !== 'PENDING'}
+              disabled={detail.status !== 'PENDING' || submittingAction}
+              onClick={() => {
+                setActionError('');
+                setModalAction('reject');
+              }}
             >
               Rechazar solicitud
             </button>
           </div>
         </div>
       </section>
+
+      {modalAction && (
+        <RequestActionModal
+          action={modalAction}
+          studentName={formatStudentName(detail)}
+          planTitle={detail.plan_title ?? 'Paquete solicitado'}
+          submitting={submittingAction}
+          error={actionError}
+          onConfirm={handleConfirmAction}
+          onClose={() => {
+            if (!submittingAction) {
+              setModalAction(null);
+              setActionError('');
+            }
+          }}
+        />
+      )}
     </main>
   );
 }

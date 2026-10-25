@@ -1,9 +1,10 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 TrainingRequestStatus = Literal["PENDING", "ACCEPTED", "REJECTED", "CANCELLED"]
+TrainingRelationshipStatus = Literal["ACTIVE", "EXPIRED", "TERMINATED"]
 
 
 class TrainerSearchResult(BaseModel):
@@ -101,3 +102,24 @@ class TrainingRequestDetailResponse(TrainingRequestResponse):
 
 class TrainerInboxFilters(BaseModel):
     status: TrainingRequestStatus | None = None
+
+
+class TrainingRequestAcceptPayload(BaseModel):
+    welcome_message: str | None = None
+
+
+class TrainingRequestRejectPayload(BaseModel):
+    rejection_reason: str | None = None
+
+
+class TrainingRelationshipResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    student_id: str
+    trainer_id: str
+    plan_id: str
+    agreed_monthly_price: float
+    agreed_currency: str
+    status: TrainingRelationshipStatus
+    start_date: date

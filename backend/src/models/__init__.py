@@ -1,6 +1,7 @@
 from backend.src.models.medical_clearance import MedicalClearance
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_plan import TrainingPlan
+from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.training_request import TrainingRequest
 from backend.src.models.user import PasswordResetToken, User, UserSession
 
@@ -16,6 +17,7 @@ __all__ = [
     "StudentProfile",
     "TrainerProfile",
     "TrainingPlan",
+    "TrainingRelationship",
     "TrainingRequest",
     "User",
     "UserSession",

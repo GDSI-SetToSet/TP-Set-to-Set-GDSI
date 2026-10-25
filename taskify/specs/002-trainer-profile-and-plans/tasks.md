@@ -56,7 +56,7 @@ description: "Task list for 002-trainer-profile-and-plans"
 
 ## Phase 3: User Story 2 — US-03 Paquetes y tarifas (Priority: P1)
 
-**Goal**: Permitir crear, listar, editar y archivar paquetes mensuales sin alterar precios acordados previamente.
+**Goal**: Permitir crear, editar y archivar paquetes mensuales sin alterar precios acordados previamente.
 
 **Independent Test**: Un entrenador con perfil PUBLISHED crea un paquete válido, ARS se aplica por defecto, las tarifas fuera de `0..1.000.000` se rechazan y el archivado no modifica vínculos activos existentes.
 
@@ -79,10 +79,10 @@ description: "Task list for 002-trainer-profile-and-plans"
 
 **Independent Test**: El entrenador configura el límite, el perfil muestra cupos disponibles y el backend rechaza nuevas solicitudes y aceptaciones pendientes cuando `active_students_count >= max_students`.
 
-- [x] T024 [P] [US3] Crear pruebas unitarias de límites 0..100, cálculo de disponibilidad y concurrencia al aceptar solicitudes en `backend/tests/test_trainer_quota_service.py` (la prueba de concurrencia queda pendiente junto con T026)
+- [x] T024 [P] [US3] Crear pruebas unitarias de límites 0..100 y cálculo de disponibilidad (incluyendo conteo real de relaciones `ACTIVE` vs `TERMINATED`) en `backend/tests/test_trainer_quota_service.py`; la prueba de concurrencia en un proceso al aceptar solicitudes se incorpora en `backend/tests/test_trainer_requests_actions_api.py` junto con T026
 - [x] T025 [P] [US3] Crear pruebas de integración para actualización de cupos, perfil publicado y bloqueo 409 en `backend/tests/test_trainer_quota_api.py`
-- [ ] T026 [US3] Integrar el conteo de relaciones activas y el bloqueo transaccional de aceptación en los modelos y servicios de vínculos correspondientes bajo `backend/src/models/` y `backend/src/services/`
-  - ⏳ Pendiente: los vínculos y solicitudes llegan con las specs 004/011. Mientras tanto `count_active_students` devuelve 0 y `has_available_quota` queda listo en `backend/src/services/trainer_service.py` para bloquear solicitudes y aceptaciones (escenarios 4 y 5).
+- [x] T026 [US3] Integrar el conteo de relaciones activas y el bloqueo transaccional de aceptación en los modelos y servicios de vínculos correspondientes bajo `backend/src/models/` y `backend/src/services/`
+  - ✅ Completado en US-07 (`spec 004`, tareas `T015`, `T016` y `T018`): `count_active_students` en `backend/src/services/trainer_service.py` consulta los vínculos `TrainingRelationship` con `status == 'ACTIVE'`, `TrainingRelationship` define el índice único parcial `uq_active_training_relationship` sobre `(student_id, trainer_id) WHERE status = 'ACTIVE'`, y `accept_training_request` en `backend/src/services/discovery_service.py` aplica bloqueo `with_for_update()` (efectivo a nivel de fila entre workers en PostgreSQL bajo `READ COMMITTED`) más `_REQUEST_RESOLUTION_LOCK` (efectivo entre hilos de un mismo proceso/worker y utilizado por los tests sobre SQLite en memoria, ya que SQLite omite `FOR UPDATE`).
 - [x] T027 [P] [US3] Agregar schemas de cupo con `max_students` entre 0 y 100, `active_students`, `available_slots` y `has_available_quota` en `backend/src/schemas/trainer.py`
 - [x] T028 [US3] Implementar actualización y cálculo de cupos en `backend/src/services/trainer_service.py` y `PATCH /api/v1/trainers/me/quota` en `backend/src/api/v1/trainers.py`
 - [x] T029 [P] [US3] Crear `frontend/src/components/QuotaBadge.tsx` y operaciones de cupo en `frontend/src/services/trainerService.ts`

@@ -12,6 +12,7 @@ from backend.src.models.medical_clearance import MedicalClearance
 from backend.src.models.protected_zone import ProtectedZone
 from backend.src.models.student_profile import StudentProfile
 from backend.src.models.trainer_profile import TrainerProfile
+from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.training_request import TrainingRequest
 from backend.src.models.user import User
 from backend.src.schemas.protected_zone import ProtectedZonesUpdate
@@ -126,7 +127,16 @@ def trainer_has_access(db: Session, trainer: User, student_profile_id: str) -> b
             TrainingRequest.status == "PENDING",
         )
     )
-    return pending_request is not None
+    if pending_request is not None:
+        return True
+    active_relationship = db.scalar(
+        select(TrainingRelationship.id).where(
+            TrainingRelationship.trainer_id == trainer_profile_id,
+            TrainingRelationship.student_id == student_profile_id,
+            TrainingRelationship.status == "ACTIVE",
+        )
+    )
+    return active_relationship is not None
 
 
 def get_goals_for_viewer(db: Session, viewer: User, student_profile_id: str) -> StudentProfile:

@@ -1,6 +1,7 @@
 import type { FitnessGoal } from './student';
 
 export type TrainingRequestStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED';
+export type TrainingRelationshipStatus = 'ACTIVE' | 'EXPIRED' | 'TERMINATED';
 
 export interface TrainerSearchResult {
   id: string;
@@ -88,4 +89,23 @@ export interface TrainingRequestDetailResponse extends TrainingRequestResponse {
 export interface StudentGoalsSummary {
   fitness_goals: FitnessGoal[];
   personal_motivation: string | null;
+}
+
+export interface TrainingRequestAcceptPayload {
+  welcome_message?: string | null;
+}
+
+export interface TrainingRequestRejectPayload {
+  rejection_reason?: string | null;
+}
+
+export interface TrainingRelationshipResponse {
+  id: string;
+  student_id: string;
+  trainer_id: string;
+  plan_id: string;
+  agreed_monthly_price: number;
+  agreed_currency: string;
+  status: TrainingRelationshipStatus;
+  start_date: string;
 }
