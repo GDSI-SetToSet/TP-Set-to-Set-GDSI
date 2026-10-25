@@ -188,6 +188,90 @@ paths:
         '409':
           description: La solicitud ya fue resuelta previamente
 
+  /api/v1/students/me/active-plan:
+    get:
+      summary: Consultar plan de entrenamiento y entrenador activo del alumno (US-49)
+      description: Retorna los datos del vínculo activo del alumno autenticado, incluyendo entrenador asignado, tarifa, mensaje de bienvenida y primera rutina asignada si existe.
+      tags:
+        - Students / Matchmaking
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Datos del plan activo recuperados exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivePlanResponse'
+        '401':
+          description: No autenticado
+        '403':
+          description: No autorizado (solo rol alumno)
+
+  /api/v1/students/me/notifications:
+    get:
+      summary: Listar notificaciones del alumno (US-49)
+      description: Obtiene las notificaciones in-app recibidas por el alumno (bienvenidas, altas de rutina, avisos).
+      tags:
+        - Notifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: is_read
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Filtrar por estado de lectura
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Lista de notificaciones obtenida exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+        '401':
+          description: No autenticado
+
+  /api/v1/students/me/notifications/{notification_id}/read:
+    patch:
+      summary: Marcar notificación como leída (US-49)
+      description: Actualiza el estado de una notificación específica a leída.
+      tags:
+        - Notifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: notification_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notificación marcada como leída.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationItem'
+        '401':
+          description: No autenticado
+        '404':
+          description: Notificación no encontrada
+
 components:
   securitySchemes:
     BearerAuth:
@@ -338,3 +422,172 @@ components:
         start_date:
           type: string
           format: date
+        welcome_message:
+          type: string
+          nullable: true
+          description: Mensaje de bienvenida ingresado por el entrenador al aceptar (US-49)
+        welcome_message_sent:
+          type: boolean
+          description: Indica si la notificación fue generada (US-49)
+        initial_routine_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID de la primera rutina si ya fue cargada (US-49)
+
+    ActivePlanResponse:
+      type: object
+      required:
+        - has_active_plan
+      properties:
+        has_active_plan:
+          type: boolean
+          description: Indica si el alumno tiene una relación de entrenamiento activa.
+        relationship_id:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          type: string
+          enum: [ACTIVE, TERMINATED, EXPIRED]
+          nullable: true
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        agreed_monthly_price:
+          type: number
+          nullable: true
+        agreed_currency:
+          type: string
+          nullable: true
+          example: ARS
+        welcome_message:
+          type: string
+          nullable: true
+          example: "¡Bienvenido al equipo! Empezaremos con fuerza y constancia."
+        trainer:
+          $ref: '#/components/schemas/ActiveTrainerSummary'
+        plan:
+          $ref: '#/components/schemas/ActivePlanSummary'
+        routine:
+          $ref: '#/components/schemas/ActiveRoutineSummary'
+
+    ActiveTrainerSummary:
+      type: object
+      nullable: true
+      required:
+        - id
+        - full_name
+        - specialty
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+          example: "Juan Pérez"
+        profile_picture_url:
+          type: string
+          nullable: true
+        specialty:
+          type: string
+          example: "Hipertrofia y Fuerza"
+        email:
+          type: string
+          example: "juan.perez@example.com"
+        phone:
+          type: string
+          nullable: true
+          example: "+54 9 11 1234-5678"
+
+    ActivePlanSummary:
+      type: object
+      nullable: true
+      required:
+        - id
+        - title
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          example: "Plan Personalizado Full"
+
+    ActiveRoutineSummary:
+      type: object
+      nullable: true
+      required:
+        - id
+        - name
+        - is_available
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Rutina Adaptación Mes 1"
+        status:
+          type: string
+          enum: [DRAFT, PUBLISHED, ACTIVE]
+        is_available:
+          type: boolean
+          description: True si el alumno ya puede visualizar los ejercicios.
+
+    NotificationItem:
+      type: object
+      required:
+        - id
+        - type
+        - title
+        - message
+        - is_read
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [TRAINING_ACCEPTED, TRAINING_REJECTED, NEW_REQUEST, ROUTINE_ASSIGNED, GENERAL]
+        title:
+          type: string
+          example: "¡Solicitud aceptada!"
+        message:
+          type: string
+          example: "Tu entrenador ha aceptado tu solicitud. ¡Bienvenido!"
+        related_entity_type:
+          type: string
+          nullable: true
+          example: "TrainingRelationship"
+        related_entity_id:
+          type: string
+          format: uuid
+          nullable: true
+        is_read:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    NotificationListResponse:
+      type: object
+      required:
+        - items
+        - total
+        - unread_count
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationItem'
+        total:
+          type: integer
+        unread_count:
+          type: integer
