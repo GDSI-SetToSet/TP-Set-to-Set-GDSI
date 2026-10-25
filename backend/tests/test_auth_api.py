@@ -1,9 +1,8 @@
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
-
 from backend.src.core.constants import PASSWORD_REQUIREMENTS_MESSAGE
 from backend.src.models.user import User
+from sqlalchemy import select
 
 
 def register(client, email="coach@example.com", role="TRAINER", password="StrongPass123"):

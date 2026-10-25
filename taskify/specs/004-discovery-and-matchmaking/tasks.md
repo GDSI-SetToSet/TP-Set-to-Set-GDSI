@@ -111,22 +111,22 @@ description: "Task list for 004-discovery-and-matchmaking (US-06, US-07 and US-4
 
 ### Tests for User Story 7 (US-49)
 
-- [ ] T026 [P] [US49] Crear pruebas de integración en `backend/tests/test_student_welcome_notification.py` para verificar que `accept_training_request` emite atómicamente la notificación de bienvenida (`Notification`) al alumno con mensaje personalizado o fallback por defecto.
-- [ ] T027 [P] [US49] Crear pruebas de integración en `backend/tests/test_student_active_plan_api.py` para `GET /api/v1/students/me/active-plan`: alumno con plan activo sin rutina, con plan activo y rutina inicial publicada, y alumno sin vínculo activo (`has_active_plan: false`).
-- [ ] T028 [P] [US49] Crear pruebas de integración en `backend/tests/test_student_notifications_api.py` para `GET /api/v1/students/me/notifications` (listado, filtro `is_read`, contador de no leídas) y `PATCH /api/v1/students/me/notifications/{id}/read` (marcado como leída y validación de propiedad).
+- [x] T026 [P] [US49] Crear pruebas de integración en `backend/tests/test_student_welcome_notification.py` para verificar que `accept_training_request` emite atómicamente la notificación de bienvenida (`Notification`) al alumno con mensaje personalizado o fallback por defecto.
+- [x] T027 [P] [US49] Crear pruebas de integración en `backend/tests/test_student_active_plan_api.py` para `GET /api/v1/students/me/active-plan`: alumno con plan activo sin rutina, con plan activo y rutina inicial publicada, y alumno sin vínculo activo (`has_active_plan: false`).
+- [x] T028 [P] [US49] Crear pruebas de integración en `backend/tests/test_student_notifications_api.py` para `GET /api/v1/students/me/notifications` (listado, filtro `is_read`, contador de no leídas) y `PATCH /api/v1/students/me/notifications/{id}/read` (marcado como leída y validación de propiedad).
 
 ### Implementation for User Story 7 (US-49)
 
-- [ ] T029 [US49] Actualizar el modelo `TrainingRelationship` en `backend/src/models/training_relationship.py` agregando los campos `welcome_message`, `welcome_message_sent` e `initial_routine_id` según `data-model.md`.
-- [ ] T030 [US49] Crear el modelo `Notification` en `backend/src/models/notification.py` (`id`, `recipient_id`, `type`, `title`, `message`, `related_entity_type`, `related_entity_id`, `is_read`, `created_at`, `read_at`) y registrarlo en `backend/src/models/__init__.py`.
-- [ ] T031 [P] [US49] Implementar schemas Pydantic `ActivePlanResponse`, `ActiveTrainerSummary`, `ActivePlanSummary`, `ActiveRoutineSummary`, `NotificationItem` y `NotificationListResponse` en `backend/src/schemas/discovery.py`.
-- [ ] T032 [US49] Implementar `NotificationService` en `backend/src/services/notification_service.py` con métodos para crear notificación, listar notificaciones por usuario y marcar como leída.
-- [ ] T033 [US49] Integrar en `accept_training_request` en `backend/src/services/discovery_service.py` la llamada a `NotificationService` para generar la bienvenida en la misma transacción atómica de aceptación.
-- [ ] T034 [US49] Implementar la función de servicio `get_student_active_plan` en `backend/src/services/discovery_service.py` que obtenga la relación activa del alumno con datos del entrenador, paquete contratado y estado de la rutina inicial.
-- [ ] T035 [US49] Exponer endpoints `GET /api/v1/students/me/active-plan`, `GET /api/v1/students/me/notifications` y `PATCH /api/v1/students/me/notifications/{notification_id}/read` en `backend/src/api/v1/discovery.py` con permisos para el rol alumno.
-- [ ] T036 [P] [US49] Agregar tipos TypeScript y métodos cliente para plan activo y notificaciones en `frontend/src/types/discovery.ts` y `frontend/src/services/discoveryService.ts`.
-- [ ] T037 [US49] Crear el componente `ActivePlanCard.tsx` en `frontend/src/components/ActivePlanCard.tsx` e integrarlo en el perfil/panel del alumno mostrando entrenador asignado, tarifa acordada, mensaje de bienvenida y estado/enlace a su rutina ("Rutina en preparación" si no existe).
-- [ ] T038 [US49] Implementar el componente de campana de notificaciones `NotificationBell.tsx` en `frontend/src/components/NotificationBell.tsx` con contador de no leídas, desplegable de avisos y redirección al hacer clic.
-- [ ] T039 [US49] Ejecutar suite de pruebas completa (`pytest backend/tests --cov=backend/src --cov-fail-under=90`), `ruff check backend`, `cd frontend && npm run build` y validación manual de los 5 escenarios de aceptación de US-49.
+- [x] T029 [US49] Actualizar el modelo `TrainingRelationship` en `backend/src/models/training_relationship.py` agregando los campos `welcome_message`, `welcome_message_sent` e `initial_routine_id` según `data-model.md`.
+- [x] T030 [US49] Crear el modelo `Notification` en `backend/src/models/notification.py` (`id`, `recipient_id`, `type`, `title`, `message`, `related_entity_type`, `related_entity_id`, `is_read`, `created_at`, `read_at`) y registrarlo en `backend/src/models/__init__.py`.
+- [x] T031 [P] [US49] Implementar schemas Pydantic `ActivePlanResponse`, `ActiveTrainerSummary`, `ActivePlanSummary`, `ActiveRoutineSummary`, `NotificationItem` y `NotificationListResponse` en `backend/src/schemas/discovery.py`.
+- [x] T032 [US49] Implementar `NotificationService` en `backend/src/services/notification_service.py` con métodos para crear notificación, listar notificaciones por usuario y marcar como leída.
+- [x] T033 [US49] Integrar en `accept_training_request` en `backend/src/services/discovery_service.py` la llamada a `NotificationService` para generar la bienvenida en la misma transacción atómica de aceptación.
+- [x] T034 [US49] Implementar la función de servicio `get_student_active_plan` en `backend/src/services/discovery_service.py` que obtenga la relación activa del alumno con datos del entrenador, paquete contratado y estado de la rutina inicial.
+- [x] T035 [US49] Exponer endpoints `GET /api/v1/students/me/active-plan`, `GET /api/v1/students/me/notifications` y `PATCH /api/v1/students/me/notifications/{notification_id}/read` en `backend/src/api/v1/discovery.py` con permisos para el rol alumno.
+- [x] T036 [P] [US49] Agregar tipos TypeScript y métodos cliente para plan activo y notificaciones en `frontend/src/types/discovery.ts` y `frontend/src/services/discoveryService.ts`.
+- [x] T037 [US49] Crear el componente `ActivePlanCard.tsx` en `frontend/src/components/ActivePlanCard.tsx` e integrarlo en el perfil/panel del alumno mostrando entrenador asignado, tarifa acordada, mensaje de bienvenida y estado/enlace a su rutina ("Rutina en preparación" si no existe).
+- [x] T038 [US49] Implementar el componente de campana de notificaciones `NotificationBell.tsx` en `frontend/src/components/NotificationBell.tsx` con contador de no leídas, desplegable de avisos y redirección al hacer clic.
+- [x] T039 [US49] Ejecutar suite de pruebas completa (`pytest backend/tests --cov=backend/src --cov-fail-under=90`), `ruff check backend`, `cd frontend && npm run build` y validación manual de los 5 escenarios de aceptación de US-49.
 
 **Checkpoint**: US-49 está completa de punta a punta, probada y lista para abrir PR hacia `develop`.

@@ -1,6 +1,5 @@
-from sqlalchemy import select
-
 from backend.src.models.user import User
+from sqlalchemy import select
 
 
 def register_and_login(api, email: str, role: str) -> str:

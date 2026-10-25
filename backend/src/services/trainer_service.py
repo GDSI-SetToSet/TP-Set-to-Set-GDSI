@@ -1,9 +1,5 @@
 from datetime import UTC, datetime
 
-from fastapi import status
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
-
 from backend.src.core.constants import TRAINER_ROLE
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_plan import TrainingPlan
@@ -15,6 +11,9 @@ from backend.src.schemas.trainer import (
     TrainingPlanCreate,
     TrainingPlanUpdate,
 )
+from fastapi import status
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 
 class TrainerProfileError(Exception):

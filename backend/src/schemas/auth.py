@@ -1,9 +1,8 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr
-
 from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 Role = Literal[TRAINER_ROLE, STUDENT_ROLE]
 

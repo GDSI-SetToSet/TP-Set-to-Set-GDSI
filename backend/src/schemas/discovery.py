@@ -123,3 +123,65 @@ class TrainingRelationshipResponse(BaseModel):
     agreed_currency: str
     status: TrainingRelationshipStatus
     start_date: date
+
+
+class ActiveTrainerSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    full_name: str | None
+    specialty: str | None
+    profile_picture_url: str | None = None
+    email: str | None = None
+    phone: str | None = None
+
+
+class ActivePlanSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    title: str
+
+
+class ActiveRoutineSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    status: str = "PUBLISHED"
+    is_available: bool = True
+
+
+class ActivePlanResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    has_active_plan: bool
+    relationship_id: str | None = None
+    status: TrainingRelationshipStatus | None = None
+    start_date: date | None = None
+    agreed_monthly_price: float | None = None
+    agreed_currency: str | None = None
+    welcome_message: str | None = None
+    trainer: ActiveTrainerSummary | None = None
+    plan: ActivePlanSummary | None = None
+    routine: ActiveRoutineSummary | None = None
+
+
+class NotificationItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    type: str
+    title: str
+    message: str
+    related_entity_type: str | None = None
+    related_entity_id: str | None = None
+    is_read: bool = False
+    created_at: datetime
+    read_at: datetime | None = None
+
+
+class NotificationListResponse(BaseModel):
+    items: list[NotificationItem]
+    total: int
+    unread_count: int

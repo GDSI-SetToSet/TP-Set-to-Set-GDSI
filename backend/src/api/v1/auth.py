@@ -1,7 +1,5 @@
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-
 from backend.src.api.v1.deps import (
     DbDep,
     get_current_session,
@@ -34,6 +32,7 @@ from backend.src.services.auth_service import (
     revoke_session,
 )
 from backend.src.services.email_service import EmailSender
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 router = APIRouter(prefix=f"{API_V1_PREFIX}/auth", tags=["authentication"])
 

@@ -1,10 +1,9 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
 from backend.src.core.database import Base
 from backend.src.models.user import new_id
+from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 class ProtectedZone(Base):

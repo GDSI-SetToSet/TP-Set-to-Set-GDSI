@@ -1,10 +1,6 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
-
 from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
 from backend.src.models.student_profile import StudentProfile
@@ -39,6 +35,9 @@ from backend.src.services.student_service import (
     update_profile,
     upload_medical_clearance,
 )
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix=f"{API_V1_PREFIX}/students", tags=["students"])
 CurrentUser = Annotated[User, Depends(get_current_user)]

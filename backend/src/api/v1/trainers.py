@@ -1,8 +1,5 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-
 from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
 from backend.src.models.trainer_profile import TrainerProfile
@@ -29,6 +26,8 @@ from backend.src.services.trainer_service import (
     update_profile,
     update_quota,
 )
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix=f"{API_V1_PREFIX}/trainers", tags=["trainers"])
 CurrentUser = Annotated[User, Depends(get_current_user)]

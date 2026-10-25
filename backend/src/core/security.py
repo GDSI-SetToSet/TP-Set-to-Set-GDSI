@@ -8,7 +8,6 @@ from uuid import uuid4
 import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
-
 from backend.src.core.config import JWT_ALGORITHM, JWT_SECRET, SESSION_DAYS
 from backend.src.core.constants import (
     PASSWORD_LOWERCASE_PATTERN,

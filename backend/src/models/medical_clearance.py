@@ -6,11 +6,10 @@ reciente es CURRENT y los anteriores quedan ARCHIVED para auditoría.
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
 from backend.src.core.database import Base
 from backend.src.models.user import new_id
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 class MedicalClearance(Base):

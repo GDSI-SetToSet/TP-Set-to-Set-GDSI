@@ -109,3 +109,55 @@ export interface TrainingRelationshipResponse {
   status: TrainingRelationshipStatus;
   start_date: string;
 }
+
+export interface ActiveTrainerSummary {
+  id: string;
+  full_name: string | null;
+  specialty: string | null;
+  profile_picture_url?: string | null;
+  email?: string | null;
+  phone?: string | null;
+}
+
+export interface ActivePlanSummary {
+  id: string;
+  title: string;
+}
+
+export interface ActiveRoutineSummary {
+  id: string;
+  name: string;
+  status: string;
+  is_available: boolean;
+}
+
+export interface ActivePlanResponse {
+  has_active_plan: boolean;
+  relationship_id?: string | null;
+  status?: TrainingRelationshipStatus | null;
+  start_date?: string | null;
+  agreed_monthly_price?: number | null;
+  agreed_currency?: string | null;
+  welcome_message?: string | null;
+  trainer?: ActiveTrainerSummary | null;
+  plan?: ActivePlanSummary | null;
+  routine?: ActiveRoutineSummary | null;
+}
+
+export interface NotificationItem {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  related_entity_type?: string | null;
+  related_entity_id?: string | null;
+  is_read: boolean;
+  created_at: string;
+  read_at?: string | null;
+}
+
+export interface NotificationListResponse {
+  items: NotificationItem[];
+  total: number;
+  unread_count: number;
+}

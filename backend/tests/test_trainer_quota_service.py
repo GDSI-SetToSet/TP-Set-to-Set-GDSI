@@ -2,9 +2,6 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-from pydantic import ValidationError
-from sqlalchemy import select
-
 from backend.src.models.student_profile import StudentProfile
 from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.training_relationship import TrainingRelationship
@@ -17,6 +14,8 @@ from backend.src.services.trainer_service import (
     quota_summary,
     update_quota,
 )
+from pydantic import ValidationError
+from sqlalchemy import select
 
 
 def create_trainer(api, sessions) -> str:

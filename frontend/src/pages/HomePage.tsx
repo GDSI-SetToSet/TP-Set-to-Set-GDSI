@@ -4,24 +4,39 @@ import { useEffect, useState } from 'react';
 import { USER_ROLES } from '../constants/auth';
 import { useAuth } from '../context/AuthContext';
 import { homePath, ROUTES } from '../constants/routes';
-import { getTrainerRequests } from '../services/discoveryService';
+import { getActivePlan, getTrainerRequests } from '../services/discoveryService';
+import type { ActivePlanResponse } from '../types/discovery';
+import { ActivePlanCard } from '../components/ActivePlanCard';
+import { NotificationBell } from '../components/NotificationBell';
 
 export function HomePage() {
   const { user, logout } = useAuth();
   const [error, setError] = useState('');
   const [pendingRequestsCount, setPendingRequestsCount] = useState<number>(0);
+  const [activePlan, setActivePlan] = useState<ActivePlanResponse | null>(null);
   const greeting = user?.role === USER_ROLES.trainer ? 'Tu espacio de entrenador' : 'Tu espacio de entrenamiento';
 
   useEffect(() => {
-    if (user?.role !== USER_ROLES.trainer) return;
     let active = true;
-    getTrainerRequests('PENDING')
-      .then((requests) => {
-        if (active) setPendingRequestsCount(requests.length);
-      })
-      .catch(() => {
-        if (active) setPendingRequestsCount(0);
-      });
+    if (user?.role === USER_ROLES.trainer) {
+      getTrainerRequests('PENDING')
+        .then((requests) => {
+          if (active) setPendingRequestsCount(requests.length);
+        })
+        .catch(() => {
+          if (active) setPendingRequestsCount(0);
+        });
+    } else if (user?.role === USER_ROLES.student) {
+      getActivePlan()
+        .then((plan) => {
+          if (active && plan.has_active_plan) {
+            setActivePlan(plan);
+          }
+        })
+        .catch(() => {
+          if (active) setActivePlan(null);
+        });
+    }
     return () => {
       active = false;
     };
@@ -39,7 +54,10 @@ export function HomePage() {
     <main className={`home-shell${user?.role === USER_ROLES.trainer ? ' home-shell--trainer' : ''}`}>
       <header className="home-header">
         <Link className="brand" to={homePath(user?.role ?? USER_ROLES.student)}><span className="brand__icon"><Sparkles size={19} /></span><span>set<span className="brand__accent">to</span>set</span></Link>
-        <button type="button" className="logout-button" onClick={handleLogout}><LogOut size={17} /> Cerrar sesión</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <NotificationBell />
+          <button type="button" className="logout-button" onClick={handleLogout}><LogOut size={17} /> Cerrar sesión</button>
+        </div>
       </header>
       <section className="welcome-card">
         <span className="welcome-kicker">CUENTA ACTIVA <span className="online-dot" /></span>
@@ -62,6 +80,11 @@ export function HomePage() {
         {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentMedical}>Apto médico</Link>}
         {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerSearch}>Buscar entrenadores</Link>}
         {error && <p className="form-alert" role="alert">{error}</p>}
+        {user?.role === USER_ROLES.student && activePlan && (
+          <div style={{ marginTop: '24px', width: '100%' }}>
+            <ActivePlanCard plan={activePlan} />
+          </div>
+        )}
         <div className="welcome-next"><span>Este es el primer paso de Set to Set.</span><Dumbbell size={18} /></div>
       </section>
     </main>

@@ -1,11 +1,20 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, Numeric, String, Text, text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
 from backend.src.core.database import Base
 from backend.src.models.user import new_id
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    Text,
+    text,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 class TrainingRelationship(Base):
@@ -36,6 +45,9 @@ class TrainingRelationship(Base):
     status: Mapped[str] = mapped_column(String(16), default="ACTIVE", nullable=False)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    welcome_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    welcome_message_sent: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    initial_routine_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     terminated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     termination_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 

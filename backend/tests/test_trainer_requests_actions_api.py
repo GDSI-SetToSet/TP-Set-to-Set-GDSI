@@ -4,12 +4,6 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-from fastapi import status
-from sqlalchemy import select
-from sqlalchemy.dialects import postgresql, sqlite
-from sqlalchemy.exc import IntegrityError, OperationalError
-from sqlalchemy.schema import CreateIndex
-
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.training_request import TrainingRequest
 from backend.src.models.user import User
@@ -22,6 +16,11 @@ from backend.src.services.discovery_service import (
     accept_training_request,
     reject_training_request,
 )
+from fastapi import status
+from sqlalchemy import select
+from sqlalchemy.dialects import postgresql, sqlite
+from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.schema import CreateIndex
 
 REQUESTS_PATH = "/api/v1/matchmaking/requests"
 ACCEPT_PATH = "/api/v1/matchmaking/requests/{}/accept"
