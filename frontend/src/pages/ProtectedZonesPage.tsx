@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { ArrowLeft, CheckCircle2, Plus, Save, Trash2 } from 'lucide-react';
-import { type FormEvent, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { getOwnProtectedZones, updateOwnProtectedZones } from '../services/studentService';
 
@@ -34,12 +34,14 @@ const ZONES_ES: Record<string, string> = {
 const OTHER_OPTION = 'Other';
 
 export function ProtectedZonesPage() {
+  const navigate = useNavigate();
+  const redirectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [zones, setZones] = useState<string[]>([]);
   const [selectedArea, setSelectedArea] = useState('');
   const [customArea, setCustomArea] = useState('');
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -47,6 +49,10 @@ export function ProtectedZonesPage() {
       .then((data) => setZones(data.zones.map((zone) => zone.body_area)))
       .catch(() => setError('No pudimos cargar tus zonas a proteger. Intentá nuevamente.'))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => () => {
+    if (redirectTimeout.current !== null) clearTimeout(redirectTimeout.current);
   }, []);
 
   const areaToAdd = selectedArea === OTHER_OPTION ? customArea.trim() : selectedArea;
@@ -59,19 +65,22 @@ export function ProtectedZonesPage() {
     setZones((current) => [...current, areaToAdd]);
     setSelectedArea('');
     setCustomArea('');
-    setMessage('');
     setError('');
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    setSaving(true);
-    setMessage('');
+    setIsSubmitting(true);
     setError('');
     try {
       const updated = await updateOwnProtectedZones(zones);
       setZones(updated.zones.map((zone) => zone.body_area));
-      setMessage('Zonas a proteger actualizadas');
+      setIsSubmitting(false);
+      setIsSuccess(true);
+      redirectTimeout.current = setTimeout(() => {
+        navigate(ROUTES.studentHome);
+        redirectTimeout.current = null;
+      }, 1000);
     } catch (caught) {
       setError(
         axios.isAxiosError(caught)
@@ -79,13 +88,14 @@ export function ProtectedZonesPage() {
           : 'No pudimos guardar tus zonas a proteger. Intentá nuevamente.',
       );
     } finally {
-      setSaving(false);
+      setIsSubmitting(false);
     }
   }
 
   if (loading) return <main className="loading-screen"><span className="loading-mark" /> Cargando zonas a proteger…</main>;
 
   return (
+    <>
     <main className="profile-shell">
       <header className="profile-header">
         <Link to={ROUTES.studentHome} className="profile-back">
@@ -133,7 +143,7 @@ export function ProtectedZonesPage() {
                   <button
                     type="button"
                     className="protected-zone-remove"
-                    onClick={() => { setZones((current) => current.filter((item) => item !== zone)); setMessage(''); }}
+                    onClick={() => setZones((current) => current.filter((item) => item !== zone))}
                     aria-label={`Eliminar ${zone}`}
                   >
                     <Trash2 size={17} />
@@ -146,12 +156,30 @@ export function ProtectedZonesPage() {
           )}
 
           {error && <p className="form-alert" role="alert">{error}</p>}
-          {message && <p className="profile-success" role="status"><CheckCircle2 size={18} /> {message}</p>}
-          <button className="profile-save" type="submit" disabled={saving}>
-            <Save size={18} /> {saving ? 'Guardando…' : 'Guardar zonas'}
+          <button className="profile-save" type="submit" disabled={isSubmitting}>
+            <Save size={18} /> {isSubmitting ? 'Guardando...' : 'Guardar zonas'}
           </button>
         </form>
       </section>
     </main>
+    {(isSubmitting || isSuccess) && (
+      <div className="success-overlay" role="status" aria-live="polite" aria-atomic="true">
+        <div className="success-overlay__card">
+          {isSuccess ? (
+            <>
+              <span className="success-overlay__icon"><CheckCircle2 size={32} aria-hidden="true" /></span>
+              <h2>¡Guardado con éxito!</h2>
+              <p>Redirigiendo...</p>
+            </>
+          ) : (
+            <>
+              <span className="success-overlay__spinner" aria-hidden="true" />
+              <h2>Guardando...</h2>
+            </>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   );
 }
