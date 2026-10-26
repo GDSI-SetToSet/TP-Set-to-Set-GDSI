@@ -1,6 +1,11 @@
 import threading
 from datetime import UTC, datetime
 
+from fastapi import status
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
 from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
 from backend.src.models.student_profile import StudentProfile
 from backend.src.models.trainer_profile import TrainerProfile
@@ -43,10 +48,6 @@ from backend.src.services.trainer_service import (
     list_published_plans,
     quota_summary,
 )
-from fastapi import status
-from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 
 # Serializes request resolution in single-process / SQLite test pools alongside SQL `FOR UPDATE` row locks.
 _REQUEST_RESOLUTION_LOCK = threading.Lock()
@@ -510,58 +511,68 @@ def reject_training_request(
             raise
 
 
-def get_student_active_plan(db: Session, user: User) -> ActivePlanResponse:
+def get_student_active_plans(db: Session, user: User) -> list[ActivePlanResponse]:
     _require_student(user)
     student_profile = get_student_profile(db, user)
 
-    rel = db.scalar(
+    rels = db.scalars(
         select(TrainingRelationship)
         .where(
             TrainingRelationship.student_id == student_profile.id,
             TrainingRelationship.status == "ACTIVE",
         )
         .order_by(TrainingRelationship.start_date.desc())
-    )
-    if rel is None:
+    ).all()
+
+    items: list[ActivePlanResponse] = []
+    for rel in rels:
+        trainer_profile = db.get(TrainerProfile, rel.trainer_id)
+        trainer_user = db.get(User, trainer_profile.user_id) if trainer_profile else None
+        plan = db.get(TrainingPlan, rel.plan_id)
+
+        routine = None
+        if rel.initial_routine_id:
+            routine = ActiveRoutineSummary(
+                id=rel.initial_routine_id,
+                name="Rutina Inicial",
+                status="PUBLISHED",
+                is_available=True,
+            )
+
+        trainer_summary = (
+            ActiveTrainerSummary(
+                id=trainer_profile.id,
+                full_name=trainer_profile.full_name,
+                specialty=trainer_profile.specialty,
+                profile_picture_url=None,
+                email=trainer_user.email if trainer_user else None,
+                phone=trainer_profile.contact_phone,
+            )
+            if trainer_profile
+            else None
+        )
+
+        plan_summary = ActivePlanSummary(id=plan.id, title=plan.title) if plan else None
+
+        items.append(
+            ActivePlanResponse(
+                has_active_plan=True,
+                relationship_id=rel.id,
+                status=rel.status,
+                start_date=rel.start_date,
+                agreed_monthly_price=float(rel.agreed_monthly_price),
+                agreed_currency=rel.agreed_currency,
+                welcome_message=rel.welcome_message,
+                trainer=trainer_summary,
+                plan=plan_summary,
+                routine=routine,
+            )
+        )
+    return items
+
+
+def get_student_active_plan(db: Session, user: User) -> ActivePlanResponse:
+    plans = get_student_active_plans(db, user)
+    if not plans:
         return ActivePlanResponse(has_active_plan=False)
-
-    trainer_profile = db.get(TrainerProfile, rel.trainer_id)
-    trainer_user = db.get(User, trainer_profile.user_id) if trainer_profile else None
-    plan = db.get(TrainingPlan, rel.plan_id)
-
-    routine = None
-    if rel.initial_routine_id:
-        routine = ActiveRoutineSummary(
-            id=rel.initial_routine_id,
-            name="Rutina Inicial",
-            status="PUBLISHED",
-            is_available=True,
-        )
-
-    trainer_summary = (
-        ActiveTrainerSummary(
-            id=trainer_profile.id,
-            full_name=trainer_profile.full_name,
-            specialty=trainer_profile.specialty,
-            profile_picture_url=None,
-            email=trainer_user.email if trainer_user else None,
-            phone=trainer_profile.contact_phone,
-        )
-        if trainer_profile
-        else None
-    )
-
-    plan_summary = ActivePlanSummary(id=plan.id, title=plan.title) if plan else None
-
-    return ActivePlanResponse(
-        has_active_plan=True,
-        relationship_id=rel.id,
-        status=rel.status,
-        start_date=rel.start_date,
-        agreed_monthly_price=float(rel.agreed_monthly_price),
-        agreed_currency=rel.agreed_currency,
-        welcome_message=rel.welcome_message,
-        trainer=trainer_summary,
-        plan=plan_summary,
-        routine=routine,
-    )
+    return plans[0]

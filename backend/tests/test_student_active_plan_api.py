@@ -152,6 +152,50 @@ def test_trainer_cannot_query_student_active_plan(client):
     assert response.status_code == 403
 
 
+def test_student_multiple_active_plans(client):
+    api, _ = client
+    # Setup trainer 1
+    t1_token = register_and_login(api, "coach1@example.com", "TRAINER")
+    t1_prof = api.put(
+        "/api/v1/trainers/me/profile", headers=auth(t1_token), json={**TRAINER_DATA, "full_name": "Coach Uno"}
+    ).json()
+    api.patch("/api/v1/trainers/me/quota", headers=auth(t1_token), json={"max_students": 5})
+    plan1 = api.post(
+        "/api/v1/trainers/me/plans", headers=auth(t1_token), json={"title": "Plan Uno", "monthly_price": 20000}
+    ).json()
+
+    # Setup trainer 2
+    t2_token = register_and_login(api, "coach2@example.com", "TRAINER")
+    t2_prof = api.put(
+        "/api/v1/trainers/me/profile", headers=auth(t2_token), json={**TRAINER_DATA, "full_name": "Coach Dos"}
+    ).json()
+    api.patch("/api/v1/trainers/me/quota", headers=auth(t2_token), json={"max_students": 5})
+    plan2 = api.post(
+        "/api/v1/trainers/me/plans", headers=auth(t2_token), json={"title": "Plan Dos", "monthly_price": 25000}
+    ).json()
+
+    # Setup student
+    student_token = register_and_login(api, "student_multi@example.com", "STUDENT")
+    api.put("/api/v1/students/me/profile", headers=auth(student_token), json=STUDENT_DATA)
+    api.post("/api/v1/students/me/health-questionnaire", headers=auth(student_token), json=HEALTH_QUESTIONNAIRE)
+
+    # Request & Accept both
+    req1 = api.post("/api/v1/matchmaking/requests", headers=auth(student_token), json={"trainer_id": t1_prof["id"], "plan_id": plan1["id"]}).json()
+    api.post(f"/api/v1/matchmaking/requests/{req1['id']}/accept", headers=auth(t1_token), json={"welcome_message": "Bienvenido a Plan 1"})
+
+    req2 = api.post("/api/v1/matchmaking/requests", headers=auth(student_token), json={"trainer_id": t2_prof["id"], "plan_id": plan2["id"]}).json()
+    api.post(f"/api/v1/matchmaking/requests/{req2['id']}/accept", headers=auth(t2_token), json={"welcome_message": "Bienvenido a Plan 2"})
+
+    # Query active-plans
+    resp = api.get("/api/v1/students/me/active-plans", headers=auth(student_token))
+    assert resp.status_code == 200
+    plans = resp.json()
+    assert isinstance(plans, list)
+    assert len(plans) == 2
+    trainer_names = {p["trainer"]["full_name"] for p in plans}
+    assert trainer_names == {"Coach Uno", "Coach Dos"}
+
+
 def test_unauthenticated_active_plan(client):
     api, _ = client
     response = api.get("/api/v1/students/me/active-plan")

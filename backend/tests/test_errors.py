@@ -1,4 +1,7 @@
 import pytest
+from fastapi import HTTPException
+from fastapi.testclient import TestClient
+
 from backend.src.api.errors import PROBLEM_JSON_MEDIA_TYPE
 from backend.src.core.constants import (
     INTERNAL_ERROR_MESSAGE,
@@ -6,8 +9,6 @@ from backend.src.core.constants import (
     VALIDATION_ERROR_MESSAGE,
 )
 from backend.src.main import create_app
-from fastapi import HTTPException
-from fastapi.testclient import TestClient
 
 PROBLEM_FIELDS = {"type", "title", "status", "detail", "instance"}
 

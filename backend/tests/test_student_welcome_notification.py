@@ -1,8 +1,9 @@
+from sqlalchemy import select
+
 from backend.src.models.notification import Notification
 from backend.src.models.student_profile import StudentProfile
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.services.notification_service import create_notification
-from sqlalchemy import select
 
 TRAINER_PUBLISHED = {
     "full_name": "Marcos Entrenador",

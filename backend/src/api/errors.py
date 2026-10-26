@@ -4,11 +4,12 @@ import logging
 from http import HTTPStatus
 from typing import Any
 
-from backend.src.core.constants import INTERNAL_ERROR_MESSAGE, VALIDATION_ERROR_MESSAGE
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from backend.src.core.constants import INTERNAL_ERROR_MESSAGE, VALIDATION_ERROR_MESSAGE
 
 PROBLEM_JSON_MEDIA_TYPE = "application/problem+json"
 DEFAULT_PROBLEM_TYPE = "about:blank"

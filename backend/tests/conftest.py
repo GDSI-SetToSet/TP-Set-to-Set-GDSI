@@ -1,4 +1,9 @@
 import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
 from backend.src.core.database import Base, get_db
 from backend.src.main import create_app
 from backend.src.models import (  # noqa: F401
@@ -12,10 +17,6 @@ from backend.src.models import (  # noqa: F401
     User,
     UserSession,
 )
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 
 @pytest.fixture

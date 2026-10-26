@@ -1,7 +1,8 @@
 import io
 
-from backend.src.models import MedicalClearance
 from fastapi import status
+
+from backend.src.models import MedicalClearance
 
 URL_ME = "/api/v1/students/me/medical-clearance"
 

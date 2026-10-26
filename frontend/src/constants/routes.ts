@@ -18,6 +18,7 @@ export const ROUTES = {
   studentHealth: '/alumno/salud',
   studentProtectedZones: '/alumno/zonas-a-proteger',
   studentMedical: '/alumno/apto-medico',
+  studentActivePlans: '/alumno/mis-entrenamientos',
   trainerSearch: '/alumno/buscar-entrenadores',
   trainerPublicDetail: '/entrenadores/:trainerId',
   trainerRequest: '/entrenadores/:trainerId/solicitar',

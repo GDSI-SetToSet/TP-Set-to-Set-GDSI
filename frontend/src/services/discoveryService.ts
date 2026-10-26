@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { api } from './api';
 import type {
+  ActivePlansResponse,
   ActivePlanResponse,
   NotificationItem,
   NotificationListResponse,
@@ -97,8 +98,8 @@ export async function getStudentHealthForTrainer(
   }
 }
 
-export async function getActivePlan(): Promise<ActivePlanResponse> {
-  const { data } = await api.get<ActivePlanResponse>('/api/v1/students/me/active-plan');
+export async function getActivePlans(): Promise<ActivePlansResponse> {
+  const { data } = await api.get<ActivePlansResponse>('/api/v1/students/me/active-plans');
   return data;
 }
 

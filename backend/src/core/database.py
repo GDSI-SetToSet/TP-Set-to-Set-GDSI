@@ -1,8 +1,9 @@
 from collections.abc import Generator
 
-from backend.src.core.config import DATABASE_URL
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+from backend.src.core.config import DATABASE_URL
 
 
 class Base(DeclarativeBase):

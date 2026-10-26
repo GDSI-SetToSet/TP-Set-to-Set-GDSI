@@ -1,11 +1,12 @@
 from datetime import UTC, datetime
 
-from backend.src.models.notification import Notification
-from backend.src.models.user import User
-from backend.src.schemas.discovery import NotificationItem, NotificationListResponse
 from fastapi import status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+
+from backend.src.models.notification import Notification
+from backend.src.models.user import User
+from backend.src.schemas.discovery import NotificationItem, NotificationListResponse
 
 
 class NotificationError(Exception):

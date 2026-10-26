@@ -2,6 +2,8 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from sqlalchemy import select
+
 from backend.src.api.v1.deps import get_email_sender
 from backend.src.core.config import PASSWORD_RESET_URL
 from backend.src.core.constants import (
@@ -11,7 +13,6 @@ from backend.src.core.constants import (
     PASSWORD_RESET_SUCCESS_MESSAGE,
 )
 from backend.src.models.user import PasswordResetToken, User
-from sqlalchemy import select
 
 EMAIL = "alumna@example.com"
 OLD_PASSWORD = "StrongPass123"

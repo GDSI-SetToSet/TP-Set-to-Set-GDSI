@@ -1,14 +1,15 @@
 from typing import Annotated
 
 import jwt
-from backend.src.core.database import get_db
-from backend.src.core.security import decode_access_token
-from backend.src.models.user import User, UserSession
-from backend.src.services.email_service import EmailSender, build_email_sender
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+from backend.src.core.database import get_db
+from backend.src.core.security import decode_access_token
+from backend.src.models.user import User, UserSession
+from backend.src.services.email_service import EmailSender, build_email_sender
 
 bearer_scheme = HTTPBearer(auto_error=False)
 DbDep = Annotated[Session, Depends(get_db)]

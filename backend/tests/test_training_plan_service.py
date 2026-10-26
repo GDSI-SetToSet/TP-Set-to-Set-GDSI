@@ -1,6 +1,9 @@
 from decimal import Decimal
 
 import pytest
+from pydantic import ValidationError
+from sqlalchemy import select
+
 from backend.src.models.user import User
 from backend.src.schemas.trainer import TrainingPlanCreate, TrainingPlanUpdate
 from backend.src.services.trainer_service import (
@@ -10,8 +13,6 @@ from backend.src.services.trainer_service import (
     list_own_plans,
     update_plan,
 )
-from pydantic import ValidationError
-from sqlalchemy import select
 
 
 def create_trainer(api, sessions, email: str = "coach@example.com") -> str:

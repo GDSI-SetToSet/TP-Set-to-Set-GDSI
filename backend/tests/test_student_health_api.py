@@ -1,9 +1,10 @@
+from fastapi import status
+
 from backend.src.models import HealthQuestionnaire, StudentProfile
 from backend.src.services.student_service import (
     StudentProfileError,
     require_health_questionnaire,
 )
-from fastapi import status
 
 URL = "/api/v1/students/me/health-questionnaire"
 ANSWERS = {

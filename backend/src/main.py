@@ -1,6 +1,9 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from backend.src.api.errors import register_exception_handlers
 from backend.src.api.v1.auth import router as auth_router
 from backend.src.api.v1.discovery import router as discovery_router
@@ -20,8 +23,6 @@ from backend.src.models import (  # noqa: F401
     User,
     UserSession,
 )
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 
 def create_app(create_tables: bool = True) -> FastAPI:

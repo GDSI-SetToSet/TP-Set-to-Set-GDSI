@@ -1,8 +1,9 @@
 import io
 from datetime import UTC, datetime, timedelta
 
-from backend.src.models.training_request import TrainingRequest
 from fastapi import status
+
+from backend.src.models.training_request import TrainingRequest
 
 REQUESTS_PATH = "/api/v1/matchmaking/requests"
 REQUEST_DETAIL_PATH = "/api/v1/matchmaking/requests/{}"

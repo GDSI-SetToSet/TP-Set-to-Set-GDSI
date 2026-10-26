@@ -1,6 +1,11 @@
 from datetime import UTC, datetime, timedelta
 from math import ceil
 
+from fastapi import status
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
 from backend.src.core.config import (
     LOCKOUT_MINUTES,
     MAX_FAILED_LOGINS,
@@ -29,10 +34,6 @@ from backend.src.core.security import (
     verify_password,
 )
 from backend.src.models.user import PasswordResetToken, User, UserSession
-from fastapi import status
-from sqlalchemy import select, update
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 
 
 class AuthError(Exception):

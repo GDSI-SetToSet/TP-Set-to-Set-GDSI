@@ -1,6 +1,10 @@
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from fastapi import UploadFile, status
+from sqlalchemy import select, update
+from sqlalchemy.orm import Session
+
 from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
 from backend.src.core.storage import StorageError, open_upload, save_upload
 from backend.src.models.health_questionnaire import HealthQuestionnaire
@@ -14,9 +18,6 @@ from backend.src.models.user import User
 from backend.src.schemas.protected_zone import ProtectedZonesUpdate
 from backend.src.schemas.student import StudentProfileUpdate
 from backend.src.schemas.student_health import HealthQuestionnaireInput
-from fastapi import UploadFile, status
-from sqlalchemy import select, update
-from sqlalchemy.orm import Session
 
 
 class StudentProfileError(Exception):

@@ -1,8 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from backend.src.core.database import Base
-from backend.src.models.user import new_id
 from sqlalchemy import (
     Boolean,
     Date,
@@ -15,6 +13,9 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from backend.src.core.database import Base
+from backend.src.models.user import new_id
 
 
 class TrainingRelationship(Base):

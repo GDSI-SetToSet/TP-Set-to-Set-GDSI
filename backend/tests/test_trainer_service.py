@@ -1,4 +1,6 @@
 import pytest
+from sqlalchemy import select
+
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.user import User
 from backend.src.schemas.trainer import TrainerProfileUpdate
@@ -7,7 +9,6 @@ from backend.src.services.trainer_service import (
     get_or_create_profile,
     update_profile,
 )
-from sqlalchemy import select
 
 
 def create_trainer(api, sessions):

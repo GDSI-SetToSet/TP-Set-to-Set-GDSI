@@ -1,5 +1,6 @@
-from backend.src.models.user import User
 from sqlalchemy import select
+
+from backend.src.models.user import User
 
 QUOTA_PATH = "/api/v1/trainers/me/quota"
 PUBLISHED_DATA = {"full_name": "Lucas Pérez", "contact_phone": "+5491155551234", "specialty": "Fuerza"}

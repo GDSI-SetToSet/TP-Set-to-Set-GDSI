@@ -1,5 +1,7 @@
 from typing import Annotated
 
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+
 from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
 from backend.src.models.user import User
@@ -24,6 +26,7 @@ from backend.src.services.discovery_service import (
     create_training_request,
     get_public_detail,
     get_student_active_plan,
+    get_student_active_plans,
     get_trainer_request_detail,
     list_student_requests,
     list_trainer_requests,
@@ -36,7 +39,6 @@ from backend.src.services.notification_service import (
     mark_notification_as_read,
 )
 from backend.src.services.trainer_service import TrainerProfileError
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 
 router = APIRouter(prefix=API_V1_PREFIX, tags=["discovery"])
 CurrentUser = Annotated[User, Depends(get_current_user)]
@@ -148,6 +150,14 @@ def reject_request_endpoint(
 ) -> TrainingRequestResponse:
     try:
         return reject_training_request(db, user, request_id, payload)
+    except DiscoveryError as error:
+        handle_error(error)
+
+
+@router.get("/students/me/active-plans", response_model=list[ActivePlanResponse])
+def student_active_plans(user: CurrentUser, db: DbDep) -> list[ActivePlanResponse]:
+    try:
+        return get_student_active_plans(db, user)
     except DiscoveryError as error:
         handle_error(error)
 

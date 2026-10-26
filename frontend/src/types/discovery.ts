@@ -144,6 +144,8 @@ export interface ActivePlanResponse {
   routine?: ActiveRoutineSummary | null;
 }
 
+export type ActivePlansResponse = ActivePlanResponse[];
+
 export interface NotificationItem {
   id: string;
   type: string;

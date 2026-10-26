@@ -96,6 +96,12 @@
   font-size: 11px;
 }
 
+.home-active-plans-summary {
+  margin: 14px 0 0;
+  color: #c5d6cc;
+  font-size: 13px;
+}
+
 .welcome-next {
   display: flex;
   align-items: center;
@@ -127,3 +133,28 @@
 .home-shell--trainer .online-dot { background: #8ec5ff; box-shadow: 0 0 0 3px rgba(142,197,255,.13); }
 .home-shell--trainer .role-badge { border-color: rgba(142,197,255,.3); color: #cfe6ff; }
 .home-shell--trainer .welcome-next { color: #a9b6cf; }
+.student-active-plans__actions { display: flex; align-items: center; gap: 12px; }
+.student-active-plans { max-width: 880px; }
+.student-active-plans__list { display: grid; gap: 24px; margin-top: 28px; }
+.student-active-plans__state { margin-top: 28px; color: var(--pf-muted); }
+.student-active-plans__state--error { color: #7a1d1d; }
+.student-active-plans__state--error p { margin: 0 0 12px; }
+.student-active-plans__empty {
+  margin-top: 28px;
+  padding: 36px 24px;
+  border: 1px dashed var(--pf-input-border);
+  border-radius: 16px;
+  color: var(--pf-muted);
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.student-active-plans__empty h2 { margin: 0; color: var(--pf-ink); font: 700 20px 'Manrope'; }
+.student-active-plans__empty p { margin: 0; }
+
+@media (max-width: 680px) {
+  .student-active-plans__actions { gap: 6px; }
+  .student-active-plans__actions .inbox-refresh-btn { font-size: 0; padding: 0 12px; }
+  .student-active-plans__actions .inbox-refresh-btn svg { width: 18px; height: 18px; }
+}

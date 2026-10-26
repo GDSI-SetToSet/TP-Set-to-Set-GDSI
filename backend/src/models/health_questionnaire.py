@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from backend.src.core.database import Base
-from backend.src.models.user import new_id
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
+
+from backend.src.core.database import Base
+from backend.src.models.user import new_id
 
 
 class HealthQuestionnaire(Base):
