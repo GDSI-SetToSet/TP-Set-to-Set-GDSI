@@ -133,7 +133,14 @@ def search_trainers(db: Session, filters: TrainerSearchFilters) -> PaginatedTrai
     )
 
     if filters.specialty:
-        base = base.where(TrainerProfile.specialty.ilike(f"%{filters.specialty}%"))
+        escaped_specialty = (
+            filters.specialty.replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        )
+        base = base.where(
+            TrainerProfile.specialty.ilike(f"%{escaped_specialty}%", escape="\\")
+        )
 
     if filters.max_price is not None:
         base = base.where(plan_agg.c.min_price <= filters.max_price)
@@ -273,10 +280,27 @@ def create_training_request(
         db.refresh(request)
     except IntegrityError as exc:
         db.rollback()
-        raise DiscoveryError(
-            status.HTTP_409_CONFLICT,
-            "Ya tenés una solicitud pendiente con este entrenador.",
-        ) from exc
+        err_msg = str(getattr(exc, "orig", exc))
+        has_pending = (
+            db.scalar(
+                select(TrainingRequest.id).where(
+                    TrainingRequest.student_id == student_profile.id,
+                    TrainingRequest.trainer_id == trainer_profile.id,
+                    TrainingRequest.status == "PENDING",
+                )
+            )
+            is not None
+        )
+        if (
+            has_pending
+            or "uq_pending_training_request" in err_msg
+            or "training_requests.student_id, training_requests.trainer_id" in err_msg
+        ):
+            raise DiscoveryError(
+                status.HTTP_409_CONFLICT,
+                "Ya tenés una solicitud pendiente con este entrenador.",
+            ) from exc
+        raise
     return TrainingRequestResponse.model_validate(request).model_copy(
         update={"can_be_accepted": True}
     )

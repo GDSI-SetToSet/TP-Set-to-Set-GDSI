@@ -10,6 +10,7 @@ FitnessGoal = Literal[
     "fuerza", "hipertrofia", "resistencia", "perdida_de_peso", "salud_general", "movilidad_rehabilitacion"
 ]
 
+
 class StudentProfileUpdate(BaseModel):
     first_name: str | None = Field(default=None, max_length=100)
     last_name: str | None = Field(default=None, max_length=100)
@@ -19,6 +20,14 @@ class StudentProfileUpdate(BaseModel):
     bio: str | None = None
     fitness_goals: list[FitnessGoal] = Field(default_factory=list)
     personal_motivation: str | None = None
+
+    @field_validator("first_name", "last_name", "bio", "personal_motivation")
+    @classmethod
+    def normalize_optional_strings(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped if stripped else None
 
     @field_validator("contact_phone")
     @classmethod
@@ -33,6 +42,7 @@ class StudentProfileUpdate(BaseModel):
         if len(set(value)) != len(value):
             raise ValueError("Fitness goals must not repeat.")
         return value
+
 
 class StudentProfileResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

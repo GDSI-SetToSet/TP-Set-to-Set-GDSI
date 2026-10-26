@@ -6,7 +6,7 @@ reciente es CURRENT y los anteriores quedan ARCHIVED para auditoría.
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.src.core.database import Base
@@ -15,6 +15,15 @@ from backend.src.models.user import new_id
 
 class MedicalClearance(Base):
     __tablename__ = "medical_clearances"
+    __table_args__ = (
+        Index(
+            "uq_medical_clearances_current",
+            "student_id",
+            unique=True,
+            sqlite_where=text("status = 'CURRENT'"),
+            postgresql_where=text("status = 'CURRENT'"),
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     student_id: Mapped[str] = mapped_column(

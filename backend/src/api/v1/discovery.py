@@ -53,7 +53,7 @@ def trainer_search(
     _: CurrentUser,
     db: DbDep,
     specialty: str | None = Query(default=None),
-    max_price: float | None = Query(default=None),
+    max_price: float | None = Query(default=None, ge=0),
     only_available: bool = Query(default=True),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=50),

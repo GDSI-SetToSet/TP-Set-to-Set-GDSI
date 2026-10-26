@@ -230,25 +230,30 @@ async def upload_medical_clearance(
     except StorageError as error:
         raise StudentProfileError(status.HTTP_400_BAD_REQUEST, error.message) from error
 
-    db.execute(
-        update(MedicalClearance)
-        .where(MedicalClearance.student_id == profile.id, MedicalClearance.status == "CURRENT")
-        .values(status="ARCHIVED")
-    )
-    clearance = MedicalClearance(
-        student_id=profile.id,
-        file_path=file_path,
-        original_filename=sanitize_filename(file.filename),
-        mime_type=file.content_type or "application/octet-stream",
-        file_size_bytes=file_size,
-        issue_date=issue_date,
-        status="CURRENT",
-        created_at=utc_now(),
-    )
-    db.add(clearance)
-    db.commit()
-    db.refresh(clearance)
-    return clearance
+    try:
+        db.execute(
+            update(MedicalClearance)
+            .where(MedicalClearance.student_id == profile.id, MedicalClearance.status == "CURRENT")
+            .values(status="ARCHIVED")
+        )
+        clearance = MedicalClearance(
+            student_id=profile.id,
+            file_path=file_path,
+            original_filename=sanitize_filename(file.filename),
+            mime_type=file.content_type or "application/octet-stream",
+            file_size_bytes=file_size,
+            issue_date=issue_date,
+            status="CURRENT",
+            created_at=utc_now(),
+        )
+        db.add(clearance)
+        db.commit()
+        db.refresh(clearance)
+        return clearance
+    except Exception:
+        db.rollback()
+        Path(file_path).unlink(missing_ok=True)
+        raise
 
 
 def get_own_clearance(db: Session, user: User) -> MedicalClearance:

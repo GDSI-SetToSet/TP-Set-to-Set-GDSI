@@ -35,7 +35,7 @@ def get_current_session(
         payload = decode_access_token(credentials.credentials)
         user_id = payload.get("sub")
         jti = payload.get("jti")
-        if not user_id or not jti:
+        if not isinstance(user_id, str) or not isinstance(jti, str) or not user_id or not jti:
             raise unauthorized
     except (jwt.InvalidTokenError, TypeError, ValueError):
         raise unauthorized from None

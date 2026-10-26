@@ -49,7 +49,7 @@ class TrainingPlanPublic(BaseModel):
 
 class TrainerSearchFilters(BaseModel):
     specialty: str | None = None
-    max_price: float | None = None
+    max_price: float | None = Field(default=None, ge=0)
     only_available: bool = True
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=50)
