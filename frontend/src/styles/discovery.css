@@ -781,16 +781,27 @@
   align-items: center;
   justify-content: center;
   padding: 20px;
-  z-index: 60;
+  z-index: 1000;
 }
 
 .request-modal {
   width: min(560px, 100%);
-  background: var(--pf-card);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  background: #ffffff;
   border: 1px solid var(--pf-border);
   border-radius: 22px;
-  padding: 28px;
-  box-shadow: 0 24px 60px rgba(11, 20, 38, 0.24);
+  padding: 24px;
+  color: #173a32;
+  box-shadow: 0 24px 60px rgba(11, 20, 38, 0.32);
+}
+
+.request-modal .profile-heading h2 {
+  color: #173a32;
+}
+
+.request-modal .profile-heading p {
+  color: #52665b;
 }
 
 .request-modal__form {
