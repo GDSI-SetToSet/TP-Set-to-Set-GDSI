@@ -62,7 +62,9 @@ export function HomePage() {
       <header className="home-header">
         <Link className="brand" to={homePath(user?.role ?? USER_ROLES.student)}><span className="brand__icon"><Sparkles size={19} /></span><span>set<span className="brand__accent">to</span>set</span></Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <NotificationBell onNotificationClick={handleNotificationClick} />
+          {user?.role === USER_ROLES.student && (
+            <NotificationBell onNotificationClick={handleNotificationClick} />
+          )}
           <button type="button" className="logout-button" onClick={handleLogout}><LogOut size={17} /> Cerrar sesión</button>
         </div>
       </header>

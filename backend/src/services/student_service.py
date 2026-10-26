@@ -6,7 +6,12 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
-from backend.src.core.storage import StorageError, open_upload, save_upload
+from backend.src.core.storage import (
+    StorageError,
+    open_upload,
+    sanitize_filename,
+    save_upload,
+)
 from backend.src.models.health_questionnaire import HealthQuestionnaire
 from backend.src.models.medical_clearance import MedicalClearance
 from backend.src.models.protected_zone import ProtectedZone
@@ -188,7 +193,14 @@ def get_own_questionnaire(db: Session, user: User) -> HealthQuestionnaire:
 
 
 def get_questionnaire_for_viewer(db: Session, viewer: User, student_profile_id: str) -> HealthQuestionnaire:
-    profile = get_goals_for_viewer(db, viewer, student_profile_id)
+    profile = db.get(StudentProfile, student_profile_id)
+    if profile is None:
+        raise StudentProfileError(status.HTTP_404_NOT_FOUND, "Student not found.")
+    if profile.user_id != viewer.id and not (viewer.role == TRAINER_ROLE and trainer_has_access(db, viewer, profile.id)):
+        raise StudentProfileError(
+            status.HTTP_403_FORBIDDEN,
+            "You cannot view this student's health questionnaire.",
+        )
     questionnaire = current_questionnaire(db, profile)
     if questionnaire is None:
         raise StudentProfileError(status.HTTP_404_NOT_FOUND, "Health questionnaire not completed yet.")
@@ -226,7 +238,7 @@ async def upload_medical_clearance(
     clearance = MedicalClearance(
         student_id=profile.id,
         file_path=file_path,
-        original_filename=file.filename or "apto",
+        original_filename=sanitize_filename(file.filename),
         mime_type=file.content_type or "application/octet-stream",
         file_size_bytes=file_size,
         issue_date=issue_date,

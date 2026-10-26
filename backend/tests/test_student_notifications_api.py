@@ -114,6 +114,21 @@ def test_mark_nonexistent_notification_not_found(client):
     assert resp.status_code == 404
 
 
+def test_trainer_cannot_access_or_mark_student_notifications(client):
+    api, _ = client
+    trainer_token = register_and_login(api, "trainer_notif@example.com", "TRAINER")
+
+    list_resp = api.get("/api/v1/students/me/notifications", headers=auth(trainer_token))
+    assert list_resp.status_code == 403
+    assert "alumnos" in list_resp.json()["detail"].lower()
+
+    patch_resp = api.patch(
+        "/api/v1/students/me/notifications/some-id/read", headers=auth(trainer_token)
+    )
+    assert patch_resp.status_code == 403
+    assert "alumnos" in patch_resp.json()["detail"].lower()
+
+
 def test_unauthenticated_notifications(client):
     api, _ = client
     assert api.get("/api/v1/students/me/notifications").status_code == 401

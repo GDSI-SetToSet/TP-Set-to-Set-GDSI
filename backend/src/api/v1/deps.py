@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Annotated
 
 import jwt
@@ -41,6 +42,10 @@ def get_current_session(
 
     session = db.scalar(select(UserSession).where(UserSession.jti == jti, UserSession.user_id == user_id))
     if session is None or session.revoked_at is not None:
+        raise unauthorized
+    now = datetime.now(UTC).replace(tzinfo=None)
+    expires_at = session.expires_at.replace(tzinfo=None) if session.expires_at else None
+    if expires_at is None or expires_at <= now:
         raise unauthorized
     user = db.get(User, user_id)
     if user is None or not user.is_active:

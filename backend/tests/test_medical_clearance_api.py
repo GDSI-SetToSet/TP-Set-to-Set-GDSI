@@ -2,6 +2,7 @@ import io
 
 from fastapi import status
 
+from backend.src.core.storage import sanitize_filename
 from backend.src.models import MedicalClearance
 
 URL_ME = "/api/v1/students/me/medical-clearance"
@@ -170,3 +171,36 @@ def test_trainer_cannot_upload_medical_clearance(client):
     files = {"file": ("apto.pdf", io.BytesIO(b"pdf data"), "application/pdf")}
     response = test_client.post(URL_ME, headers=trainer_headers, files=files, data={"issue_date": "2026-10-01"})
     assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+def test_filename_path_traversal_is_sanitized_and_open_upload_rejects_outside_paths(
+    client, student_token_headers
+):
+    assert sanitize_filename("..\\..\\../etc/malicious\r\nname.pdf") == "maliciousname.pdf"
+    assert sanitize_filename("..") == "apto"
+    assert sanitize_filename(None) == "apto"
+
+    test_client, session_factory = client
+    profile_id = test_client.get("/api/v1/students/me/profile", headers=student_token_headers).json()["id"]
+    download_url = f"/api/v1/students/{profile_id}/medical-clearance/download"
+
+    pdf_bytes = b"%PDF-1.4 sanitized upload"
+    files = {"file": ("..\\..\\../etc/secret_apto.pdf", io.BytesIO(pdf_bytes), "application/pdf")}
+    upload_resp = test_client.post(
+        URL_ME,
+        headers=student_token_headers,
+        files=files,
+        data={"issue_date": "2026-10-01"},
+    )
+    assert upload_resp.status_code == status.HTTP_201_CREATED
+    body = upload_resp.json()
+    assert body["original_filename"] == "secret_apto.pdf"
+
+    # Tamper stored file_path to point outside UPLOADS_DIR -> download must fail with 404
+    with session_factory() as db:
+        rec = db.query(MedicalClearance).filter_by(id=body["id"]).one()
+        rec.file_path = "README.md"
+        db.commit()
+
+    tampered_resp = test_client.get(download_url, headers=student_token_headers)
+    assert tampered_resp.status_code == status.HTTP_404_NOT_FOUND

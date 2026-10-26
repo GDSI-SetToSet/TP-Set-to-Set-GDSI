@@ -38,6 +38,7 @@ from backend.src.services.student_service import (
 )
 from backend.src.services.student_service import (
     is_questionnaire_completed,
+    trainer_has_access,
 )
 from backend.src.services.trainer_service import (
     get_or_create_profile as get_trainer_profile,
@@ -102,14 +103,29 @@ def search_trainers(db: Session, filters: TrainerSearchFilters) -> PaginatedTrai
         .subquery()
     )
 
+    # Subquery: active training relationships per trainer (eliminates N+1 quota queries)
+    active_rel_agg = (
+        select(
+            TrainingRelationship.trainer_id,
+            func.count(TrainingRelationship.id).label("active_students_count"),
+        )
+        .where(TrainingRelationship.status == "ACTIVE")
+        .group_by(TrainingRelationship.trainer_id)
+        .subquery()
+    )
+
+    active_students_expr = func.coalesce(active_rel_agg.c.active_students_count, 0)
+
     base = (
         select(
             TrainerProfile,
             plan_agg.c.plans_count,
             plan_agg.c.min_price,
             plan_agg.c.max_price,
+            active_students_expr.label("active_students_count"),
         )
         .outerjoin(plan_agg, TrainerProfile.id == plan_agg.c.trainer_id)
+        .outerjoin(active_rel_agg, TrainerProfile.id == active_rel_agg.c.trainer_id)
         .where(
             TrainerProfile.status == "PUBLISHED",
             plan_agg.c.plans_count > 0,
@@ -122,14 +138,22 @@ def search_trainers(db: Session, filters: TrainerSearchFilters) -> PaginatedTrai
     if filters.max_price is not None:
         base = base.where(plan_agg.c.min_price <= filters.max_price)
 
-    # ponytail: loads every matching trainer to filter by quota before paginating; move the quota
-    # filter into SQL (and paginate there) once count_active_students is a real query.
+    if filters.only_available:
+        base = base.where(TrainerProfile.max_students > active_students_expr)
+
+    total = db.scalar(select(func.count()).select_from(base.subquery())) or 0
+    start = (filters.page - 1) * filters.page_size
+    rows = db.execute(
+        base.order_by(TrainerProfile.full_name, TrainerProfile.id)
+        .offset(start)
+        .limit(filters.page_size)
+    ).all()
+
     items: list[TrainerSearchResult] = []
-    for row in db.execute(base.order_by(TrainerProfile.full_name, TrainerProfile.id)):
+    for row in rows:
         profile = row.TrainerProfile
-        qs = quota_summary(db, profile)
-        if filters.only_available and not qs["has_available_quota"]:
-            continue
+        active_students = int(row.active_students_count or 0)
+        available_slots = max(profile.max_students - active_students, 0)
         bio_preview = (
             profile.bio[:BIO_PREVIEW_LENGTH] + "…"
             if profile.bio and len(profile.bio) > BIO_PREVIEW_LENGTH
@@ -144,16 +168,15 @@ def search_trainers(db: Session, filters: TrainerSearchFilters) -> PaginatedTrai
                 bio_preview=bio_preview,
                 min_price=float(row.min_price) if row.min_price else None,
                 max_price=float(row.max_price) if row.max_price else None,
-                available_slots=qs["available_slots"],
-                has_available_quota=qs["has_available_quota"],
+                available_slots=available_slots,
+                has_available_quota=available_slots > 0,
                 plans_count=row.plans_count or 0,
             )
         )
 
-    start = (filters.page - 1) * filters.page_size
     return PaginatedTrainers(
-        items=items[start : start + filters.page_size],
-        total=len(items),
+        items=items,
+        total=total,
         page=filters.page,
         page_size=filters.page_size,
     )
@@ -244,9 +267,16 @@ def create_training_request(
         student_message=payload.student_message,
         created_at=utc_now(),
     )
-    db.add(request)
-    db.commit()
-    db.refresh(request)
+    try:
+        db.add(request)
+        db.commit()
+        db.refresh(request)
+    except IntegrityError as exc:
+        db.rollback()
+        raise DiscoveryError(
+            status.HTTP_409_CONFLICT,
+            "Ya tenés una solicitud pendiente con este entrenador.",
+        ) from exc
     return TrainingRequestResponse.model_validate(request).model_copy(
         update={"can_be_accepted": True}
     )
@@ -281,12 +311,19 @@ def _to_request_response(
 
 
 def _to_request_detail_response(
-    request: TrainingRequest, can_accept_quota: bool
+    request: TrainingRequest,
+    can_accept_quota: bool,
+    include_sensitive_student_info: bool = True,
 ) -> TrainingRequestDetailResponse:
     base = _to_request_response(request, can_accept_quota)
+    student_summary = TrainingRequestStudentSummary.model_validate(request.student)
+    if not include_sensitive_student_info:
+        student_summary = student_summary.model_copy(
+            update={"contact_phone": None, "birth_date": None}
+        )
     return TrainingRequestDetailResponse(
         **base.model_dump(),
-        student=TrainingRequestStudentSummary.model_validate(request.student),
+        student=student_summary,
         plan_title=request.plan.title if request.plan is not None else None,
     )
 
@@ -321,7 +358,10 @@ def get_trainer_request_detail(
             "No autorizado para consultar esta solicitud.",
         )
     can_accept_quota = has_available_quota(db, trainer_profile)
-    return _to_request_detail_response(request, can_accept_quota)
+    include_sensitive = trainer_has_access(db, user, request.student_id)
+    return _to_request_detail_response(
+        request, can_accept_quota, include_sensitive_student_info=include_sensitive
+    )
 
 
 def accept_training_request(
