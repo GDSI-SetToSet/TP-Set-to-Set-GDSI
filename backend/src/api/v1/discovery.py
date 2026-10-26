@@ -6,6 +6,9 @@ from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
 from backend.src.models.user import User
 from backend.src.schemas.discovery import (
+    ActivePlanResponse,
+    NotificationItem,
+    NotificationListResponse,
     PaginatedTrainers,
     TrainerPublicDetail,
     TrainerSearchFilters,
@@ -22,11 +25,18 @@ from backend.src.services.discovery_service import (
     accept_training_request,
     create_training_request,
     get_public_detail,
+    get_student_active_plan,
+    get_student_active_plans,
     get_trainer_request_detail,
     list_student_requests,
     list_trainer_requests,
     reject_training_request,
     search_trainers,
+)
+from backend.src.services.notification_service import (
+    NotificationError,
+    list_user_notifications,
+    mark_notification_as_read,
 )
 from backend.src.services.trainer_service import TrainerProfileError
 
@@ -142,3 +152,45 @@ def reject_request_endpoint(
         return reject_training_request(db, user, request_id, payload)
     except DiscoveryError as error:
         handle_error(error)
+
+
+@router.get("/students/me/active-plans", response_model=list[ActivePlanResponse])
+def student_active_plans(user: CurrentUser, db: DbDep) -> list[ActivePlanResponse]:
+    try:
+        return get_student_active_plans(db, user)
+    except DiscoveryError as error:
+        handle_error(error)
+
+
+@router.get("/students/me/active-plan", response_model=ActivePlanResponse)
+def student_active_plan(user: CurrentUser, db: DbDep) -> ActivePlanResponse:
+    try:
+        return get_student_active_plan(db, user)
+    except DiscoveryError as error:
+        handle_error(error)
+
+
+@router.get("/students/me/notifications", response_model=NotificationListResponse)
+def student_notifications(
+    user: CurrentUser,
+    db: DbDep,
+    is_read: bool | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> NotificationListResponse:
+    try:
+        return list_user_notifications(db, user, is_read=is_read, limit=limit, offset=offset)
+    except NotificationError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+
+
+@router.patch("/students/me/notifications/{notification_id}/read", response_model=NotificationItem)
+def mark_notification_read(
+    notification_id: str,
+    user: CurrentUser,
+    db: DbDep,
+) -> NotificationItem:
+    try:
+        return mark_notification_as_read(db, user, notification_id)
+    except NotificationError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail) from error

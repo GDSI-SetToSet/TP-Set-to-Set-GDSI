@@ -8,6 +8,7 @@ from backend.src.core.database import Base, get_db
 from backend.src.main import create_app
 from backend.src.models import (  # noqa: F401
     MedicalClearance,
+    Notification,
     PasswordResetToken,
     TrainerProfile,
     TrainingPlan,

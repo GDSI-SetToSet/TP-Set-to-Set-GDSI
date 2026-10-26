@@ -36,8 +36,27 @@ Representa la relación contractual y técnica activa entre alumno y entrenador.
 | `status` | Enum(`ACTIVE`, `EXPIRED`, `TERMINATED`) | No | `'ACTIVE'` | Estado del vínculo de entrenamiento. |
 | `start_date` | Date | No | `current_date()` | Fecha de inicio del entrenamiento. |
 | `end_date` | Date | Sí | `None` | Fecha límite según suscripción o pagos. |
+| `welcome_message` | Text | Sí | `None` | Mensaje de bienvenida personalizado del entrenador (US-49). |
+| `welcome_message_sent` | Boolean | No | `True` | Flag que confirma el despacho de la notificación de bienvenida (US-49). |
+| `initial_routine_id` | UUID / String(36) | Sí | `None` | Clave foránea opcional a la primera rutina asignada al alumno (`Routine.id`, US-49). |
 | `terminated_at` | DateTime (UTC) | Sí | `None` | Marca temporal exacta de baja/rescisión (US-35). |
 | `termination_reason` | Text | Sí | `None` | Causa de finalización de la relación. |
+
+### 3. `Notification` (Notificaciones In-App, US-49)
+Representa una notificación recibida por un usuario en la plataforma.
+
+| Campo | Tipo | Nulo | Por Defecto | Descripción |
+|---|---|---|---|---|
+| `id` | UUID / String(36) | No | `uuid4()` | Identificador primario. |
+| `recipient_id` | UUID / String(36) | No | - | Clave foránea a `User.id` (destinatario). |
+| `type` | Enum(`TRAINING_ACCEPTED`, `TRAINING_REJECTED`, `NEW_REQUEST`, `ROUTINE_ASSIGNED`, `GENERAL`) | No | - | Tipo o categoría del evento notificado. |
+| `title` | String(150) | No | - | Título descriptivo de la notificación. |
+| `message` | Text | No | - | Cuerpo descriptivo o mensaje de bienvenida. |
+| `related_entity_type` | String(50) | Sí | `None` | Entidad vinculada (ej: `'TrainingRelationship'`). |
+| `related_entity_id` | UUID / String(36) | Sí | `None` | ID de la entidad para navegación directa. |
+| `is_read` | Boolean | No | `False` | Indicador de lectura de la notificación. |
+| `created_at` | DateTime (UTC) | No | `utcnow()` | Fecha y hora de emisión (UTC). |
+| `read_at` | DateTime (UTC) | Sí | `None` | Fecha y hora en la que fue leída. |
 
 ## Máquina de Estados de la Solicitud
 
@@ -48,6 +67,7 @@ stateDiagram-v2
     PENDING --> REJECTED: Entrenador rechaza con motivo (US-07)
     PENDING --> ACCEPTED: Entrenador acepta (cupo disponible) (US-07)
     ACCEPTED --> TrainingRelationship_ACTIVE: Creación automática del vínculo
+    ACCEPTED --> Notification_WELCOME: Emisión de bienvenida al alumno (US-49)
     TrainingRelationship_ACTIVE --> TrainingRelationship_EXPIRED: Vencimiento de suscripción
     TrainingRelationship_ACTIVE --> TrainingRelationship_TERMINATED: Baja de alumno (US-35)
 ```

@@ -28,6 +28,12 @@
 - Q: En US-07, ¿el motivo de rechazo (`rejection_reason`) es obligatorio u opcional? → A: Es opcional en el backend y en la interfaz (se alinea con US-48 escenario 4: "mensaje explicativo, si lo hubiera"). La discrepancia con el contrato OpenAPI original (que lo requería obligatoriamente) se resuelve relajando el campo a opcional/nullable, sin que esto rompa compatibilidad con clientes o pruebas existentes.
 - Q: ¿Cómo se gestiona la concurrencia y la idempotencia en la aceptación/rechazo? → A: La aceptación se procesa en una transacción atómica con bloqueo a nivel de fila (`with_for_update`) sobre el perfil del entrenador para evitar sobreasignación de cupos. Si una solicitud ya no está en estado `PENDING` (por ejemplo, ya fue aceptada, rechazada o cancelada), cualquier intento de resolverla nuevamente se rechaza con HTTP 409 Conflict (*"La solicitud ya fue procesada."*).
 
+### Session 2026-10-25
+
+- Q: ¿Cómo se entrega la notificación de bienvenida al alumno si el MVP no utiliza WebSockets ni SSE? → A: Siguiendo la arquitectura definida para US-06 (sesión 2026-10-24), las notificaciones se persisten en base de datos (`Notification`) al confirmarse la aceptación. El alumno las consume vía API (`GET /api/v1/students/me/notifications`) al iniciar sesión, abrir la app o refrescar su centro de notificaciones.
+- Q: ¿Qué información del entrenador y plan contratado debe mostrarse en el perfil del alumno aceptado? → A: Debe exponer los datos del entrenador asignado (nombre, foto de perfil, especialidad y datos de contacto), el paquete contratado (nombre, descripción, tarifa acordada y moneda heredadas de forma inmutable), la fecha de inicio del vínculo y el estado actual de su programa.
+- Q: En el escenario 3 de US-49, ¿cómo se vincula la primera rutina con el alumno recién aceptado? → A: Si el entrenador ya cargó y publicó una rutina (`status = 'PUBLISHED'` o `'ACTIVE'`) asociada al vínculo o al alumno, la consulta del plan activo devuelve la referencia de dicha rutina (`routine_id`, `routine_name`), permitiendo el acceso directo con un clic. Si el entrenador aún no la cargó, la interfaz muestra el estado amigable *"Rutina en preparación por tu entrenador"*, sin fallar ni bloquear la pantalla.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-44: Búsqueda y filtrado de entrenadores] (Priority: P1, Estimación: 4 SP)
@@ -166,17 +172,21 @@ Como entrenador personal,
 
 Como alumno, quiero recibir una confirmación y un mensaje de bienvenida cuando un entrenador acepta mi solicitud, para saber que ya puedo comenzar a entrenar con él.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Why this priority**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario y cerrar el ciclo de onboarding y contratación.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Independent Test**: Puede verificarse aceptando una solicitud pendiente desde el rol de entrenador y comprobando que: (1) se crea la notificación de bienvenida para el alumno, (2) el alumno visualiza al entrenador y plan activo en su perfil, y (3) se habilita el acceso a la rutina si fue previamente asignada.
 
 **Acceptance Scenarios**:
 
-1. Dado un entrenador que acepta una solicitud, cuando la confirma, entonces el alumno recibe una notificación de bienvenida al programa.
+1. Dado un entrenador que acepta una solicitud pendiente, cuando confirma la aceptación (con o sin mensaje personalizado), entonces el sistema genera y entrega al alumno una notificación in-app de bienvenida y confirmación de alta en el programa.
 
-2. Dado un alumno cuya solicitud fue aceptada, cuando consulta su perfil, entonces ve al entrenador asignado y el plan contratado.
+2. Dado un alumno cuya solicitud fue aceptada, cuando consulta su perfil o panel principal (`GET /api/v1/students/me/active-plan`), entonces visualiza el entrenador asignado (nombre, foto, contacto), el plan contratado con la tarifa acordada inmutable y la fecha de inicio del servicio.
 
-3. Dado un alumno recién aceptado, cuando el entrenador ya cargó su primera rutina, entonces el alumno obtiene acceso inmediato a ella.
+3. Dado un alumno recién aceptado cuyo entrenador ya cargó y publicó su primera rutina, cuando el alumno ingresa a su perfil o presiona la notificación de bienvenida, entonces obtiene acceso inmediato de lectura al detalle de dicha rutina.
+
+4. Dado un alumno recién aceptado cuyo entrenador aún no ha cargado ninguna rutina, cuando consulta su plan activo, entonces el sistema le muestra el mensaje de bienvenida y el estado indicativo *"Tu entrenador está preparando tu primera rutina"*, sin arrojar errores.
+
+5. Dado un alumno que navega a su centro de notificaciones, cuando visualiza la notificación de aceptación y hace clic en ella, entonces el sistema la marca como leída y lo redirige a la vista de su plan/rutina.
 
 
 ---
@@ -192,6 +202,12 @@ Como alumno, quiero recibir una confirmación y un mensaje de bienvenida cuando 
 - ¿Qué ocurre si un alumno intenta enviar una solicitud a un entrenador con el que ya tiene una solicitud pendiente o una suscripción activa? El sistema lo previene e informa el estado actual.
 
 - ¿Qué ocurre si el alumno aplica filtros de búsqueda que no coinciden con ningún entrenador? El sistema muestra un mensaje indicando la ausencia de resultados y sugiere ampliar los criterios.
+
+- ¿Qué ocurre si un alumno sin ningún vínculo de entrenamiento activo consulta su plan (`GET /api/v1/students/me/active-plan`)? El sistema responde con HTTP 200 y `has_active_plan: false`, permitiendo que el frontend renderice el estado vacío invitando a explorar entrenadores, sin incurrir en errores 404 o caídas de UI.
+
+- ¿Qué ocurre si el entrenador acepta la solicitud sin redactar un mensaje personalizado? El sistema utiliza una plantilla por defecto: *"¡Bienvenido al programa! Tu entrenador {nombre_entrenador} ha confirmado tu solicitud para el plan {nombre_plan}. Ya pueden comenzar a entrenar."*, garantizando que el alumno siempre reciba la confirmación.
+
+- ¿Qué ocurre si la rutina asociada es archivada o editada por el entrenador? El alumno siempre visualiza la versión vigente y activa asignada a su vínculo; si se desasigna o aún no existe, el plan activo muestra el estado indicativo "Rutina en preparación".
 
 
 
@@ -220,6 +236,14 @@ Como alumno, quiero recibir una confirmación y un mensaje de bienvenida cuando 
 - **FR-009**: El sistema DEBE revocar de forma inmediata e irreversible el acceso del entrenador a los datos de salud del alumno (cuestionario, molestias, apto médico) en el backend si la solicitud es rechazada o cancelada, denegando accesos posteriores con HTTP 403 Forbidden (US-06, US-07, US-48, Constitución).
 
 - **FR-010**: Al crear una solicitud, el sistema DEBE guardar en ella la tarifa mensual y la moneda vigentes del paquete seleccionado, y al aceptarla DEBE copiarlas al vínculo. Editar la tarifa o archivar el paquete después no modifica el arancel de solicitudes ya enviadas ni de vínculos existentes. Solo se pueden solicitar paquetes activos (US-47, US-48, US-07; spec 002 US-03).
+
+- **FR-011**: Al confirmarse la aceptación de una solicitud (`POST /api/v1/matchmaking/requests/{id}/accept`), el sistema DEBE generar y persistir atómicamente una notificación interna (`Notification`) para el alumno con el título de confirmación, el mensaje de bienvenida provisto por el entrenador (o el mensaje estándar de bienvenida si no se especificó uno) y la vinculación a su nuevo plan (US-49).
+
+- **FR-012**: El sistema DEBE proveer un endpoint protegido para el alumno autenticado (`GET /api/v1/students/me/active-plan`) que devuelva el vínculo de entrenamiento activo (`TrainingRelationship` con `status = 'ACTIVE'`), incluyendo los datos del entrenador asignado (nombre, foto, especialidad, contacto), el detalle del paquete y arancel acordado inmutable, y el enlace o indicador de su primera rutina (US-49).
+
+- **FR-013**: El sistema DEBE proveer endpoints para que el alumno consulte sus notificaciones (`GET /api/v1/students/me/notifications`) y las marque como leídas (`PATCH /api/v1/students/me/notifications/{id}/read`) (US-49).
+
+- **FR-014**: Si el alumno tiene una rutina asignada y publicada al ser aceptado, el sistema DEBE habilitar su acceso de lectura inmediato desde el resumen del plan activo; en caso de que aún no existan rutinas cargadas, el sistema DEBE indicar el estado "Rutina en preparación" sin producir errores en la consulta (US-49).
 
 
 

@@ -1,4 +1,5 @@
 from backend.src.models.medical_clearance import MedicalClearance
+from backend.src.models.notification import Notification
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.training_relationship import TrainingRelationship
@@ -12,6 +13,7 @@ from .student_profile import StudentProfile
 __all__ = [
     "HealthQuestionnaire",
     "MedicalClearance",
+    "Notification",
     "PasswordResetToken",
     "ProtectedZone",
     "StudentProfile",

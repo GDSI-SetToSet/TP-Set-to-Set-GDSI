@@ -19,6 +19,7 @@ import { MedicalClearancePage } from './pages/MedicalClearancePage';
 import { TrainerSearchPage } from './pages/TrainerSearchPage';
 import { TrainerPublicDetailPage } from './pages/TrainerPublicDetailPage';
 import { TrainerRequestPage } from './pages/TrainerRequestPage';
+import { StudentActivePlansPage } from './pages/StudentActivePlansPage';
 
 function ProtectedRoute({ children, role }: { children: JSX.Element; role: UserRole }) {
   const { user, loading } = useAuth();
@@ -57,6 +58,7 @@ export default function App() {
       <Route path={ROUTES.studentProfile} element={<ProtectedRoute role={USER_ROLES.student}><StudentProfileEditPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentProtectedZones} element={<ProtectedRoute role={USER_ROLES.student}><ProtectedZonesPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentMedical} element={<ProtectedRoute role={USER_ROLES.student}><MedicalClearancePage /></ProtectedRoute>} />
+      <Route path={ROUTES.studentActivePlans} element={<ProtectedRoute role={USER_ROLES.student}><StudentActivePlansPage /></ProtectedRoute>} />
     </Routes>
   );
 }

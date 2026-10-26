@@ -759,3 +759,376 @@
 .request-modal__form {
   margin-top: 20px;
 }
+
+/* ── Active Plan Card (US-49) ── */
+
+.active-plan-card {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 18px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  text-align: left;
+  margin-top: 1.5rem;
+}
+
+.active-plan-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+
+.active-plan-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  font-weight: 600;
+  font-size: 0.82rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+}
+
+.active-plan-card__start-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.active-plan-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.active-plan-card__trainer-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.active-plan-card__trainer-avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.active-plan-card__trainer-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text, #0f172a);
+  margin: 0;
+}
+
+.active-plan-card__specialty {
+  font-size: 0.9rem;
+  color: #64748b;
+  margin: 0.15rem 0 0.4rem 0;
+}
+
+.active-plan-card__contacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.active-plan-card__contact-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.active-plan-card__plan-info {
+  background: rgba(241, 245, 249, 0.6);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.active-plan-card__plan-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.active-plan-card__kicker {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin-bottom: 0.2rem;
+}
+
+.active-plan-card__plan-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text, #0f172a);
+  margin: 0;
+}
+
+.active-plan-card__price {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.active-plan-card__price-sub {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: #64748b;
+}
+
+.active-plan-card__welcome {
+  background: rgba(248, 250, 252, 0.9);
+  border-left: 4px solid #3b82f6;
+  border-radius: 0 10px 10px 0;
+  padding: 0.9rem 1rem;
+}
+
+.active-plan-card__welcome-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #2563eb;
+  margin-bottom: 0.35rem;
+}
+
+.active-plan-card__welcome-text {
+  margin: 0;
+  font-size: 0.92rem;
+  font-style: italic;
+  color: #334155;
+  line-height: 1.45;
+}
+
+.active-plan-card__routine-available {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(240, 253, 244, 0.8);
+  border: 1px solid rgba(74, 222, 128, 0.4);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.active-plan-card__routine-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #166534;
+  margin: 0;
+}
+
+.active-plan-card__routine-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.1rem;
+  background: #16a34a;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.active-plan-card__routine-btn:hover {
+  background: #15803d;
+}
+
+.active-plan-card__routine-pending {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: rgba(254, 243, 199, 0.5);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  color: #92400e;
+  font-size: 0.88rem;
+}
+
+.active-plan-card__routine-pending strong {
+  display: block;
+  font-size: 0.92rem;
+  margin-bottom: 0.15rem;
+}
+
+.active-plan-card__routine-pending p {
+  margin: 0;
+  color: #78350f;
+  line-height: 1.4;
+}
+
+.active-plan-card__pending-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* ── Notification Bell & Dropdown (US-49) ── */
+
+.notification-bell-container {
+  position: relative;
+  display: inline-block;
+}
+
+.notification-bell-btn {
+  position: relative;
+  background: none;
+  border: none;
+  color: var(--text, #334155);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.notification-bell-btn:hover {
+  background: rgba(148, 163, 184, 0.15);
+}
+
+.notification-bell-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  min-width: 17px;
+  height: 17px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+.notification-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 320px;
+  max-width: 90vw;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
+  z-index: 100;
+  overflow: hidden;
+  text-align: left;
+}
+
+.notification-dropdown__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+
+.notification-dropdown__header h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.notification-dropdown__unread-label {
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.notification-dropdown__list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.notification-dropdown__empty {
+  padding: 1.5rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
+.notification-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+  cursor: pointer;
+  transition: background 0.12s;
+  position: relative;
+}
+
+.notification-item:hover {
+  background: rgba(241, 245, 249, 0.7);
+}
+
+.notification-item--unread {
+  background: rgba(239, 246, 255, 0.6);
+}
+
+.notification-item__icon {
+  margin-top: 2px;
+  color: #3b82f6;
+  flex-shrink: 0;
+}
+
+.notification-item__body {
+  flex: 1;
+}
+
+.notification-item__title {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.notification-item__message {
+  margin: 0.2rem 0 0.35rem 0;
+  font-size: 0.8rem;
+  color: #475569;
+  line-height: 1.35;
+}
+
+.notification-item__time {
+  display: block;
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.notification-item__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3b82f6;
+  flex-shrink: 0;
+  margin-top: 6px;
+}

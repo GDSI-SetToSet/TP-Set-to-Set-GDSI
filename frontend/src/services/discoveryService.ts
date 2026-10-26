@@ -1,6 +1,10 @@
 import axios from 'axios';
 import { api } from './api';
 import type {
+  ActivePlansResponse,
+  ActivePlanResponse,
+  NotificationItem,
+  NotificationListResponse,
   PaginatedTrainers,
   StudentGoalsSummary,
   TrainerPublicDetail,
@@ -92,4 +96,27 @@ export async function getStudentHealthForTrainer(
     if (axios.isAxiosError(caught) && caught.response?.status === 404) return null;
     throw caught;
   }
+}
+
+export async function getActivePlans(): Promise<ActivePlansResponse> {
+  const { data } = await api.get<ActivePlansResponse>('/api/v1/students/me/active-plans');
+  return data;
+}
+
+export async function getNotifications(
+  isRead?: boolean,
+  limit?: number,
+  offset?: number,
+): Promise<NotificationListResponse> {
+  const params: Record<string, string | number | boolean> = {};
+  if (typeof isRead === 'boolean') params.is_read = isRead;
+  if (typeof limit === 'number') params.limit = limit;
+  if (typeof offset === 'number') params.offset = offset;
+  const { data } = await api.get<NotificationListResponse>('/api/v1/students/me/notifications', { params });
+  return data;
+}
+
+export async function markNotificationAsRead(notificationId: string): Promise<NotificationItem> {
+  const { data } = await api.patch<NotificationItem>(`/api/v1/students/me/notifications/${notificationId}/read`);
+  return data;
 }

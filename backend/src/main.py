@@ -13,6 +13,7 @@ from backend.src.core.config import API_TITLE, API_VERSION, CORS_ALLOWED_ORIGINS
 from backend.src.core.database import Base, engine
 from backend.src.models import (  # noqa: F401
     MedicalClearance,
+    Notification,
     PasswordResetToken,
     StudentProfile,
     TrainerProfile,
