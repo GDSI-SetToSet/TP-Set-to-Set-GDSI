@@ -1,4 +1,9 @@
 .discovery-shell {
+  --accent: #205a43;
+  --surface: #ffffff;
+  --border: #dfe6dd;
+  --bg: #f6f7f2;
+  --muted: #52665b;
   max-width: 900px;
   margin: 0 auto;
   padding: 2rem 1.5rem;
@@ -61,24 +66,37 @@
 }
 
 .filter-btn {
-  padding: 0.5rem 1.25rem;
-  background: var(--accent);
+  padding: 0.75rem 1.5rem;
+  background: #205a43;
   color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
   text-decoration: none;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
+  transition: background-color 0.15s, box-shadow 0.15s;
 }
 
 .filter-btn:hover {
-  opacity: 0.9;
+  background: #173a32;
+}
+
+.filter-btn:focus-visible,
+.plan-public-card__cta:focus-visible,
+.pagination-btn:focus-visible,
+.trainer-card__cta:focus-visible {
+  outline: 3px solid #8abf73;
+  outline-offset: 2px;
 }
 
 .filter-btn:disabled {
-  opacity: 0.5;
+  background: #e2e5e1;
+  color: #35413a;
   cursor: not-allowed;
 }
 
@@ -95,16 +113,23 @@
   flex-direction: column;
   gap: 0.5rem;
   padding: 1.25rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: #ffffff;
+  border: 1px solid #dfe6dd;
   border-radius: 10px;
-  text-decoration: none;
+  box-shadow: 0 2px 8px rgba(38, 65, 51, .08);
   color: inherit;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 
 .trainer-card:hover {
   border-color: var(--accent);
+  box-shadow: 0 5px 14px rgba(38, 65, 51, .12);
+  transform: translateY(-2px);
+}
+
+.trainer-card__cta {
+  align-self: flex-start;
+  margin-top: 0.75rem;
 }
 
 .trainer-card__name {
@@ -284,21 +309,24 @@
 
 .plan-public-card__cta {
   margin-top: auto;
-  padding: 0.5rem 1rem;
-  background: var(--accent);
+  padding: 0.75rem 1.5rem;
+  background: #205a43;
   color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 0.9rem;
+  font-weight: 600;
+  transition: background-color 0.15s;
 }
 
 .plan-public-card__cta:hover:not(:disabled) {
-  opacity: 0.9;
+  background: #173a32;
 }
 
 .plan-public-card__cta:disabled {
-  background: var(--muted);
+  background: #e2e5e1;
+  color: #35413a;
   cursor: not-allowed;
 }
 
@@ -338,12 +366,21 @@
 
 .request-form textarea {
   padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid #cbd7cd;
+  border-radius: 8px;
   font-size: 0.9rem;
   resize: vertical;
-  background: var(--bg);
+  background: #ffffff;
+  color: #1e2925;
   font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.request-form textarea:focus-visible,
+.filter-input:focus-visible {
+  outline: none;
+  border-color: #397050;
+  box-shadow: 0 0 0 3px rgba(64, 121, 88, .18);
 }
 
 .request-submit {

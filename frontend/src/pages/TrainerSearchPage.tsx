@@ -60,8 +60,8 @@ export function TrainerSearchPage() {
       </header>
 
       <form className="search-filters" onSubmit={handleSubmit}>
-        <input type="text" placeholder="Especialidad (ej. Fuerza)" value={specialty} onChange={e => setSpecialty(e.target.value)} className="filter-input" />
-        <input type="number" placeholder="Precio máximo" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} className="filter-input" min={0} />
+        <input type="text" placeholder="Especialidad (ej. Fuerza)" value={specialty} onChange={e => setSpecialty(e.target.value)} className="filter-input" aria-label="Filtrar por especialidad" />
+        <input type="number" placeholder="Precio máximo" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} className="filter-input" min={0} aria-label="Precio máximo" />
         <label className="filter-checkbox">
           <input type="checkbox" checked={onlyAvailable} onChange={e => setOnlyAvailable(e.target.checked)} />
           Solo con cupos
@@ -79,7 +79,7 @@ export function TrainerSearchPage() {
         <>
           <div className="trainer-grid">
             {results.map(trainer => (
-              <Link key={trainer.id} to={`/entrenadores/${trainer.id}`} className="trainer-card">
+              <article key={trainer.id} className="trainer-card">
                 <h3 className="trainer-card__name">{trainer.full_name ?? 'Entrenador'}</h3>
                 {trainer.specialty && <span className="trainer-card__specialty">{trainer.specialty}</span>}
                 {trainer.bio_preview && <p className="trainer-card__bio">{trainer.bio_preview}</p>}
@@ -89,7 +89,8 @@ export function TrainerSearchPage() {
                     <Users size={14} /> {trainer.has_available_quota ? `${trainer.available_slots} cupos` : 'Sin cupos'}
                   </span>
                 </div>
-              </Link>
+                <Link to={`/entrenadores/${trainer.id}`} className="filter-btn trainer-card__cta">Ver perfil</Link>
+              </article>
             ))}
           </div>
 
