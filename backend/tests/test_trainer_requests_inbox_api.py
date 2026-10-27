@@ -385,6 +385,16 @@ def test_trainer_without_pending_request_or_after_rejection_is_denied_access(cli
         ):
             assert api.get(endpoint, headers=auth(trainer_a_token)).status_code == status.HTTP_403_FORBIDDEN
 
+        # Request detail retains audit fields (name, date, status) but redacts student PII (phone, birth_date)
+        detail_after = api.get(REQUEST_DETAIL_PATH.format(created["id"]), headers=auth(trainer_a_token))
+        assert detail_after.status_code == status.HTTP_200_OK
+        student_summary = detail_after.json()["student"]
+        assert student_summary["id"] == student_1_id
+        assert student_summary["first_name"] == "María"
+        assert student_summary["last_name"] == "García"
+        assert student_summary["contact_phone"] is None
+        assert student_summary["birth_date"] is None
+
 
 def test_inbox_and_detail_when_trainer_quota_is_full(client):
     api, _ = client

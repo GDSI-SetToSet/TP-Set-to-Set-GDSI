@@ -44,6 +44,34 @@ La estructura del repositorio se irá consolidando a medida que avance el proyec
 
 Los archivos de configuración y las especificaciones compartidas forman parte de los artefactos del proyecto y deben mantenerse versionados cuando corresponda.
 
+## Módulos y rutas implementadas (Sprints 1 y 2)
+
+### Rutas del Frontend (`frontend/src/constants/routes.ts` y `frontend/src/App.tsx`)
+
+- **Autenticación (`001`):** `/login`, `/registro`, `/olvide-mi-contrasena`, `/restablecer-contrasena`, `/inicio`
+- **Entrenador (`002` / `004`):** `/entrenador/inicio`, `/entrenador/perfil`, `/entrenador/paquetes`, `/entrenador/solicitudes`, `/entrenador/solicitudes/:requestId`
+- **Alumno (`003` / `004`):** `/alumno/inicio`, `/alumno/perfil`, `/alumno/salud`, `/alumno/zonas-a-proteger`, `/alumno/apto-medico`, `/alumno/buscar-entrenadores`, `/entrenadores/:trainerId`, `/entrenadores/:trainerId/solicitar`, `/alumno/mis-solicitudes`, `/alumno/mis-entrenamientos`
+
+### Endpoints principales de la API (`backend/src/api/v1/`)
+
+- **Autenticación (`/api/v1/auth`):** `POST /register`, `POST /login`, `POST /logout`, `GET /me`, `POST /forgot-password`, `POST /reset-password`
+- **Perfil, paquetes y cupos de entrenador (`/api/v1/trainers`):**
+  - `GET /me/profile`, `PUT /me/profile`, `GET /{trainer_id}/profile`
+  - `POST /me/plans`, `GET /me/plans`, `PUT /me/plans/{plan_id}`, `POST /me/plans/{plan_id}/archive`, `GET /{trainer_id}/plans`
+  - `PATCH /me/quota`
+  - `GET /search`, `GET /{trainer_id}/public`
+  - `GET /me/notifications`, `PATCH /me/notifications/{notification_id}/read`
+- **Perfil y salud del alumno (`/api/v1/students`):**
+  - `GET /me/profile`, `PUT /me/profile`, `GET /{student_id}/goals`
+  - `POST /me/health-questionnaire`, `GET /me/health-questionnaire`, `GET /{student_id}/health-questionnaire`
+  - `GET /me/protected-zones`, `PUT /me/protected-zones`
+  - `POST /me/medical-clearance`, `GET /me/medical-clearance`, `GET /{student_id}/medical-clearance/download`
+  - `GET /me/active-plan`, `GET /me/active-plans`
+  - `GET /me/notifications`, `PATCH /me/notifications/{notification_id}/read`
+- **Solicitudes y vinculación (`/api/v1/matchmaking`):**
+  - `POST /requests`, `GET /requests/mine`, `GET /requests`, `GET /requests/{request_id}`
+  - `POST /requests/{request_id}/accept`, `POST /requests/{request_id}/reject`
+
 ## Desarrollo local: cómo levantar la aplicación
 
 ### Backend
@@ -81,4 +109,3 @@ Desde la raíz del repositorio (con .venv activado):
 ```bash
 PYTHONPATH=. pytest backend/tests --cov=backend/src --cov-report=term-missing
 ```
-

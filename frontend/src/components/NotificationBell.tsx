@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, Check, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { USER_ROLES } from '../constants/auth';
@@ -21,24 +21,27 @@ export function NotificationBell({ onNotificationClick }: NotificationBellProps)
   const [actionError, setActionError] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
-  async function loadNotifications() {
+  const loadNotifications = useCallback(async () => {
+    if (!user?.role) return;
     setLoading(true);
     try {
-      const data = await getNotifications();
+      const data = await getNotifications(undefined, undefined, undefined, user.role);
       setNotifications(data.items);
       setUnreadCount(data.unread_count);
+      setActionError('');
     } catch {
-      // Ignore background load failures
+      setActionError('No se pudieron cargar las notificaciones. Intentá nuevamente.');
     } finally {
       setLoading(false);
     }
-  }
+  }, [user?.role]);
 
   useEffect(() => {
+    if (!user?.role) return;
     loadNotifications();
     const interval = setInterval(loadNotifications, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadNotifications, user?.role]);
 
   // Close on outside click or Escape
   useEffect(() => {
@@ -58,28 +61,34 @@ export function NotificationBell({ onNotificationClick }: NotificationBellProps)
     };
   }, []);
 
-  async function markAsRead(notif: NotificationItem) {
+  async function markAsRead(notif: NotificationItem): Promise<boolean> {
     if (!notif.is_read) {
+      if (!user?.role) return false;
       setActionError('');
       try {
-        const updated = await markNotificationAsRead(notif.id);
+        const updated = await markNotificationAsRead(notif.id, user.role);
         setNotifications((prev) =>
           prev.map((item) => (item.id === notif.id ? updated : item)),
         );
         setUnreadCount((prev) => Math.max(0, prev - 1));
+        return true;
       } catch {
         setActionError('No se pudo marcar la notificación como leída. Intentá nuevamente.');
+        return false;
       }
     }
+    return true;
   }
 
   async function handleItemClick(notif: NotificationItem) {
+    const marked = await markAsRead(notif);
+    if (!marked) {
+      return;
+    }
     setIsOpen(false);
-    await markAsRead(notif);
     if (onNotificationClick) {
       onNotificationClick(notif);
-    }
-    if (user?.role === USER_ROLES.trainer) {
+    } else if (user?.role === USER_ROLES.trainer) {
       navigate(ROUTES.trainerRequests);
     }
   }

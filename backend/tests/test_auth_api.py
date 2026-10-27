@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 
 from backend.src.core.constants import PASSWORD_REQUIREMENTS_MESSAGE
-from backend.src.models.user import User
+from backend.src.models.user import User, UserSession
 
 
 def register(client, email="coach@example.com", role="TRAINER", password="StrongPass123"):
@@ -134,6 +134,21 @@ def test_me_requires_session_and_logout_revokes_it(client, registered_user):
     headers = {"Authorization": f"Bearer {token}"}
     assert api.get("/api/v1/auth/me", headers=headers).status_code == 200
     assert api.post("/api/v1/auth/logout", headers=headers).status_code == 200
+    assert api.get("/api/v1/auth/me", headers=headers).status_code == 401
+
+
+def test_expired_user_session_in_db_is_rejected(client, registered_user):
+    api, sessions = client
+    login = api.post("/api/v1/auth/login", json={"email": "alumna@example.com", "password": "StrongPass123"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    assert api.get("/api/v1/auth/me", headers=headers).status_code == 200
+
+    with sessions() as db:
+        session = db.scalar(select(UserSession))
+        session.expires_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(seconds=5)
+        db.commit()
+
     assert api.get("/api/v1/auth/me", headers=headers).status_code == 401
 
 

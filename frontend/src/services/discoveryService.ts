@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { USER_ROLES } from '../constants/auth';
+import type { UserRole } from '../types/auth';
 import { api } from './api';
 import type {
   ActivePlansResponse,
@@ -103,20 +105,32 @@ export async function getActivePlans(): Promise<ActivePlansResponse> {
   return data;
 }
 
+function notificationsBasePath(role: UserRole = USER_ROLES.student): string {
+  return role === USER_ROLES.trainer
+    ? '/api/v1/trainers/me/notifications'
+    : '/api/v1/students/me/notifications';
+}
+
 export async function getNotifications(
   isRead?: boolean,
   limit?: number,
   offset?: number,
+  role: UserRole = USER_ROLES.student,
 ): Promise<NotificationListResponse> {
   const params: Record<string, string | number | boolean> = {};
   if (typeof isRead === 'boolean') params.is_read = isRead;
   if (typeof limit === 'number') params.limit = limit;
   if (typeof offset === 'number') params.offset = offset;
-  const { data } = await api.get<NotificationListResponse>('/api/v1/students/me/notifications', { params });
+  const { data } = await api.get<NotificationListResponse>(notificationsBasePath(role), { params });
   return data;
 }
 
-export async function markNotificationAsRead(notificationId: string): Promise<NotificationItem> {
-  const { data } = await api.patch<NotificationItem>(`/api/v1/students/me/notifications/${notificationId}/read`);
+export async function markNotificationAsRead(
+  notificationId: string,
+  role: UserRole = USER_ROLES.student,
+): Promise<NotificationItem> {
+  const { data } = await api.patch<NotificationItem>(
+    `${notificationsBasePath(role)}/${notificationId}/read`,
+  );
   return data;
 }

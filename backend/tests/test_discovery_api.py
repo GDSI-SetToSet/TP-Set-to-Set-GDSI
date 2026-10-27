@@ -1,3 +1,22 @@
+from datetime import UTC, datetime
+from decimal import Decimal
+
+import pytest
+from fastapi import status
+from sqlalchemy import select
+from sqlalchemy.dialects import postgresql, sqlite
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.schema import CreateIndex
+
+from backend.src.models.student_profile import StudentProfile
+from backend.src.models.training_request import TrainingRequest
+from backend.src.models.user import User
+from backend.src.schemas.discovery import TrainingRequestCreate
+from backend.src.services.discovery_service import (
+    DiscoveryError,
+    create_training_request,
+)
+
 SEARCH_PATH = "/api/v1/trainers/search"
 PUBLIC_PATH = "/api/v1/trainers/{}/public"
 REQUEST_PATH = "/api/v1/matchmaking/requests"
@@ -200,13 +219,21 @@ def test_student_sends_request_successfully(client):
     assert data["agreed_monthly_price"] == 20000
     assert data["agreed_currency"] == "ARS"
 
-    notifications = api.get(
+    # H-02: trainer must not access student notifications endpoint
+    forbidden_student_notifs = api.get(
         "/api/v1/students/me/notifications",
+        headers=auth(trainer_token),
+    )
+    assert forbidden_student_notifs.status_code == 403
+
+    # Trainer accesses authorized trainer notifications endpoint
+    notifications = api.get(
+        "/api/v1/trainers/me/notifications",
         headers=auth(trainer_token),
     )
     assert notifications.status_code == 200
     notification = notifications.json()["items"][0]
-    assert notification["type"] == "NEW_TRAINING_REQUEST"
+    assert notification["type"] == "NEW_REQUEST"
     assert notification["title"] == "¡Nueva solicitud de entrenamiento!"
     assert notification["message"] == (
         "El alumno María García ha solicitado unirse a tu plan Plan Básico."
@@ -296,6 +323,97 @@ def test_duplicate_pending_request_returns_409(client):
     )
     assert second.status_code == 409
     assert "pendiente" in second.json()["detail"].lower()
+
+
+def test_partial_unique_index_prevents_duplicate_pending_requests_and_allows_resolved_history(
+    client, monkeypatch
+):
+    api, session_factory = client
+    trainer_token, trainer_id = setup_published_trainer(api, "coach_uq@example.com")
+    plan_id = create_plan(api, trainer_token)
+    student_token = setup_student_with_health(api, "student_uq@example.com")
+
+    partial_indexes = [
+        idx
+        for idx in TrainingRequest.__table__.indexes
+        if idx.name == "uq_pending_training_request"
+    ]
+    assert len(partial_indexes) == 1
+    uq_idx = partial_indexes[0]
+    sqlite_ddl = str(CreateIndex(uq_idx).compile(dialect=sqlite.dialect()))
+    pg_ddl = str(CreateIndex(uq_idx).compile(dialect=postgresql.dialect()))
+    assert "CREATE UNIQUE INDEX uq_pending_training_request" in sqlite_ddl
+    assert "WHERE status = 'PENDING'" in sqlite_ddl
+    assert "CREATE UNIQUE INDEX uq_pending_training_request" in pg_ddl
+    assert "WHERE status = 'PENDING'" in pg_ddl
+
+    with session_factory() as db:
+        student_user = db.scalar(select(User).where(User.email == "student_uq@example.com"))
+        student_profile = db.scalar(
+            select(StudentProfile).where(StudentProfile.user_id == student_user.id)
+        )
+        now = datetime.now(UTC).replace(tzinfo=None)
+
+        req1 = TrainingRequest(
+            student_id=student_profile.id,
+            trainer_id=trainer_id,
+            plan_id=plan_id,
+            agreed_monthly_price=Decimal("25000.00"),
+            agreed_currency="ARS",
+            status="PENDING",
+            created_at=now,
+        )
+        db.add(req1)
+        db.commit()
+
+        # Attempting to insert a second PENDING request directly into DB fails with IntegrityError
+        req_dup = TrainingRequest(
+            student_id=student_profile.id,
+            trainer_id=trainer_id,
+            plan_id=plan_id,
+            agreed_monthly_price=Decimal("25000.00"),
+            agreed_currency="ARS",
+            status="PENDING",
+            created_at=now,
+        )
+        db.add(req_dup)
+        with pytest.raises(IntegrityError):
+            db.commit()
+        db.rollback()
+
+        # Transitioning req1 to REJECTED allows a new PENDING request
+        req1_stored = db.get(TrainingRequest, req1.id)
+        req1_stored.status = "REJECTED"
+        db.commit()
+
+        # Simulate concurrent IntegrityError during create_training_request commit
+        real_commit = db.commit
+
+        def conflict_commit():
+            raise IntegrityError(
+                "INSERT INTO training_requests",
+                {},
+                RuntimeError("UNIQUE constraint failed: index 'uq_pending_training_request'"),
+            )
+
+        monkeypatch.setattr(db, "commit", conflict_commit)
+        with pytest.raises(DiscoveryError) as exc_info:
+            create_training_request(
+                db,
+                student_user,
+                TrainingRequestCreate(trainer_id=trainer_id, plan_id=plan_id),
+            )
+        assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+        assert "pendiente" in exc_info.value.detail.lower()
+        monkeypatch.setattr(db, "commit", real_commit)
+
+    # Normal creation succeeds now that previous request is REJECTED
+    resp = api.post(
+        REQUEST_PATH,
+        headers=auth(student_token),
+        json={"trainer_id": trainer_id, "plan_id": plan_id},
+    )
+    assert resp.status_code == status.HTTP_201_CREATED
 
 
 def test_trainer_cannot_send_request(client):

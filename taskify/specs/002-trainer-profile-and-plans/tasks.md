@@ -48,7 +48,7 @@ description: "Task list for 002-trainer-profile-and-plans"
 - [x] T010 [US1] Crear la pantalla responsive de edición y guardado parcial, con aviso DRAFT, estado PUBLISHED y errores por campo en `frontend/src/pages/TrainerProfileEditPage.tsx`
 - [x] T011 [US1] Registrar la ruta protegida del entrenador y el acceso desde su inicio en `frontend/src/App.tsx` y `frontend/src/pages/HomePage.tsx`
 - [x] T012 [P] [US1] Agregar estilos accesibles con contraste WCAG 2.1 AA y objetivos táctiles mínimos de 44×44 px en `frontend/src/styles/trainer-profile.css` y cargarla desde `frontend/src/styles.css`
-- [x] T013 [US1] Ejecutar pruebas backend con cobertura ≥90%, Ruff, compilación frontend y recorrer el Escenario 1 de `taskify/specs/002-trainer-profile-and-plans/quickstart.md`
+- [x] T013 [US1] Ejecutar calidad automatizada y recorrer el Escenario 1 de `taskify/specs/002-trainer-profile-and-plans/quickstart.md`
 
 **Checkpoint**: US-02 funciona de punta a punta y puede entregarse en un PR independiente hacia `develop`.
 
@@ -93,9 +93,9 @@ description: "Task list for 002-trainer-profile-and-plans"
 
 ## Phase 5: Polish & Cross-Cutting Concerns
 
-- [ ] T032 [P] Actualizar `README.md` con rutas y recorrido funcional del módulo de entrenador
-- [ ] T033 Verificar que `taskify/specs/002-trainer-profile-and-plans/contracts/trainer-api.yaml` refleje todos los endpoints implementados y que todos los errores sigan RFC 7807
-- [ ] T034 Ejecutar regresión completa, Ruff, cobertura backend ≥90%, compilación frontend y todos los escenarios de `taskify/specs/002-trainer-profile-and-plans/quickstart.md`
+- [x] T032 [P] Actualizar `README.md` con rutas y recorrido funcional del módulo de entrenador
+- [x] T033 Verificar que `taskify/specs/002-trainer-profile-and-plans/contracts/trainer-api.yaml` refleje todos los endpoints implementados y que todos los errores sigan RFC 7807
+- [x] T034 Ejecutar regresión completa, Ruff, cobertura backend ≥90%, compilación frontend y todos los escenarios de `taskify/specs/002-trainer-profile-and-plans/quickstart.md`
 
 ## Dependencies & Execution Order
 

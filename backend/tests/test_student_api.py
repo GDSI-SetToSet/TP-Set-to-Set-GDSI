@@ -38,7 +38,7 @@ def test_save_own_profile_invalid_phone(client, student_token_headers):
         headers=student_token_headers,
         json=payload
     )
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 def test_save_own_profile_draft_mode(client, student_token_headers):
     test_client, _ = client

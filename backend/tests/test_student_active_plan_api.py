@@ -1,4 +1,9 @@
+from datetime import UTC, date, datetime, timedelta, timezone
+
 from backend.src.models.training_relationship import TrainingRelationship
+from backend.src.models.training_request import TrainingRequest
+from backend.src.models.user import User
+from backend.src.services.discovery_service import get_student_active_plans
 
 TRAINER_DATA = {
     "full_name": "Esteban Giménez",
@@ -80,6 +85,11 @@ def test_student_active_plans_include_pending_requests(client):
     assert pending["request_id"] == request["id"]
     assert pending["requested_at"] is not None
     assert pending["trainer"]["id"] == trainer_prof["id"]
+    assert pending["trainer"]["full_name"] == TRAINER_DATA["full_name"]
+    assert pending["trainer"]["specialty"] == TRAINER_DATA["specialty"]
+    # H-03 / Paso 3: trainer private email and phone must not be exposed while PENDING
+    assert pending["trainer"]["email"] is None
+    assert pending["trainer"]["phone"] is None
     assert pending["plan"]["id"] == plan["id"]
     assert pending["agreed_monthly_price"] == 18000.0
     assert pending["welcome_message"] is None
@@ -138,6 +148,7 @@ def test_student_active_plan_after_acceptance(client):
     assert data["trainer"]["full_name"] == "Esteban Giménez"
     assert data["trainer"]["specialty"] == "Funcional y Readaptación"
     assert data["trainer"]["email"] == "coach_esteban@example.com"
+    assert data["trainer"]["phone"] == "+5491122334455"
     assert data["plan"]["id"] == plan["id"]
     assert data["plan"]["title"] == "Funcional Intermedio"
     assert data["routine"] is None
@@ -196,6 +207,8 @@ def test_trainer_cannot_query_student_active_plan(client):
     trainer_token = register_and_login(api, "only_trainer@example.com", "TRAINER")
     response = api.get("/api/v1/students/me/active-plan", headers=auth(trainer_token))
     assert response.status_code == 403
+    list_response = api.get("/api/v1/students/me/active-plans", headers=auth(trainer_token))
+    assert list_response.status_code == 403
 
 
 def test_student_multiple_active_plans(client):
@@ -240,6 +253,149 @@ def test_student_multiple_active_plans(client):
     assert len(plans) == 2
     trainer_names = {p["trainer"]["full_name"] for p in plans}
     assert trainer_names == {"Coach Uno", "Coach Dos"}
+
+
+def test_student_active_plans_sorting_mixed_naive_and_aware_datetimes_and_transitions(client):
+    api, session_factory = client
+
+    # Setup 3 trainers
+    trainers = []
+    for idx in range(1, 4):
+        tok = register_and_login(api, f"coach_sort_{idx}@example.com", "TRAINER")
+        prof = api.put(
+            "/api/v1/trainers/me/profile",
+            headers=auth(tok),
+            json={**TRAINER_DATA, "full_name": f"Coach {idx}", "contact_phone": f"+549110000000{idx}"},
+        ).json()
+        api.patch("/api/v1/trainers/me/quota", headers=auth(tok), json={"max_students": 5})
+        pl = api.post(
+            "/api/v1/trainers/me/plans",
+            headers=auth(tok),
+            json={"title": f"Plan {idx}", "monthly_price": 10000 * idx},
+        ).json()
+        trainers.append((tok, prof["id"], pl["id"]))
+
+    student_token = register_and_login(api, "student_sort@example.com", "STUDENT")
+    api.put("/api/v1/students/me/profile", headers=auth(student_token), json=STUDENT_DATA)
+    api.post(
+        "/api/v1/students/me/health-questionnaire",
+        headers=auth(student_token),
+        json=HEALTH_QUESTIONNAIRE,
+    )
+
+    # Create 3 requests: accept #1 (ACTIVE), leave #2 and #3 PENDING
+    req1 = api.post(
+        "/api/v1/matchmaking/requests",
+        headers=auth(student_token),
+        json={"trainer_id": trainers[0][1], "plan_id": trainers[0][2]},
+    ).json()
+    rel1 = api.post(
+        f"/api/v1/matchmaking/requests/{req1['id']}/accept",
+        headers=auth(trainers[0][0]),
+        json={"welcome_message": "Activo"},
+    ).json()
+
+    req2 = api.post(
+        "/api/v1/matchmaking/requests",
+        headers=auth(student_token),
+        json={"trainer_id": trainers[1][1], "plan_id": trainers[1][2]},
+    ).json()
+    req3 = api.post(
+        "/api/v1/matchmaking/requests",
+        headers=auth(student_token),
+        json={"trainer_id": trainers[2][1], "plan_id": trainers[2][2]},
+    ).json()
+
+    # Set distinct dates in DB and test mixed naive/aware sorting
+    with session_factory() as db:
+        r_active = db.get(TrainingRelationship, rel1["id"])
+        r_active.start_date = date(2026, 10, 20)
+
+        r_pend_old = db.get(TrainingRequest, req2["id"])
+        r_pend_old.created_at = datetime(2026, 10, 15, 10, 0, 0)  # naive UTC older than start_date
+
+        r_pend_new = db.get(TrainingRequest, req3["id"])
+        r_pend_new.created_at = datetime(2026, 10, 25, 14, 30, 0, tzinfo=UTC)  # aware UTC newer than start_date
+        db.commit()
+
+    resp = api.get("/api/v1/students/me/active-plans", headers=auth(student_token))
+    assert resp.status_code == 200
+    items = resp.json()
+    assert [item["status"] for item in items] == ["PENDING", "ACTIVE", "PENDING"]
+    assert items[0]["request_id"] == req3["id"]
+    assert items[0]["trainer"]["email"] is None
+    assert items[0]["trainer"]["phone"] is None
+
+    assert items[1]["relationship_id"] == rel1["id"]
+    assert items[1]["has_active_plan"] is True
+    assert items[1]["trainer"]["email"] == "coach_sort_1@example.com"
+    assert items[1]["trainer"]["phone"] == "+5491100000001"
+
+    assert items[2]["request_id"] == req2["id"]
+    assert items[2]["trainer"]["email"] is None
+    assert items[2]["trainer"]["phone"] is None
+
+    # /active-plan must still return the ACTIVE relationship even though a PENDING request is newer
+    single_active = api.get("/api/v1/students/me/active-plan", headers=auth(student_token)).json()
+    assert single_active["has_active_plan"] is True
+    assert single_active["relationship_id"] == rel1["id"]
+
+    # Verificación de ordenación temporal a través de la función pública get_student_active_plans
+    # combinando aware UTC, aware con huso no-UTC (-03:00), naive UTC y fecha de inicio de relación (date).
+    #
+    # Nota técnica: SQLite almacena datetimes en columnas DateTime como cadenas sin información de zona
+    # horaria persistente, por lo que las lecturas desde disco en SQLite normalizan a naive UTC.
+    # Para validar que get_student_active_plans resuelva la mezcla aware/naive sin lanzar TypeError
+    # (comportamiento esperado con PostgreSQL TIMESTAMP WITH TIME ZONE), se configuran los valores
+    # en la sesión activa y se invoca la función pública del servicio. Esto verifica la lógica del backend
+    # sin suponer que SQLite demuestra por sí mismo la compatibilidad nativa de PostgreSQL.
+    ar_tz = timezone(timedelta(hours=-3))
+    with session_factory() as db:
+        student_user = db.query(User).filter(User.email == "student_sort@example.com").one()
+        r_active = db.get(TrainingRelationship, rel1["id"])
+        r_active.start_date = date(2026, 10, 26)  # 2026-10-26 00:00:00 UTC
+
+        r_pend_old = db.get(TrainingRequest, req2["id"])
+        r_pend_old.created_at = datetime(2026, 10, 26, 12, 0, 0)  # naive UTC (12:00:00 UTC)
+
+        r_pend_new = db.get(TrainingRequest, req3["id"])
+        r_pend_new.created_at = datetime(2026, 10, 26, 11, 0, 0, tzinfo=ar_tz)  # aware -03:00 (14:00:00 UTC)
+
+        service_items = get_student_active_plans(db, student_user)
+        assert len(service_items) == 3
+        # Orden descendente: 14:00 UTC (req3) > 12:00 UTC (req2) > 00:00 UTC (rel1)
+        assert [i.status for i in service_items] == ["PENDING", "PENDING", "ACTIVE"]
+        assert service_items[0].request_id == req3["id"]
+        assert service_items[1].request_id == req2["id"]
+        assert service_items[2].relationship_id == rel1["id"]
+
+    # Transición de relación ACTIVE a TERMINATED y EXPIRED -> ya no se retornan como plan activo
+    for inactive_status in ("TERMINATED", "EXPIRED"):
+        with session_factory() as db:
+            r_active = db.get(TrainingRelationship, rel1["id"])
+            r_active.status = inactive_status
+            db.commit()
+
+        after_inactive = api.get("/api/v1/students/me/active-plans", headers=auth(student_token)).json()
+        assert all(i["status"] == "PENDING" for i in after_inactive)
+        assert len(after_inactive) == 2
+        single_after = api.get("/api/v1/students/me/active-plan", headers=auth(student_token)).json()
+        assert single_after["has_active_plan"] is False
+
+    # Transición de solicitudes PENDING a REJECTED y CANCELLED -> desaparecen de la lista activa
+    with session_factory() as db:
+        r_pend_old = db.get(TrainingRequest, req2["id"])
+        r_pend_old.status = "REJECTED"
+        r_pend_new = db.get(TrainingRequest, req3["id"])
+        r_pend_new.status = "CANCELLED"
+        db.commit()
+
+    after_requests_resolved = api.get("/api/v1/students/me/active-plans", headers=auth(student_token)).json()
+    assert len(after_requests_resolved) == 0
+
+    with session_factory() as db:
+        student_user = db.query(User).filter(User.email == "student_sort@example.com").one()
+        assert len(get_student_active_plans(db, student_user)) == 0
 
 
 def test_unauthenticated_active_plan(client):
