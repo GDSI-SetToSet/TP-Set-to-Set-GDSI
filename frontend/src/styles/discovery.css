@@ -1095,6 +1095,9 @@
   border-radius: 14px;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
   z-index: 100;
+  display: flex;
+  flex-direction: column;
+  max-height: min(400px, calc(100vh - 2rem));
   overflow: hidden;
   text-align: left;
 }
@@ -1120,8 +1123,11 @@
 }
 
 .notification-dropdown__list {
-  max-height: 360px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-width: thin;
 }
 
 .notification-dropdown__empty {
@@ -1129,6 +1135,12 @@
   text-align: center;
   color: #64748b;
   font-size: 0.88rem;
+}
+
+.notification-dropdown__error {
+  padding: 0.65rem 1rem;
+  color: #b91c1c;
+  font-size: 0.78rem;
 }
 
 .notification-item {

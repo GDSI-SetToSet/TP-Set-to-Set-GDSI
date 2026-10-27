@@ -200,6 +200,20 @@ def test_student_sends_request_successfully(client):
     assert data["agreed_monthly_price"] == 20000
     assert data["agreed_currency"] == "ARS"
 
+    notifications = api.get(
+        "/api/v1/students/me/notifications",
+        headers=auth(trainer_token),
+    )
+    assert notifications.status_code == 200
+    notification = notifications.json()["items"][0]
+    assert notification["type"] == "NEW_TRAINING_REQUEST"
+    assert notification["title"] == "¡Nueva solicitud de entrenamiento!"
+    assert notification["message"] == (
+        "El alumno María García ha solicitado unirse a tu plan Plan Básico."
+    )
+    assert notification["related_entity_type"] == "TrainingRequest"
+    assert notification["related_entity_id"] == data["id"]
+
 
 def test_student_without_health_questionnaire_cannot_request(client):
     api, _ = client

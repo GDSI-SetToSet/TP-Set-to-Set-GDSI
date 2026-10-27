@@ -245,6 +245,20 @@ def create_training_request(
         created_at=utc_now(),
     )
     db.add(request)
+    db.flush()
+    student_name = " ".join(
+        name for name in (student_profile.first_name, student_profile.last_name) if name
+    ).strip() or "Un alumno"
+    create_notification(
+        db=db,
+        recipient_id=trainer_profile.user_id,
+        type="NEW_TRAINING_REQUEST",
+        title="¡Nueva solicitud de entrenamiento!",
+        message=f"El alumno {student_name} ha solicitado unirse a tu plan {plan.title}.",
+        related_entity_type="TrainingRequest",
+        related_entity_id=request.id,
+        commit=False,
+    )
     db.commit()
     db.refresh(request)
     return TrainingRequestResponse.model_validate(request).model_copy(
