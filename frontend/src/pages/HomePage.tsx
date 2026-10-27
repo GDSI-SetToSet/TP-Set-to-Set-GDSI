@@ -15,6 +15,7 @@ export function HomePage() {
   const [error, setError] = useState('');
   const [pendingRequestsCount, setPendingRequestsCount] = useState<number>(0);
   const [activePlans, setActivePlans] = useState<ActivePlansResponse>([]);
+  const activeLinksCount = activePlans.filter((plan) => plan.status === 'ACTIVE').length;
   const greeting = user?.role === USER_ROLES.trainer ? 'Tu espacio de entrenador' : 'Tu espacio de entrenamiento';
 
   useEffect(() => {
@@ -89,17 +90,17 @@ export function HomePage() {
         {user?.role === USER_ROLES.student && (
           <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentActivePlans}>
             <Inbox size={16} /> Mis entrenadores
-            <span className="inbox-badge-count" aria-label={`${activePlans.length} vínculos activos`}>
-              {activePlans.length}
+            <span className="inbox-badge-count" aria-label={`${activeLinksCount} vínculos activos`}>
+              {activeLinksCount}
             </span>
           </Link>
         )}
         {error && <p className="form-alert" role="alert">{error}</p>}
         {user?.role === USER_ROLES.student && (
           <p className="home-active-plans-summary">
-            {activePlans.length > 0
-              ? `Tenés ${activePlans.length} vínculo${activePlans.length === 1 ? '' : 's'} activo${activePlans.length === 1 ? '' : 's'}.`
-              : 'Consultá tus vínculos y planes de entrenamiento.'}
+            {activeLinksCount === 0
+              ? 'No tenés vínculos activos.'
+              : `Tenés ${activeLinksCount} vínculo${activeLinksCount === 1 ? '' : 's'} activo${activeLinksCount === 1 ? '' : 's'}.`}
           </p>
         )}
         <div className="welcome-next"><span>Este es el primer paso de Set to Set.</span><Dumbbell size={18} /></div>

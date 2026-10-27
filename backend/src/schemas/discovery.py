@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 TrainingRequestStatus = Literal["PENDING", "ACCEPTED", "REJECTED", "CANCELLED"]
 TrainingRelationshipStatus = Literal["ACTIVE", "EXPIRED", "TERMINATED"]
+StudentPlanStatus = Literal["ACTIVE", "EXPIRED", "TERMINATED", "PENDING"]
 
 
 class TrainerSearchResult(BaseModel):
@@ -157,8 +158,10 @@ class ActivePlanResponse(BaseModel):
 
     has_active_plan: bool
     relationship_id: str | None = None
-    status: TrainingRelationshipStatus | None = None
+    request_id: str | None = None
+    status: StudentPlanStatus | None = None
     start_date: date | None = None
+    requested_at: datetime | None = None
     agreed_monthly_price: float | None = None
     agreed_currency: str | None = None
     welcome_message: str | None = None

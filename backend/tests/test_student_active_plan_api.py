@@ -44,6 +44,52 @@ def test_student_active_plan_empty_when_no_relationship(client):
     assert data["trainer"] is None
 
 
+def test_student_active_plans_include_pending_requests(client):
+    api, _ = client
+    trainer_token = register_and_login(api, "coach_pending@example.com", "TRAINER")
+    trainer_prof = api.put(
+        "/api/v1/trainers/me/profile", headers=auth(trainer_token), json=TRAINER_DATA
+    ).json()
+    api.patch("/api/v1/trainers/me/quota", headers=auth(trainer_token), json={"max_students": 5})
+    plan = api.post(
+        "/api/v1/trainers/me/plans",
+        headers=auth(trainer_token),
+        json={"title": "Plan pendiente", "monthly_price": 18000},
+    ).json()
+
+    student_token = register_and_login(api, "student_pending@example.com", "STUDENT")
+    api.put("/api/v1/students/me/profile", headers=auth(student_token), json=STUDENT_DATA)
+    api.post(
+        "/api/v1/students/me/health-questionnaire",
+        headers=auth(student_token),
+        json=HEALTH_QUESTIONNAIRE,
+    )
+    request = api.post(
+        "/api/v1/matchmaking/requests",
+        headers=auth(student_token),
+        json={"trainer_id": trainer_prof["id"], "plan_id": plan["id"]},
+    ).json()
+
+    response = api.get("/api/v1/students/me/active-plans", headers=auth(student_token))
+    assert response.status_code == 200
+    plans = response.json()
+    assert len(plans) == 1
+    pending = plans[0]
+    assert pending["has_active_plan"] is False
+    assert pending["status"] == "PENDING"
+    assert pending["request_id"] == request["id"]
+    assert pending["requested_at"] is not None
+    assert pending["trainer"]["id"] == trainer_prof["id"]
+    assert pending["plan"]["id"] == plan["id"]
+    assert pending["agreed_monthly_price"] == 18000.0
+    assert pending["welcome_message"] is None
+    assert pending["routine"] is None
+
+    active_plan = api.get("/api/v1/students/me/active-plan", headers=auth(student_token))
+    assert active_plan.status_code == 200
+    assert active_plan.json()["has_active_plan"] is False
+
+
 def test_student_active_plan_after_acceptance(client):
     api, _ = client
     # Setup trainer

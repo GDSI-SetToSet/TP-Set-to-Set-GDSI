@@ -56,7 +56,7 @@ export function StudentActivePlansPage() {
         <div className="profile-heading">
           <span>ESPACIO DEL ALUMNO</span>
           <h1>Mis entrenadores</h1>
-          <p>Revisá tus vínculos activos, los planes y los mensajes de tus entrenadores.</p>
+          <p>Revisá tus solicitudes pendientes, vínculos activos, planes y mensajes de tus entrenadores.</p>
         </div>
 
         {loading ? (
@@ -71,15 +71,15 @@ export function StudentActivePlansPage() {
         ) : activePlans.length === 0 ? (
           <div className="student-active-plans__empty">
             <Inbox size={28} />
-            <h2>Todavía no tenés vínculos activos</h2>
-            <p>Cuando un entrenador acepte tu solicitud, el plan y su mensaje aparecerán acá.</p>
+            <h2>Todavía no tenés solicitudes ni vínculos activos</h2>
+            <p>Cuando solicites un plan o un entrenador acepte tu solicitud, aparecerá acá.</p>
             <Link to={ROUTES.trainerSearch} className="profile-cta">Buscar entrenadores</Link>
           </div>
         ) : (
           <div className="student-active-plans__list">
             {activePlans.map((plan, index) => (
               <ActivePlanCard
-                key={plan.relationship_id ?? plan.trainer?.id ?? index}
+                key={plan.relationship_id ?? plan.request_id ?? plan.trainer?.id ?? index}
                 plan={plan}
               />
             ))}
