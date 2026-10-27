@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bell, Check, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { USER_ROLES } from '../constants/auth';
+import { ROUTES } from '../constants/routes';
+import { useAuth } from '../context/AuthContext';
 import { getNotifications, markNotificationAsRead } from '../services/discoveryService';
 import type { NotificationItem } from '../types/discovery';
 
@@ -8,10 +12,13 @@ interface NotificationBellProps {
 }
 
 export function NotificationBell({ onNotificationClick }: NotificationBellProps) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [actionError, setActionError] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
   async function loadNotifications() {
@@ -51,8 +58,9 @@ export function NotificationBell({ onNotificationClick }: NotificationBellProps)
     };
   }, []);
 
-  async function handleItemClick(notif: NotificationItem) {
+  async function markAsRead(notif: NotificationItem) {
     if (!notif.is_read) {
+      setActionError('');
       try {
         const updated = await markNotificationAsRead(notif.id);
         setNotifications((prev) =>
@@ -60,13 +68,29 @@ export function NotificationBell({ onNotificationClick }: NotificationBellProps)
         );
         setUnreadCount((prev) => Math.max(0, prev - 1));
       } catch {
-        // Fallback
+        setActionError('No se pudo marcar la notificación como leída. Intentá nuevamente.');
       }
     }
+  }
+
+  async function handleItemClick(notif: NotificationItem) {
+    setIsOpen(false);
+    await markAsRead(notif);
     if (onNotificationClick) {
       onNotificationClick(notif);
     }
+    if (user?.role === USER_ROLES.trainer) {
+      navigate(ROUTES.trainerRequests);
+    }
   }
+
+  const displayedNotifications = [
+    ...notifications.filter((notification) => !notification.is_read),
+    ...notifications.filter((notification) => notification.is_read).slice(0, 5),
+  ].sort(
+    (first, second) =>
+      new Date(second.created_at).getTime() - new Date(first.created_at).getTime(),
+  );
 
   return (
     <div className="notification-bell-container" ref={containerRef}>
@@ -100,7 +124,7 @@ export function NotificationBell({ onNotificationClick }: NotificationBellProps)
             ) : notifications.length === 0 ? (
               <div className="notification-dropdown__empty">No tenés notificaciones aún.</div>
             ) : (
-              notifications.map((notif) => (
+              displayedNotifications.map((notif) => (
                 <article
                   key={notif.id}
                   className={`notification-item ${!notif.is_read ? 'notification-item--unread' : ''}`}
@@ -138,6 +162,11 @@ export function NotificationBell({ onNotificationClick }: NotificationBellProps)
               ))
             )}
           </div>
+          {actionError && (
+            <div className="notification-dropdown__error" role="alert">
+              {actionError}
+            </div>
+          )}
         </div>
       )}
     </div>

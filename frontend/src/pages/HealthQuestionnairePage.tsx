@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { ArrowLeft, CheckCircle2, Save } from 'lucide-react';
-import { type FormEvent, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { getOwnHealthQuestionnaire, saveHealthQuestionnaire } from '../services/studentHealthService';
 import { HEALTH_QUESTIONS, type HealthQuestionKey } from '../types/student';
@@ -10,11 +10,13 @@ type Answers = Partial<Record<HealthQuestionKey, boolean>>;
 const QUESTION_KEYS = Object.keys(HEALTH_QUESTIONS) as HealthQuestionKey[];
 
 export function HealthQuestionnairePage() {
+  const navigate = useNavigate();
+  const redirectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [answers, setAnswers] = useState<Answers>({});
   const [other, setOther] = useState('');
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
   const [missing, setMissing] = useState(false);
 
@@ -29,30 +31,39 @@ export function HealthQuestionnairePage() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => () => {
+    if (redirectTimeout.current !== null) clearTimeout(redirectTimeout.current);
+  }, []);
+
   const allAnswered = QUESTION_KEYS.every((key) => answers[key] !== undefined);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    setMessage('');
     setError('');
     if (!allAnswered) {
       setMissing(true);
       return;
     }
-    setSaving(true);
+    setIsSubmitting(true);
     try {
       await saveHealthQuestionnaire({ ...(answers as Record<HealthQuestionKey, boolean>), other_medical_conditions: other.trim() || null });
-      setMessage('Cuestionario guardado.');
+      setIsSubmitting(false);
+      setIsSuccess(true);
+      redirectTimeout.current = setTimeout(() => {
+        navigate(ROUTES.studentHome);
+        redirectTimeout.current = null;
+      }, 1000);
     } catch (caught) {
       setError(axios.isAxiosError(caught) ? 'Revisá las respuestas ingresadas.' : 'No pudimos guardar el cuestionario. Intentá nuevamente.');
     } finally {
-      setSaving(false);
+      setIsSubmitting(false);
     }
   }
 
   if (loading) return <main className="loading-screen"><span className="loading-mark" /> Cargando cuestionario…</main>;
 
   return (
+    <>
     <main className="profile-shell">
       <header className="profile-header">
         <Link to={ROUTES.studentHome} className="profile-back"><ArrowLeft size={18} /> Volver al inicio</Link>
@@ -80,10 +91,28 @@ export function HealthQuestionnairePage() {
           </label>
           {missing && <p className="form-alert" role="alert">Respondé todas las preguntas.</p>}
           {error && <p className="form-alert" role="alert">{error}</p>}
-          {message && <p className="profile-success" role="status"><CheckCircle2 size={18} /> {message}</p>}
-          <button className="profile-save" type="submit" disabled={saving}><Save size={18} /> {saving ? 'Guardando…' : 'Guardar cuestionario'}</button>
+          <button className="profile-save" type="submit" disabled={isSubmitting}><Save size={18} /> {isSubmitting ? 'Guardando...' : 'Guardar cuestionario'}</button>
         </form>
       </section>
     </main>
+    {(isSubmitting || isSuccess) && (
+      <div className="success-overlay" role="status" aria-live="polite" aria-atomic="true">
+        <div className="success-overlay__card">
+          {isSuccess ? (
+            <>
+              <span className="success-overlay__icon"><CheckCircle2 size={32} aria-hidden="true" /></span>
+              <h2>¡Guardado con éxito!</h2>
+              <p>Redirigiendo...</p>
+            </>
+          ) : (
+            <>
+              <span className="success-overlay__spinner" aria-hidden="true" />
+              <h2>Guardando...</h2>
+            </>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   );
 }

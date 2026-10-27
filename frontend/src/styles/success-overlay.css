@@ -1,0 +1,82 @@
+.success-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(14, 24, 19, 0.56);
+  backdrop-filter: blur(8px);
+  animation: success-overlay-fade-in 220ms ease-out both;
+}
+
+.success-overlay__card {
+  width: min(100%, 420px);
+  padding: 36px 32px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
+  color: #1c3027;
+  text-align: center;
+  animation: success-overlay-card-enter 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.success-overlay__icon,
+.success-overlay__spinner {
+  display: inline-grid;
+  width: 68px;
+  height: 68px;
+  place-items: center;
+  margin-bottom: 18px;
+  border-radius: 50%;
+}
+
+.success-overlay__icon {
+  background: #e7f5eb;
+  color: #20834b;
+}
+
+.success-overlay__spinner {
+  border: 4px solid #dbe9df;
+  border-top-color: #20834b;
+  animation: success-overlay-spin 800ms linear infinite;
+}
+
+.success-overlay__card h2 {
+  margin: 0;
+  font-size: clamp(1.3rem, 4vw, 1.65rem);
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+
+.success-overlay__card p {
+  margin: 10px 0 0;
+  color: #627269;
+  font-size: 0.98rem;
+}
+
+@keyframes success-overlay-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes success-overlay-card-enter {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes success-overlay-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .success-overlay,
+  .success-overlay__card {
+    animation-duration: 1ms;
+  }
+
+  .success-overlay__spinner {
+    animation-duration: 1.2s;
+  }
+}

@@ -7,14 +7,16 @@ interface ActivePlanCardProps {
 }
 
 export function ActivePlanCard({ plan, onRoutineClick }: ActivePlanCardProps) {
-  if (!plan.has_active_plan || !plan.trainer) {
+  const isPending = plan.status === 'PENDING';
+  if ((!plan.has_active_plan && !isPending) || !plan.trainer) {
     return null;
   }
 
   const { trainer, plan: contractedPlan, routine, welcome_message, agreed_monthly_price, agreed_currency, start_date } = plan;
 
-  const formattedDate = start_date
-    ? new Date(start_date).toLocaleDateString('es-AR', {
+  const displayDate = isPending ? plan.requested_at : start_date;
+  const formattedDate = displayDate
+    ? new Date(displayDate).toLocaleDateString('es-AR', {
         day: '2-digit',
         month: 'long',
         year: 'numeric',
@@ -22,15 +24,20 @@ export function ActivePlanCard({ plan, onRoutineClick }: ActivePlanCardProps) {
     : '';
 
   return (
-    <article className="active-plan-card" aria-label="Plan de entrenamiento activo">
+    <article
+      className={`active-plan-card${isPending ? ' active-plan-card--pending' : ''}`}
+      aria-label={isPending ? 'Solicitud de plan pendiente' : 'Plan de entrenamiento activo'}
+    >
       <header className="active-plan-card__header">
-        <div className="active-plan-card__badge">
-          <CheckCircle2 size={16} />
-          <span>Vínculo Activo</span>
+        <div className={`active-plan-card__badge${isPending ? ' active-plan-card__badge--pending' : ''}`}>
+          {isPending ? <Clock size={16} /> : <CheckCircle2 size={16} />}
+          <span>{isPending ? 'Solicitud Pendiente' : 'Vínculo Activo'}</span>
         </div>
-        <span className="active-plan-card__start-date">
-          <Calendar size={14} /> Desde {formattedDate}
-        </span>
+        {formattedDate && (
+          <span className="active-plan-card__start-date">
+            <Calendar size={14} /> {isPending ? 'Enviada' : 'Desde'} {formattedDate}
+          </span>
+        )}
       </header>
 
       <div className="active-plan-card__content">
@@ -69,7 +76,7 @@ export function ActivePlanCard({ plan, onRoutineClick }: ActivePlanCardProps) {
           </div>
         </section>
 
-        {welcome_message && (
+        {!isPending && welcome_message && (
           <section className="active-plan-card__welcome" aria-label="Mensaje de bienvenida">
             <div className="active-plan-card__welcome-header">
               <MessageSquare size={16} />
@@ -81,8 +88,18 @@ export function ActivePlanCard({ plan, onRoutineClick }: ActivePlanCardProps) {
           </section>
         )}
 
-        <section className="active-plan-card__routine-status" aria-label="Estado de la rutina">
-          {routine && routine.is_available ? (
+        <section
+          className="active-plan-card__routine-status"
+          aria-label={isPending ? 'Estado de la solicitud' : 'Estado de la rutina'}
+        >
+          {isPending ? (
+            <div className="active-plan-card__request-pending" role="status">
+              <Clock size={20} className="active-plan-card__pending-icon" />
+              <p>
+                Solicitud enviada. Esperando a que el entrenador apruebe tu solicitud para este plan.
+              </p>
+            </div>
+          ) : routine && routine.is_available ? (
             <div className="active-plan-card__routine-available">
               <div>
                 <span className="active-plan-card__kicker">Tu rutina actual</span>

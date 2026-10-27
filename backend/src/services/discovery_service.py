@@ -245,6 +245,20 @@ def create_training_request(
         created_at=utc_now(),
     )
     db.add(request)
+    db.flush()
+    student_name = " ".join(
+        name for name in (student_profile.first_name, student_profile.last_name) if name
+    ).strip() or "Un alumno"
+    create_notification(
+        db=db,
+        recipient_id=trainer_profile.user_id,
+        type="NEW_TRAINING_REQUEST",
+        title="¡Nueva solicitud de entrenamiento!",
+        message=f"El alumno {student_name} ha solicitado unirse a tu plan {plan.title}.",
+        related_entity_type="TrainingRequest",
+        related_entity_id=request.id,
+        commit=False,
+    )
     db.commit()
     db.refresh(request)
     return TrainingRequestResponse.model_validate(request).model_copy(
@@ -568,11 +582,61 @@ def get_student_active_plans(db: Session, user: User) -> list[ActivePlanResponse
                 routine=routine,
             )
         )
+
+    pending_requests = db.scalars(
+        select(TrainingRequest)
+        .where(
+            TrainingRequest.student_id == student_profile.id,
+            TrainingRequest.status == "PENDING",
+        )
+        .order_by(TrainingRequest.created_at.desc(), TrainingRequest.id.desc())
+    ).all()
+    for request in pending_requests:
+        trainer_profile = db.get(TrainerProfile, request.trainer_id)
+        trainer_user = db.get(User, trainer_profile.user_id) if trainer_profile else None
+        plan = db.get(TrainingPlan, request.plan_id)
+
+        trainer_summary = (
+            ActiveTrainerSummary(
+                id=trainer_profile.id,
+                full_name=trainer_profile.full_name,
+                specialty=trainer_profile.specialty,
+                profile_picture_url=None,
+                email=trainer_user.email if trainer_user else None,
+                phone=trainer_profile.contact_phone,
+            )
+            if trainer_profile
+            else None
+        )
+        plan_summary = ActivePlanSummary(id=plan.id, title=plan.title) if plan else None
+
+        items.append(
+            ActivePlanResponse(
+                has_active_plan=False,
+                request_id=request.id,
+                status="PENDING",
+                requested_at=request.created_at,
+                agreed_monthly_price=float(request.agreed_monthly_price),
+                agreed_currency=request.agreed_currency,
+                trainer=trainer_summary,
+                plan=plan_summary,
+            )
+        )
+
+    def item_date(item: ActivePlanResponse) -> datetime:
+        if item.requested_at:
+            return item.requested_at
+        if item.start_date:
+            return datetime.combine(item.start_date, datetime.min.time())
+        return datetime.min
+
+    items.sort(key=item_date, reverse=True)
     return items
 
 
 def get_student_active_plan(db: Session, user: User) -> ActivePlanResponse:
     plans = get_student_active_plans(db, user)
-    if not plans:
-        return ActivePlanResponse(has_active_plan=False)
-    return plans[0]
+    return next(
+        (plan for plan in plans if plan.has_active_plan),
+        ActivePlanResponse(has_active_plan=False),
+    )

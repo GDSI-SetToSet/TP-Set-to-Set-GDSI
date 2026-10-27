@@ -134,8 +134,10 @@ export interface ActiveRoutineSummary {
 export interface ActivePlanResponse {
   has_active_plan: boolean;
   relationship_id?: string | null;
-  status?: TrainingRelationshipStatus | null;
+  request_id?: string | null;
+  status?: TrainingRelationshipStatus | 'PENDING' | null;
   start_date?: string | null;
+  requested_at?: string | null;
   agreed_monthly_price?: number | null;
   agreed_currency?: string | null;
   welcome_message?: string | null;

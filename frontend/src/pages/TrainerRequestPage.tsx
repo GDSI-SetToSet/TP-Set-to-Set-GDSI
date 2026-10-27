@@ -63,8 +63,10 @@ export function TrainerRequestPage() {
           <CheckCircle size={48} className="success-icon" />
           <h2>Tu solicitud fue enviada</h2>
           <p>El entrenador la revisará pronto.</p>
-          <Link to={ROUTES.studentRequests} className="filter-btn">Ver mis solicitudes</Link>
-          <Link to={ROUTES.trainerSearch} className="back-link" style={{ marginTop: '1rem' }}>Buscar más entrenadores</Link>
+          <div className="request-success__actions">
+            <Link to={ROUTES.studentRequests} className="filter-btn">Ver mis solicitudes</Link>
+            <Link to={ROUTES.trainerSearch} className="back-link">Buscar más entrenadores</Link>
+          </div>
         </section>
       </main>
     );
