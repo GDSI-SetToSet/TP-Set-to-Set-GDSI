@@ -89,7 +89,7 @@ export function HomePage() {
         {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerSearch}>Buscar entrenadores</Link>}
         {user?.role === USER_ROLES.student && (
           <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentActivePlans}>
-            <Inbox size={16} /> Mis entrenadores
+            Mis entrenadores
             <span className="inbox-badge-count" aria-label={`${activeLinksCount} vínculos activos`}>
               {activeLinksCount}
             </span>
