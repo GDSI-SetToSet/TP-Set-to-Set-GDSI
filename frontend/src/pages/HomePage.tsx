@@ -5,9 +5,8 @@ import { USER_ROLES } from '../constants/auth';
 import { useAuth } from '../context/AuthContext';
 import { homePath, ROUTES } from '../constants/routes';
 import { getActivePlans, getTrainerRequests } from '../services/discoveryService';
-import type { ActivePlansResponse } from '../types/discovery';
+import type { ActivePlansResponse, NotificationItem } from '../types/discovery';
 import { NotificationBell } from '../components/NotificationBell';
-import type { NotificationItem } from '../types/discovery';
 
 export function HomePage() {
   const { user, logout } = useAuth();
@@ -20,13 +19,17 @@ export function HomePage() {
 
   useEffect(() => {
     let active = true;
+    setError('');
     if (user?.role === USER_ROLES.trainer) {
       getTrainerRequests('PENDING')
         .then((requests) => {
           if (active) setPendingRequestsCount(requests.length);
         })
         .catch(() => {
-          if (active) setPendingRequestsCount(0);
+          if (active) {
+            setPendingRequestsCount(0);
+            setError('No pudimos cargar tus solicitudes pendientes. Intentá nuevamente.');
+          }
         });
     } else if (user?.role === USER_ROLES.student) {
       getActivePlans()
@@ -36,7 +39,10 @@ export function HomePage() {
           }
         })
         .catch(() => {
-          if (active) setActivePlans([]);
+          if (active) {
+            setActivePlans([]);
+            setError('No pudimos cargar tus vínculos activos. Intentá nuevamente.');
+          }
         });
     }
     return () => {
@@ -55,6 +61,8 @@ export function HomePage() {
   function handleNotificationClick(_notification: NotificationItem) {
     if (user?.role === USER_ROLES.student) {
       navigate(ROUTES.studentActivePlans);
+    } else if (user?.role === USER_ROLES.trainer) {
+      navigate(ROUTES.trainerRequests);
     }
   }
 
@@ -63,7 +71,9 @@ export function HomePage() {
       <header className="home-header">
         <Link className="brand" to={homePath(user?.role ?? USER_ROLES.student)}><span className="brand__icon"><Sparkles size={19} /></span><span>set<span className="brand__accent">to</span>set</span></Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <NotificationBell onNotificationClick={handleNotificationClick} />
+          {(user?.role === USER_ROLES.student || user?.role === USER_ROLES.trainer) && (
+            <NotificationBell onNotificationClick={handleNotificationClick} />
+          )}
           <button type="button" className="logout-button" onClick={handleLogout}><LogOut size={17} /> Cerrar sesión</button>
         </div>
       </header>

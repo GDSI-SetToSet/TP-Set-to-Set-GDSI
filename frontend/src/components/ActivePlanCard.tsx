@@ -48,18 +48,20 @@ export function ActivePlanCard({ plan, onRoutineClick }: ActivePlanCardProps) {
           <div>
             <h3 className="active-plan-card__trainer-name">{trainer.full_name || 'Entrenador asignado'}</h3>
             <p className="active-plan-card__specialty">{trainer.specialty || 'Entrenador personal'}</p>
-            <div className="active-plan-card__contacts">
-              {trainer.email && (
-                <span className="active-plan-card__contact-item">
-                  <Mail size={13} /> {trainer.email}
-                </span>
-              )}
-              {trainer.phone && (
-                <span className="active-plan-card__contact-item">
-                  <Phone size={13} /> {trainer.phone}
-                </span>
-              )}
-            </div>
+            {!isPending && (trainer.email || trainer.phone) && (
+              <div className="active-plan-card__contacts">
+                {trainer.email && (
+                  <span className="active-plan-card__contact-item">
+                    <Mail size={13} /> {trainer.email}
+                  </span>
+                )}
+                {trainer.phone && (
+                  <span className="active-plan-card__contact-item">
+                    <Phone size={13} /> {trainer.phone}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </section>
 

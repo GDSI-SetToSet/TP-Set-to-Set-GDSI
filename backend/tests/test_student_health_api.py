@@ -84,7 +84,9 @@ def test_questionnaire_visibility(client, student_token_headers):
     assert test_client.get(url, headers=student_token_headers).status_code == status.HTTP_200_OK
 
     trainer = register_and_login(test_client, "entrenador@example.com", "TRAINER")
-    assert test_client.get(url, headers=trainer).status_code == status.HTTP_403_FORBIDDEN
+    denied_trainer = test_client.get(url, headers=trainer)
+    assert denied_trainer.status_code == status.HTTP_403_FORBIDDEN
+    assert "health questionnaire" in denied_trainer.json()["detail"].lower()
     other = register_and_login(test_client, "otra@example.com", "STUDENT")
     assert test_client.get(url, headers=other).status_code == status.HTTP_403_FORBIDDEN
     missing = "/api/v1/students/does-not-exist/health-questionnaire"

@@ -1,3 +1,4 @@
+from backend.src.models.notification import Notification
 from backend.src.models.user import User
 from backend.src.services.notification_service import create_notification
 
@@ -114,7 +115,84 @@ def test_mark_nonexistent_notification_not_found(client):
     assert resp.status_code == 404
 
 
+def test_trainer_cannot_access_or_mark_student_notifications(client):
+    api, _ = client
+    trainer_token = register_and_login(api, "trainer_notif@example.com", "TRAINER")
+
+    list_resp = api.get("/api/v1/students/me/notifications", headers=auth(trainer_token))
+    assert list_resp.status_code == 403
+    assert "alumnos" in list_resp.json()["detail"].lower()
+
+    patch_resp = api.patch(
+        "/api/v1/students/me/notifications/some-id/read", headers=auth(trainer_token)
+    )
+    assert patch_resp.status_code == 403
+    assert "alumnos" in patch_resp.json()["detail"].lower()
+
+
+def test_trainer_notifications_rbac_isolation_and_no_db_mutation_on_denied(client):
+    api, session_factory = client
+    trainer1_token = register_and_login(api, "trainer1_notif@example.com", "TRAINER")
+    trainer2_token = register_and_login(api, "trainer2_notif@example.com", "TRAINER")
+    student_token = register_and_login(api, "student_for_trainer_notif@example.com", "STUDENT")
+
+    with session_factory() as db:
+        t1 = db.query(User).filter_by(email="trainer1_notif@example.com").first()
+        notif = create_notification(
+            db,
+            t1.id,
+            "NEW_REQUEST",
+            "¡Nueva solicitud de entrenamiento!",
+            "El alumno solicitó unirse a tu plan.",
+            commit=True,
+        )
+        notif_id = notif.id
+
+    # 1. Student cannot access trainer notification endpoints (403)
+    student_list = api.get("/api/v1/trainers/me/notifications", headers=auth(student_token))
+    assert student_list.status_code == 403
+    assert "entrenadores" in student_list.json()["detail"].lower()
+
+    student_patch = api.patch(
+        f"/api/v1/trainers/me/notifications/{notif_id}/read", headers=auth(student_token)
+    )
+    assert student_patch.status_code == 403
+    assert "entrenadores" in student_patch.json()["detail"].lower()
+
+    # 2. Trainer 2 cannot see or mark Trainer 1's notification
+    t2_list = api.get("/api/v1/trainers/me/notifications", headers=auth(trainer2_token))
+    assert t2_list.status_code == 200
+    assert t2_list.json()["total"] == 0
+
+    t2_patch = api.patch(
+        f"/api/v1/trainers/me/notifications/{notif_id}/read", headers=auth(trainer2_token)
+    )
+    assert t2_patch.status_code == 403
+
+    # 3. Verify no DB mutation occurred after denied attempts
+    with session_factory() as db:
+        persisted = db.get(Notification, notif_id)
+        assert persisted.is_read is False
+        assert persisted.read_at is None
+
+    # 4. Trainer 1 (owner) can list and mark as read
+    t1_list = api.get("/api/v1/trainers/me/notifications", headers=auth(trainer1_token))
+    assert t1_list.status_code == 200
+    assert t1_list.json()["total"] == 1
+    assert t1_list.json()["unread_count"] == 1
+    assert t1_list.json()["items"][0]["type"] == "NEW_REQUEST"
+
+    t1_patch = api.patch(
+        f"/api/v1/trainers/me/notifications/{notif_id}/read", headers=auth(trainer1_token)
+    )
+    assert t1_patch.status_code == 200
+    assert t1_patch.json()["is_read"] is True
+    assert t1_patch.json()["read_at"] is not None
+
+
 def test_unauthenticated_notifications(client):
     api, _ = client
     assert api.get("/api/v1/students/me/notifications").status_code == 401
     assert api.patch("/api/v1/students/me/notifications/some-id/read").status_code == 401
+    assert api.get("/api/v1/trainers/me/notifications").status_code == 401
+    assert api.patch("/api/v1/trainers/me/notifications/some-id/read").status_code == 401

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 
 from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
+from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
 from backend.src.models.user import User
 from backend.src.schemas.discovery import (
     ActivePlanResponse,
@@ -53,7 +54,7 @@ def trainer_search(
     _: CurrentUser,
     db: DbDep,
     specialty: str | None = Query(default=None),
-    max_price: float | None = Query(default=None),
+    max_price: float | None = Query(default=None, ge=0),
     only_available: bool = Query(default=True),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=50),
@@ -179,7 +180,9 @@ def student_notifications(
     offset: int = Query(default=0, ge=0),
 ) -> NotificationListResponse:
     try:
-        return list_user_notifications(db, user, is_read=is_read, limit=limit, offset=offset)
+        return list_user_notifications(
+            db, user, is_read=is_read, limit=limit, offset=offset, expected_role=STUDENT_ROLE
+        )
     except NotificationError as error:
         raise HTTPException(status_code=error.status_code, detail=error.detail) from error
 
@@ -191,6 +194,34 @@ def mark_notification_read(
     db: DbDep,
 ) -> NotificationItem:
     try:
-        return mark_notification_as_read(db, user, notification_id)
+        return mark_notification_as_read(db, user, notification_id, expected_role=STUDENT_ROLE)
+    except NotificationError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+
+
+@router.get("/trainers/me/notifications", response_model=NotificationListResponse)
+def trainer_notifications(
+    user: CurrentUser,
+    db: DbDep,
+    is_read: bool | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> NotificationListResponse:
+    try:
+        return list_user_notifications(
+            db, user, is_read=is_read, limit=limit, offset=offset, expected_role=TRAINER_ROLE
+        )
+    except NotificationError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+
+
+@router.patch("/trainers/me/notifications/{notification_id}/read", response_model=NotificationItem)
+def mark_trainer_notification_read(
+    notification_id: str,
+    user: CurrentUser,
+    db: DbDep,
+) -> NotificationItem:
+    try:
+        return mark_notification_as_read(db, user, notification_id, expected_role=TRAINER_ROLE)
     except NotificationError as error:
         raise HTTPException(status_code=error.status_code, detail=error.detail) from error

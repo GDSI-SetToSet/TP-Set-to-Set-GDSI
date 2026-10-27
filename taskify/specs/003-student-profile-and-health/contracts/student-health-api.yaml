@@ -60,6 +60,7 @@ paths:
                       $ref: '#/components/schemas/FitnessGoal'
                   personal_motivation:
                     type: string
+                    nullable: true
         '403':
           description: Entrenador sin solicitud pendiente ni relación activa
 
@@ -120,7 +121,7 @@ paths:
 
   /api/v1/students/me/protected-zones:
     get:
-      summary: Listar zonas corporales a proteger y lesiones declaradas
+      summary: Listar zonas corporales a proteger del alumno autenticado (US-42)
       security:
         - BearerAuth: []
       responses:
@@ -128,11 +129,9 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ProtectedZoneResponse'
-    post:
-      summary: Registrar una nueva lesión o zona a proteger
+                $ref: '#/components/schemas/ProtectedZonesResponse'
+    put:
+      summary: Reemplazar/actualizar la lista de zonas a proteger del alumno autenticado (US-42)
       security:
         - BearerAuth: []
       requestBody:
@@ -140,25 +139,31 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [body_area, injury_description]
-              properties:
-                body_area:
-                  type: string
-                  example: "Rodilla derecha"
-                injury_description:
-                  type: string
-                  example: "Operación de meniscos hace 2 años; evitar impacto repetitivo"
+              $ref: '#/components/schemas/ProtectedZonesUpdateRequest'
       responses:
-        '201':
+        '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProtectedZoneResponse'
+                $ref: '#/components/schemas/ProtectedZonesResponse'
+        '422':
+          description: Zona vacía, repetida o con longitud mayor a 80 caracteres
 
   /api/v1/students/me/medical-clearance:
+    get:
+      summary: Obtener metadatos del certificado de apto médico vigente del alumno autenticado (US-43)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalClearanceResponse'
+        '404':
+          description: Certificado médico no encontrado
     post:
-      summary: Adjuntar nuevo certificado de apto médico (PDF o Imagen)
+      summary: Adjuntar nuevo certificado de apto médico (PDF o Imagen) (US-43)
       security:
         - BearerAuth: []
       requestBody:
@@ -182,7 +187,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/MedicalClearanceResponse'
         '400':
-          description: Formato no soportado (solo PDF, JPEG, PNG) o archivo excede 10 MB
+          description: Formato no soportado (solo PDF, JPEG, PNG), archivo vacío o archivo excede 10 MB
 
   /api/v1/students/{student_id}/medical-clearance/download:
     get:
@@ -205,6 +210,10 @@ paths:
                 type: string
                 format: binary
             image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
               schema:
                 type: string
                 format: binary
@@ -233,23 +242,35 @@ components:
       properties:
         first_name:
           type: string
+          maxLength: 100
+          nullable: true
         last_name:
           type: string
+          maxLength: 100
+          nullable: true
         contact_phone:
           type: string
+          nullable: true
           pattern: '^\+?[0-9]{10,15}$'
           description: '"+" opcional y 10 a 15 dígitos, sin espacios ni guiones'
         birth_date:
           type: string
-          format: date
+          format: date-time
+          nullable: true
+        profile_picture:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
         fitness_goals:
           type: array
-          minItems: 1
           uniqueItems: true
           items:
             $ref: '#/components/schemas/FitnessGoal'
         personal_motivation:
           type: string
+          nullable: true
 
     StudentProfileResponse:
       type: object
@@ -257,23 +278,48 @@ components:
         id:
           type: string
           format: uuid
+        user_id:
+          type: string
+          format: uuid
         first_name:
           type: string
+          nullable: true
         last_name:
           type: string
+          nullable: true
+        birth_date:
+          type: string
+          format: date-time
+          nullable: true
         contact_phone:
           type: string
-        status:
+          nullable: true
+        profile_picture:
           type: string
-          enum: [DRAFT, PUBLISHED]
-        health_questionnaire_completed:
-          type: boolean
+          nullable: true
+        bio:
+          type: string
+          nullable: true
         fitness_goals:
           type: array
           items:
             $ref: '#/components/schemas/FitnessGoal'
         personal_motivation:
           type: string
+          nullable: true
+        health_questionnaire_completed:
+          type: boolean
+        medical_clearance_completed:
+          type: boolean
+        status:
+          type: string
+          enum: [DRAFT, PUBLISHED]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
 
     HealthQuestionnaireInput:
       type: object
@@ -291,6 +337,7 @@ components:
           type: boolean
         other_medical_conditions:
           type: string
+          nullable: true
 
     HealthQuestionnaireResponse:
       type: object
@@ -310,12 +357,26 @@ components:
           type: boolean
         other_medical_conditions:
           type: string
+          nullable: true
+        status:
+          type: string
+          enum: [CURRENT, ARCHIVED]
         has_risk_answers:
           type: boolean
           description: true si alguna de las 5 preguntas fue respondida Sí; aviso para el entrenador, no bloquea al alumno
         completed_at:
           type: string
           format: date-time
+
+    ProtectedZonesUpdateRequest:
+      type: object
+      properties:
+        zones:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 80
 
     ProtectedZoneResponse:
       type: object
@@ -325,10 +386,17 @@ components:
           format: uuid
         body_area:
           type: string
-        injury_description:
+        created_at:
           type: string
-        is_active:
-          type: boolean
+          format: date-time
+
+    ProtectedZonesResponse:
+      type: object
+      properties:
+        zones:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProtectedZoneResponse'
 
     MedicalClearanceResponse:
       type: object
@@ -340,6 +408,8 @@ components:
           type: string
         mime_type:
           type: string
+        file_size_bytes:
+          type: integer
         issue_date:
           type: string
           format: date

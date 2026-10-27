@@ -68,7 +68,12 @@ def create_access_token(user_id: str, role: str, jti: str, expires_at: datetime)
 
 
 def decode_access_token(token: str) -> dict[str, Any]:
-    return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    return jwt.decode(
+        token,
+        JWT_SECRET,
+        algorithms=[JWT_ALGORITHM],
+        options={"require": ["sub", "jti", "exp"]},
+    )
 
 
 def create_session_credentials(user_id: str, role: str, now: datetime) -> tuple[str, str, datetime]:

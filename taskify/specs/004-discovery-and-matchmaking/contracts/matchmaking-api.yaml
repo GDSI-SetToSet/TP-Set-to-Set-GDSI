@@ -5,9 +5,11 @@ info:
   description: Endpoints para catálogo y búsqueda de entrenadores, envío y gestión de solicitudes de entrenamiento (US-44, US-46 a US-49, US-06, US-07).
 
 paths:
-  /api/v1/trainers:
+  /api/v1/trainers/search:
     get:
-      summary: Buscar y filtrar entrenadores en el catálogo público
+      summary: Buscar y filtrar entrenadores en el catálogo público paginado (US-44)
+      security:
+        - BearerAuth: []
       parameters:
         - name: specialty
           in: query
@@ -19,24 +21,40 @@ paths:
           required: false
           schema:
             type: number
+            minimum: 0
         - name: only_available
           in: query
           required: false
           schema:
             type: boolean
-            default: false
+            default: true
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 50
       responses:
         '200':
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/TrainerCatalogItem'
+                $ref: '#/components/schemas/PaginatedTrainers'
 
   /api/v1/trainers/{trainer_id}/public:
     get:
-      summary: Visualizar perfil público completo de un entrenador
+      summary: Visualizar perfil público completo de un entrenador (US-46, US-47)
+      security:
+        - BearerAuth: []
       parameters:
         - name: trainer_id
           in: path
@@ -50,10 +68,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TrainerPublicDetail'
+        '404':
+          description: Entrenador no encontrado o perfil no publicado
 
   /api/v1/matchmaking/requests:
     post:
-      summary: Enviar solicitud de entrenamiento a un entrenador
+      summary: Enviar solicitud de entrenamiento a un entrenador (US-48)
       security:
         - BearerAuth: []
       requestBody:
@@ -78,11 +98,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TrainingRequestResponse'
+        '403':
+          description: El usuario no es alumno o no completó el cuestionario de salud (FR-005)
         '409':
-          description: El entrenador no cuenta con cupos disponibles o ya existe solicitud pendiente
+          description: El entrenador no cuenta con cupos disponibles, ya existe solicitud pendiente o ya existe vínculo activo
 
     get:
-      summary: Listar solicitudes del usuario (inbox para entrenador, mis solicitudes para alumno)
+      summary: Listar bandeja de solicitudes del entrenador autenticado (US-06)
       security:
         - BearerAuth: []
       parameters:
@@ -100,11 +122,29 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/TrainingRequestResponse'
+        '403':
+          description: No autorizado (solo rol entrenador)
+
+  /api/v1/matchmaking/requests/mine:
+    get:
+      summary: Listar solicitudes enviadas por el alumno autenticado (US-48)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrainingRequestResponse'
+        '403':
+          description: No autorizado (solo rol alumno)
 
   /api/v1/matchmaking/requests/{request_id}:
     get:
       summary: Consultar detalle de una solicitud específica
-      description: Retorna el detalle de la solicitud incluyendo el resumen del alumno y plan solicitado (US-06, US-48).
+      description: Retorna el detalle de la solicitud incluyendo el resumen del alumno y plan solicitado (US-06, US-48). Si la solicitud está rechazada o cancelada sin vínculo activo, se omiten datos privados del alumno (teléfono y fecha de nacimiento).
       security:
         - BearerAuth: []
       parameters:
@@ -190,8 +230,8 @@ paths:
 
   /api/v1/students/me/active-plan:
     get:
-      summary: Consultar plan de entrenamiento y entrenador activo del alumno (US-49)
-      description: Retorna los datos del vínculo activo del alumno autenticado, incluyendo entrenador asignado, tarifa, mensaje de bienvenida y primera rutina asignada si existe.
+      summary: Consultar plan de entrenamiento y entrenador activo principal del alumno (US-49)
+      description: Retorna los datos del vínculo activo más reciente del alumno autenticado, incluyendo entrenador asignado, tarifa, mensaje de bienvenida y primera rutina asignada si existe.
       tags:
         - Students / Matchmaking
       security:
@@ -203,6 +243,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ActivePlanResponse'
+        '401':
+          description: No autenticado
+        '403':
+          description: No autorizado (solo rol alumno)
+
+  /api/v1/students/me/active-plans:
+    get:
+      summary: Listar todos los planes activos y solicitudes pendientes del alumno (US-49)
+      description: Retorna la lista completa de vínculos activos y solicitudes pendientes del alumno autenticado, ordenados por fecha descendente. En solicitudes PENDING no se exponen datos de contacto privados del entrenador (email ni teléfono).
+      tags:
+        - Students / Matchmaking
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Lista de planes activos y solicitudes pendientes recuperada exitosamente.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ActivePlanResponse'
         '401':
           description: No autenticado
         '403':
@@ -229,12 +291,15 @@ paths:
           schema:
             type: integer
             default: 20
+            minimum: 1
+            maximum: 100
         - name: offset
           in: query
           required: false
           schema:
             type: integer
             default: 0
+            minimum: 0
       responses:
         '200':
           description: Lista de notificaciones obtenida exitosamente.
@@ -244,11 +309,13 @@ paths:
                 $ref: '#/components/schemas/NotificationListResponse'
         '401':
           description: No autenticado
+        '403':
+          description: No autorizado (solo rol alumno)
 
   /api/v1/students/me/notifications/{notification_id}/read:
     patch:
-      summary: Marcar notificación como leída (US-49)
-      description: Actualiza el estado de una notificación específica a leída.
+      summary: Marcar notificación del alumno como leída (US-49)
+      description: Actualiza el estado de una notificación específica del alumno a leída.
       tags:
         - Notifications
       security:
@@ -269,6 +336,79 @@ paths:
                 $ref: '#/components/schemas/NotificationItem'
         '401':
           description: No autenticado
+        '403':
+          description: No autorizado (solo rol alumno o notificación perteneciente a otro usuario)
+        '404':
+          description: Notificación no encontrada
+
+  /api/v1/trainers/me/notifications:
+    get:
+      summary: Listar notificaciones del entrenador (US-06, US-48)
+      description: Obtiene las notificaciones in-app recibidas por el entrenador autenticado (nuevas solicitudes de entrenamiento, avisos).
+      tags:
+        - Notifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: is_read
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Filtrar por estado de lectura
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: Lista de notificaciones obtenida exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+        '401':
+          description: No autenticado
+        '403':
+          description: No autorizado (solo rol entrenador)
+
+  /api/v1/trainers/me/notifications/{notification_id}/read:
+    patch:
+      summary: Marcar notificación del entrenador como leída (US-06, US-48)
+      description: Actualiza el estado de una notificación específica del entrenador a leída.
+      tags:
+        - Notifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: notification_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notificación marcada como leída.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationItem'
+        '401':
+          description: No autenticado
+        '403':
+          description: No autorizado (solo rol entrenador o notificación perteneciente a otro usuario)
         '404':
           description: Notificación no encontrada
 
@@ -280,22 +420,51 @@ components:
       bearerFormat: JWT
 
   schemas:
-    TrainerCatalogItem:
+    TrainerSearchResult:
       type: object
       properties:
         id:
           type: string
           format: uuid
+        user_id:
+          type: string
+          format: uuid
         full_name:
           type: string
+          nullable: true
         specialty:
           type: string
-        starting_price:
-          type: number
-        currency:
+          nullable: true
+        bio_preview:
           type: string
+          nullable: true
+        min_price:
+          type: number
+          nullable: true
+        max_price:
+          type: number
+          nullable: true
+        available_slots:
+          type: integer
         has_available_quota:
           type: boolean
+        plans_count:
+          type: integer
+
+    PaginatedTrainers:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrainerSearchResult'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
 
     TrainerPublicDetail:
       type: object
@@ -303,14 +472,25 @@ components:
         id:
           type: string
           format: uuid
+        user_id:
+          type: string
+          format: uuid
         full_name:
           type: string
+          nullable: true
         specialty:
           type: string
+          nullable: true
         bio:
           type: string
+          nullable: true
         certifications:
           type: string
+          nullable: true
+        max_students:
+          type: integer
+        available_slots:
+          type: integer
         has_available_quota:
           type: boolean
         plans:
@@ -323,6 +503,9 @@ components:
                 format: uuid
               title:
                 type: string
+              description:
+                type: string
+                nullable: true
               monthly_price:
                 type: number
               currency:
@@ -355,8 +538,10 @@ components:
           type: boolean
         student_message:
           type: string
+          nullable: true
         trainer_response_message:
           type: string
+          nullable: true
         created_at:
           type: string
           format: date-time
@@ -422,18 +607,6 @@ components:
         start_date:
           type: string
           format: date
-        welcome_message:
-          type: string
-          nullable: true
-          description: Mensaje de bienvenida ingresado por el entrenador al aceptar (US-49)
-        welcome_message_sent:
-          type: boolean
-          description: Indica si la notificación fue generada (US-49)
-        initial_routine_id:
-          type: string
-          format: uuid
-          nullable: true
-          description: ID de la primera rutina si ya fue cargada (US-49)
 
     ActivePlanResponse:
       type: object
@@ -447,14 +620,24 @@ components:
           type: string
           format: uuid
           nullable: true
+        request_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Identificador de la solicitud cuando el ítem corresponde a una solicitud pendiente.
         status:
           type: string
-          enum: [ACTIVE, TERMINATED, EXPIRED]
+          enum: [ACTIVE, TERMINATED, EXPIRED, PENDING]
           nullable: true
         start_date:
           type: string
           format: date
           nullable: true
+        requested_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Fecha y hora de envío de la solicitud cuando el ítem está en estado PENDING.
         agreed_monthly_price:
           type: number
           nullable: true
@@ -486,19 +669,24 @@ components:
           format: uuid
         full_name:
           type: string
+          nullable: true
           example: "Juan Pérez"
         profile_picture_url:
           type: string
           nullable: true
         specialty:
           type: string
+          nullable: true
           example: "Hipertrofia y Fuerza"
         email:
           type: string
+          nullable: true
+          description: Visible únicamente cuando existe un vínculo ACTIVE.
           example: "juan.perez@example.com"
         phone:
           type: string
           nullable: true
+          description: Visible únicamente cuando existe un vínculo ACTIVE.
           example: "+54 9 11 1234-5678"
 
     ActivePlanSummary:

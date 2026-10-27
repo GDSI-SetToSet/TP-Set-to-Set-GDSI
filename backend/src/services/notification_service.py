@@ -4,6 +4,7 @@ from fastapi import status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
 from backend.src.models.notification import Notification
 from backend.src.models.user import User
 from backend.src.schemas.discovery import NotificationItem, NotificationListResponse
@@ -18,6 +19,15 @@ class NotificationError(Exception):
 
 def utc_now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+def _require_role(user: User, expected_role: str = STUDENT_ROLE) -> None:
+    if user.role != expected_role:
+        role_label = "entrenadores" if expected_role == TRAINER_ROLE else "alumnos"
+        raise NotificationError(
+            status.HTTP_403_FORBIDDEN,
+            f"Esta acción está disponible solo para {role_label}.",
+        )
 
 
 def create_notification(
@@ -55,7 +65,9 @@ def list_user_notifications(
     is_read: bool | None = None,
     limit: int = 20,
     offset: int = 0,
+    expected_role: str = STUDENT_ROLE,
 ) -> NotificationListResponse:
+    _require_role(user, expected_role)
     query = select(Notification).where(Notification.recipient_id == user.id)
     if is_read is not None:
         query = query.where(Notification.is_read == is_read)
@@ -85,7 +97,9 @@ def mark_notification_as_read(
     db: Session,
     user: User,
     notification_id: str,
+    expected_role: str = STUDENT_ROLE,
 ) -> NotificationItem:
+    _require_role(user, expected_role)
     notification = db.get(Notification, notification_id)
     if notification is None:
         raise NotificationError(status.HTTP_404_NOT_FOUND, "Notificación no encontrada.")
