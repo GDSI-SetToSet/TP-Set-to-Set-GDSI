@@ -8,7 +8,7 @@ from pathlib import Path
 
 import jwt
 import pytest
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
@@ -303,6 +303,99 @@ def test_h01_unrelated_integrity_error_is_reraised_not_masked_as_409(client, mon
                     student_message="Deberia relanzar IntegrityError no relacionado",
                 ),
             )
+
+    # Verificación observable post-rollback en sesión nueva: 0 registros persistidos
+    with session_local() as db_fresh:
+        assert db_fresh.scalar(select(func.count(TrainingRequest.id))) == 0
+        assert db_fresh.scalar(select(func.count(Notification.id))) == 0
+
+
+def test_h01_observable_rollback_after_flush_on_notification_failure_and_retry(client, monkeypatch):
+    """M-01: Provoca una excepción no relacionada con duplicados después de que la solicitud
+    ha sido incorporada (db.add) y flusheada (db.flush) en create_training_request.
+    Verifica mediante una sesión nueva que:
+    1. No existe la solicitud creada por la operación fallida.
+    2. No existe la notificación asociada.
+    3. La excepción original se propaga correctamente.
+    4. Los errores ajenos a duplicados no se convierten en HTTP 409.
+    5. La operación posterior puede completarse exitosamente sin bloqueos ni conflictos residuales.
+    """
+    test_client, session_local = client
+    _, _, student_headers = _register_and_login(test_client, "s_rollback@example.com", "STUDENT")
+    _, _, trainer_headers = _register_and_login(test_client, "t_rollback@example.com", "TRAINER")
+    trainer_prof_id, plan_id = _setup_published_trainer(test_client, trainer_headers)
+    _setup_complete_student(test_client, student_headers)
+
+    captured_request_id = None
+
+    def _failing_create_notification(**kwargs):
+        nonlocal captured_request_id
+        # La solicitud ya fue incorporada y flusheada, por lo que tiene un ID asignado en la transacción
+        captured_request_id = kwargs.get("related_entity_id")
+        assert captured_request_id is not None
+        raise RuntimeError("Fallo simulado tras db.flush en create_notification")
+
+    with session_local() as db:
+        student = db.query(User).filter(User.email == "s_rollback@example.com").one()
+        monkeypatch.setattr(
+            "backend.src.services.discovery_service.create_notification",
+            _failing_create_notification,
+        )
+
+        with pytest.raises(RuntimeError, match="Fallo simulado tras db.flush"):
+            create_training_request(
+                db,
+                student,
+                TrainingRequestCreate(
+                    trainer_id=trainer_prof_id,
+                    plan_id=plan_id,
+                    student_message="Mensaje que sufrira rollback",
+                ),
+            )
+
+    assert captured_request_id is not None
+
+    # Verificación observable con una sesión nueva de base de datos
+    with session_local() as db_fresh:
+        assert db_fresh.get(TrainingRequest, captured_request_id) is None
+        assert db_fresh.scalar(select(func.count(TrainingRequest.id))) == 0
+        assert db_fresh.scalar(select(func.count(Notification.id))) == 0
+
+    # Verificación en endpoint API: un fallo no relacionado produce error de servidor y no 409 Conflict
+    monkeypatch.setattr(
+        "backend.src.services.discovery_service.create_notification",
+        _failing_create_notification,
+    )
+    with test_client.__class__(test_client.app, raise_server_exceptions=False) as no_raise_client:
+        api_resp = no_raise_client.post(
+            "/api/v1/matchmaking/requests",
+            headers=student_headers,
+            json={"trainer_id": trainer_prof_id, "plan_id": plan_id},
+        )
+        assert api_resp.status_code == 500
+        assert api_resp.status_code != 409
+
+    with session_local() as db_fresh:
+        assert db_fresh.scalar(select(func.count(TrainingRequest.id))) == 0
+        assert db_fresh.scalar(select(func.count(Notification.id))) == 0
+
+    # Reintento exitoso una vez removida la falla inyectada
+    monkeypatch.undo()
+    retry_resp = test_client.post(
+        "/api/v1/matchmaking/requests",
+        headers=student_headers,
+        json={"trainer_id": trainer_prof_id, "plan_id": plan_id, "student_message": "Reintento exitoso"},
+    )
+    assert retry_resp.status_code == 201
+    created_id = retry_resp.json()["id"]
+
+    with session_local() as db_fresh:
+        req = db_fresh.get(TrainingRequest, created_id)
+        assert req is not None
+        assert req.status == "PENDING"
+        notif = db_fresh.scalar(select(Notification).where(Notification.related_entity_id == created_id))
+        assert notif is not None
+        assert notif.type == "NEW_REQUEST"
 
 
 # ============================================================================

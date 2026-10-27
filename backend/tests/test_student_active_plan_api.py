@@ -2,8 +2,8 @@ from datetime import UTC, date, datetime, timedelta, timezone
 
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.training_request import TrainingRequest
-from backend.src.schemas.discovery import ActivePlanResponse
-from backend.src.services.discovery_service import _item_sort_datetime
+from backend.src.models.user import User
+from backend.src.services.discovery_service import get_student_active_plans
 
 TRAINER_DATA = {
     "full_name": "Esteban Giménez",
@@ -340,36 +340,36 @@ def test_student_active_plans_sorting_mixed_naive_and_aware_datetimes_and_transi
     assert single_active["has_active_plan"] is True
     assert single_active["relationship_id"] == rel1["id"]
 
-    # Unit check on _item_sort_datetime with naive UTC, aware UTC, and non-UTC offset (-03:00)
+    # Verificación de ordenación temporal a través de la función pública get_student_active_plans
+    # combinando aware UTC, aware con huso no-UTC (-03:00), naive UTC y fecha de inicio de relación (date).
+    #
+    # Nota técnica: SQLite almacena datetimes en columnas DateTime como cadenas sin información de zona
+    # horaria persistente, por lo que las lecturas desde disco en SQLite normalizan a naive UTC.
+    # Para validar que get_student_active_plans resuelva la mezcla aware/naive sin lanzar TypeError
+    # (comportamiento esperado con PostgreSQL TIMESTAMP WITH TIME ZONE), se configuran los valores
+    # en la sesión activa y se invoca la función pública del servicio. Esto verifica la lógica del backend
+    # sin suponer que SQLite demuestra por sí mismo la compatibilidad nativa de PostgreSQL.
     ar_tz = timezone(timedelta(hours=-3))
-    item_naive = ActivePlanResponse(
-        has_active_plan=False,
-        status="PENDING",
-        requested_at=datetime(2026, 10, 26, 12, 0, 0),  # 12:00 UTC
-    )
-    item_aware_utc = ActivePlanResponse(
-        has_active_plan=False,
-        status="PENDING",
-        requested_at=datetime(2026, 10, 26, 13, 0, 0, tzinfo=UTC),  # 13:00 UTC
-    )
-    item_aware_ar = ActivePlanResponse(
-        has_active_plan=False,
-        status="PENDING",
-        requested_at=datetime(2026, 10, 26, 11, 0, 0, tzinfo=ar_tz),  # 14:00 UTC
-    )
-    item_start_date = ActivePlanResponse(
-        has_active_plan=True,
-        status="ACTIVE",
-        start_date=date(2026, 10, 26),  # 00:00 UTC
-    )
-    sorted_items = sorted(
-        [item_start_date, item_naive, item_aware_utc, item_aware_ar],
-        key=_item_sort_datetime,
-        reverse=True,
-    )
-    assert sorted_items == [item_aware_ar, item_aware_utc, item_naive, item_start_date]
+    with session_factory() as db:
+        student_user = db.query(User).filter(User.email == "student_sort@example.com").one()
+        r_active = db.get(TrainingRelationship, rel1["id"])
+        r_active.start_date = date(2026, 10, 26)  # 2026-10-26 00:00:00 UTC
 
-    # Transition ACTIVE relationship to TERMINATED and EXPIRED -> no longer returned as active plan
+        r_pend_old = db.get(TrainingRequest, req2["id"])
+        r_pend_old.created_at = datetime(2026, 10, 26, 12, 0, 0)  # naive UTC (12:00:00 UTC)
+
+        r_pend_new = db.get(TrainingRequest, req3["id"])
+        r_pend_new.created_at = datetime(2026, 10, 26, 11, 0, 0, tzinfo=ar_tz)  # aware -03:00 (14:00:00 UTC)
+
+        service_items = get_student_active_plans(db, student_user)
+        assert len(service_items) == 3
+        # Orden descendente: 14:00 UTC (req3) > 12:00 UTC (req2) > 00:00 UTC (rel1)
+        assert [i.status for i in service_items] == ["PENDING", "PENDING", "ACTIVE"]
+        assert service_items[0].request_id == req3["id"]
+        assert service_items[1].request_id == req2["id"]
+        assert service_items[2].relationship_id == rel1["id"]
+
+    # Transición de relación ACTIVE a TERMINATED y EXPIRED -> ya no se retornan como plan activo
     for inactive_status in ("TERMINATED", "EXPIRED"):
         with session_factory() as db:
             r_active = db.get(TrainingRelationship, rel1["id"])
@@ -381,6 +381,21 @@ def test_student_active_plans_sorting_mixed_naive_and_aware_datetimes_and_transi
         assert len(after_inactive) == 2
         single_after = api.get("/api/v1/students/me/active-plan", headers=auth(student_token)).json()
         assert single_after["has_active_plan"] is False
+
+    # Transición de solicitudes PENDING a REJECTED y CANCELLED -> desaparecen de la lista activa
+    with session_factory() as db:
+        r_pend_old = db.get(TrainingRequest, req2["id"])
+        r_pend_old.status = "REJECTED"
+        r_pend_new = db.get(TrainingRequest, req3["id"])
+        r_pend_new.status = "CANCELLED"
+        db.commit()
+
+    after_requests_resolved = api.get("/api/v1/students/me/active-plans", headers=auth(student_token)).json()
+    assert len(after_requests_resolved) == 0
+
+    with session_factory() as db:
+        student_user = db.query(User).filter(User.email == "student_sort@example.com").one()
+        assert len(get_student_active_plans(db, student_user)) == 0
 
 
 def test_unauthenticated_active_plan(client):
