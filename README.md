@@ -109,3 +109,27 @@ Desde la raíz del repositorio (con .venv activado):
 ```bash
 PYTHONPATH=. pytest backend/tests --cov=backend/src --cov-report=term-missing
 ```
+
+### Datos de demostración (Seed para demo académica)
+
+El repositorio incluye un script idempotente para inicializar datos ficticios de prueba (alumnos, entrenadores con paquetes publicados, cuestionarios de salud, solicitudes y vínculos activos) que permiten recorrer de punta a punta el flujo de descubrimiento, perfil público, solicitud e inbox de entrenadores.
+
+Para sembrar o actualizar los datos de demostración:
+
+```bash
+python backend/scripts/seed_demo.py
+```
+
+Para limpiar exclusivamente los datos de demostración sin tocar otros registros:
+
+```bash
+python backend/scripts/seed_demo.py --clean
+```
+
+Para reiniciar los datos de demostración (limpieza y re-sembrado en un paso):
+
+```bash
+python backend/scripts/seed_demo.py --reset
+```
+
+> **Credenciales:** Todas las cuentas de prueba comparten la contraseña `DemoPassword123!` y pertenecen al dominio `@demo.settoset.com` (ej. `lucas.benitez@demo.settoset.com`, `mateo.gomez@demo.settoset.com`).
