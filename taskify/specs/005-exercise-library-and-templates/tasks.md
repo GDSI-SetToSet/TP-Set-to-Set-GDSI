@@ -39,7 +39,7 @@ description: "Task list for 005-exercise-library-and-templates (US-08 and US-09)
 
 ### Tests for User Story 1 (US-08)
 
-- [ ] T003 [P] [US1] Crear pruebas de integración en `backend/tests/test_exercise_api.py` para:
+- [x] T003 [P] [US1] Crear pruebas de integración en `backend/tests/test_exercise_api.py` para:
   - Alta válida con los 5 campos y `has_no_materials_alternative` en `false` por defecto.
   - HTTP 422 RFC 7807 con `errors[]` ante cada campo obligatorio faltante o vacío, categoría fuera de la lista y textos que superen los límites.
   - Listado solo de ejercicios propios, filtro `muscle_group` sin distinguir mayúsculas y exclusión de dados de baja.
@@ -49,14 +49,14 @@ description: "Task list for 005-exercise-library-and-templates (US-08 and US-09)
 
 ### Implementation for User Story 1 (US-08)
 
-- [ ] T004 [US1] Crear el modelo `Exercise` en `backend/src/models/exercise.py` con `trainer_id` no nulo a `trainer_profiles.id`, `name` String(150), `description` Text, `category` String(16), `target_muscle_group` String(100), `equipment_needed` String(150), `has_no_materials_alternative` Boolean por defecto `False`, `deleted_at` nulo, `created_at` y `updated_at`; registrarlo en `backend/src/models/__init__.py`, `backend/src/main.py` y `backend/tests/conftest.py`.
-- [ ] T005 [P] [US1] Crear schemas `ExerciseInput` y `ExerciseResponse` en `backend/src/schemas/exercise.py`, con categoría `FUERZA`, `CARDIO`, `MOVILIDAD`, `FLEXIBILIDAD` o `EQUILIBRIO` y el mensaje "Este campo es obligatorio" para campos faltantes.
-- [ ] T006 [US1] Crear `backend/src/services/exercise_service.py` con listado filtrado, detalle, alta, edición y baja lógica, restringidos al entrenador autenticado (depende de T004, T005).
-- [ ] T007 [US1] Exponer `GET`/`POST /api/v1/exercises` y `GET`/`PUT`/`DELETE /api/v1/exercises/{exercise_id}` en `backend/src/api/v1/exercises.py` y registrar el router en `backend/src/main.py` (depende de T006).
-- [ ] T008 [P] [US1] Agregar tipos y métodos de API en `frontend/src/types/exercise.ts` y `frontend/src/services/exerciseService.ts`.
-- [ ] T009 [US1] Crear `frontend/src/components/ExerciseCard.tsx` y `frontend/src/pages/ExerciseLibraryPage.tsx` con formulario de alta y edición, filtro por músculo, detalle, baja con confirmación y estado vacío, usando estilos de `frontend/src/styles/exercise-library.css` importados en `frontend/src/styles.css`.
-- [ ] T010 [US1] Registrar la ruta `trainerExercises: '/entrenador/ejercicios'` en `frontend/src/constants/routes.ts` y `frontend/src/App.tsx`, y agregar el acceso en `frontend/src/pages/HomePage.tsx`.
-- [ ] T011 [US1] Ejecutar `pytest backend/tests --cov=backend/src --cov-fail-under=90`, `ruff check backend`, `npm run build` y validar el Escenario 1 de `taskify/specs/005-exercise-library-and-templates/quickstart.md`.
+- [x] T004 [US1] Crear el modelo `Exercise` en `backend/src/models/exercise.py` con `trainer_id` no nulo a `trainer_profiles.id`, `name` String(150), `description` Text, `category` String(16), `target_muscle_group` String(100), `equipment_needed` String(150), `has_no_materials_alternative` Boolean por defecto `False`, `deleted_at` nulo, `created_at` y `updated_at`; registrarlo en `backend/src/models/__init__.py`, `backend/src/main.py` y `backend/tests/conftest.py`.
+- [x] T005 [P] [US1] Crear schemas `ExerciseInput` y `ExerciseResponse` en `backend/src/schemas/exercise.py`, con categoría `FUERZA`, `CARDIO`, `MOVILIDAD`, `FLEXIBILIDAD` o `EQUILIBRIO` y el mensaje "Este campo es obligatorio" para campos faltantes.
+- [x] T006 [US1] Crear `backend/src/services/exercise_service.py` con listado filtrado, detalle, alta, edición y baja lógica, restringidos al entrenador autenticado (depende de T004, T005).
+- [x] T007 [US1] Exponer `GET`/`POST /api/v1/exercises` y `GET`/`PUT`/`DELETE /api/v1/exercises/{exercise_id}` en `backend/src/api/v1/exercises.py` y registrar el router en `backend/src/main.py` (depende de T006).
+- [x] T008 [P] [US1] Agregar tipos y métodos de API en `frontend/src/types/exercise.ts` y `frontend/src/services/exerciseService.ts`.
+- [x] T009 [US1] Crear `frontend/src/components/ExerciseCard.tsx` y `frontend/src/pages/ExerciseLibraryPage.tsx` con formulario de alta y edición, filtro por músculo, detalle, baja con confirmación y estado vacío, usando estilos de `frontend/src/styles/exercise-library.css` importados en `frontend/src/styles.css`.
+- [x] T010 [US1] Registrar la ruta `trainerExercises: '/entrenador/ejercicios'` en `frontend/src/constants/routes.ts` y `frontend/src/App.tsx`, y agregar el acceso en `frontend/src/pages/HomePage.tsx`.
+- [x] T011 [US1] Ejecutar `pytest backend/tests --cov=backend/src --cov-fail-under=90`, `ruff check backend`, `npm run build` y validar el Escenario 1 de `taskify/specs/005-exercise-library-and-templates/quickstart.md`.
 
 **Checkpoint**: US-08 está completa y lista para abrir PR hacia `develop`.
 

@@ -49,7 +49,7 @@ Los archivos de configuración y las especificaciones compartidas forman parte d
 ### Rutas del Frontend (`frontend/src/constants/routes.ts` y `frontend/src/App.tsx`)
 
 - **Autenticación (`001`):** `/login`, `/registro`, `/olvide-mi-contrasena`, `/restablecer-contrasena`, `/inicio`
-- **Entrenador (`002` / `004`):** `/entrenador/inicio`, `/entrenador/perfil`, `/entrenador/paquetes`, `/entrenador/solicitudes`, `/entrenador/solicitudes/:requestId`
+- **Entrenador (`002` / `004` / `005`):** `/entrenador/inicio`, `/entrenador/perfil`, `/entrenador/paquetes`, `/entrenador/ejercicios`, `/entrenador/solicitudes`, `/entrenador/solicitudes/:requestId`
 - **Alumno (`003` / `004`):** `/alumno/inicio`, `/alumno/perfil`, `/alumno/salud`, `/alumno/zonas-a-proteger`, `/alumno/apto-medico`, `/alumno/buscar-entrenadores`, `/entrenadores/:trainerId`, `/entrenadores/:trainerId/solicitar`, `/alumno/mis-solicitudes`, `/alumno/mis-entrenamientos`
 
 ### Endpoints principales de la API (`backend/src/api/v1/`)
@@ -68,6 +68,7 @@ Los archivos de configuración y las especificaciones compartidas forman parte d
   - `POST /me/medical-clearance`, `GET /me/medical-clearance`, `GET /{student_id}/medical-clearance/download`
   - `GET /me/active-plan`, `GET /me/active-plans`
   - `GET /me/notifications`, `PATCH /me/notifications/{notification_id}/read`
+- **Biblioteca de ejercicios (`/api/v1/exercises`):** `GET /`, `POST /`, `GET /{exercise_id}`, `PUT /{exercise_id}`, `DELETE /{exercise_id}`
 - **Solicitudes y vinculación (`/api/v1/matchmaking`):**
   - `POST /requests`, `GET /requests/mine`, `GET /requests`, `GET /requests/{request_id}`
   - `POST /requests/{request_id}/accept`, `POST /requests/{request_id}/reject`
