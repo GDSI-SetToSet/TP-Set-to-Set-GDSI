@@ -72,7 +72,7 @@ description: "Task list for 005-exercise-library-and-templates (US-08 and US-09)
 
 ### Tests for User Story 2 (US-09)
 
-- [ ] T012 [P] [US2] Crear pruebas de integración en `backend/tests/test_routine_template_api.py` para:
+- [x] T012 [P] [US2] Crear pruebas de integración en `backend/tests/test_routine_template_api.py` para:
   - Alta con estructura completa, orden preservado, `exercise_count` y categoría de cada ejercicio en la respuesta.
   - HTTP 422 RFC 7807 ante campos faltantes, sin días, bloques o ejercicios, y fuera de los límites del data-model.
   - HTTP 422 al usar ejercicios ajenos, inexistentes o dados de baja.
@@ -83,16 +83,16 @@ description: "Task list for 005-exercise-library-and-templates (US-08 and US-09)
 
 ### Implementation for User Story 2 (US-09)
 
-- [ ] T013 [US2] Crear modelos `RoutineTemplate`, `RoutineTemplateDay`, `RoutineTemplateBlock` y `RoutineTemplateExercise` en `backend/src/models/routine_template.py` según `data-model.md`, con `cascade="all, delete-orphan"` y orden por `order_index`; registrarlos en `backend/src/models/__init__.py`, `backend/src/main.py` y `backend/tests/conftest.py`.
-- [ ] T014 [P] [US2] Crear schemas en `backend/src/schemas/routine_template.py` con los límites: `name` hasta 150, `duration_weeks` de 1 a 52, intensidad `BAJA`, `MEDIA`, `ALTA` o `EXIGENTE`, 1 a 7 días, 1 a 10 bloques, 1 a 30 ejercicios, nombres de día y bloque hasta 100, `sets` de 1 a 20, `reps` hasta 50 y `rest_seconds` de 0 a 600.
-- [ ] T015 [US2] Crear `backend/src/services/routine_template_service.py` con alta, edición, listado y detalle del entrenador, validación de ejercicios y regla "Sin materiales", y listado y detalle para alumnos filtrados por `TrainingRelationship.status == "ACTIVE"` (depende de T013, T014).
-- [ ] T016 [US2] Rechazar con HTTP 409 en `backend/src/services/exercise_service.py` la edición que quita la marca a un ejercicio incluido en una rutina apta "Sin materiales" (depende de T013).
-- [ ] T017 [US2] Exponer los endpoints de rutinas en `backend/src/api/v1/routine_templates.py` y registrar los routers en `backend/src/main.py` (depende de T015).
-- [ ] T018 [P] [US2] Agregar tipos y métodos de API en `frontend/src/types/routineTemplate.ts` y `frontend/src/services/routineTemplateService.ts`.
-- [ ] T019 [US2] Crear `frontend/src/components/RoutineTemplateCard.tsx`, `frontend/src/components/RoutineTemplateDetail.tsx` y `frontend/src/pages/RoutineTemplatesPage.tsx` con editor de días, bloques y ejercicios, usando estilos de `frontend/src/styles/routine-templates.css` importados en `frontend/src/styles.css`.
-- [ ] T020 [US2] Crear `frontend/src/pages/StudentRoutinesPage.tsx` en solo lectura, con estado vacío.
-- [ ] T021 [US2] Registrar las rutas `trainerRoutines: '/entrenador/rutinas'` y `studentRoutines: '/alumno/rutinas'` en `frontend/src/constants/routes.ts` y `frontend/src/App.tsx`, y agregar los accesos en `frontend/src/pages/HomePage.tsx`.
-- [ ] T022 [US2] Ejecutar `pytest backend/tests --cov=backend/src --cov-fail-under=90`, `ruff check backend`, `npm run build` y validar el Escenario 2 de `taskify/specs/005-exercise-library-and-templates/quickstart.md`.
+- [x] T013 [US2] Crear modelos `RoutineTemplate`, `RoutineTemplateDay`, `RoutineTemplateBlock` y `RoutineTemplateExercise` en `backend/src/models/routine_template.py` según `data-model.md`, con `cascade="all, delete-orphan"` y orden por `order_index`; registrarlos en `backend/src/models/__init__.py`, `backend/src/main.py` y `backend/tests/conftest.py`.
+- [x] T014 [P] [US2] Crear schemas en `backend/src/schemas/routine_template.py` con los límites: `name` hasta 150, `duration_weeks` de 1 a 52, intensidad `BAJA`, `MEDIA`, `ALTA` o `EXIGENTE`, 1 a 7 días, 1 a 10 bloques, 1 a 30 ejercicios, nombres de día y bloque hasta 100, `sets` de 1 a 20, `reps` hasta 50 y `rest_seconds` de 0 a 600.
+- [x] T015 [US2] Crear `backend/src/services/routine_template_service.py` con alta, edición, listado y detalle del entrenador, validación de ejercicios y regla "Sin materiales", y listado y detalle para alumnos filtrados por `TrainingRelationship.status == "ACTIVE"` (depende de T013, T014).
+- [x] T016 [US2] Rechazar con HTTP 409 en `backend/src/services/exercise_service.py` la edición que quita la marca a un ejercicio incluido en una rutina apta "Sin materiales" (depende de T013).
+- [x] T017 [US2] Exponer los endpoints de rutinas en `backend/src/api/v1/routine_templates.py` y registrar los routers en `backend/src/main.py` (depende de T015).
+- [x] T018 [P] [US2] Agregar tipos y métodos de API en `frontend/src/types/routineTemplate.ts` y `frontend/src/services/routineTemplateService.ts`.
+- [x] T019 [US2] Crear `frontend/src/components/RoutineTemplateCard.tsx`, `frontend/src/components/RoutineTemplateDetail.tsx` y `frontend/src/pages/RoutineTemplatesPage.tsx` con editor de días, bloques y ejercicios, usando estilos de `frontend/src/styles/routine-templates.css` importados en `frontend/src/styles.css`.
+- [x] T020 [US2] Crear `frontend/src/pages/StudentRoutinesPage.tsx` en solo lectura, con estado vacío.
+- [x] T021 [US2] Registrar las rutas `trainerRoutines: '/entrenador/rutinas'` y `studentRoutines: '/alumno/rutinas'` en `frontend/src/constants/routes.ts` y `frontend/src/App.tsx`, y agregar los accesos en `frontend/src/pages/HomePage.tsx`.
+- [x] T022 [US2] Ejecutar `pytest backend/tests --cov=backend/src --cov-fail-under=90`, `ruff check backend`, `npm run build` y validar el Escenario 2 de `taskify/specs/005-exercise-library-and-templates/quickstart.md`.
 
 **Checkpoint**: US-09 está completa y lista para abrir PR hacia `develop`.
 

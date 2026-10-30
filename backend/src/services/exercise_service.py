@@ -3,6 +3,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.src.models.exercise import Exercise
+from backend.src.models.routine_template import (
+    RoutineTemplate,
+    RoutineTemplateBlock,
+    RoutineTemplateDay,
+    RoutineTemplateExercise,
+)
 from backend.src.models.user import User
 from backend.src.schemas.exercise import ExerciseInput
 from backend.src.services.trainer_service import get_or_create_profile, utc_now
@@ -42,8 +48,28 @@ def get_own_exercise(db: Session, user: User, exercise_id: str) -> Exercise:
     return exercise
 
 
+def is_in_no_materials_template(db: Session, exercise_id: str) -> bool:
+    query = (
+        select(RoutineTemplateExercise.id)
+        .join(RoutineTemplateBlock, RoutineTemplateExercise.block_id == RoutineTemplateBlock.id)
+        .join(RoutineTemplateDay, RoutineTemplateBlock.day_id == RoutineTemplateDay.id)
+        .join(RoutineTemplate, RoutineTemplateDay.template_id == RoutineTemplate.id)
+        .where(
+            RoutineTemplateExercise.exercise_id == exercise_id,
+            RoutineTemplate.has_no_materials_alternative.is_(True),
+        )
+    )
+    return db.scalar(query.limit(1)) is not None
+
+
 def update_exercise(db: Session, user: User, exercise_id: str, payload: ExerciseInput) -> Exercise:
     exercise = get_own_exercise(db, user, exercise_id)
+    removes_flag = exercise.has_no_materials_alternative and not payload.has_no_materials_alternative
+    if removes_flag and is_in_no_materials_template(db, exercise.id):
+        raise ExerciseError(
+            status.HTTP_409_CONFLICT,
+            'El ejercicio pertenece a una rutina apta "Sin materiales": no se puede quitar la marca.',
+        )
     for field, value in payload.model_dump().items():
         setattr(exercise, field, value)
     exercise.updated_at = utc_now()

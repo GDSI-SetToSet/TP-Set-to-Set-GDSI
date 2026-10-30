@@ -85,6 +85,7 @@ export function HomePage() {
         {user?.role === USER_ROLES.trainer && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerProfile}>Completar mi perfil</Link>}
         {user?.role === USER_ROLES.trainer && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerPlans}>Mis paquetes</Link>}
         {user?.role === USER_ROLES.trainer && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerExercises}>Mis ejercicios</Link>}
+        {user?.role === USER_ROLES.trainer && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerRoutines}>Mis rutinas</Link>}
         {user?.role === USER_ROLES.trainer && (
           <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerRequests}>
             <Inbox size={16} /> Solicitudes pendientes
@@ -98,6 +99,7 @@ export function HomePage() {
         {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentProtectedZones}>Zonas a proteger</Link>}
         {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentMedical}>Apto médico</Link>}
         {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerSearch}>Buscar entrenadores</Link>}
+        {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentRoutines}>Rutinas</Link>}
         {user?.role === USER_ROLES.student && (
           <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentActivePlans}>
             Mis entrenadores

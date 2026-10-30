@@ -49,8 +49,8 @@ Los archivos de configuración y las especificaciones compartidas forman parte d
 ### Rutas del Frontend (`frontend/src/constants/routes.ts` y `frontend/src/App.tsx`)
 
 - **Autenticación (`001`):** `/login`, `/registro`, `/olvide-mi-contrasena`, `/restablecer-contrasena`, `/inicio`
-- **Entrenador (`002` / `004` / `005`):** `/entrenador/inicio`, `/entrenador/perfil`, `/entrenador/paquetes`, `/entrenador/ejercicios`, `/entrenador/solicitudes`, `/entrenador/solicitudes/:requestId`
-- **Alumno (`003` / `004`):** `/alumno/inicio`, `/alumno/perfil`, `/alumno/salud`, `/alumno/zonas-a-proteger`, `/alumno/apto-medico`, `/alumno/buscar-entrenadores`, `/entrenadores/:trainerId`, `/entrenadores/:trainerId/solicitar`, `/alumno/mis-solicitudes`, `/alumno/mis-entrenamientos`
+- **Entrenador (`002` / `004` / `005`):** `/entrenador/inicio`, `/entrenador/perfil`, `/entrenador/paquetes`, `/entrenador/ejercicios`, `/entrenador/rutinas`, `/entrenador/solicitudes`, `/entrenador/solicitudes/:requestId`
+- **Alumno (`003` / `004` / `005`):** `/alumno/inicio`, `/alumno/perfil`, `/alumno/salud`, `/alumno/zonas-a-proteger`, `/alumno/apto-medico`, `/alumno/buscar-entrenadores`, `/entrenadores/:trainerId`, `/entrenadores/:trainerId/solicitar`, `/alumno/mis-solicitudes`, `/alumno/mis-entrenamientos`, `/alumno/rutinas`
 
 ### Endpoints principales de la API (`backend/src/api/v1/`)
 
@@ -69,6 +69,8 @@ Los archivos de configuración y las especificaciones compartidas forman parte d
   - `GET /me/active-plan`, `GET /me/active-plans`
   - `GET /me/notifications`, `PATCH /me/notifications/{notification_id}/read`
 - **Biblioteca de ejercicios (`/api/v1/exercises`):** `GET /`, `POST /`, `GET /{exercise_id}`, `PUT /{exercise_id}`, `DELETE /{exercise_id}`
+- **Rutinas genéricas (`/api/v1/routine-templates`):** `GET /`, `POST /`, `GET /{template_id}`, `PUT /{template_id}`
+- **Rutinas para alumnos (`/api/v1/students/me/routine-templates`):** `GET /`, `GET /{template_id}`
 - **Solicitudes y vinculación (`/api/v1/matchmaking`):**
   - `POST /requests`, `GET /requests/mine`, `GET /requests`, `GET /requests/{request_id}`
   - `POST /requests/{request_id}/accept`, `POST /requests/{request_id}/reject`

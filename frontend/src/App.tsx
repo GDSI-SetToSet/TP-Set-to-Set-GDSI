@@ -8,6 +8,7 @@ import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { RoutineTemplatesPage } from './pages/RoutineTemplatesPage';
 import { TrainerProfileEditPage } from './pages/TrainerProfileEditPage';
 import { TrainerPlansManagementPage } from './pages/TrainerPlansManagementPage';
 import { TrainerRequestsInboxPage } from './pages/TrainerRequestsInboxPage';
@@ -21,6 +22,7 @@ import { TrainerSearchPage } from './pages/TrainerSearchPage';
 import { TrainerPublicDetailPage } from './pages/TrainerPublicDetailPage';
 import { TrainerRequestPage } from './pages/TrainerRequestPage';
 import { StudentActivePlansPage } from './pages/StudentActivePlansPage';
+import { StudentRoutinesPage } from './pages/StudentRoutinesPage';
 
 function ProtectedRoute({ children, role }: { children: JSX.Element; role: UserRole }) {
   const { user, loading } = useAuth();
@@ -49,6 +51,7 @@ export default function App() {
       <Route path={ROUTES.trainerProfile} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerProfileEditPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerPlans} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerPlansManagementPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerExercises} element={<ProtectedRoute role={USER_ROLES.trainer}><ExerciseLibraryPage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerRoutines} element={<ProtectedRoute role={USER_ROLES.trainer}><RoutineTemplatesPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerRequests} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerRequestsInboxPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerRequestDetail} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerRequestDetailPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentHome} element={<ProtectedRoute role={USER_ROLES.student}><HomePage /></ProtectedRoute>} />
@@ -60,6 +63,7 @@ export default function App() {
       <Route path={ROUTES.studentProfile} element={<ProtectedRoute role={USER_ROLES.student}><StudentProfileEditPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentProtectedZones} element={<ProtectedRoute role={USER_ROLES.student}><ProtectedZonesPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentMedical} element={<ProtectedRoute role={USER_ROLES.student}><MedicalClearancePage /></ProtectedRoute>} />
+      <Route path={ROUTES.studentRoutines} element={<ProtectedRoute role={USER_ROLES.student}><StudentRoutinesPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentActivePlans} element={<ProtectedRoute role={USER_ROLES.student}><StudentActivePlansPage /></ProtectedRoute>} />
     </Routes>
   );
