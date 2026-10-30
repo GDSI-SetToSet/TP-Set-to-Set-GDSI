@@ -1,12 +1,12 @@
 # Implementation Plan: Biblioteca de Ejercicios, Videos Demostrativos y Rutinas Genéricas
 
-**Branch**: `005-exercise-library-and-templates` | **Date**: 2026-10-15 | **Spec**: [specs/005-exercise-library-and-templates/spec.md](file:///mnt/r/Proyectos/GDSI/TP-Set-to-Set-GDSI/taskify/specs/005-exercise-library-and-templates/spec.md)
+**Branch**: `005-exercise-library-and-templates` | **Date**: 2026-10-30 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `/specs/005-exercise-library-and-templates/spec.md` (US-08, US-09, US-12, US-52)
 
 ## Summary
 
-Implementar la gestión de la biblioteca de ejercicios (ejercicios del sistema y personalizados del entrenador), notas técnicas y pautas de respiración (US-52), vinculación estricta de videos demostrativos mediante URLs de plataformas externas soportadas (YouTube, Vimeo, Google Drive; Principio V, US-12), y diseño de plantillas de rutinas genéricas (US-09).
+Implementar la biblioteca personal de ejercicios del entrenador (US-08) y las rutinas genéricas organizadas por días y bloques, visibles en solo lectura para alumnos con vínculo activo (US-09). La vinculación de videos (US-12) y las notas técnicas (US-52) se planifican en una iteración posterior.
 
 ## Technical Context
 
@@ -14,11 +14,11 @@ Implementar la gestión de la biblioteca de ejercicios (ejercicios del sistema y
 
 **Primary Dependencies**:
 - Backend: FastAPI, Pydantic v2, SQLAlchemy 2.0
-- Frontend: React 18, React Router v6, Tailwind CSS, Lucide React
+- Frontend: React 18, React Router v6, CSS propio (`frontend/src/styles/`), Lucide React
 
-**Storage**: PostgreSQL 16 / SQLite (tests unitarios y CI)
+**Storage**: PostgreSQL 16 / SQLite (tests unitarios y CI). Tablas creadas con `Base.metadata.create_all`, sin migraciones.
 
-**Testing**: Pytest con `pytest-cov` ($\ge 90\%$) incluyendo validadores regex de URLs de video
+**Testing**: Pytest con `pytest-cov` ($\ge 90\%$)
 
 **Target Platform**: Linux Server / Web responsive
 
@@ -26,14 +26,14 @@ Implementar la gestión de la biblioteca de ejercicios (ejercicios del sistema y
 
 **Performance Goals**:
 - Búsqueda y filtrado de ejercicios por grupo muscular < 80ms
-- Validación y persistencia de enlaces de video < 100ms
 
 **Constraints**:
+- 5 campos obligatorios para dar de alta un ejercicio: nombre, descripción, categoría, músculo a trabajar y equipamiento/materiales (US-08).
+- Baja lógica de ejercicios para preservar las rutinas que los incluyen.
+- Errores RFC 7807 con `errors[]` por campo.
 - Prohibición absoluta de carga o transcodificación de archivos de video binarios en el servidor (Principio V).
-- Validación de URLs mediante expresiones regulares estrictas (solo dominios soportados: YouTube, Vimeo, Google Drive).
-- 4 campos obligatorios para dar de alta un ejercicio: nombre, descripción, músculo a trabajar y equipamiento/materiales (US-08).
 
-**Scale/Scope**: Biblioteca de cientos de ejercicios y plantillas disponibles para todos los entrenadores.
+**Scale/Scope**: Biblioteca de cientos de ejercicios y rutinas por entrenador. Rutinas de hasta 7 días, 10 bloques por día y 30 ejercicios por bloque.
 
 ## Constitution Check
 
@@ -41,12 +41,13 @@ Implementar la gestión de la biblioteca de ejercicios (ejercicios del sistema y
 
 | Principio Constitucional | Estado | Justificación / Mecanismo |
 |---|---|---|
-| I. Accesibilidad | PASSED | Visualización clara de notas técnicas y pautas de postura en tipografía legible. |
-| II. IA Asistiva | N/A | Los ejercicios servirán como catálogo fuente para el generador de rutinas. |
-| III. Privacidad y Datos de Salud | PASSED | La biblioteca es técnica y pública para alumnos asignados, sin datos sensibles. |
+| I. Accesibilidad | PASSED | Controles de 44 × 44 px, contraste de la paleta existente y mensajes de error por campo. |
+| II. IA Asistiva | N/A | Los ejercicios servirán como catálogo fuente para la spec 006. |
+| III. Privacidad y Datos de Salud | PASSED | No hay datos de salud. El vínculo activo se valida en el backend en cada petición del alumno. |
 | IV. Pagos Informales | N/A | No procesa pagos. |
-| V. Gestión Liviana de Medios Técnicos | PASSED | Cumplimiento total: solo enlaces externos a plataformas soportadas (US-12). |
-| VI. Calidad y Verificación Continua | PASSED | Cobertura $\ge 90\%$ con pruebas unitarias sobre analizadores de URL de video. |
+| V. Gestión Liviana de Medios Técnicos | PASSED | Esta iteración no maneja videos. |
+| VI. Calidad y Verificación Continua | PASSED | Pruebas de integración por story, cobertura $\ge 90\%$, Ruff y build. |
+| VII. Entrega Incremental | PASSED | Un PR por story. US-09 parte de `develop` con US-08 ya mergeada. |
 
 ## Project Structure
 
@@ -55,11 +56,14 @@ Implementar la gestión de la biblioteca de ejercicios (ejercicios del sistema y
 ```text
 specs/005-exercise-library-and-templates/
 ├── plan.md              # Este plan de implementación
-├── research.md          # Investigación de validación de URLs y reproductores embebidos (Phase 0)
-├── data-model.md        # Definición de entidades, restricciones y estados (Phase 1)
+├── research.md          # Decisiones técnicas (Phase 0)
+├── data-model.md        # Definición de entidades y restricciones (Phase 1)
 ├── quickstart.md        # Guía de verificación y ejecución (Phase 1)
+├── tasks.md             # Tareas de US-08 y US-09
+├── checklists/
+│   └── requirements.md  # Control de calidad de la spec
 └── contracts/
-    └── exercise-library-api.yaml # Especificación OpenAPI 3.0 para ejercicios y plantillas
+    └── exercise-library-api.yaml # Especificación OpenAPI 3.0
 ```
 
 ### Source Code (repository root)
@@ -67,12 +71,9 @@ specs/005-exercise-library-and-templates/
 ```text
 backend/
 ├── src/
-│   ├── api/
-│   │   └── v1/
-│   │       ├── exercises.py     # Endpoints: /exercises (CRUD, filtros)
-│   │       └── templates.py     # Endpoints: /routine-templates (CRUD plantillas)
-│   ├── core/
-│   │   └── media_validator.py# Validador regex de URLs de YouTube, Vimeo y Google Drive
+│   ├── api/v1/
+│   │   ├── exercises.py          # US-08: /exercises
+│   │   └── routine_templates.py  # US-09: /routine-templates y /students/me/routine-templates
 │   ├── models/
 │   │   ├── exercise.py
 │   │   └── routine_template.py
@@ -81,26 +82,33 @@ backend/
 │   │   └── routine_template.py
 │   └── services/
 │       ├── exercise_service.py
-│       └── template_service.py
+│       └── routine_template_service.py
 └── tests/
-    ├── unit/
-    │   └── test_media_validator.py
-    └── integration/
-        └── test_exercise_api.py
+    ├── test_exercise_api.py
+    └── test_routine_template_api.py
 
 frontend/
-├── src/
-│   ├── pages/
-│   │   ├── ExerciseLibraryPage.tsx
-│   │   └── RoutineTemplatesPage.tsx
-│   ├── components/
-│   │   ├── ExerciseCard.tsx
-│   │   └── VideoEmbedModal.tsx
-│   └── services/
-│       └── exerciseService.ts
+└── src/
+    ├── components/
+    │   ├── ExerciseCard.tsx
+    │   ├── RoutineTemplateCard.tsx
+    │   └── RoutineTemplateDetail.tsx
+    ├── pages/
+    │   ├── ExerciseLibraryPage.tsx
+    │   ├── RoutineTemplatesPage.tsx
+    │   └── StudentRoutinesPage.tsx
+    ├── services/
+    │   ├── exerciseService.ts
+    │   └── routineTemplateService.ts
+    ├── styles/
+    │   ├── exercise-library.css
+    │   └── routine-templates.css
+    └── types/
+        ├── exercise.ts
+        └── routineTemplate.ts
 ```
 
-**Structure Decision**: Módulos `exercises` y `templates` integrados al dominio central de entrenamiento.
+**Structure Decision**: Módulos `exercises` y `routine_templates` con la misma separación API, servicio, schema y modelo del resto del backend. Las pruebas siguen la convención plana de `backend/tests/`.
 
 ## Complexity Tracking
 
