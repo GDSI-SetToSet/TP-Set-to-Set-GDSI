@@ -8,6 +8,10 @@ from backend.src.api.errors import register_exception_handlers
 from backend.src.api.v1.auth import router as auth_router
 from backend.src.api.v1.discovery import router as discovery_router
 from backend.src.api.v1.exercises import router as exercises_router
+from backend.src.api.v1.routine_templates import router as routine_templates_router
+from backend.src.api.v1.routine_templates import (
+    student_router as student_routine_templates_router,
+)
 from backend.src.api.v1.students import router as students_router
 from backend.src.api.v1.trainers import router as trainers_router
 from backend.src.core.config import API_TITLE, API_VERSION, CORS_ALLOWED_ORIGINS
@@ -17,6 +21,10 @@ from backend.src.models import (  # noqa: F401
     MedicalClearance,
     Notification,
     PasswordResetToken,
+    RoutineTemplate,
+    RoutineTemplateBlock,
+    RoutineTemplateDay,
+    RoutineTemplateExercise,
     StudentProfile,
     TrainerProfile,
     TrainingPlan,
@@ -49,6 +57,8 @@ def create_app(create_tables: bool = True) -> FastAPI:
     app.include_router(students_router)
     app.include_router(discovery_router)
     app.include_router(exercises_router)
+    app.include_router(routine_templates_router)
+    app.include_router(student_routine_templates_router)
 
     @app.get("/health", tags=["health"])
     def health() -> dict[str, str]:
