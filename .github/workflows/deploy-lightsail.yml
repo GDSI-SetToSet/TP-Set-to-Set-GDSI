@@ -1,0 +1,47 @@
+name: Deploy to AWS Lightsail
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lightsail-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          LIGHTSAIL_USER: ${{ secrets.LIGHTSAIL_USER }}
+          LIGHTSAIL_SSH_PRIVATE_KEY: ${{ secrets.LIGHTSAIL_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$LIGHTSAIL_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          ssh-keyscan -H "$LIGHTSAIL_HOST" >> "$HOME/.ssh/known_hosts"
+          printf 'Host lightsail-app\n  HostName %s\n  User %s\n  IdentityFile %s/.ssh/id_ed25519\n  IdentitiesOnly yes\n' \
+            "$LIGHTSAIL_HOST" "$LIGHTSAIL_USER" "$HOME" > "$HOME/.ssh/config"
+          chmod 600 "$HOME/.ssh/config"
+
+      - name: Upload source to Lightsail
+        run: |
+          set -euo pipefail
+          ssh lightsail-app 'mkdir -p /opt/set-to-set'
+          git archive --format=tar HEAD | ssh lightsail-app 'tar -xf - -C /opt/set-to-set'
+
+      - name: Build and restart application
+        run: |
+          set -euo pipefail
+          ssh lightsail-app 'cd /opt/set-to-set && docker compose --parallel 1 -f docker-compose.aws.yml up -d --build --remove-orphans'
