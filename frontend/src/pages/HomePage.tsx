@@ -1,14 +1,54 @@
-import { Dumbbell, LogOut, Sparkles } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { Dumbbell, Inbox, LogOut, Sparkles } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { USER_ROLES } from '../constants/auth';
 import { useAuth } from '../context/AuthContext';
 import { homePath, ROUTES } from '../constants/routes';
+import { getActivePlans, getTrainerRequests } from '../services/discoveryService';
+import type { ActivePlansResponse, NotificationItem } from '../types/discovery';
+import { NotificationBell } from '../components/NotificationBell';
 
 export function HomePage() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [error, setError] = useState('');
+  const [pendingRequestsCount, setPendingRequestsCount] = useState<number>(0);
+  const [activePlans, setActivePlans] = useState<ActivePlansResponse>([]);
+  const activeLinksCount = activePlans.filter((plan) => plan.status === 'ACTIVE').length;
   const greeting = user?.role === USER_ROLES.trainer ? 'Tu espacio de entrenador' : 'Tu espacio de entrenamiento';
+
+  useEffect(() => {
+    let active = true;
+    setError('');
+    if (user?.role === USER_ROLES.trainer) {
+      getTrainerRequests('PENDING')
+        .then((requests) => {
+          if (active) setPendingRequestsCount(requests.length);
+        })
+        .catch(() => {
+          if (active) {
+            setPendingRequestsCount(0);
+            setError('No pudimos cargar tus solicitudes pendientes. Intentá nuevamente.');
+          }
+        });
+    } else if (user?.role === USER_ROLES.student) {
+      getActivePlans()
+        .then((plans) => {
+          if (active) {
+            setActivePlans(plans);
+          }
+        })
+        .catch(() => {
+          if (active) {
+            setActivePlans([]);
+            setError('No pudimos cargar tus vínculos activos. Intentá nuevamente.');
+          }
+        });
+    }
+    return () => {
+      active = false;
+    };
+  }, [user?.role]);
 
   async function handleLogout() {
     try {
@@ -18,11 +58,24 @@ export function HomePage() {
     }
   }
 
+  function handleNotificationClick(_notification: NotificationItem) {
+    if (user?.role === USER_ROLES.student) {
+      navigate(ROUTES.studentActivePlans);
+    } else if (user?.role === USER_ROLES.trainer) {
+      navigate(ROUTES.trainerRequests);
+    }
+  }
+
   return (
-    <main className="home-shell">
+    <main className={`home-shell${user?.role === USER_ROLES.trainer ? ' home-shell--trainer' : ''}`}>
       <header className="home-header">
         <Link className="brand" to={homePath(user?.role ?? USER_ROLES.student)}><span className="brand__icon"><Sparkles size={19} /></span><span>set<span className="brand__accent">to</span>set</span></Link>
-        <button type="button" className="logout-button" onClick={handleLogout}><LogOut size={17} /> Cerrar sesión</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {(user?.role === USER_ROLES.student || user?.role === USER_ROLES.trainer) && (
+            <NotificationBell onNotificationClick={handleNotificationClick} />
+          )}
+          <button type="button" className="logout-button" onClick={handleLogout}><LogOut size={17} /> Cerrar sesión</button>
+        </div>
       </header>
       <section className="welcome-card">
         <span className="welcome-kicker">CUENTA ACTIVA <span className="online-dot" /></span>
@@ -30,11 +83,39 @@ export function HomePage() {
         <p>Ingresaste como <strong>{user?.email}</strong>.</p>
         <div className="role-badge">{user?.role === USER_ROLES.trainer ? 'Entrenador/a' : 'Alumno/a'}</div>
         {user?.role === USER_ROLES.trainer && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerProfile}>Completar mi perfil</Link>}
+        {user?.role === USER_ROLES.trainer && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerPlans}>Mis paquetes</Link>}
+        {user?.role === USER_ROLES.trainer && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerExercises}>Mis ejercicios</Link>}
+        {user?.role === USER_ROLES.trainer && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerRoutines}>Mis rutinas</Link>}
+        {user?.role === USER_ROLES.trainer && (
+          <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerRequests}>
+            <Inbox size={16} /> Solicitudes pendientes
+            <span className="inbox-badge-count" aria-label={`${pendingRequestsCount} solicitudes pendientes`}>
+              {pendingRequestsCount}
+            </span>
+          </Link>
+        )}
         {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentProfile}>Completar mi perfil</Link>}
         {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentHealth}>Cuestionario de salud</Link>}
         {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentProtectedZones}>Zonas a proteger</Link>}
         {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentMedical}>Apto médico</Link>}
+        {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerSearch}>Buscar entrenadores</Link>}
+        {user?.role === USER_ROLES.student && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentRoutines}>Rutinas</Link>}
+        {user?.role === USER_ROLES.student && (
+          <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.studentActivePlans}>
+            Mis entrenadores
+            <span className="inbox-badge-count" aria-label={`${activeLinksCount} vínculos activos`}>
+              {activeLinksCount}
+            </span>
+          </Link>
+        )}
         {error && <p className="form-alert" role="alert">{error}</p>}
+        {user?.role === USER_ROLES.student && (
+          <p className="home-active-plans-summary">
+            {activeLinksCount === 0
+              ? 'No tenés vínculos activos.'
+              : `Tenés ${activeLinksCount} vínculo${activeLinksCount === 1 ? '' : 's'} activo${activeLinksCount === 1 ? '' : 's'}.`}
+          </p>
+        )}
         <div className="welcome-next"><span>Este es el primer paso de Set to Set.</span><Dumbbell size={18} /></div>
       </section>
     </main>

@@ -1,9 +1,10 @@
 import axios from 'axios';
 import { ArrowLeft, CheckCircle2, Save } from 'lucide-react';
-import { type FormEvent, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { getOwnStudentProfile, updateOwnStudentProfile } from '../services/studentService';
+import { phoneError } from '../utils/phone';
 import { FITNESS_GOALS, type FitnessGoal, type StudentProfile, type StudentProfileUpdate } from '../types/student';
 
 type TextField = Exclude<keyof StudentProfileUpdate, 'fitness_goals'>;
@@ -28,12 +29,14 @@ interface ProblemDetails {
 }
 
 export function StudentProfileEditPage() {
+  const navigate = useNavigate();
+  const redirectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [goals, setGoals] = useState<FitnessGoal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -48,6 +51,10 @@ export function StudentProfileEditPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => () => {
+    if (redirectTimeout.current !== null) clearTimeout(redirectTimeout.current);
+  }, []);
+
   function toggleGoal(goal: FitnessGoal) {
     setGoals((current) => (current.includes(goal) ? current.filter((item) => item !== goal) : [...current, goal]));
     setFieldErrors((current) => ({ ...current, fitness_goals: '' }));
@@ -58,35 +65,39 @@ export function StudentProfileEditPage() {
     setFieldErrors((current) => ({ ...current, [field]: '' }));
   }
 
+  const phoneRangeError = phoneError(form.contact_phone, 10);
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    setSaving(true);
-    setMessage('');
+    setIsSubmitting(true);
     setError('');
     setFieldErrors({});
-    
-    const changedFields: Record<string, string | null> = {};
-    Object.entries(form).forEach(([key, value]) => {
-      const field = key as TextField;
-      const trimmed = value.trim();
-      
-      if (field === 'birth_date' && trimmed) {
-          changedFields[field] = `${trimmed}T00:00:00Z`;
-      } else if (trimmed) {
-          changedFields[field] = trimmed;
-      } else if (profile?.[field]) {
-          changedFields[field] = null;
-      }
-    });
-
-    const payload = { ...changedFields, fitness_goals: goals } as StudentProfileUpdate;
-    
     try {
+      const changedFields: Record<string, string | null> = {};
+      Object.entries(form).forEach(([key, value]) => {
+        const field = key as TextField;
+        const trimmed = value.trim();
+
+        if (field === 'birth_date' && trimmed) {
+          changedFields[field] = `${trimmed}T00:00:00Z`;
+        } else if (trimmed) {
+          changedFields[field] = trimmed;
+        } else if (profile?.[field]) {
+          changedFields[field] = null;
+        }
+      });
+
+      const payload = { ...changedFields, fitness_goals: goals } as StudentProfileUpdate;
       const updated = await updateOwnStudentProfile(payload);
       setProfile(updated);
       setForm(toForm(updated));
       setGoals(updated.fitness_goals);
-      setMessage(updated.status === 'PUBLISHED' ? 'Perfil guardado y publicado.' : 'Avance guardado. Tu perfil continúa en borrador.');
+      setIsSubmitting(false);
+      setIsSuccess(true);
+      redirectTimeout.current = setTimeout(() => {
+        navigate(ROUTES.studentHome);
+        redirectTimeout.current = null;
+      }, 1000);
     } catch (caught) {
       if (axios.isAxiosError<ProblemDetails>(caught)) {
         const fields = Object.fromEntries((caught.response?.data?.errors ?? []).map((item) => [item.field, item.message]));
@@ -96,13 +107,14 @@ export function StudentProfileEditPage() {
         setError('No pudimos guardar los cambios. Intentá nuevamente.');
       }
     } finally {
-      setSaving(false);
+      setIsSubmitting(false);
     }
   }
 
   if (loading) return <main className="loading-screen"><span className="loading-mark" /> Cargando perfil…</main>;
 
   return (
+    <>
     <main className="profile-shell">
       <header className="profile-header">
         <Link to={ROUTES.studentHome} className="profile-back"><ArrowLeft size={18} /> Volver al inicio</Link>
@@ -132,8 +144,8 @@ export function StudentProfileEditPage() {
           </div>
           <div className="profile-grid">
             <label>Teléfono / WhatsApp
-              <input value={form.contact_phone} onChange={(event) => updateField('contact_phone', event.target.value)} placeholder="+5491155551234" aria-invalid={Boolean(fieldErrors.contact_phone)} />
-              {fieldErrors.contact_phone && <small className="field-error">{fieldErrors.contact_phone}</small>}
+              <input value={form.contact_phone} onChange={(event) => updateField('contact_phone', event.target.value)} placeholder="+5491155551234" aria-invalid={Boolean(phoneRangeError || fieldErrors.contact_phone)} />
+              {(phoneRangeError || fieldErrors.contact_phone) && <small className="field-error">{phoneRangeError || fieldErrors.contact_phone}</small>}
             </label>
             <label>Fecha de nacimiento
               <input type="date" value={form.birth_date} onChange={(event) => updateField('birth_date', event.target.value)} aria-invalid={Boolean(fieldErrors.birth_date)} />
@@ -157,10 +169,28 @@ export function StudentProfileEditPage() {
             <textarea value={form.bio} onChange={(event) => updateField('bio', event.target.value)} rows={4} placeholder="Opcional: Contale a tus entrenadores un poco más sobre vos" />
           </label>
           {error && <p className="form-alert" role="alert">{error}</p>}
-          {message && <p className="profile-success" role="status"><CheckCircle2 size={18} /> {message}</p>}
-          <button className="profile-save" type="submit" disabled={saving}><Save size={18} /> {saving ? 'Guardando…' : 'Guardar perfil'}</button>
+          <button className="profile-save" type="submit" disabled={isSubmitting || Boolean(phoneRangeError)}><Save size={18} /> {isSubmitting ? 'Guardando...' : 'Guardar perfil'}</button>
         </form>
       </section>
     </main>
+    {(isSubmitting || isSuccess) && (
+      <div className="success-overlay" role="status" aria-live="polite" aria-atomic="true">
+        <div className="success-overlay__card">
+          {isSuccess ? (
+            <>
+              <span className="success-overlay__icon"><CheckCircle2 size={32} aria-hidden="true" /></span>
+              <h2>¡Guardado con éxito!</h2>
+              <p>Redirigiendo...</p>
+            </>
+          ) : (
+            <>
+              <span className="success-overlay__spinner" aria-hidden="true" />
+              <h2>Guardando...</h2>
+            </>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   );
 }

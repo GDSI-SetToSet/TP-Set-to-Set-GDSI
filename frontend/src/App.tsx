@@ -2,17 +2,27 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { USER_ROLES } from './constants/auth';
 import { ROUTES, homePath } from './constants/routes';
 import { useAuth } from './context/AuthContext';
+import { ExerciseLibraryPage } from './pages/ExerciseLibraryPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { RoutineTemplatesPage } from './pages/RoutineTemplatesPage';
 import { TrainerProfileEditPage } from './pages/TrainerProfileEditPage';
+import { TrainerPlansManagementPage } from './pages/TrainerPlansManagementPage';
+import { TrainerRequestsInboxPage } from './pages/TrainerRequestsInboxPage';
+import { TrainerRequestDetailPage } from './pages/TrainerRequestDetailPage';
 import type { UserRole } from './types/auth';
 import { HealthQuestionnairePage } from './pages/HealthQuestionnairePage';
 import { StudentProfileEditPage } from './pages/StudentProfileEditPage';
 import { ProtectedZonesPage } from './pages/ProtectedZonesPage';
 import { MedicalClearancePage } from './pages/MedicalClearancePage';
+import { TrainerSearchPage } from './pages/TrainerSearchPage';
+import { TrainerPublicDetailPage } from './pages/TrainerPublicDetailPage';
+import { TrainerRequestPage } from './pages/TrainerRequestPage';
+import { StudentActivePlansPage } from './pages/StudentActivePlansPage';
+import { StudentRoutinesPage } from './pages/StudentRoutinesPage';
 
 function ProtectedRoute({ children, role }: { children: JSX.Element; role: UserRole }) {
   const { user, loading } = useAuth();
@@ -39,12 +49,22 @@ export default function App() {
       <Route path={ROUTES.home} element={<HomeRedirect />} />
       <Route path={ROUTES.trainerHome} element={<ProtectedRoute role={USER_ROLES.trainer}><HomePage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerProfile} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerProfileEditPage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerPlans} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerPlansManagementPage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerExercises} element={<ProtectedRoute role={USER_ROLES.trainer}><ExerciseLibraryPage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerRoutines} element={<ProtectedRoute role={USER_ROLES.trainer}><RoutineTemplatesPage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerRequests} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerRequestsInboxPage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerRequestDetail} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerRequestDetailPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentHome} element={<ProtectedRoute role={USER_ROLES.student}><HomePage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerSearch} element={<ProtectedRoute role={USER_ROLES.student}><TrainerSearchPage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerPublicDetail} element={<ProtectedRoute role={USER_ROLES.student}><TrainerPublicDetailPage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerRequest} element={<ProtectedRoute role={USER_ROLES.student}><TrainerRequestPage /></ProtectedRoute>} />
       <Route path={ROUTES.fallback} element={<Navigate to={ROUTES.login} replace />} />
       <Route path={ROUTES.studentHealth} element={<ProtectedRoute role={USER_ROLES.student}><HealthQuestionnairePage /></ProtectedRoute>} />
       <Route path={ROUTES.studentProfile} element={<ProtectedRoute role={USER_ROLES.student}><StudentProfileEditPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentProtectedZones} element={<ProtectedRoute role={USER_ROLES.student}><ProtectedZonesPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentMedical} element={<ProtectedRoute role={USER_ROLES.student}><MedicalClearancePage /></ProtectedRoute>} />
+      <Route path={ROUTES.studentRoutines} element={<ProtectedRoute role={USER_ROLES.student}><StudentRoutinesPage /></ProtectedRoute>} />
+      <Route path={ROUTES.studentActivePlans} element={<ProtectedRoute role={USER_ROLES.student}><StudentActivePlansPage /></ProtectedRoute>} />
     </Routes>
   );
 }

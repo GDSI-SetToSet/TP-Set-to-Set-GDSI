@@ -1,5 +1,16 @@
+from backend.src.models.exercise import Exercise
 from backend.src.models.medical_clearance import MedicalClearance
+from backend.src.models.notification import Notification
+from backend.src.models.routine_template import (
+    RoutineTemplate,
+    RoutineTemplateBlock,
+    RoutineTemplateDay,
+    RoutineTemplateExercise,
+)
 from backend.src.models.trainer_profile import TrainerProfile
+from backend.src.models.training_plan import TrainingPlan
+from backend.src.models.training_relationship import TrainingRelationship
+from backend.src.models.training_request import TrainingRequest
 from backend.src.models.user import PasswordResetToken, User, UserSession
 
 from .health_questionnaire import HealthQuestionnaire
@@ -7,12 +18,21 @@ from .protected_zone import ProtectedZone
 from .student_profile import StudentProfile
 
 __all__ = [
+    "Exercise",
     "HealthQuestionnaire",
     "MedicalClearance",
+    "Notification",
     "PasswordResetToken",
     "ProtectedZone",
+    "RoutineTemplate",
+    "RoutineTemplateBlock",
+    "RoutineTemplateDay",
+    "RoutineTemplateExercise",
     "StudentProfile",
     "TrainerProfile",
+    "TrainingPlan",
+    "TrainingRelationship",
+    "TrainingRequest",
     "User",
     "UserSession",
 ]

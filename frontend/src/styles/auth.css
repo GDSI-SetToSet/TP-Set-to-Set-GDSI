@@ -460,3 +460,28 @@
 .mobile-brand {
   display: none;
 }
+
+/* Registro: paleta azul cuando se elige el rol entrenador. */
+.auth-shell--trainer .auth-panel { background: #f3f6fb; }
+.auth-shell--trainer .auth-visual { background: #14284d; }
+.auth-shell--trainer .auth-visual:before { background: radial-gradient(ellipse at 83% 84%,rgba(142,197,255,.2),transparent 43%),linear-gradient(145deg,transparent 30%,rgba(0,0,0,.12)); }
+.auth-shell--trainer .visual-tag { color: #d5def0; }
+.auth-shell--trainer .visual-kicker { color: #b9dcff; }
+.auth-shell--trainer .eyebrow { color: #3563b0; }
+.auth-shell--trainer .visual-copy h1 em,
+.auth-shell--trainer .stat-arrow { color: #8ec5ff; }
+.auth-shell--trainer .online-dot { background: #8ec5ff; box-shadow: 0 0 0 3px rgba(142,197,255,.13); }
+.auth-shell--trainer .visual-copy>p { color: #d1d9ea; }
+.auth-shell--trainer .stat-mark { background: rgba(142,197,255,.14); color: #8ec5ff; }
+.auth-shell--trainer .visual-stat small { color: #aebbd6; }
+.auth-shell--trainer .visual-footer { color: #9aa9c8; }
+.auth-shell--trainer .visual-orbit { border-color: rgba(142,197,255,.12); }
+.auth-shell--trainer .input-wrap:focus-within { border-color: #3563b0; box-shadow: 0 0 0 3px rgba(53,99,176,.14); }
+.auth-shell--trainer .submit-button { background: #1f3a68; }
+.auth-shell--trainer .submit-button:hover:not(:disabled) { background: #14284d; }
+.auth-shell--trainer .submit-button:disabled { background: #aab2ac; }
+.auth-shell--trainer .auth-switch a,
+.auth-shell--trainer .forgot-password-link { color: #1f3a68; }
+.auth-shell--trainer .role-option--active { border-color: #3563b0; box-shadow: 0 0 0 2px rgba(53,99,176,.12); }
+.auth-shell--trainer .role-icon { background: #e8effb; color: #1f3a68; }
+.auth-shell--trainer .role-check { color: #3563b0; }

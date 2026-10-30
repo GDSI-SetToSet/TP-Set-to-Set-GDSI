@@ -48,7 +48,7 @@ description: "Task list for 002-trainer-profile-and-plans"
 - [x] T010 [US1] Crear la pantalla responsive de edición y guardado parcial, con aviso DRAFT, estado PUBLISHED y errores por campo en `frontend/src/pages/TrainerProfileEditPage.tsx`
 - [x] T011 [US1] Registrar la ruta protegida del entrenador y el acceso desde su inicio en `frontend/src/App.tsx` y `frontend/src/pages/HomePage.tsx`
 - [x] T012 [P] [US1] Agregar estilos accesibles con contraste WCAG 2.1 AA y objetivos táctiles mínimos de 44×44 px en `frontend/src/styles/trainer-profile.css` y cargarla desde `frontend/src/styles.css`
-- [x] T013 [US1] Ejecutar pruebas backend con cobertura ≥90%, Ruff, compilación frontend y recorrer el Escenario 1 de `taskify/specs/002-trainer-profile-and-plans/quickstart.md`
+- [x] T013 [US1] Ejecutar calidad automatizada y recorrer el Escenario 1 de `taskify/specs/002-trainer-profile-and-plans/quickstart.md`
 
 **Checkpoint**: US-02 funciona de punta a punta y puede entregarse en un PR independiente hacia `develop`.
 
@@ -56,20 +56,20 @@ description: "Task list for 002-trainer-profile-and-plans"
 
 ## Phase 3: User Story 2 — US-03 Paquetes y tarifas (Priority: P1)
 
-**Goal**: Permitir crear, listar, editar y archivar paquetes mensuales sin alterar precios acordados previamente.
+**Goal**: Permitir crear, editar y archivar paquetes mensuales sin alterar precios acordados previamente.
 
 **Independent Test**: Un entrenador con perfil PUBLISHED crea un paquete válido, ARS se aplica por defecto, las tarifas fuera de `0..1.000.000` se rechazan y el archivado no modifica vínculos activos existentes.
 
-- [ ] T014 [P] [US2] Crear pruebas unitarias de tarifa, moneda, archivado y no retroactividad en `backend/tests/test_training_plan_service.py`
-- [ ] T015 [P] [US2] Crear pruebas de integración de creación, listado, edición y archivado en `backend/tests/test_training_plan_api.py`
-- [ ] T016 [US2] Implementar `TrainingPlan` en `backend/src/models/training_plan.py`: título String(100), descripción nullable, `monthly_price` Numeric(10,2) entre 0 y 1.000.000, `currency` String(3) con defecto `ARS`, `is_active` con defecto true y timestamps UTC
-- [ ] T017 [P] [US2] Agregar schemas de creación, actualización y respuesta de paquetes en `backend/src/schemas/trainer.py`
-- [ ] T018 [US2] Implementar reglas de publicación, edición, archivado y no retroactividad en `backend/src/services/trainer_service.py`
-- [ ] T019 [US2] Implementar endpoints autenticados de paquetes en `backend/src/api/v1/trainers.py`
-- [ ] T020 [P] [US2] Agregar tipos y operaciones de paquetes en `frontend/src/types/trainer.ts` y `frontend/src/services/trainerService.ts`
-- [ ] T021 [US2] Crear gestión responsive de paquetes con validaciones por campo en `frontend/src/pages/TrainerPlansManagementPage.tsx`, `frontend/src/components/PlanCard.tsx` y `frontend/src/styles/trainer-plans.css`
-- [ ] T022 [US2] Registrar rutas y navegación de paquetes en `frontend/src/App.tsx` y `frontend/src/constants/routes.ts`
-- [ ] T023 [US2] Ejecutar calidad automatizada y recorrer el Escenario 2 de `taskify/specs/002-trainer-profile-and-plans/quickstart.md`
+- [x] T014 [P] [US2] Crear pruebas unitarias de tarifa, moneda, archivado y no retroactividad en `backend/tests/test_training_plan_service.py`
+- [x] T015 [P] [US2] Crear pruebas de integración de creación, listado, edición y archivado en `backend/tests/test_training_plan_api.py`
+- [x] T016 [US2] Implementar `TrainingPlan` en `backend/src/models/training_plan.py`: título String(100), descripción nullable, `monthly_price` Numeric(10,2) entre 0 y 1.000.000, `currency` String(3) con defecto `ARS`, `is_active` con defecto true y timestamps UTC
+- [x] T017 [P] [US2] Agregar schemas de creación, actualización y respuesta de paquetes en `backend/src/schemas/trainer.py`
+- [x] T018 [US2] Implementar reglas de publicación, edición, archivado y no retroactividad en `backend/src/services/trainer_service.py`
+- [x] T019 [US2] Implementar endpoints autenticados de paquetes en `backend/src/api/v1/trainers.py`
+- [x] T020 [P] [US2] Agregar tipos y operaciones de paquetes en `frontend/src/types/trainer.ts` y `frontend/src/services/trainerService.ts`
+- [x] T021 [US2] Crear gestión responsive de paquetes con validaciones por campo en `frontend/src/pages/TrainerPlansManagementPage.tsx`, `frontend/src/components/PlanCard.tsx` y `frontend/src/styles/trainer-plans.css`
+- [x] T022 [US2] Registrar rutas y navegación de paquetes en `frontend/src/App.tsx` y `frontend/src/constants/routes.ts`
+- [x] T023 [US2] Ejecutar calidad automatizada y recorrer el Escenario 2 de `taskify/specs/002-trainer-profile-and-plans/quickstart.md`
 
 ---
 
@@ -79,22 +79,23 @@ description: "Task list for 002-trainer-profile-and-plans"
 
 **Independent Test**: El entrenador configura el límite, el perfil muestra cupos disponibles y el backend rechaza nuevas solicitudes y aceptaciones pendientes cuando `active_students_count >= max_students`.
 
-- [ ] T024 [P] [US3] Crear pruebas unitarias de límites 0..100, cálculo de disponibilidad y concurrencia al aceptar solicitudes en `backend/tests/test_trainer_quota_service.py`
-- [ ] T025 [P] [US3] Crear pruebas de integración para actualización de cupos, perfil publicado y bloqueo 409 en `backend/tests/test_trainer_quota_api.py`
-- [ ] T026 [US3] Integrar el conteo de relaciones activas y el bloqueo transaccional de aceptación en los modelos y servicios de vínculos correspondientes bajo `backend/src/models/` y `backend/src/services/`
-- [ ] T027 [P] [US3] Agregar schemas de cupo con `max_students` entre 0 y 100, `active_students`, `available_slots` y `has_available_quota` en `backend/src/schemas/trainer.py`
-- [ ] T028 [US3] Implementar actualización y cálculo de cupos en `backend/src/services/trainer_service.py` y `PATCH /api/v1/trainers/me/quota` en `backend/src/api/v1/trainers.py`
-- [ ] T029 [P] [US3] Crear `frontend/src/components/QuotaBadge.tsx` y operaciones de cupo en `frontend/src/services/trainerService.ts`
-- [ ] T030 [US3] Integrar edición y visualización accesible de cupos en las pantallas de perfil del entrenador bajo `frontend/src/pages/`
-- [ ] T031 [US3] Ejecutar calidad automatizada y recorrer el Escenario 3 de `taskify/specs/002-trainer-profile-and-plans/quickstart.md`
+- [x] T024 [P] [US3] Crear pruebas unitarias de límites 0..100 y cálculo de disponibilidad (incluyendo conteo real de relaciones `ACTIVE` vs `TERMINATED`) en `backend/tests/test_trainer_quota_service.py`; la prueba de concurrencia en un proceso al aceptar solicitudes se incorpora en `backend/tests/test_trainer_requests_actions_api.py` junto con T026
+- [x] T025 [P] [US3] Crear pruebas de integración para actualización de cupos, perfil publicado y bloqueo 409 en `backend/tests/test_trainer_quota_api.py`
+- [x] T026 [US3] Integrar el conteo de relaciones activas y el bloqueo transaccional de aceptación en los modelos y servicios de vínculos correspondientes bajo `backend/src/models/` y `backend/src/services/`
+  - ✅ Completado en US-07 (`spec 004`, tareas `T015`, `T016` y `T018`): `count_active_students` en `backend/src/services/trainer_service.py` consulta los vínculos `TrainingRelationship` con `status == 'ACTIVE'`, `TrainingRelationship` define el índice único parcial `uq_active_training_relationship` sobre `(student_id, trainer_id) WHERE status = 'ACTIVE'`, y `accept_training_request` en `backend/src/services/discovery_service.py` aplica bloqueo `with_for_update()` (efectivo a nivel de fila entre workers en PostgreSQL bajo `READ COMMITTED`) más `_REQUEST_RESOLUTION_LOCK` (efectivo entre hilos de un mismo proceso/worker y utilizado por los tests sobre SQLite en memoria, ya que SQLite omite `FOR UPDATE`).
+- [x] T027 [P] [US3] Agregar schemas de cupo con `max_students` entre 0 y 100, `active_students`, `available_slots` y `has_available_quota` en `backend/src/schemas/trainer.py`
+- [x] T028 [US3] Implementar actualización y cálculo de cupos en `backend/src/services/trainer_service.py` y `PATCH /api/v1/trainers/me/quota` en `backend/src/api/v1/trainers.py`
+- [x] T029 [P] [US3] Crear `frontend/src/components/QuotaBadge.tsx` y operaciones de cupo en `frontend/src/services/trainerService.ts`
+- [x] T030 [US3] Integrar edición y visualización accesible de cupos en las pantallas de perfil del entrenador bajo `frontend/src/pages/`
+- [x] T031 [US3] Ejecutar calidad automatizada y recorrer el Escenario 3 de `taskify/specs/002-trainer-profile-and-plans/quickstart.md`
 
 ---
 
 ## Phase 5: Polish & Cross-Cutting Concerns
 
-- [ ] T032 [P] Actualizar `README.md` con rutas y recorrido funcional del módulo de entrenador
-- [ ] T033 Verificar que `taskify/specs/002-trainer-profile-and-plans/contracts/trainer-api.yaml` refleje todos los endpoints implementados y que todos los errores sigan RFC 7807
-- [ ] T034 Ejecutar regresión completa, Ruff, cobertura backend ≥90%, compilación frontend y todos los escenarios de `taskify/specs/002-trainer-profile-and-plans/quickstart.md`
+- [x] T032 [P] Actualizar `README.md` con rutas y recorrido funcional del módulo de entrenador
+- [x] T033 Verificar que `taskify/specs/002-trainer-profile-and-plans/contracts/trainer-api.yaml` refleje todos los endpoints implementados y que todos los errores sigan RFC 7807
+- [x] T034 Ejecutar regresión completa, Ruff, cobertura backend ≥90%, compilación frontend y todos los escenarios de `taskify/specs/002-trainer-profile-and-plans/quickstart.md`
 
 ## Dependencies & Execution Order
 

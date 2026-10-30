@@ -1,37 +1,39 @@
 openapi: 3.0.3
 info:
   title: Set to Set - Exercise Library & Routine Templates API
-  version: 1.0.0
-  description: Endpoints para gestión de biblioteca de ejercicios, enlaces de video y plantillas genéricas (US-08, US-09, US-12, US-52).
+  version: 1.1.0
+  description: >-
+    Endpoints para gestión de biblioteca de ejercicios y rutinas genéricas (US-08, US-09).
+    Los campos de video y notas técnicas se incorporan con US-12 y US-52.
+    Todos los errores usan RFC 7807 (application/problem+json).
 
 paths:
   /api/v1/exercises:
     get:
-      summary: Listar ejercicios (del sistema y propios del entrenador) con filtros
+      summary: Listar los ejercicios propios del entrenador
       security:
         - BearerAuth: []
       parameters:
         - name: muscle_group
           in: query
           required: false
-          schema:
-            type: string
-        - name: equipment
-          in: query
-          required: false
+          description: Filtro exacto por músculo, sin distinguir mayúsculas.
           schema:
             type: string
       responses:
         '200':
+          description: Ejercicios del entrenador, sin los dados de baja
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/ExerciseResponse'
+        '403':
+          description: El usuario no es entrenador
 
     post:
-      summary: Crear un nuevo ejercicio personalizado en la biblioteca
+      summary: Crear un ejercicio en la biblioteca
       security:
         - BearerAuth: []
       requestBody:
@@ -39,75 +41,94 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExerciseCreateRequest'
+              $ref: '#/components/schemas/ExerciseInput'
       responses:
         '201':
+          description: Ejercicio creado
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ExerciseResponse'
-        '400':
-          description: Datos obligatorios faltantes o URL de video no soportada
+        '403':
+          description: El usuario no es entrenador
+        '422':
+          description: Datos obligatorios faltantes o inválidos
 
   /api/v1/exercises/{exercise_id}:
+    parameters:
+      - name: exercise_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
     get:
-      summary: Obtener detalle de un ejercicio (incluye notas técnicas y video embebible)
+      summary: Obtener el detalle de un ejercicio propio
       security:
         - BearerAuth: []
-      parameters:
-        - name: exercise_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
       responses:
         '200':
+          description: Detalle del ejercicio
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ExerciseResponse'
+        '404':
+          description: No existe, es de otro entrenador o fue dado de baja
 
     put:
-      summary: Editar ejercicio existente o actualizar enlace de video
+      summary: Editar un ejercicio propio
       security:
         - BearerAuth: []
-      parameters:
-        - name: exercise_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExerciseCreateRequest'
+              $ref: '#/components/schemas/ExerciseInput'
       responses:
         '200':
+          description: Ejercicio actualizado
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ExerciseResponse'
+        '404':
+          description: No existe, es de otro entrenador o fue dado de baja
+        '409':
+          description: Se quitó la marca a un ejercicio de una rutina apta "Sin materiales"
+        '422':
+          description: Datos obligatorios faltantes o inválidos
+
+    delete:
+      summary: Dar de baja lógica un ejercicio propio
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Ejercicio dado de baja
+        '404':
+          description: No existe, es de otro entrenador o fue dado de baja
 
   /api/v1/routine-templates:
     get:
-      summary: Listar plantillas de rutinas genéricas del entrenador
+      summary: Listar las rutinas genéricas del entrenador
       security:
         - BearerAuth: []
       responses:
         '200':
+          description: Rutinas del entrenador
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/RoutineTemplateResponse'
+        '403':
+          description: El usuario no es entrenador
 
     post:
-      summary: Crear una nueva plantilla genérica de rutina
+      summary: Crear una rutina genérica
       security:
         - BearerAuth: []
       requestBody:
@@ -115,13 +136,103 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RoutineTemplateCreateRequest'
+              $ref: '#/components/schemas/RoutineTemplateInput'
       responses:
         '201':
+          description: Rutina creada
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RoutineTemplateResponse'
+        '403':
+          description: El usuario no es entrenador
+        '422':
+          description: Datos faltantes, ejercicios no disponibles o regla "Sin materiales" incumplida
+
+  /api/v1/routine-templates/{template_id}:
+    parameters:
+      - name: template_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Obtener una rutina propia
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Detalle de la rutina
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoutineTemplateResponse'
+        '404':
+          description: No existe o es de otro entrenador
+
+    put:
+      summary: Editar una rutina propia, reemplazando su estructura
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoutineTemplateInput'
+      responses:
+        '200':
+          description: Rutina actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoutineTemplateResponse'
+        '404':
+          description: No existe o es de otro entrenador
+        '422':
+          description: Datos faltantes, ejercicios no disponibles o regla "Sin materiales" incumplida
+
+  /api/v1/students/me/routine-templates:
+    get:
+      summary: Listar en solo lectura las rutinas de los entrenadores con vínculo activo
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Rutinas disponibles para el alumno
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoutineTemplateResponse'
+        '403':
+          description: El usuario no es alumno
+
+  /api/v1/students/me/routine-templates/{template_id}:
+    get:
+      summary: Obtener en solo lectura una rutina de un entrenador con vínculo activo
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detalle de la rutina
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoutineTemplateResponse'
+        '403':
+          description: El usuario no es alumno
+        '404':
+          description: No existe o el alumno no tiene vínculo activo con el entrenador
 
 components:
   securitySchemes:
@@ -131,88 +242,36 @@ components:
       bearerFormat: JWT
 
   schemas:
-    ExerciseCreateRequest:
+    ExerciseCategory:
+      type: string
+      enum: [FUERZA, CARDIO, MOVILIDAD, FLEXIBILIDAD, EQUILIBRIO]
+
+    ExerciseInput:
       type: object
-      required: [name, description, target_muscle_group, equipment_needed]
+      required: [name, description, category, target_muscle_group, equipment_needed]
       properties:
         name:
           type: string
+          maxLength: 150
           example: "Peso Muerto Rumano con Mancuernas"
         description:
           type: string
           example: "Flexión de cadera manteniendo columna neutra hasta sentir tensión en isquiotibiales."
+        category:
+          $ref: '#/components/schemas/ExerciseCategory'
         target_muscle_group:
           type: string
-          example: "Isquiotibiales y Glúteos"
+          maxLength: 100
+          example: "Isquiotibiales"
         equipment_needed:
           type: string
+          maxLength: 150
           example: "Mancuernas"
-        video_url:
-          type: string
-          format: uri
-          example: "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-        technical_cues:
-          type: string
-          example: "Inhalar al descender, bloquear abdomen (bracing) y exhalar al extender cadera."
-
-    ExerciseResponse:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        name:
-          type: string
-        description:
-          type: string
-        target_muscle_group:
-          type: string
-        equipment_needed:
-          type: string
-        video_url:
-          type: string
-        video_platform:
-          type: string
-          enum: [YOUTUBE, VIMEO, GOOGLE_DRIVE, NONE]
-        embed_url:
-          type: string
-        technical_cues:
-          type: string
-        is_system:
-          type: boolean
-
-    RoutineTemplateCreateRequest:
-      type: object
-      required: [name, duration_weeks, intensity, exercises]
-      properties:
-        name:
-          type: string
-          example: "Iniciación a la Fuerza 3 Días"
-        duration_weeks:
-          type: integer
-          example: 4
-        intensity:
-          type: string
-          enum: [BAJA, MEDIA, ALTA, EXIGENTE]
         has_no_materials_alternative:
           type: boolean
-        exercises:
-          type: array
-          items:
-            type: object
-            required: [exercise_id, order_index, default_sets, default_reps]
-            properties:
-              exercise_id:
-                type: string
-                format: uuid
-              order_index:
-                type: integer
-              default_sets:
-                type: integer
-              default_reps:
-                type: string
+          default: false
 
-    RoutineTemplateResponse:
+    ExerciseResponse:
       type: object
       properties:
         id:
@@ -223,9 +282,143 @@ components:
           format: uuid
         name:
           type: string
+        description:
+          type: string
+        category:
+          $ref: '#/components/schemas/ExerciseCategory'
+        target_muscle_group:
+          type: string
+        equipment_needed:
+          type: string
+        has_no_materials_alternative:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    RoutineTemplateInput:
+      type: object
+      required: [name, duration_weeks, intensity, days]
+      properties:
+        name:
+          type: string
+          maxLength: 150
+          example: "Iniciación a la Fuerza 3 Días"
+        duration_weeks:
+          type: integer
+          minimum: 1
+          maximum: 52
+          example: 4
+        intensity:
+          type: string
+          enum: [BAJA, MEDIA, ALTA, EXIGENTE]
+        has_no_materials_alternative:
+          type: boolean
+          default: false
+        days:
+          type: array
+          minItems: 1
+          maxItems: 7
+          items:
+            type: object
+            required: [name, blocks]
+            properties:
+              name:
+                type: string
+                maxLength: 100
+              blocks:
+                type: array
+                minItems: 1
+                maxItems: 10
+                items:
+                  type: object
+                  required: [name, exercises]
+                  properties:
+                    name:
+                      type: string
+                      maxLength: 100
+                    exercises:
+                      type: array
+                      minItems: 1
+                      maxItems: 30
+                      items:
+                        type: object
+                        required: [exercise_id, sets, reps, rest_seconds]
+                        properties:
+                          exercise_id:
+                            type: string
+                            format: uuid
+                          sets:
+                            type: integer
+                            minimum: 1
+                            maximum: 20
+                          reps:
+                            type: string
+                            maxLength: 50
+                          rest_seconds:
+                            type: integer
+                            minimum: 0
+                            maximum: 600
+
+    RoutineTemplateResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        trainer_id:
+          type: string
+          format: uuid
+        trainer_name:
+          type: string
+          nullable: true
+        name:
+          type: string
         duration_weeks:
           type: integer
         intensity:
           type: string
+          enum: [BAJA, MEDIA, ALTA, EXIGENTE]
         has_no_materials_alternative:
           type: boolean
+        exercise_count:
+          type: integer
+        days:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              blocks:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                    name:
+                      type: string
+                    exercises:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          sets:
+                            type: integer
+                          reps:
+                            type: string
+                          rest_seconds:
+                            type: integer
+                          exercise:
+                            $ref: '#/components/schemas/ExerciseResponse'

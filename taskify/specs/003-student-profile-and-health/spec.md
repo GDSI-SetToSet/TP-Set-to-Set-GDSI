@@ -12,6 +12,12 @@
 
 ## Clarifications
 
+### Session 2026-10-19
+
+- Q: ¿Cómo debe gestionar el MVP la foto del perfil del alumno? → A: El alumno sube un archivo de imagen que se almacena de manera privada en el backend.
+- Q: ¿Qué formatos y tamaño máximo debe aceptar la foto de perfil? → A: Archivos JPG o PNG de hasta 5 MB.
+- Q: ¿Quién puede descargar la foto privada del perfil del alumno en esta primera implementación? → A: El propio alumno y únicamente su entrenador con un vínculo de entrenamiento activo.
+
 ### Session 2026-10-20
 
 - Q: ¿El nombre del alumno se guarda como dos campos o como un único "nombre completo"? → A: Dos campos obligatorios, nombre (`first_name`) y apellido (`last_name`); el código existente basado en `full_name` se migra/ajusta.
@@ -57,6 +63,10 @@ para completar mi perfil y que los entrenadores puedan conocerme.
 4. Dado que un alumno con perfil ya completo ingresa a modificar sus datos.
    Cuando edita un campo opcional (ej. foto de perfil o biografía) y presiona "Guardar".
    Entonces el sistema actualiza únicamente esa información, mantiene el estado activo de la cuenta y refleja los nuevos datos de forma inmediata en su perfil visible.
+
+5. Dado un alumno que selecciona una imagen válida como foto de perfil, cuando confirma la carga, entonces el sistema la almacena de manera privada, la asocia a su perfil y permite consultarla solo al alumno o a su entrenador con vínculo activo.
+
+6. Dado un alumno que intenta subir una foto que no es JPG o PNG, o que supera los 5 MB, cuando confirma la carga, entonces el sistema rechaza el archivo e informa los formatos y el tamaño máximo permitidos.
 
 
 ---
@@ -162,6 +172,8 @@ Como alumno, quiero adjuntar mi certificado de apto médico en formato PDF o ima
 
 - **FR-001**: El sistema DEBE permitir al alumno cargar y editar sus datos personales y de perfil (US-39), con nombre y apellido como campos obligatorios separados.
 
+- **FR-008**: El sistema DEBE permitir al alumno subir y reemplazar su foto de perfil en formato JPG o PNG con un máximo de 5 MB, almacenarla fuera del acceso público directo y entregarla únicamente al propio alumno o a su entrenador con un vínculo de entrenamiento activo, con autorización validada en el backend en cada descarga (US-39).
+
 - **FR-002**: El sistema DEBE permitir al alumno registrar objetivos de entrenamiento y motivaciones (US-40), eligiendo una o más opciones del catálogo cerrado: fuerza, hipertrofia, resistencia, pérdida de peso, salud general y movilidad/rehabilitación; no se admiten objetivos libres (el texto libre va en la motivación personal).
 
 - **FR-002b**: El sistema DEBE restringir objetivos y motivación personal al alumno y a los entrenadores con solicitud pendiente o relación activa, validado en el backend (US-40).
@@ -188,7 +200,7 @@ Como alumno, quiero adjuntar mi certificado de apto médico en formato PDF o ima
 
 ### Key Entities *(include if feature involves data)*
 
-- **StudentProfile**: Perfil personal y deportivo del alumno: nombre y apellido (campos separados), edad, nivel de experiencia y datos de contacto.
+- **StudentProfile**: Perfil personal y deportivo del alumno: nombre y apellido (campos separados), edad, nivel de experiencia, datos de contacto y referencia protegida a su foto de perfil.
 
 - **HealthQuestionnaire**: Cuestionario clínico inicial con antecedentes cardiovasculares, patologías diagnosticadas y otras condiciones médicas declaradas (sin objetivos de entrenamiento, que viven en el perfil).
 

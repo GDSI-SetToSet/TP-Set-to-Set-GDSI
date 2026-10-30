@@ -46,7 +46,7 @@ export function RegisterPage() {
   }
 
   return (
-    <AuthLayout eyebrow="EMPEZÁ HOY" title="Creá tu cuenta" subtitle="Un espacio para entrenar con seguimiento y acompañamiento.">
+    <AuthLayout eyebrow="EMPEZÁ HOY" title="Creá tu cuenta" subtitle="Un espacio para entrenar con seguimiento y acompañamiento." trainer={role === USER_ROLES.trainer}>
       <form className="auth-form register-form" onSubmit={handleSubmit} noValidate>
         <fieldset className="role-select">
           <legend>Quiero registrarme como</legend>

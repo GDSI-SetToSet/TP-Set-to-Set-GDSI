@@ -75,10 +75,11 @@ paths:
           application/json:
             schema:
               type: object
-              required: [max_students]
+              description: Si se omite max_students (o es null) se guarda 0 y el perfil queda "Sin cupos disponibles".
               properties:
                 max_students:
                   type: integer
+                  nullable: true
                   minimum: 0
                   maximum: 100
                   example: 25
@@ -95,6 +96,14 @@ paths:
                     type: integer
                   available_slots:
                     type: integer
+                  has_available_quota:
+                    type: boolean
+        '422':
+          description: Tope fuera de rango ("Los cupos deben estar entre 0 y 100"); el tope vigente no se modifica
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
 
   /api/v1/trainers/me/plans:
     get:
@@ -127,6 +136,95 @@ paths:
                 $ref: '#/components/schemas/TrainingPlanResponse'
         '422':
           description: Tarifa fuera de rango (0 a 1.000.000) o datos incompletos
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/trainers/me/plans/{plan_id}:
+    put:
+      summary: Editar parcialmente un paquete propio (aplica solo a solicitudes futuras)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: plan_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrainingPlanUpdateRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingPlanResponse'
+        '404':
+          description: Paquete inexistente o de otro entrenador
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          description: Tarifa fuera de rango o título/tarifa enviados vacíos
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/trainers/me/plans/{plan_id}/archive:
+    post:
+      summary: Archivar un paquete propio (deja de mostrarse; no modifica vínculos activos)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: plan_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingPlanResponse'
+        '404':
+          description: Paquete inexistente o de otro entrenador
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/trainers/{trainer_id}/plans:
+    get:
+      summary: Listar los paquetes activos de un perfil publicado
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: trainer_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrainingPlanResponse'
+        '404':
+          description: Perfil inexistente o no publicado
           content:
             application/problem+json:
               schema:
@@ -190,6 +288,8 @@ components:
           type: integer
         available_slots:
           type: integer
+        has_available_quota:
+          type: boolean
 
     TrainingPlanCreateRequest:
       type: object
@@ -206,7 +306,27 @@ components:
           example: 25000.00
         currency:
           type: string
+          pattern: '^[A-Z]{3}$'
           default: "ARS"
+
+    TrainingPlanUpdateRequest:
+      type: object
+      description: Solo se modifican los campos enviados; título y tarifa no aceptan null ni vacío.
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+        monthly_price:
+          type: number
+          minimum: 0
+          maximum: 1000000
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
 
     TrainingPlanResponse:
       type: object

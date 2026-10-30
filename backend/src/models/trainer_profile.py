@@ -23,3 +23,6 @@ class TrainerProfile(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="trainer_profile")  # noqa: F821
+    plans: Mapped[list["TrainingPlan"]] = relationship(  # noqa: F821
+        back_populates="trainer", cascade="all, delete-orphan", order_by="TrainingPlan.created_at"
+    )

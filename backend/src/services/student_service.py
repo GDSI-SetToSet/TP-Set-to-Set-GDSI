@@ -6,11 +6,19 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
-from backend.src.core.storage import StorageError, open_upload, save_upload
+from backend.src.core.storage import (
+    StorageError,
+    open_upload,
+    sanitize_filename,
+    save_upload,
+)
 from backend.src.models.health_questionnaire import HealthQuestionnaire
 from backend.src.models.medical_clearance import MedicalClearance
 from backend.src.models.protected_zone import ProtectedZone
 from backend.src.models.student_profile import StudentProfile
+from backend.src.models.trainer_profile import TrainerProfile
+from backend.src.models.training_relationship import TrainingRelationship
+from backend.src.models.training_request import TrainingRequest
 from backend.src.models.user import User
 from backend.src.schemas.protected_zone import ProtectedZonesUpdate
 from backend.src.schemas.student import StudentProfileUpdate
@@ -105,8 +113,35 @@ def replace_own_protected_zones(
 
 
 def trainer_has_access(db: Session, trainer: User, student_profile_id: str) -> bool:
-    # ponytail: stub until TrainingRequest/TrainingRelationship exist (spec 004); then check pending request or ACTIVE relation
-    return False
+    if trainer.role != TRAINER_ROLE or not student_profile_id:
+        return False
+    trainer_profile_id = db.scalar(
+        select(TrainerProfile.id).where(TrainerProfile.user_id == trainer.id)
+    )
+    if trainer_profile_id is None:
+        return False
+    student_exists = db.scalar(
+        select(StudentProfile.id).where(StudentProfile.id == student_profile_id)
+    )
+    if student_exists is None:
+        return False
+    pending_request = db.scalar(
+        select(TrainingRequest.id).where(
+            TrainingRequest.trainer_id == trainer_profile_id,
+            TrainingRequest.student_id == student_profile_id,
+            TrainingRequest.status == "PENDING",
+        )
+    )
+    if pending_request is not None:
+        return True
+    active_relationship = db.scalar(
+        select(TrainingRelationship.id).where(
+            TrainingRelationship.trainer_id == trainer_profile_id,
+            TrainingRelationship.student_id == student_profile_id,
+            TrainingRelationship.status == "ACTIVE",
+        )
+    )
+    return active_relationship is not None
 
 
 def get_goals_for_viewer(db: Session, viewer: User, student_profile_id: str) -> StudentProfile:
@@ -158,7 +193,14 @@ def get_own_questionnaire(db: Session, user: User) -> HealthQuestionnaire:
 
 
 def get_questionnaire_for_viewer(db: Session, viewer: User, student_profile_id: str) -> HealthQuestionnaire:
-    profile = get_goals_for_viewer(db, viewer, student_profile_id)
+    profile = db.get(StudentProfile, student_profile_id)
+    if profile is None:
+        raise StudentProfileError(status.HTTP_404_NOT_FOUND, "Student not found.")
+    if profile.user_id != viewer.id and not (viewer.role == TRAINER_ROLE and trainer_has_access(db, viewer, profile.id)):
+        raise StudentProfileError(
+            status.HTTP_403_FORBIDDEN,
+            "You cannot view this student's health questionnaire.",
+        )
     questionnaire = current_questionnaire(db, profile)
     if questionnaire is None:
         raise StudentProfileError(status.HTTP_404_NOT_FOUND, "Health questionnaire not completed yet.")
@@ -188,25 +230,30 @@ async def upload_medical_clearance(
     except StorageError as error:
         raise StudentProfileError(status.HTTP_400_BAD_REQUEST, error.message) from error
 
-    db.execute(
-        update(MedicalClearance)
-        .where(MedicalClearance.student_id == profile.id, MedicalClearance.status == "CURRENT")
-        .values(status="ARCHIVED")
-    )
-    clearance = MedicalClearance(
-        student_id=profile.id,
-        file_path=file_path,
-        original_filename=file.filename or "apto",
-        mime_type=file.content_type or "application/octet-stream",
-        file_size_bytes=file_size,
-        issue_date=issue_date,
-        status="CURRENT",
-        created_at=utc_now(),
-    )
-    db.add(clearance)
-    db.commit()
-    db.refresh(clearance)
-    return clearance
+    try:
+        db.execute(
+            update(MedicalClearance)
+            .where(MedicalClearance.student_id == profile.id, MedicalClearance.status == "CURRENT")
+            .values(status="ARCHIVED")
+        )
+        clearance = MedicalClearance(
+            student_id=profile.id,
+            file_path=file_path,
+            original_filename=sanitize_filename(file.filename),
+            mime_type=file.content_type or "application/octet-stream",
+            file_size_bytes=file_size,
+            issue_date=issue_date,
+            status="CURRENT",
+            created_at=utc_now(),
+        )
+        db.add(clearance)
+        db.commit()
+        db.refresh(clearance)
+        return clearance
+    except Exception:
+        db.rollback()
+        Path(file_path).unlink(missing_ok=True)
+        raise
 
 
 def get_own_clearance(db: Session, user: User) -> MedicalClearance:
