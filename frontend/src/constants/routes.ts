@@ -11,6 +11,7 @@ export const ROUTES = {
   trainerHome: '/entrenador/inicio',
   trainerProfile: '/entrenador/perfil',
   trainerPlans: '/entrenador/paquetes',
+  trainerExercises: '/entrenador/ejercicios',
   trainerRequests: '/entrenador/solicitudes',
   trainerRequestDetail: '/entrenador/solicitudes/:requestId',
   studentHome: '/alumno/inicio',

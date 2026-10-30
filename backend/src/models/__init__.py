@@ -1,3 +1,4 @@
+from backend.src.models.exercise import Exercise
 from backend.src.models.medical_clearance import MedicalClearance
 from backend.src.models.notification import Notification
 from backend.src.models.trainer_profile import TrainerProfile
@@ -11,6 +12,7 @@ from .protected_zone import ProtectedZone
 from .student_profile import StudentProfile
 
 __all__ = [
+    "Exercise",
     "HealthQuestionnaire",
     "MedicalClearance",
     "Notification",

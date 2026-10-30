@@ -84,6 +84,7 @@ export function HomePage() {
         <div className="role-badge">{user?.role === USER_ROLES.trainer ? 'Entrenador/a' : 'Alumno/a'}</div>
         {user?.role === USER_ROLES.trainer && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerProfile}>Completar mi perfil</Link>}
         {user?.role === USER_ROLES.trainer && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerPlans}>Mis paquetes</Link>}
+        {user?.role === USER_ROLES.trainer && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerExercises}>Mis ejercicios</Link>}
         {user?.role === USER_ROLES.trainer && (
           <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerRequests}>
             <Inbox size={16} /> Solicitudes pendientes

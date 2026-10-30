@@ -1,0 +1,29 @@
+.exercise-select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--pf-input-border);
+  border-radius: 10px;
+  color: var(--pf-input-text);
+  background: #fff;
+  font: inherit;
+}
+.exercise-select:focus { outline: 3px solid var(--pf-focus); border-color: var(--pf-accent); }
+
+.exercise-check {
+  min-height: 44px;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.exercise-check input { width: 20px; height: 20px; min-height: 0; margin: 0; flex: none; }
+
+.exercise-filter { max-width: 880px; margin: 24px auto 0; }
+.exercise-filter label { display: grid; gap: 6px; color: var(--pf-label); font-weight: 700; }
+
+.exercise-card__muscle { margin: 0; color: var(--pf-muted); font-weight: 600; }
+.exercise-card__detail { margin: 0; display: grid; gap: 4px; }
+.exercise-card__detail dt { margin-top: 6px; color: var(--pf-label); font-size: 13px; font-weight: 700; }
+.exercise-card__detail dd { margin: 0; color: var(--pf-body); white-space: pre-line; }

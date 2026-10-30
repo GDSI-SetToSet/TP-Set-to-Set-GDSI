@@ -1,66 +1,87 @@
-# Quickstart Validation: Biblioteca de Ejercicios, Videos Demostrativos y Rutinas Genéricas
+# Quickstart Validation: Biblioteca de Ejercicios y Rutinas Genéricas
 
 **Feature**: `005-exercise-library-and-templates`
-**Date**: 2026-10-15
+**Date**: 2026-10-15 (actualizado 2026-10-30 tras `/speckit-clarify`)
 
 ## Prerrequisitos
 
 - Token JWT de entrenador (`$TRAINER_TOKEN`)
+- Token JWT de alumno con vínculo activo con ese entrenador (`$STUDENT_TOKEN`)
 
-## Escenario 1: Creación de Ejercicio y Validación de Videos Externos (US-08, US-12, US-52)
+## Escenario 1: Biblioteca de Ejercicios (US-08)
 
 ```bash
-# 1. Intentar vincular URL no soportada (ej. TikTok o Dropbox)
+# 1. Intentar crear un ejercicio sin categoría ni músculo
+curl -i -X POST http://localhost:8000/api/v1/exercises \
+  -H "Authorization: Bearer $TRAINER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Plancha", "description": "Isométrico de core", "equipment_needed": "Ninguno"}'
+
+# Resultado esperado: HTTP 422 con errors[] para category y target_muscle_group.
+
+# 2. Crear un ejercicio válido
 curl -i -X POST http://localhost:8000/api/v1/exercises \
   -H "Authorization: Bearer $TRAINER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Press Militar con Mancuernas",
-    "description": "Empuje vertical desde nivel de hombros",
-    "target_muscle_group": "Deltoides",
-    "equipment_needed": "Mancuernas",
-    "video_url": "https://www.tiktok.com/@fitness/video/123456"
+    "name": "Plancha",
+    "description": "Isométrico de core",
+    "category": "FUERZA",
+    "target_muscle_group": "Abdominales",
+    "equipment_needed": "Ninguno",
+    "has_no_materials_alternative": true
   }'
 
-# Resultado esperado: HTTP 400 Bad Request ("Plataforma de video no soportada. Solo YouTube, Vimeo o Google Drive").
+# Resultado esperado: HTTP 201 Created.
 
-# 2. Crear ejercicio válido con enlace de YouTube y notas técnicas (US-12, US-52)
-curl -i -X POST http://localhost:8000/api/v1/exercises \
-  -H "Authorization: Bearer $TRAINER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Press Militar con Mancuernas",
-    "description": "Empuje vertical sentado en banco a 75 grados",
-    "target_muscle_group": "Deltoides",
-    "equipment_needed": "Mancuernas y Banco",
-    "video_url": "https://www.youtube.com/watch?v=2yjwXTZQDDI",
-    "technical_cues": "Evitar arquear zona lumbar; mantener codos a 45 grados en el plano escapular."
-  }'
+# 3. Filtrar por músculo
+curl -i "http://localhost:8000/api/v1/exercises?muscle_group=abdominales" \
+  -H "Authorization: Bearer $TRAINER_TOKEN"
 
-# Resultado esperado: HTTP 201 Created con video_platform="YOUTUBE" y embed_url calculada.
+# Resultado esperado: HTTP 200 con el ejercicio creado.
 ```
 
-## Escenario 2: Creación de Plantilla de Rutina Genérica (US-09)
+## Escenario 2: Rutina Genérica (US-09)
 
 ```bash
-# 1. Crear plantilla con 1 ejercicio
+# 1. Crear una rutina con un día, un bloque y un ejercicio
 curl -i -X POST http://localhost:8000/api/v1/routine-templates \
   -H "Authorization: Bearer $TRAINER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Empuje Básico 3 Días",
+    "name": "Core en Casa",
     "duration_weeks": 4,
     "intensity": "MEDIA",
-    "has_no_materials_alternative": false,
-    "exercises": [
-      {
-        "exercise_id": "<EXERCISE_ID>",
-        "order_index": 1,
-        "default_sets": 4,
-        "default_reps": "8-10"
-      }
-    ]
+    "has_no_materials_alternative": true,
+    "days": [{
+      "name": "Día 1",
+      "blocks": [{
+        "name": "Principal",
+        "exercises": [{"exercise_id": "<EXERCISE_ID>", "sets": 4, "reps": "30 seg", "rest_seconds": 60}]
+      }]
+    }]
   }'
 
-# Resultado esperado: HTTP 201 Created con la plantilla registrada.
+# Resultado esperado: HTTP 201 Created con exercise_count=1.
+
+# 2. Quitar la marca al ejercicio de la rutina
+curl -i -X PUT http://localhost:8000/api/v1/exercises/<EXERCISE_ID> \
+  -H "Authorization: Bearer $TRAINER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Plancha",
+    "description": "Isométrico de core",
+    "category": "FUERZA",
+    "target_muscle_group": "Abdominales",
+    "equipment_needed": "Ninguno",
+    "has_no_materials_alternative": false
+  }'
+
+# Resultado esperado: HTTP 409 Conflict.
+
+# 3. Consultar como alumno con vínculo activo
+curl -i http://localhost:8000/api/v1/students/me/routine-templates \
+  -H "Authorization: Bearer $STUDENT_TOKEN"
+
+# Resultado esperado: HTTP 200 con la rutina en solo lectura.
 ```
