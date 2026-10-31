@@ -53,7 +53,11 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-    errors = [{"field": field_name(tuple(error["loc"])), "message": error["msg"]} for error in exc.errors()]
+    errors = []
+    for error in exc.errors():
+        value_error = (error.get("ctx") or {}).get("error")
+        message = str(value_error) if isinstance(value_error, ValueError) else error["msg"]
+        errors.append({"field": field_name(tuple(error["loc"])), "message": message})
     return problem_response(request, VALIDATION_ERROR_STATUS, VALIDATION_ERROR_MESSAGE, errors=errors)
 
 

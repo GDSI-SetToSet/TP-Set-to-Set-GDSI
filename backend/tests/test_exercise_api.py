@@ -5,6 +5,9 @@ from backend.src.models.exercise import Exercise
 
 EXERCISES_PATH = "/api/v1/exercises"
 REQUIRED_MESSAGE = "Este campo es obligatorio"
+INVALID_VIDEO_MESSAGE = (
+    "Plataforma no soportada o link inválido. Solo se permite YouTube, Vimeo o Google Drive."
+)
 VALID_EXERCISE = {
     "name": "Sentadilla búlgara",
     "description": "Sentadilla unilateral con el pie trasero elevado",
@@ -35,7 +38,85 @@ def test_create_exercise_with_required_fields(client):
     assert exercise["name"] == "Sentadilla búlgara"
     assert exercise["category"] == "FUERZA"
     assert exercise["has_no_materials_alternative"] is False
+    assert exercise["video_url"] is None
+    assert exercise["video_platform"] == "NONE"
     assert api.get(f"{EXERCISES_PATH}/{exercise['id']}", headers=trainer).json() == exercise
+
+
+@pytest.mark.parametrize(
+    ("video_url", "video_platform", "normalized_url"),
+    [
+        (
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "YOUTUBE",
+            "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+        ),
+        (
+            "https://vimeo.com/123456789",
+            "VIMEO",
+            "https://player.vimeo.com/video/123456789",
+        ),
+        (
+            "https://drive.google.com/file/d/file_id-123/view?usp=sharing",
+            "GOOGLE_DRIVE",
+            "https://drive.google.com/file/d/file_id-123/preview",
+        ),
+    ],
+)
+def test_create_exercise_normalizes_supported_video_urls(
+    client, video_url, video_platform, normalized_url
+):
+    api, _ = client
+    trainer = register_and_login(api, "coach@example.com", "TRAINER")
+
+    exercise = create_exercise(api, trainer, video_url=video_url)
+
+    assert exercise["video_platform"] == video_platform
+    assert exercise["video_url"] == normalized_url
+
+
+@pytest.mark.parametrize(
+    "video_url",
+    [
+        "https://youtube.com.evil.example/watch?v=dQw4w9WgXcQ",
+        "https://vimeo.example/123456789",
+        "https://example.com/video.mp4",
+        "https://youtube.com/watch?v=short",
+    ],
+)
+def test_create_exercise_rejects_invalid_video_urls(client, video_url):
+    api, _ = client
+    trainer = register_and_login(api, "coach@example.com", "TRAINER")
+
+    response = api.post(EXERCISES_PATH, headers=trainer, json={**VALID_EXERCISE, "video_url": video_url})
+
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/problem+json")
+    assert response.json()["errors"] == [{"field": "video_url", "message": INVALID_VIDEO_MESSAGE}]
+    assert api.get(EXERCISES_PATH, headers=trainer).json() == []
+
+
+def test_update_exercise_replaces_and_removes_video(client):
+    api, _ = client
+    trainer = register_and_login(api, "coach@example.com", "TRAINER")
+    exercise = create_exercise(api, trainer, video_url="https://youtu.be/dQw4w9WgXcQ")
+    path = f"{EXERCISES_PATH}/{exercise['id']}"
+
+    replaced = api.put(
+        path,
+        headers=trainer,
+        json={**VALID_EXERCISE, "video_url": "https://vimeo.com/123456789"},
+    )
+
+    assert replaced.status_code == 200
+    assert replaced.json()["video_platform"] == "VIMEO"
+    assert replaced.json()["video_url"] == "https://player.vimeo.com/video/123456789"
+
+    removed = api.put(path, headers=trainer, json={**VALID_EXERCISE, "video_url": None})
+
+    assert removed.status_code == 200
+    assert removed.json()["video_url"] is None
+    assert removed.json()["video_platform"] == "NONE"
 
 
 @pytest.mark.parametrize("field", ["name", "description", "category", "target_muscle_group", "equipment_needed"])
