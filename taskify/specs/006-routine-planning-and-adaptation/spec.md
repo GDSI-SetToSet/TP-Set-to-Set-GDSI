@@ -10,6 +10,17 @@
 
 **User Stories Cubiertas**: US-13, US-14, US-53, US-54, US-55
 
+## Clarifications
+
+### Session 2026-10-31 (US-13)
+
+- Q: ¿Qué información del alumno está disponible y debe consumirse para personalizar la rutina? → A: Objetivos de fitness (`fitness_goals`), motivación personal (`personal_motivation`), fecha de nacimiento/edad calculada, zonas corporales protegidas (`protected_zones`), respuestas del cuestionario de salud (`health_questionnaire`) y estado de apto médico. No se envían datos sensibles no pertinentes (teléfono, correo).
+- Q: ¿Cómo se identifican y gestionan los ejercicios incompatibles? → A: Un ejercicio es incompatible si su grupo muscular o patrón coincide con una zona protegida del alumno (ej. "Hombro", "Rodilla", "Lumbar") o si contradice una contraindicación médica del cuestionario de salud. La IA debe sustituirlo por un ejercicio alternativo válido de la biblioteca del entrenador o eliminarlo si no existe alternativa disponible.
+- Q: ¿Quién puede generar y aprobar una rutina particular para un alumno? → A: Exclusivamente un entrenador con un vínculo activo (`TrainingRelationship.status == "ACTIVE"`) con el alumno en cuestión (Principio III de la Constitución).
+- Q: ¿La IA aprueba o activa directamente la rutina? → A: NUNCA. Por mandato constitucional (Principio II - Human-in-the-Loop), la IA genera una propuesta o borrador en estado `PENDING_REVIEW` con un resumen explicativo de las adaptaciones. El entrenador debe revisar y aprobar explícitamente (`APPROVED`) la rutina antes de que quede asignada o activa para el alumno.
+- Q: ¿Se modifica la rutina genérica original? → A: No. La plantilla genérica (`RoutineTemplate`) de la biblioteca permanece 100% inalterada. La propuesta y la rutina aprobada se gestionan en una entidad de rutina particular/asignada (`AssignedRoutine`).
+- Q: ¿Cómo se gestionan las fallas o respuestas incompletas del mecanismo de IA? → A: Ante una falla técnica o respuesta inválida del proveedor/adaptador de IA, el sistema no persiste rutinas corruptas, informa el error siguiendo RFC 7807 y permite al entrenador reintentar.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-13: generar rutina particular con IA] (Priority: P2, Estimación: 5 SP)
@@ -20,15 +31,66 @@ Como entrenador personal,
 
 **Why this priority**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Independent Test**: Un entrenador con un alumno activo y una rutina genérica en su biblioteca solicita generar una rutina particular con IA. El sistema devuelve una propuesta adaptada a los objetivos y restricciones (ejercicios incompatibles eliminados o sustituidos, intensidades/series adaptadas) en estado "PENDING_REVIEW". La plantilla genérica original permanece intacta. El entrenador aprueba la propuesta y la rutina pasa a estar persistida y aprobada ("APPROVED") para ese alumno. Si un entrenador intenta acceder a un alumno con el que no tiene vínculo activo, el sistema rechaza la acción con HTTP 403.
 
 **Acceptance Scenarios**:
 
-1. Dado un alumno con objetivos y limitaciones de entrenamiento, y una rutina genérica de la biblioteca de rutinas, cuando el entrenador quiere crear una rutina particular para ese alumno, entonces el sistema edita la rutina con inteligencia artificial, modificando el tipo, cantidad o intensidad de los ejercicios, adaptandola a las necesidades del alumno.
+1. **Generación de propuesta adaptada**: Dado un alumno con vínculo activo que tiene objetivos de entrenamiento y limitaciones físicas registradas, y una rutina genérica de la biblioteca del entrenador, cuando el entrenador solicita generar una rutina particular con IA, entonces el sistema genera una propuesta de rutina particular adaptando el tipo, cantidad de series/repeticiones e intensidad de los ejercicios, y presenta un resumen de adaptaciones al entrenador en estado de revisión (`PENDING_REVIEW`).
 
-2. Dado que un ejercicio de la rutina genérica no aplica a los objetivos y limitaciones del alumno, cuando se crea la rutina, entonces el sistema debe editar o eliminar el ejercicio para cumplir con las restricciones del alumno.
+2. **Eliminación o sustitución de ejercicios incompatibles**: Dado que un ejercicio de la rutina genérica coincide con una zona protegida o restricción de salud del alumno, cuando se genera la rutina particular con IA, entonces el sistema sustituye el ejercicio por una alternativa válida de la biblioteca del entrenador o lo elimina de la rutina, documentando el motivo en el resumen de adaptación.
 
+3. **Supervisión humana obligatoria (Human-in-the-Loop)**: Dada una propuesta de rutina generada por IA, cuando se genera inicialmente, entonces el sistema la conserva en estado `PENDING_REVIEW` y NO la activa automáticamente al alumno hasta que el entrenador revise y apruebe explícitamente la propuesta.
 
+4. **Aprobación y persistencia de la rutina**: Dado un entrenador revisando una propuesta en `PENDING_REVIEW`, cuando presiona la acción de aprobar, entonces la rutina cambia a estado `APPROVED`, queda asignada al alumno correspondiente y vinculada al entrenador, y actualiza el vínculo activo del alumno.
+
+5. **Inmutabilidad de la plantilla genérica original**: Dada la generación y posterior aprobación de una rutina particular con IA basada en una plantilla genérica, cuando se consulta la plantilla genérica en la biblioteca de rutinas, entonces conserva exactamente sus días, bloques, ejercicios y parámetros originales.
+
+6. **Control de autorización y privacidad (Server-Side)**: Dado un entrenador autenticado que intenta solicitar la generación de rutina o acceder a datos de un alumno con el que NO mantiene un vínculo activo ni solicitud autorizada, entonces el sistema responde con HTTP 403 Forbidden.
+
+7. **Manejo de errores del mecanismo de IA**: Dado un fallo en el adaptador de IA o una respuesta no estructurada, cuando se solicita la generación, entonces el sistema captura la excepción, no genera registros inconsistentes y responde con un error RFC 7807 detallado.
+
+**Input**: User Story Map y Backlog MVP: Generación de borradores de rutinas particulares asistida por IA con revisión humana obligatoria, adaptación a restricciones articulares mediante variantes seguras, solicitudes de reemplazo inmediato de máquinas y alternancia entre versiones gimnasio y casa.
+
+**User Stories Cubiertas**: US-13, US-14, US-53, US-54, US-55
+
+## Clarifications
+
+### Session 2026-10-31 (US-13)
+
+- Q: ¿Qué información del alumno está disponible y debe consumirse para personalizar la rutina? → A: Objetivos de fitness (), motivación personal (), fecha de nacimiento/edad calculada, zonas corporales protegidas (), respuestas del cuestionario de salud () y estado de apto médico. No se envían datos sensibles no pertinentes (teléfono, correo).
+- Q: ¿Cómo se identifican y gestionan los ejercicios incompatibles? → A: Un ejercicio es incompatible si su grupo muscular o patrón coincide con una zona protegida del alumno (ej. "Hombro", "Rodilla", "Lumbar") o si contradice una contraindicación médica del cuestionario de salud. La IA debe sustituirlo por un ejercicio alternativo válido de la biblioteca del entrenador o eliminarlo si no existe alternativa disponible.
+- Q: ¿Quién puede generar y aprobar una rutina particular para un alumno? → A: Exclusivamente un entrenador con un vínculo activo () con el alumno en cuestión (Principio III de la Constitución).
+- Q: ¿La IA aprueba o activa directamente la rutina? → A: NUNCA. Por mandato constitucional (Principio II - Human-in-the-Loop), la IA genera una propuesta o borrador en estado  con un resumen explicativo de las adaptaciones. El entrenador debe revisar y aprobar explícitamente () la rutina antes de que quede asignada o activa para el alumno.
+- Q: ¿Se modifica la rutina genérica original? → A: No. La plantilla genérica () de la biblioteca permanece 100% inalterada. La propuesta y la rutina aprobada se gestionan en una entidad de rutina particular/asignada ().
+- Q: ¿Cómo se gestionan las fallas o respuestas incompletas del mecanismo de IA? → A: Ante una falla técnica o respuesta inválida del proveedor/adaptador de IA, el sistema no persiste rutinas corruptas, informa el error siguiendo RFC 7807 y permite al entrenador reintentar.
+
+## User Scenarios & Testing *(mandatory)*
+
+### User Story 1 - [US-13: generar rutina particular con IA] (Priority: P2, Estimación: 5 SP)
+
+Como entrenador personal,
+ quiero crear una rutina específica para un alumno en particular usando IA,
+ para adaptar el entrenamiento a los objetivos y limitaciones de cada alumno en particular.
+
+**Why this priority**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+
+**Independent Test**: Un entrenador con un alumno activo y una rutina genérica en su biblioteca solicita generar una rutina particular con IA. El sistema devuelve una propuesta adaptada a los objetivos y restricciones (ejercicios incompatibles eliminados o sustituidos, intensidades/series adaptadas) en estado "PENDING_REVIEW". La plantilla genérica original permanece intacta. El entrenador aprueba la propuesta y la rutina pasa a estar persistida y aprobada ("APPROVED") para ese alumno. Si un entrenador intenta acceder a un alumno con el que no tiene vínculo activo, el sistema rechaza la acción con HTTP 403.
+
+**Acceptance Scenarios**:
+
+1. **Generación de propuesta adaptada**: Dado un alumno con vínculo activo que tiene objetivos de entrenamiento y limitaciones físicas registradas, y una rutina genérica de la biblioteca del entrenador, cuando el entrenador solicita generar una rutina particular con IA, entonces el sistema genera una propuesta de rutina particular adaptando el tipo, cantidad de series/repeticiones e intensidad de los ejercicios, y presenta un resumen de adaptaciones al entrenador en estado de revisión ().
+
+2. **Eliminación o sustitución de ejercicios incompatibles**: Dado que un ejercicio de la rutina genérica coincide con una zona protegida o restricción de salud del alumno, cuando se genera la rutina particular con IA, entonces el sistema sustituye el ejercicio por una alternativa válida de la biblioteca del entrenador o lo elimina de la rutina, documentando el motivo en el resumen de adaptación.
+
+3. **Supervisión humana obligatoria (Human-in-the-Loop)**: Dada una propuesta de rutina generada por IA, cuando se genera inicialmente, entonces el sistema la conserva en estado  y NO la activa automáticamente al alumno hasta que el entrenador revise y apruebe explícitamente la propuesta.
+
+4. **Aprobación y persistencia de la rutina**: Dado un entrenador revisando una propuesta en , cuando presiona la acción de aprobar, entonces la rutina cambia a estado , queda asignada al alumno correspondiente y vinculada al entrenador, y actualiza el vínculo activo del alumno.
+
+5. **Inmutabilidad de la plantilla genérica original**: Dada la generación y posterior aprobación de una rutina particular con IA basada en una plantilla genérica, cuando se consulta la plantilla genérica en la biblioteca de rutinas, entonces conserva exactamente sus días, bloques, ejercicios y parámetros originales.
+
+6. **Control de autorización y privacidad (Server-Side)**: Dado un entrenador autenticado que intenta solicitar la generación de rutina o acceder a datos de un alumno con el que NO mantiene un vínculo activo ni solicitud autorizada, entonces el sistema responde con HTTP 403 Forbidden.
+
+7. **Manejo de errores del mecanismo de IA**: Dado un fallo en el adaptador de IA o una respuesta no estructurada, cuando se solicita la generación, entonces el sistema captura la excepción, no genera registros inconsistentes y responde con un error RFC 7807 detallado.
 ---
 
 ### User Story 2 - [US-14: editar rutina según objetivos y limitaciones del alumno] (Priority: P2, Estimación: 4 SP)

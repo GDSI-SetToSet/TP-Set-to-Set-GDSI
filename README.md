@@ -49,7 +49,7 @@ Los archivos de configuración y las especificaciones compartidas forman parte d
 ### Rutas del Frontend (`frontend/src/constants/routes.ts` y `frontend/src/App.tsx`)
 
 - **Autenticación (`001`):** `/login`, `/registro`, `/olvide-mi-contrasena`, `/restablecer-contrasena`, `/inicio`
-- **Entrenador (`002` / `004` / `005`):** `/entrenador/inicio`, `/entrenador/perfil`, `/entrenador/paquetes`, `/entrenador/ejercicios`, `/entrenador/rutinas`, `/entrenador/solicitudes`, `/entrenador/solicitudes/:requestId`
+- **Entrenador (`002` / `004` / `005` / `006`):** `/entrenador/inicio`, `/entrenador/perfil`, `/entrenador/paquetes`, `/entrenador/ejercicios`, `/entrenador/rutinas`, `/entrenador/rutinas/generar-ia`, `/entrenador/solicitudes`, `/entrenador/solicitudes/:requestId`
 - **Alumno (`003` / `004` / `005`):** `/alumno/inicio`, `/alumno/perfil`, `/alumno/salud`, `/alumno/zonas-a-proteger`, `/alumno/apto-medico`, `/alumno/buscar-entrenadores`, `/entrenadores/:trainerId`, `/entrenadores/:trainerId/solicitar`, `/alumno/mis-solicitudes`, `/alumno/mis-entrenamientos`, `/alumno/rutinas`
 
 ### Endpoints principales de la API (`backend/src/api/v1/`)

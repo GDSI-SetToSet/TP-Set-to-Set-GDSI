@@ -87,6 +87,11 @@ export function HomePage() {
         {user?.role === USER_ROLES.trainer && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerExercises}>Mis ejercicios</Link>}
         {user?.role === USER_ROLES.trainer && <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerRoutines}>Mis rutinas</Link>}
         {user?.role === USER_ROLES.trainer && (
+          <Link className="profile-cta" style={{ marginLeft: '16px', background: '#4f46e5' }} to={ROUTES.trainerGenerateAIRoutine}>
+            <Sparkles size={16} /> Rutina con IA
+          </Link>
+        )}
+        {user?.role === USER_ROLES.trainer && (
           <Link className="profile-cta" style={{ marginLeft: '16px' }} to={ROUTES.trainerRequests}>
             <Inbox size={16} /> Solicitudes pendientes
             <span className="inbox-badge-count" aria-label={`${pendingRequestsCount} solicitudes pendientes`}>

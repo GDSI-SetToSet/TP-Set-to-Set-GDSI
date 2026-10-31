@@ -13,6 +13,7 @@ export const ROUTES = {
   trainerPlans: '/entrenador/paquetes',
   trainerExercises: '/entrenador/ejercicios',
   trainerRoutines: '/entrenador/rutinas',
+  trainerGenerateAIRoutine: '/entrenador/rutinas/generar-ia',
   trainerRequests: '/entrenador/solicitudes',
   trainerRequestDetail: '/entrenador/solicitudes/:requestId',
   studentHome: '/alumno/inicio',

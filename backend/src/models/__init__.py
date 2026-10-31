@@ -1,3 +1,9 @@
+from backend.src.models.assigned_routine import (
+    AssignedRoutine,
+    AssignedRoutineBlock,
+    AssignedRoutineDay,
+    AssignedRoutineExercise,
+)
 from backend.src.models.exercise import Exercise
 from backend.src.models.medical_clearance import MedicalClearance
 from backend.src.models.notification import Notification
@@ -18,6 +24,10 @@ from .protected_zone import ProtectedZone
 from .student_profile import StudentProfile
 
 __all__ = [
+    "AssignedRoutine",
+    "AssignedRoutineBlock",
+    "AssignedRoutineDay",
+    "AssignedRoutineExercise",
     "Exercise",
     "HealthQuestionnaire",
     "MedicalClearance",
