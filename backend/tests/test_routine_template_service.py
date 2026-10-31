@@ -1,7 +1,10 @@
 from types import SimpleNamespace
 
 from backend.src.schemas.routine_template import RoutineTemplateInput
-from backend.src.services.routine_template_service import build_days, own_template_exercise_ids
+from backend.src.services.routine_template_service import (
+    build_days,
+    own_template_exercise_ids,
+)
 
 
 def test_build_days_preserves_day_block_order_estimates_and_target_weight():

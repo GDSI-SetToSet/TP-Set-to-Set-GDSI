@@ -324,7 +324,7 @@ def test_trainer_assigns_and_removes_routine_for_active_students(client):
     trainer = register_and_login(api, "coach@example.com", "TRAINER")
     another_trainer = register_and_login(api, "other-coach@example.com", "TRAINER")
     active_student = register_and_login(api, "active-student@example.com", "STUDENT")
-    former_student = register_and_login(api, "former-student@example.com", "STUDENT")
+    register_and_login(api, "former-student@example.com", "STUDENT")
 
     own_template = create_template(api, trainer, create_exercise(api, trainer))
     foreign_template = create_template(api, another_trainer, create_exercise(api, another_trainer))
