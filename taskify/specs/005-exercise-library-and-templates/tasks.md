@@ -1,8 +1,8 @@
 ---
-description: "Task list for 005-exercise-library-and-templates (US-08 and US-09)"
+description: "Task list for 005-exercise-library-and-templates (US-08, US-09 and US-12)"
 ---
 
-# Tasks: Biblioteca de Ejercicios y Rutinas Genéricas (US-08 y US-09)
+# Tasks: Biblioteca de Ejercicios, Videos Demostrativos y Rutinas Genéricas (US-08, US-09 y US-12)
 
 **Input**: Design documents from `taskify/specs/005-exercise-library-and-templates/`
 
@@ -10,12 +10,12 @@ description: "Task list for 005-exercise-library-and-templates (US-08 and US-09)
 
 **Tests**: Obligatorios para el backend por Constitución, Principio VI (cobertura $\ge 90\%$). El frontend se valida mediante compilación TypeScript y build de producción (`npm run build`).
 
-**Organization**: Una rama y un PR hacia `develop` por historia (Principio VII). US-12 y US-52 se agregan a este archivo cuando se planifiquen.
+**Organization**: Una rama y un PR hacia `develop` por historia (Principio VII). US-52 se agrega a este archivo cuando se planifique.
 
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Puede ejecutarse en paralelo (archivos independientes, sin dependencias previas no satisfechas).
-- **[Story]**: `US1` = US-08 (Biblioteca de ejercicios), `US2` = US-09 (Rutinas genéricas).
+- **[Story]**: `US1` = US-08 (Biblioteca de ejercicios), `US2` = US-09 (Rutinas genéricas), `US3` = US-12 (Vincular video demostrativo).
 - Rutas relativas a la raíz del repositorio (`backend/`, `frontend/`, `taskify/`).
 
 ---
@@ -114,3 +114,27 @@ description: "Task list for 005-exercise-library-and-templates (US-08 and US-09)
 1. Completar Phase 1 y US-08, y mergear su PR con CI verde.
 2. Actualizar `develop`, completar US-09 desde una rama nueva y abrir su PR.
 3. Ejecutar `/speckit-converge` por story antes de abrir cada PR.
+
+---
+
+## Phase 4: User Story 3 — US-12 Vincular video demostrativo a un ejercicio (Priority: P1, 2 SP)
+
+**Rama**: `feature/005-us12-exercise-demo-video`, creada desde `develop` con US-08 y US-09 mergeadas.
+
+**Goal**: Permitir al entrenador asociar, reemplazar y eliminar enlaces de video de YouTube, Vimeo o Google Drive, y que el video actualizado se pueda previsualizar en el detalle del ejercicio para sus alumnos.
+
+**Independent Test**: Asociar un video de cada plataforma permitida y comprobar su previsualización normalizada; verificar que enlaces inválidos se rechacen con el motivo, y que reemplazar o eliminar el enlace actualice el detalle del ejercicio.
+
+### Tests for User Story 3 (US-12)
+
+- [ ] T023 [P] [US3] Agregar pruebas de integración en `backend/tests/test_exercise_api.py` para aceptar enlaces válidos de YouTube, Vimeo y Google Drive; verificar su plataforma y URL normalizada; rechazar formatos inválidos y dominios no soportados con HTTP 422 RFC 7807 y errores por campo; comprobar reemplazo y eliminación del video; y verificar que una variante segura configurada (US-53) pueda tener su propio video.
+- [ ] T024 [P] [US3] Agregar pruebas de interfaz en `frontend/` para asociar, reemplazar y eliminar videos desde el formulario de ejercicios, previsualizar el video en el detalle y mostrar el error cuando la URL no pertenece a una plataforma soportada.
+
+### Implementation for User Story 3 (US-12)
+
+- [ ] T025 [US3] Agregar `video_url` nullable String(500) y `video_platform` con los valores `YOUTUBE`, `VIMEO`, `GOOGLE_DRIVE` y `NONE` al modelo `Exercise` en `backend/src/models/exercise.py`, con `NONE` como valor por defecto.
+- [ ] T026 [P] [US3] Actualizar `ExerciseInput` y `ExerciseResponse` en `backend/src/schemas/exercise.py`; validar en backend URLs de YouTube, Vimeo y Google Drive mediante los regex documentados en `taskify/specs/005-exercise-library-and-templates/research.md`, limitar la URL a 500 caracteres y permitir `null` para eliminarla.
+- [ ] T027 [US3] Actualizar `backend/src/services/exercise_service.py` para detectar la plataforma, normalizar cada URL a su formato embebible según `research.md`, persistir la plataforma y rechazar enlaces inválidos sin guardar cambios.
+- [ ] T028 [US3] Actualizar `backend/src/api/v1/exercises.py` para exponer en alta, detalle y edición el enlace normalizado, conservar el error RFC 7807 con motivo ante URLs inválidas y propagar `video_url` a las respuestas de ejercicios consumidas por alumnos.
+- [ ] T029 [US3] Actualizar `frontend/src/types/exercise.ts` y `frontend/src/services/exerciseService.ts`, y modificar el formulario y detalle en `frontend/src/pages/ExerciseLibraryPage.tsx`, `frontend/src/components/ExerciseCard.tsx` y `frontend/src/components/RoutineTemplateDetail.tsx` para gestionar la URL, mostrar errores y previsualizar el video embebido; reflejar la versión actualizada o la ausencia del video en el detalle de rutinas del alumno.
+- [ ] T030 [US3] Ejecutar las pruebas específicas de ejercicios, `ruff check backend` y `npm run build`; validar los cuatro escenarios de aceptación de US-12 y las reglas de URL de `taskify/specs/005-exercise-library-and-templates/research.md`.

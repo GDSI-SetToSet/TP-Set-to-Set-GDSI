@@ -6,7 +6,7 @@
 
 ## Summary
 
-Implementar la biblioteca personal de ejercicios del entrenador (US-08) y las rutinas genéricas organizadas por días y bloques, visibles en solo lectura para alumnos con vínculo activo (US-09). La vinculación de videos (US-12) y las notas técnicas (US-52) se planifican en una iteración posterior.
+La biblioteca personal de ejercicios del entrenador (US-08) y las rutinas genéricas para alumnos con vínculo activo (US-09) están implementadas. La vinculación de videos demostrativos (US-12) está en progreso; las notas técnicas (US-52) se planifican para una iteración posterior.
 
 ## Technical Context
 
@@ -45,7 +45,7 @@ Implementar la biblioteca personal de ejercicios del entrenador (US-08) y las ru
 | II. IA Asistiva | N/A | Los ejercicios servirán como catálogo fuente para la spec 006. |
 | III. Privacidad y Datos de Salud | PASSED | No hay datos de salud. El vínculo activo se valida en el backend en cada petición del alumno. |
 | IV. Pagos Informales | N/A | No procesa pagos. |
-| V. Gestión Liviana de Medios Técnicos | PASSED | Esta iteración no maneja videos. |
+| V. Gestión Liviana de Medios Técnicos | PASSED | US-12 acepta enlaces externos de video y no carga ni transcodifica archivos binarios en el servidor. |
 | VI. Calidad y Verificación Continua | PASSED | Pruebas de integración por story, cobertura $\ge 90\%$, Ruff y build. |
 | VII. Entrega Incremental | PASSED | Un PR por story. US-09 parte de `develop` con US-08 ya mergeada. |
 
