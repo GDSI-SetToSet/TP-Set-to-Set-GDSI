@@ -6,6 +6,7 @@ import { ExerciseCard } from '../components/ExerciseCard';
 import { ROUTES } from '../constants/routes';
 import { createExercise, deleteExercise, getExercises, updateExercise } from '../services/exerciseService';
 import { EXERCISE_CATEGORIES, type Exercise, type ExerciseCategory } from '../types/exercise';
+import { getVideoEmbedUrl } from '../utils/videoUrl';
 
 const REQUIRED_MESSAGE = 'Este campo es obligatorio';
 const CATEGORY_OPTIONS = Object.entries(EXERCISE_CATEGORIES) as [ExerciseCategory, string][];
@@ -17,6 +18,7 @@ interface FormState {
   target_muscle_group: string;
   equipment_needed: string;
   has_no_materials_alternative: boolean;
+  video_url: string;
 }
 
 type TextField = Exclude<keyof FormState, 'has_no_materials_alternative'>;
@@ -28,6 +30,7 @@ const EMPTY_FORM: FormState = {
   target_muscle_group: '',
   equipment_needed: '',
   has_no_materials_alternative: false,
+  video_url: '',
 };
 const REQUIRED_FIELDS: TextField[] = ['name', 'description', 'category', 'target_muscle_group', 'equipment_needed'];
 
@@ -47,6 +50,7 @@ export function ExerciseLibraryPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const videoPreviewUrl = getVideoEmbedUrl(form.video_url);
 
   // El filtro se arma con la biblioteca completa para no perder opciones al elegir un músculo.
   const loadExercises = useCallback(async (muscle: string) => {
@@ -84,6 +88,7 @@ export function ExerciseLibraryPage() {
       target_muscle_group: exercise.target_muscle_group,
       equipment_needed: exercise.equipment_needed,
       has_no_materials_alternative: exercise.has_no_materials_alternative,
+      video_url: exercise.video_url ?? '',
     });
     setFieldErrors({});
     setMessage('');
@@ -109,7 +114,7 @@ export function ExerciseLibraryPage() {
     setFieldErrors(missing);
     if (Object.keys(missing).length > 0 || !form.category) return;
 
-    const payload = { ...form, category: form.category };
+    const payload = { ...form, category: form.category, video_url: form.video_url.trim() || null };
     setSaving(true);
     try {
       if (editingId) {
@@ -184,6 +189,30 @@ export function ExerciseLibraryPage() {
             <textarea value={form.description} onChange={(event) => updateField('description', event.target.value)} rows={3} aria-invalid={Boolean(fieldErrors.description)} />
             {fieldErrors.description && <small className="field-error">{fieldErrors.description}</small>}
           </label>
+          <label>Video demostrativo (YouTube, Vimeo o Google Drive)
+            <input
+              type="text"
+              value={form.video_url}
+              onChange={(event) => updateField('video_url', event.target.value)}
+              maxLength={500}
+              placeholder="https://youtu.be/..."
+              aria-invalid={Boolean(fieldErrors.video_url)}
+              aria-describedby={fieldErrors.video_url ? 'exercise-video-error' : 'exercise-video-help'}
+            />
+            {fieldErrors.video_url
+              ? <small id="exercise-video-error" className="field-error">{fieldErrors.video_url}</small>
+              : <small id="exercise-video-help">Dejá el campo vacío para quitar el video.</small>}
+          </label>
+          {videoPreviewUrl && (
+            <iframe
+              className="exercise-video"
+              src={videoPreviewUrl}
+              title="Vista previa del video demostrativo"
+              loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            />
+          )}
           <label className="exercise-check">
             <input type="checkbox" checked={form.has_no_materials_alternative} onChange={(event) => setForm((current) => ({ ...current, has_no_materials_alternative: event.target.checked }))} />
             Tiene alternativa "Sin materiales"

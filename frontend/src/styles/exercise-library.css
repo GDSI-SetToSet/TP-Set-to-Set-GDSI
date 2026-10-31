@@ -27,3 +27,4 @@
 .exercise-card__detail { margin: 0; display: grid; gap: 4px; }
 .exercise-card__detail dt { margin-top: 6px; color: var(--pf-label); font-size: 13px; font-weight: 700; }
 .exercise-card__detail dd { margin: 0; color: var(--pf-body); white-space: pre-line; }
+.exercise-video { display: block; width: min(100%, 560px); aspect-ratio: 16 / 9; margin-top: 8px; border: 0; border-radius: 10px; }

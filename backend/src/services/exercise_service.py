@@ -2,6 +2,7 @@ from fastapi import status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from backend.src.core.video_urls import parse_video_url
 from backend.src.models.exercise import Exercise
 from backend.src.models.routine_template import (
     RoutineTemplate,
@@ -33,7 +34,11 @@ def list_own_exercises(db: Session, user: User, muscle_group: str | None = None)
 def create_exercise(db: Session, user: User, payload: ExerciseInput) -> Exercise:
     profile = get_or_create_profile(db, user)
     now = utc_now()
-    exercise = Exercise(trainer_id=profile.id, **payload.model_dump(), created_at=now, updated_at=now)
+    values = payload.model_dump()
+    video = parse_video_url(values["video_url"])
+    values["video_url"] = video[1] if video else None
+    values["video_platform"] = video[0] if video else "NONE"
+    exercise = Exercise(trainer_id=profile.id, **values, created_at=now, updated_at=now)
     db.add(exercise)
     db.commit()
     db.refresh(exercise)
@@ -70,7 +75,11 @@ def update_exercise(db: Session, user: User, exercise_id: str, payload: Exercise
             status.HTTP_409_CONFLICT,
             'El ejercicio pertenece a una rutina apta "Sin materiales": no se puede quitar la marca.',
         )
-    for field, value in payload.model_dump().items():
+    values = payload.model_dump()
+    video = parse_video_url(values["video_url"])
+    values["video_url"] = video[1] if video else None
+    values["video_platform"] = video[0] if video else "NONE"
+    for field, value in values.items():
         setattr(exercise, field, value)
     exercise.updated_at = utc_now()
     db.commit()
