@@ -21,6 +21,7 @@ import { USER_ROLES } from '../constants/auth';
 import { useAuth } from '../context/AuthContext';
 import { homePath, ROUTES } from '../constants/routes';
 import { getActivePlans, getTrainerRequests } from '../services/discoveryService';
+import { getRoutineAssignments } from '../services/routineTemplateService';
 import type { ActivePlansResponse, NotificationItem } from '../types/discovery';
 import { NotificationBell } from '../components/NotificationBell';
 import { getOwnHealthQuestionnaire } from '../services/studentHealthService';
@@ -31,6 +32,7 @@ export function HomePage() {
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [pendingRequestsCount, setPendingRequestsCount] = useState<number>(0);
+  const [activeStudentsCount, setActiveStudentsCount] = useState<number>(0);
   const [activePlans, setActivePlans] = useState<ActivePlansResponse>([]);
   const [healthQuestionnaireCompleted, setHealthQuestionnaireCompleted] = useState<boolean | null>(null);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -39,17 +41,17 @@ export function HomePage() {
   const profilePath = isTrainer ? ROUTES.trainerProfile : ROUTES.studentProfile;
   const activeLinksCount = activePlans.filter((plan) => plan.status === 'ACTIVE').length;
   const greeting = isTrainer ? 'Tu espacio de entrenador' : 'Tu espacio de entrenamiento';
-  const homeActions: Array<{ label: string; description: string; to: string; icon: ReactNode; count?: number; featured?: boolean; warning?: boolean }> = isTrainer
+  const homeActions: Array<{ label: string; description: string; to: string; icon: ReactNode; count?: number; countLabel?: string; featured?: boolean; warning?: boolean }> = isTrainer
     ? [
         { label: 'Mis rutinas', description: 'Diseñá y organizá rutinas para tus alumnos.', to: ROUTES.trainerRoutines, icon: <Dumbbell size={20} /> },
-        { label: 'Mis alumnos', description: 'Consultá tus alumnos activos y asignales rutinas.', to: ROUTES.trainerStudents, icon: <Users size={20} /> },
+        { label: 'Mis alumnos', description: 'Consultá tus alumnos activos y asignales rutinas.', to: ROUTES.trainerStudents, icon: <Users size={20} />, count: activeStudentsCount, countLabel: 'alumnos activos' },
         { label: 'Mis ejercicios', description: 'Administrá los ejercicios de tu biblioteca.', to: ROUTES.trainerExercises, icon: <Activity size={20} /> },
         { label: 'Mis paquetes', description: 'Gestioná tus propuestas de entrenamiento.', to: ROUTES.trainerPlans, icon: <Package size={20} /> },
-        { label: 'Solicitudes', description: 'Revisá las solicitudes para entrenar con vos.', to: ROUTES.trainerRequests, icon: <Inbox size={20} />, count: pendingRequestsCount },
+        { label: 'Solicitudes', description: 'Revisá las solicitudes para entrenar con vos.', to: ROUTES.trainerRequests, icon: <Inbox size={20} />, count: pendingRequestsCount, countLabel: 'solicitudes pendientes' },
       ]
     : [
         { label: 'Rutina del día', description: 'Consultá los ejercicios y bloques asignados.', to: ROUTES.studentRoutines, icon: <Dumbbell size={20} />, featured: true },
-        { label: 'Mis entrenadores', description: 'Revisá tus vínculos de entrenamiento.', to: ROUTES.studentActivePlans, icon: <Users size={20} />, count: activeLinksCount },
+        { label: 'Mis entrenadores', description: 'Revisá tus vínculos de entrenamiento.', to: ROUTES.studentActivePlans, icon: <Users size={20} />, count: activeLinksCount, countLabel: 'entrenadores activos' },
         { label: 'Buscar entrenadores', description: 'Encontrá un entrenador para empezar.', to: ROUTES.trainerSearch, icon: <Search size={20} /> },
         { label: 'Cuestionario de salud', description: healthQuestionnaireCompleted === false ? 'Es necesario completarlo para que tu entrenador diseñe una rutina segura.' : 'Actualizá la información de salud.', to: ROUTES.studentHealth, icon: <ClipboardList size={20} />, warning: healthQuestionnaireCompleted === false },
         { label: 'Zonas a proteger', description: 'Indicá las zonas que requieren cuidado.', to: ROUTES.studentProtectedZones, icon: <Shield size={20} /> },
@@ -68,6 +70,16 @@ export function HomePage() {
           if (active) {
             setPendingRequestsCount(0);
             setError('No pudimos cargar tus solicitudes pendientes. Intentá nuevamente.');
+          }
+        });
+      getRoutineAssignments()
+        .then((students) => {
+          if (active) setActiveStudentsCount(students.length);
+        })
+        .catch(() => {
+          if (active) {
+            setActiveStudentsCount(0);
+            setError('No pudimos cargar tus alumnos activos. Intentá nuevamente.');
           }
         });
     } else if (user?.role === USER_ROLES.student) {
@@ -200,7 +212,7 @@ export function HomePage() {
                   <span>{action.description}</span>
                 </span>
                 {typeof action.count === 'number' && action.count > 0 && (
-                  <span className="home-action__count" aria-label={`${action.count} elementos pendientes`}>{action.count}</span>
+                  <span className="home-action__count" aria-label={`${action.count} ${action.countLabel ?? 'elementos'}`}>{action.count}</span>
                 )}
                 <ArrowRight className="home-action__arrow" size={17} aria-hidden="true" />
               </Link>
