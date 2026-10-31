@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { ArrowLeft, CheckCircle2, Save } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Plus, Save } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PlanCard } from '../components/PlanCard';
@@ -40,6 +40,7 @@ export function TrainerPlansManagementPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [formVisible, setFormVisible] = useState(false);
 
   useEffect(() => {
     getOwnTrainingPlans()
@@ -60,6 +61,17 @@ export function TrainerPlansManagementPage() {
     setForm(EMPTY_FORM);
     setEditingId(null);
     setFieldErrors({});
+    setFormVisible(false);
+  }
+
+  function startCreating() {
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setFieldErrors({});
+    setMessage('');
+    setError('');
+    setFormVisible(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function startEditing(plan: TrainingPlan) {
@@ -68,6 +80,7 @@ export function TrainerPlansManagementPage() {
     setFieldErrors({});
     setMessage('');
     setError('');
+    setFormVisible(true);
   }
 
   function handleError(caught: unknown) {
@@ -142,14 +155,22 @@ export function TrainerPlansManagementPage() {
         <Link to={ROUTES.trainerHome} className="profile-back"><ArrowLeft size={18} /> Volver al inicio</Link>
       </header>
 
-      <section className="profile-card">
-        <div className="profile-heading">
-          <span>PAQUETES Y TARIFAS</span>
-          <h1>Tus paquetes mensuales</h1>
-          <p>Los alumnos ven tus paquetes publicados en tu perfil. Editar o archivar un paquete solo afecta a solicitudes futuras.</p>
+      <section className="profile-card trainer-plans-page">
+        <div className="trainer-plans-header">
+          <div className="profile-heading">
+            <span>PAQUETES Y TARIFAS</span>
+            <h1>Tus paquetes mensuales</h1>
+            <p>Los alumnos ven tus paquetes publicados en tu perfil. Editar o archivar un paquete solo afecta a solicitudes futuras.</p>
+          </div>
+          <button className="profile-save" type="button" onClick={formVisible ? resetForm : startCreating} disabled={saving}>
+            {formVisible ? 'Cerrar formulario' : <><Plus size={18} /> Crear paquete</>}
+          </button>
         </div>
 
-        <form className="profile-form" onSubmit={handleSubmit} noValidate>
+        {error && <p className="form-alert" role="alert">{error}</p>}
+        {message && <p className="profile-success trainer-plans-message" role="status"><CheckCircle2 size={18} /> {message}</p>}
+
+        {formVisible && <form className="profile-form" onSubmit={handleSubmit} noValidate>
           <label>Título
             <input value={form.title} onChange={(event) => updateField('title', event.target.value)} maxLength={100} aria-invalid={Boolean(titleError)} />
             {titleError && <small className="field-error">{titleError}</small>}
@@ -161,21 +182,19 @@ export function TrainerPlansManagementPage() {
           <label>Descripción
             <textarea value={form.description} onChange={(event) => updateField('description', event.target.value)} rows={3} placeholder="Servicios incluidos, frecuencia, seguimiento…" />
           </label>
-          {error && <p className="form-alert" role="alert">{error}</p>}
-          {message && <p className="profile-success" role="status"><CheckCircle2 size={18} /> {message}</p>}
           <div className="plan-form__actions">
             <button className="profile-save" type="submit" disabled={saving || Boolean(rangeError)}>
               <Save size={18} /> {saving ? 'Guardando…' : editingId ? 'Guardar cambios' : 'Guardar'}
             </button>
             {editingId && <button className="plan-cancel" type="button" onClick={resetForm} disabled={saving}>Cancelar</button>}
           </div>
-        </form>
-      </section>
+        </form>}
 
       <section className="plan-list" aria-label="Paquetes cargados">
         {plans.length === 0
           ? <p className="plan-empty">Todavía no publicaste paquetes.</p>
           : plans.map((plan) => <PlanCard key={plan.id} plan={plan} busy={saving} onEdit={startEditing} onArchive={handleArchive} />)}
+      </section>
       </section>
     </main>
   );

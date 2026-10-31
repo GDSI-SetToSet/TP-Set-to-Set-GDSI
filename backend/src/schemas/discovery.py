@@ -49,6 +49,7 @@ class TrainingPlanPublic(BaseModel):
 
 
 class TrainerSearchFilters(BaseModel):
+    name: str | None = None
     specialty: str | None = None
     max_price: float | None = Field(default=None, ge=0)
     only_available: bool = True

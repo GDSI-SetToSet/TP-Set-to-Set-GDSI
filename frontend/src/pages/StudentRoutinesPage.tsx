@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { getAssignedStudentRoutine } from '../services/routineTemplateService';
 import type { RoutineTemplate } from '../types/routineTemplate';
+import '../styles/student-daily-routine-layout.css';
 
 export function StudentRoutinesPage() {
   const [routine, setRoutine] = useState<RoutineTemplate | null>(null);

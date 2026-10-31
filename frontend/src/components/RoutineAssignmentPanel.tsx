@@ -44,7 +44,7 @@ export function RoutineAssignmentPanel({ templates }: RoutineAssignmentPanelProp
   }
 
   return (
-    <section className="profile-card routine-assignment">
+    <section className="routine-assignment">
       <div className="profile-heading">
         <span>ALUMNOS ACTIVOS</span>
         <h2>Asignar rutinas</h2>

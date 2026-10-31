@@ -22,9 +22,13 @@
   gap: 10px;
   align-items: start;
 }
-.routine-entry label { min-width: 0; }
+.routine-entry label {
+  min-width: 0;
+  grid-template-rows: minmax(2.6em, auto) auto auto;
+  align-content: start;
+}
 .routine-entry input { width: 100%; }
-.routine-entry__remove { margin-top: 26px; justify-content: center; }
+.routine-entry__remove { margin-top: calc(2.6em + 8px); justify-content: center; }
 
 .routine-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
@@ -47,7 +51,7 @@
 }
 .routine-detail__block strong { color: var(--pf-ink); }
 
-.routine-assignment { display: grid; gap: 16px; }
+.routine-assignment { display: grid; gap: 16px; margin-top: 30px; }
 .routine-assignment__list { display: grid; gap: 12px; }
 .routine-assignment__row {
   display: grid;
@@ -60,6 +64,26 @@
 }
 .routine-assignment__row > strong { color: var(--pf-ink); padding-bottom: 10px; }
 .routine-assignment__row label { display: grid; gap: 6px; color: var(--pf-label); font-size: 14px; font-weight: 700; }
+
+.routine-template-intro { margin-bottom: 0; }
+.routine-template-actions { display: flex; justify-content: flex-end; margin-top: 20px; }
+.routine-template-actions > button { white-space: nowrap; }
+.routine-template-form { margin-top: 28px; }
+.routine-template-message { margin: 16px 0 0; }
+.routine-templates-page .plan-list {
+  max-width: none;
+  margin: 28px 0 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+.routine-templates-page .routine-card {
+  padding: 20px 0;
+  border: 0;
+  border-top: 1px solid var(--pf-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
 
 .student-daily-routine { display: grid; gap: 18px; }
 .student-daily-routine__summary {
@@ -88,6 +112,7 @@
 .student-daily-routine__block li p { margin: 4px 0 0; font-size: 14px; }
 
 @media (max-width: 680px) {
+  .routine-template-actions > button { width: 100%; justify-content: center; }
   .profile-form .routine-day, .routine-block { padding: 12px; }
   .routine-entry { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .routine-entry__exercise { grid-column: 1 / -1; }

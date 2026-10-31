@@ -1,0 +1,76 @@
+.student-daily-routine .student-daily-routine__summary {
+  align-items: stretch;
+}
+.student-daily-routine .student-daily-routine__summary > div,
+.student-daily-routine .student-daily-routine__summary > strong {
+  align-self: center;
+}
+.student-daily-routine .student-daily-routine__summary > div > span {
+  display: block;
+  margin-bottom: 4px;
+}
+.student-daily-routine .student-daily-routine__summary label {
+  align-self: center;
+}
+.student-daily-routine .student-daily-routine__summary .exercise-select {
+  width: 100%;
+}
+.student-daily-routine .student-daily-routine__block > header {
+  align-items: baseline;
+}
+.student-daily-routine .student-daily-routine__block ol {
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  counter-reset: routine-exercise;
+}
+.student-daily-routine .student-daily-routine__block li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 6px 12px;
+  padding: 14px 16px;
+  counter-increment: routine-exercise;
+}
+.student-daily-routine .student-daily-routine__block li::before {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  content: counter(routine-exercise) ".";
+  padding-top: 1px;
+  color: var(--pf-muted);
+  font-weight: 700;
+  text-align: right;
+}
+.student-daily-routine .student-daily-routine__block li > div,
+.student-daily-routine .student-daily-routine__block li > p {
+  grid-column: 2;
+  min-width: 0;
+}
+.student-daily-routine .student-daily-routine__block li > div {
+  grid-row: 1;
+}
+.student-daily-routine .student-daily-routine__block li > p {
+  margin: 0;
+  font-size: 14px;
+}
+.student-daily-routine .student-daily-routine__block li h4 {
+  margin: 0;
+}
+.student-daily-routine .student-daily-routine__block li > div p {
+  margin: 4px 0 0;
+  color: var(--pf-body);
+  font-size: 14px;
+}
+@media (max-width: 680px) {
+  .student-daily-routine .student-daily-routine__summary > div,
+  .student-daily-routine .student-daily-routine__summary > strong {
+    align-self: start;
+  }
+  .student-daily-routine .student-daily-routine__block li {
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 6px 10px;
+    padding: 12px;
+  }
+}

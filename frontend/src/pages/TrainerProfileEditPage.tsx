@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { ArrowLeft, CheckCircle2, Save, Users } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Pencil, Save, Users, X } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { QuotaBadge } from '../components/QuotaBadge';
@@ -33,6 +33,7 @@ export function TrainerProfileEditPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [isEditing, setIsEditing] = useState(false);
   const [quota, setQuota] = useState('');
   const [savingQuota, setSavingQuota] = useState(false);
   const [quotaMessage, setQuotaMessage] = useState('');
@@ -87,6 +88,7 @@ export function TrainerProfileEditPage() {
         certifications: updated.certifications ?? '',
       });
       setMessage(updated.status === 'PUBLISHED' ? 'Perfil guardado y publicado.' : 'Avance guardado. Tu perfil continúa en borrador.');
+      setIsEditing(false);
     } catch (caught) {
       if (axios.isAxiosError<ProblemDetails>(caught)) {
         const fields = Object.fromEntries((caught.response?.data?.errors ?? []).map((item) => [item.field, item.message]));
@@ -129,6 +131,24 @@ export function TrainerProfileEditPage() {
     }
   }
 
+  function cancelEditing() {
+    if (!profile) return;
+    setForm({
+      full_name: profile.full_name ?? '',
+      contact_phone: profile.contact_phone ?? '',
+      specialty: profile.specialty ?? '',
+      bio: profile.bio ?? '',
+      certifications: profile.certifications ?? '',
+    });
+    setQuota(String(profile.max_students));
+    setFieldErrors({});
+    setError('');
+    setMessage('');
+    setQuotaMessage('');
+    setQuotaFailure('');
+    setIsEditing(false);
+  }
+
   if (loading) return <main className="loading-screen"><span className="loading-mark" /> Cargando perfil…</main>;
 
   return (
@@ -138,16 +158,22 @@ export function TrainerProfileEditPage() {
         <span className={`profile-status profile-status--${profile?.status.toLowerCase()}`}>
           {profile?.status === 'PUBLISHED' ? 'Perfil publicado' : 'Perfil en borrador'}
         </span>
+        {isEditing ? (
+          <button type="button" className="profile-edit-toggle" onClick={cancelEditing}><X size={17} /> Cancelar</button>
+        ) : (
+          <button type="button" className="profile-edit-toggle" onClick={() => setIsEditing(true)}><Pencil size={17} /> Editar información</button>
+        )}
       </header>
 
+      <div className="profile-dashboard">
       <section className="profile-card">
         <div className="profile-heading">
           <span>PERFIL PROFESIONAL</span>
           <h1>Contales cómo entrenás</h1>
-          <p>Podés guardar avances. Para publicar necesitás nombre, teléfono y especialidad.</p>
+          <p>{isEditing ? 'Para publicar tu perfil necesitás nombre, teléfono y especialidad.' : 'Tu presentación profesional y disponibilidad para nuevos alumnos.'}</p>
         </div>
 
-        <form className="profile-form" onSubmit={handleSubmit} noValidate>
+        {isEditing ? <form className="profile-form" onSubmit={handleSubmit} noValidate>
           <label>Nombre completo
             <input value={form.full_name} onChange={(event) => updateField('full_name', event.target.value)} maxLength={150} aria-invalid={Boolean(fieldErrors.full_name)} />
             {fieldErrors.full_name && <small className="field-error">{fieldErrors.full_name}</small>}
@@ -168,10 +194,18 @@ export function TrainerProfileEditPage() {
           <label>Certificaciones
             <textarea value={form.certifications} onChange={(event) => updateField('certifications', event.target.value)} rows={3} />
           </label>
-          {error && <p className="form-alert" role="alert">{error}</p>}
-          {message && <p className="profile-success" role="status"><CheckCircle2 size={18} /> {message}</p>}
           <button className="profile-save" type="submit" disabled={saving || Boolean(phoneRangeError)}><Save size={18} /> {saving ? 'Guardando…' : 'Guardar perfil'}</button>
-        </form>
+        </form> : (
+          <dl className="profile-details">
+            <div><dt>Nombre completo</dt><dd>{profile?.full_name || 'Sin completar'}</dd></div>
+            <div><dt>Teléfono / WhatsApp</dt><dd>{profile?.contact_phone || 'Sin completar'}</dd></div>
+            <div><dt>Especialidad principal</dt><dd>{profile?.specialty || 'Sin completar'}</dd></div>
+            <div className="profile-details__wide"><dt>Biografía y metodología</dt><dd>{profile?.bio || 'Todavía no agregaste una biografía.'}</dd></div>
+            <div className="profile-details__wide"><dt>Certificaciones</dt><dd>{profile?.certifications || 'Todavía no agregaste certificaciones.'}</dd></div>
+          </dl>
+        )}
+        {error && <p className="form-alert" role="alert">{error}</p>}
+        {message && <p className="profile-success" role="status"><CheckCircle2 size={18} /> {message}</p>}
       </section>
 
       <section className="profile-card quota-card" aria-labelledby="quota-title">
@@ -183,7 +217,7 @@ export function TrainerProfileEditPage() {
           </div>
           {profile && <QuotaBadge availableSlots={profile.available_slots} hasAvailableQuota={profile.has_available_quota} />}
         </div>
-        <form className="profile-form quota-form" onSubmit={handleQuotaSubmit} noValidate>
+        {isEditing ? <form className="profile-form quota-form" onSubmit={handleQuotaSubmit} noValidate>
           <label>Tope de alumnos
             <input type="number" inputMode="numeric" min={MIN_QUOTA} max={MAX_QUOTA} step={1} value={quota} onChange={(event) => { setQuota(event.target.value); setQuotaMessage(''); }} aria-invalid={Boolean(quotaRangeError)} aria-describedby="quota-help" />
             {quotaRangeError
@@ -193,8 +227,16 @@ export function TrainerProfileEditPage() {
           {quotaFailure && <p className="form-alert" role="alert">{quotaFailure}</p>}
           {quotaMessage && <p className="profile-success" role="status"><CheckCircle2 size={18} /> {quotaMessage}</p>}
           <button className="profile-save" type="submit" disabled={savingQuota || Boolean(quotaRangeError)}><Users size={18} /> {savingQuota ? 'Guardando…' : 'Guardar cupos'}</button>
-        </form>
+        </form> : (
+          <div className="quota-overview">
+            <div><span>Tope de alumnos</span><strong>{profile?.max_students ?? 0}</strong></div>
+            <div><span>Alumnos activos</span><strong>{profile?.active_students_count ?? 0}</strong></div>
+            <div><span>Cupos disponibles</span><strong>{profile?.available_slots ?? 0}</strong></div>
+            <p>Al alcanzar el tope, vas a dejar de recibir solicitudes nuevas.</p>
+          </div>
+        )}
       </section>
+      </div>
     </main>
   );
 }

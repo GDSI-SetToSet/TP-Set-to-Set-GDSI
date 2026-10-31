@@ -38,6 +38,7 @@ export interface TrainerPublicDetail {
 }
 
 export interface TrainerSearchFilters {
+  name?: string;
   specialty?: string;
   max_price?: number;
   only_available?: boolean;

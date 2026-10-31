@@ -3,7 +3,6 @@ import { ArrowLeft, CheckCircle2, Plus, Save, Trash2 } from 'lucide-react';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { RoutineTemplateCard } from '../components/RoutineTemplateCard';
-import { RoutineAssignmentPanel } from '../components/RoutineAssignmentPanel';
 import { ROUTES } from '../constants/routes';
 import { getExercises } from '../services/exerciseService';
 import { createRoutineTemplate, getRoutineTemplates, updateRoutineTemplate } from '../services/routineTemplateService';
@@ -150,6 +149,7 @@ export function RoutineTemplatesPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [formVisible, setFormVisible] = useState(false);
 
   useEffect(() => {
     Promise.all([getRoutineTemplates(), getExercises()])
@@ -205,6 +205,17 @@ export function RoutineTemplatesPage() {
     setForm(emptyForm());
     setEditing(null);
     setFieldErrors({});
+    setFormVisible(false);
+  }
+
+  function startCreating() {
+    setEditing(null);
+    setForm(emptyForm());
+    setFieldErrors({});
+    setMessage('');
+    setError('');
+    setFormVisible(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function startEditing(template: RoutineTemplate) {
@@ -213,6 +224,7 @@ export function RoutineTemplatesPage() {
     setFieldErrors({});
     setMessage('');
     setError('');
+    setFormVisible(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -264,16 +276,26 @@ export function RoutineTemplatesPage() {
         <Link to={ROUTES.trainerHome} className="profile-back"><ArrowLeft size={18} /> Volver al inicio</Link>
       </header>
 
-      <section className="profile-card">
-        <div className="profile-heading">
+      <section className="profile-card routine-templates-page">
+        <div className="profile-heading routine-template-intro">
           <span>RUTINAS GENÉRICAS</span>
           <h1>Tus rutinas</h1>
-          <p>Armá rutinas con tu biblioteca. Tus alumnos con vínculo activo las ven en modo lectura.</p>
+          <p>Creá y organizá las rutinas que después podés asignar a tus alumnos.</p>
         </div>
+        <div className="routine-template-actions">
+          <button className="profile-save" type="button" onClick={formVisible ? resetForm : startCreating} disabled={saving}>
+            {formVisible ? 'Cerrar formulario' : <><Plus size={18} /> Crear rutina</>}
+          </button>
+        </div>
+        {message && <p className="profile-success routine-template-message" role="status"><CheckCircle2 size={18} /> {message}</p>}
 
-        {library.length === 0 && !editing ? (
+      {formVisible && (
+        <div className="routine-template-form">
+        {library.length === 0 && !editing && (
           <p className="plan-empty">Necesitás ejercicios para armar una rutina. <Link to={ROUTES.trainerExercises}>Cargalos en tu biblioteca</Link>.</p>
-        ) : (
+        )}
+
+        {(library.length > 0 || editing) && (
           <form className="profile-form" onSubmit={handleSubmit} noValidate>
             <label>Nombre de la rutina
               <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} maxLength={150} aria-invalid={Boolean(fieldErrors.name)} />
@@ -382,23 +404,22 @@ export function RoutineTemplatesPage() {
             )}
 
             {error && <p className="form-alert" role="alert">{error}</p>}
-            {message && <p className="profile-success" role="status"><CheckCircle2 size={18} /> {message}</p>}
             <div className="plan-form__actions">
               <button className="profile-save" type="submit" disabled={saving}>
                 <Save size={18} /> {saving ? 'Guardando…' : editing ? 'Guardar cambios' : 'Guardar'}
               </button>
-              {editing && <button className="plan-cancel" type="button" onClick={resetForm} disabled={saving}>Cancelar</button>}
+              <button className="plan-cancel" type="button" onClick={resetForm} disabled={saving}>Cancelar</button>
             </div>
           </form>
         )}
-      </section>
-
-      <RoutineAssignmentPanel templates={templates} />
+        </div>
+      )}
 
       <section className="plan-list" aria-label="Rutinas cargadas">
         {templates.length === 0
           ? <p className="plan-empty">Todavía no creaste rutinas.</p>
           : templates.map((template) => <RoutineTemplateCard key={template.id} template={template} busy={saving} onEdit={startEditing} />)}
+      </section>
       </section>
     </main>
   );
