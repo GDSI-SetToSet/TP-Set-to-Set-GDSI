@@ -3,6 +3,7 @@ import { ArrowLeft, CheckCircle2, Plus, Save, Trash2 } from 'lucide-react';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { RoutineTemplateCard } from '../components/RoutineTemplateCard';
+import { RoutineAssignmentPanel } from '../components/RoutineAssignmentPanel';
 import { ROUTES } from '../constants/routes';
 import { getExercises } from '../services/exerciseService';
 import { createRoutineTemplate, getRoutineTemplates, updateRoutineTemplate } from '../services/routineTemplateService';
@@ -21,11 +22,13 @@ interface EntryForm {
   sets: string;
   reps: string;
   rest_seconds: string;
+  target_weight_kg: string;
 }
 
 interface BlockForm {
   key: number;
   name: string;
+  estimated_duration_minutes: string;
   exercises: EntryForm[];
 }
 
@@ -52,11 +55,11 @@ let nextKey = 0;
 const newKey = () => (nextKey += 1);
 
 function emptyEntry(): EntryForm {
-  return { key: newKey(), exercise_id: '', sets: '', reps: '', rest_seconds: '' };
+  return { key: newKey(), exercise_id: '', sets: '', reps: '', rest_seconds: '', target_weight_kg: '' };
 }
 
 function emptyBlock(position: number): BlockForm {
-  return { key: newKey(), name: position === 1 ? 'Principal' : `Bloque ${position}`, exercises: [emptyEntry()] };
+  return { key: newKey(), name: position === 1 ? 'Principal' : `Bloque ${position}`, estimated_duration_minutes: '', exercises: [emptyEntry()] };
 }
 
 function emptyDay(position: number): DayForm {
@@ -79,12 +82,14 @@ function formFromTemplate(template: RoutineTemplate): FormState {
       blocks: day.blocks.map((block) => ({
         key: newKey(),
         name: block.name,
+        estimated_duration_minutes: String(block.estimated_duration_minutes || ''),
         exercises: block.exercises.map((item) => ({
           key: newKey(),
           exercise_id: item.exercise.id,
           sets: String(item.sets),
           reps: item.reps,
           rest_seconds: String(item.rest_seconds),
+          target_weight_kg: item.target_weight_kg === null ? '' : String(item.target_weight_kg),
         })),
       })),
     })),
@@ -101,6 +106,7 @@ function missingFields(form: FormState): Record<string, string> {
     day.blocks.forEach((block, blockIndex) => {
       const blockPath = `days.${dayIndex}.blocks.${blockIndex}`;
       if (!block.name.trim()) missing.push(`${blockPath}.name`);
+      if (!block.estimated_duration_minutes.trim()) missing.push(`${blockPath}.estimated_duration_minutes`);
       block.exercises.forEach((entry, entryIndex) => {
         (['exercise_id', 'sets', 'reps', 'rest_seconds'] as const).forEach((field) => {
           if (!entry[field].trim()) missing.push(`${blockPath}.exercises.${entryIndex}.${field}`);
@@ -121,11 +127,13 @@ function toPayload(form: FormState, intensity: RoutineIntensity): RoutineTemplat
       name: day.name,
       blocks: day.blocks.map((block) => ({
         name: block.name,
+        estimated_duration_minutes: Number(block.estimated_duration_minutes),
         exercises: block.exercises.map((entry) => ({
           exercise_id: entry.exercise_id,
           sets: Number(entry.sets),
           reps: entry.reps,
           rest_seconds: Number(entry.rest_seconds),
+          target_weight_kg: entry.target_weight_kg.trim() ? Number(entry.target_weight_kg) : null,
         })),
       })),
     })),
@@ -303,6 +311,10 @@ export function RoutineTemplatesPage() {
                         <input value={block.name} onChange={(event) => updateBlock(dayIndex, blockIndex, (current) => ({ ...current, name: event.target.value }))} maxLength={100} />
                         {fieldErrors[`${blockPath}.name`] && <small className="field-error">{fieldErrors[`${blockPath}.name`]}</small>}
                       </label>
+                      <label>Duración estimada (minutos)
+                        <input type="number" inputMode="numeric" min={1} max={600} value={block.estimated_duration_minutes} onChange={(event) => updateBlock(dayIndex, blockIndex, (current) => ({ ...current, estimated_duration_minutes: event.target.value }))} aria-invalid={Boolean(fieldErrors[`${blockPath}.estimated_duration_minutes`])} />
+                        {fieldErrors[`${blockPath}.estimated_duration_minutes`] && <small className="field-error">{fieldErrors[`${blockPath}.estimated_duration_minutes`]}</small>}
+                      </label>
 
                       {block.exercises.map((entry, entryIndex) => {
                         const entryPath = `${blockPath}.exercises.${entryIndex}`;
@@ -328,6 +340,10 @@ export function RoutineTemplatesPage() {
                             <label>Descanso (seg)
                               <input type="number" inputMode="numeric" min={0} max={600} value={entry.rest_seconds} onChange={(event) => updateEntry(dayIndex, blockIndex, entryIndex, { rest_seconds: event.target.value })} aria-invalid={Boolean(fieldErrors[`${entryPath}.rest_seconds`])} />
                               {fieldErrors[`${entryPath}.rest_seconds`] && <small className="field-error">{fieldErrors[`${entryPath}.rest_seconds`]}</small>}
+                            </label>
+                            <label>Peso objetivo (kg)
+                              <input type="number" inputMode="decimal" min={0} max={9999.99} step="0.25" value={entry.target_weight_kg} onChange={(event) => updateEntry(dayIndex, blockIndex, entryIndex, { target_weight_kg: event.target.value })} aria-invalid={Boolean(fieldErrors[`${entryPath}.target_weight_kg`])} />
+                              {fieldErrors[`${entryPath}.target_weight_kg`] && <small className="field-error">{fieldErrors[`${entryPath}.target_weight_kg`]}</small>}
                             </label>
                             {block.exercises.length > 1 && (
                               <button type="button" className="plan-cancel routine-entry__remove" onClick={() => removeEntry(dayIndex, blockIndex, entryIndex)} aria-label="Quitar ejercicio"><Trash2 size={16} /></button>
@@ -376,6 +392,8 @@ export function RoutineTemplatesPage() {
           </form>
         )}
       </section>
+
+      <RoutineAssignmentPanel templates={templates} />
 
       <section className="plan-list" aria-label="Rutinas cargadas">
         {templates.length === 0

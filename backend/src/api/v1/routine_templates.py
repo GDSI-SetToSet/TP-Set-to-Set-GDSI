@@ -6,15 +6,21 @@ from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
 from backend.src.models.user import User
 from backend.src.schemas.routine_template import (
+    RoutineAssignmentResponse,
+    RoutineAssignmentStudentResponse,
+    RoutineAssignmentUpdate,
     RoutineTemplateInput,
     RoutineTemplateResponse,
 )
 from backend.src.services.routine_template_service import (
     RoutineTemplateError,
+    assign_routine_to_student,
     create_template,
+    get_assigned_student_template,
     get_own_template,
     get_student_template,
     list_own_templates,
+    list_routine_assignments,
     list_student_templates,
     update_template,
 )
@@ -50,6 +56,28 @@ def add_template(payload: RoutineTemplateInput, user: CurrentUser, db: DbDep) ->
         handle_error(error)
 
 
+@router.get("/assignments", response_model=list[RoutineAssignmentStudentResponse])
+def active_student_routine_assignments(user: CurrentUser, db: DbDep) -> list[RoutineAssignmentStudentResponse]:
+    try:
+        return [RoutineAssignmentStudentResponse(**item) for item in list_routine_assignments(db, user)]
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@router.put("/assignments/{relationship_id}", response_model=RoutineAssignmentResponse)
+def save_student_routine_assignment(
+    relationship_id: str,
+    payload: RoutineAssignmentUpdate,
+    user: CurrentUser,
+    db: DbDep,
+) -> RoutineAssignmentResponse:
+    try:
+        assignment = assign_routine_to_student(db, user, relationship_id, payload.routine_template_id)
+        return RoutineAssignmentResponse(**assignment)
+    except ServiceErrors as error:
+        handle_error(error)
+
+
 @router.get("/{template_id}", response_model=RoutineTemplateResponse)
 def template_detail(template_id: str, user: CurrentUser, db: DbDep) -> RoutineTemplateResponse:
     try:
@@ -72,6 +100,15 @@ def edit_template(
 def list_available_templates(user: CurrentUser, db: DbDep) -> list[RoutineTemplateResponse]:
     try:
         return [RoutineTemplateResponse.model_validate(item) for item in list_student_templates(db, user)]
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@student_router.get("/assigned", response_model=RoutineTemplateResponse | None)
+def assigned_routine(user: CurrentUser, db: DbDep) -> RoutineTemplateResponse | None:
+    try:
+        template = get_assigned_student_template(db, user)
+        return RoutineTemplateResponse.model_validate(template) if template else None
     except ServiceErrors as error:
         handle_error(error)
 

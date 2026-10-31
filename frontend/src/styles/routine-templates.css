@@ -18,7 +18,7 @@
 
 .routine-entry {
   display: grid;
-  grid-template-columns: minmax(180px, 2fr) repeat(3, minmax(90px, 1fr)) auto;
+  grid-template-columns: minmax(180px, 2fr) repeat(4, minmax(90px, 1fr)) auto;
   gap: 10px;
   align-items: start;
 }
@@ -47,10 +47,55 @@
 }
 .routine-detail__block strong { color: var(--pf-ink); }
 
+.routine-assignment { display: grid; gap: 16px; }
+.routine-assignment__list { display: grid; gap: 12px; }
+.routine-assignment__row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(220px, 2fr) auto;
+  align-items: end;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--pf-border);
+  border-radius: 12px;
+}
+.routine-assignment__row > strong { color: var(--pf-ink); padding-bottom: 10px; }
+.routine-assignment__row label { display: grid; gap: 6px; color: var(--pf-label); font-size: 14px; font-weight: 700; }
+
+.student-daily-routine { display: grid; gap: 18px; }
+.student-daily-routine__summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px) auto;
+  align-items: end;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--pf-border);
+  border-radius: 14px;
+}
+.student-daily-routine__summary > div > span { color: var(--pf-label); font-size: 13px; font-weight: 700; }
+.student-daily-routine__summary h2 { margin: 4px 0 0; color: var(--pf-ink); font: 700 20px 'Manrope'; }
+.student-daily-routine__summary label { display: grid; gap: 6px; color: var(--pf-label); font-size: 14px; font-weight: 700; }
+.student-daily-routine__summary > strong { color: var(--pf-ink); white-space: nowrap; }
+.student-daily-routine__empty { padding: 18px 0; color: var(--pf-body); }
+.student-daily-routine__empty h2 { margin: 0 0 6px; color: var(--pf-ink); font: 700 19px 'Manrope'; }
+.student-daily-routine__empty p { margin: 0; }
+.student-daily-routine__block { padding: 16px; border: 1px solid var(--pf-border); border-radius: 14px; }
+.student-daily-routine__block > header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.student-daily-routine__block h3 { margin: 0; color: var(--pf-ink); font: 700 17px 'Manrope'; }
+.student-daily-routine__block > header span { color: var(--pf-label); font-size: 14px; font-weight: 700; }
+.student-daily-routine__block ol { margin: 14px 0 0; padding-left: 24px; display: grid; gap: 10px; }
+.student-daily-routine__block li { padding: 12px; border-radius: 10px; background: var(--pf-arch-bg); color: var(--pf-body); }
+.student-daily-routine__block li h4 { margin: 0; color: var(--pf-ink); font: 700 15px 'Manrope'; }
+.student-daily-routine__block li p { margin: 4px 0 0; font-size: 14px; }
+
 @media (max-width: 680px) {
   .profile-form .routine-day, .routine-block { padding: 12px; }
   .routine-entry { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .routine-entry__exercise { grid-column: 1 / -1; }
   .routine-entry__remove { margin-top: 0; grid-column: 1 / -1; }
   .routine-actions > * { width: 100%; justify-content: center; }
+  .student-daily-routine__summary { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+  .student-daily-routine__summary > strong { white-space: normal; }
+  .student-daily-routine__block > header { align-items: flex-start; flex-direction: column; }
+  .routine-assignment__row { grid-template-columns: minmax(0, 1fr); }
+  .routine-assignment__row > strong { padding-bottom: 0; }
 }

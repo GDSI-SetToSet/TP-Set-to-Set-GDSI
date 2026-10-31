@@ -4,8 +4,10 @@ from backend.src.models.notification import Notification
 from backend.src.models.routine_template import (
     RoutineTemplate,
     RoutineTemplateBlock,
+    RoutineTemplateBlockEstimate,
     RoutineTemplateDay,
     RoutineTemplateExercise,
+    RoutineTemplateExercisePrescription,
 )
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_plan import TrainingPlan
@@ -26,8 +28,10 @@ __all__ = [
     "ProtectedZone",
     "RoutineTemplate",
     "RoutineTemplateBlock",
+    "RoutineTemplateBlockEstimate",
     "RoutineTemplateDay",
     "RoutineTemplateExercise",
+    "RoutineTemplateExercisePrescription",
     "StudentProfile",
     "TrainerProfile",
     "TrainingPlan",

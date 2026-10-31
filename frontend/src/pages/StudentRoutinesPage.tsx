@@ -1,24 +1,30 @@
 import { ArrowLeft } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { RoutineTemplateCard } from '../components/RoutineTemplateCard';
 import { ROUTES } from '../constants/routes';
-import { getStudentRoutineTemplates } from '../services/routineTemplateService';
+import { getAssignedStudentRoutine } from '../services/routineTemplateService';
 import type { RoutineTemplate } from '../types/routineTemplate';
 
 export function StudentRoutinesPage() {
-  const [templates, setTemplates] = useState<RoutineTemplate[]>([]);
+  const [routine, setRoutine] = useState<RoutineTemplate | null>(null);
+  const [selectedDayId, setSelectedDayId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    getStudentRoutineTemplates()
-      .then(setTemplates)
-      .catch(() => setError('No pudimos cargar las rutinas. Intentá nuevamente.'))
+    getAssignedStudentRoutine()
+      .then((assigned) => {
+        setRoutine(assigned);
+        setSelectedDayId(assigned?.days[0]?.id ?? '');
+      })
+      .catch(() => setError('No pudimos cargar tu rutina. Intentá nuevamente.'))
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <main className="loading-screen"><span className="loading-mark" /> Cargando rutinas…</main>;
+  if (loading) return <main className="loading-screen"><span className="loading-mark" /> Cargando tu rutina…</main>;
+
+  const selectedDay = routine?.days.find((day) => day.id === selectedDayId) ?? routine?.days[0];
+  const totalDuration = selectedDay?.blocks.reduce((total, block) => total + (block.estimated_duration_minutes ?? 0), 0) ?? 0;
 
   return (
     <main className="profile-shell">
@@ -26,19 +32,62 @@ export function StudentRoutinesPage() {
         <Link to={ROUTES.studentHome} className="profile-back"><ArrowLeft size={18} /> Volver al inicio</Link>
       </header>
 
-      <section className="profile-card">
+      <section className="profile-card student-daily-routine">
         <div className="profile-heading">
           <span>ESPACIO DEL ALUMNO</span>
-          <h1>Rutinas de tus entrenadores</h1>
-          <p>Consultá las rutinas genéricas de los entrenadores con los que tenés un vínculo activo.</p>
+          <h1>Rutina del día</h1>
+          <p>Consultá los ejercicios y tiempos de la rutina que te asignó tu entrenador.</p>
         </div>
-        {error && <p className="form-alert" role="alert">{error}</p>}
-      </section>
 
-      <section className="plan-list" aria-label="Rutinas disponibles">
-        {templates.length === 0 && !error
-          ? <p className="plan-empty">Todavía no hay rutinas disponibles.</p>
-          : templates.map((template) => <RoutineTemplateCard key={template.id} template={template} />)}
+        {error ? (
+          <p className="form-alert" role="alert">{error}</p>
+        ) : !routine ? (
+          <div className="student-daily-routine__empty" role="status">
+            <h2>No tenés una rutina asignada</h2>
+            <p>Cuando tu entrenador te asigne una rutina, vas a poder consultarla acá.</p>
+          </div>
+        ) : (
+          <>
+            <div className="student-daily-routine__summary">
+              <div>
+                <span>Rutina asignada</span>
+                <h2>{routine.name}</h2>
+              </div>
+              <label htmlFor="routine-day">Día de la rutina
+                <select
+                  id="routine-day"
+                  className="exercise-select"
+                  value={selectedDay?.id ?? ''}
+                  onChange={(event) => setSelectedDayId(event.target.value)}
+                >
+                  {routine.days.map((day) => <option key={day.id} value={day.id}>{day.name}</option>)}
+                </select>
+              </label>
+              <strong>Duración estimada: {selectedDay?.blocks.some((block) => block.estimated_duration_minutes === null) ? 'Parcial' : `${totalDuration} min`}</strong>
+            </div>
+
+            {selectedDay?.blocks.map((block) => (
+              <section key={block.id} className="student-daily-routine__block">
+                <header>
+                  <h3>{block.name}</h3>
+                  <span>{block.estimated_duration_minutes === null ? 'Duración sin configurar' : `${block.estimated_duration_minutes} min estimados`}</span>
+                </header>
+                <ol>
+                  {block.exercises.map((item) => (
+                    <li key={item.id}>
+                      <div>
+                        <h4>{item.exercise.name}</h4>
+                        <p>{item.exercise.target_muscle_group}</p>
+                      </div>
+                      <p>{item.sets} series · {item.reps} repeticiones</p>
+                      <p>{item.target_weight_kg === null ? 'Sin carga indicada' : `${item.target_weight_kg} kg`} · {item.rest_seconds} s de descanso</p>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ))}
+          </>
+        )}
       </section>
     </main>
   );
