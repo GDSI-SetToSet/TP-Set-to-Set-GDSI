@@ -7,6 +7,7 @@ export const EXERCISE_CATEGORIES = {
 } as const;
 
 export type ExerciseCategory = keyof typeof EXERCISE_CATEGORIES;
+export type VideoPlatform = 'YOUTUBE' | 'VIMEO' | 'GOOGLE_DRIVE' | 'NONE';
 
 export interface ExerciseInput {
   name: string;
@@ -15,11 +16,13 @@ export interface ExerciseInput {
   target_muscle_group: string;
   equipment_needed: string;
   has_no_materials_alternative: boolean;
+  video_url: string | null;
 }
 
 export interface Exercise extends ExerciseInput {
   id: string;
   trainer_id: string;
+  video_platform: VideoPlatform;
   created_at: string;
   updated_at: string;
 }

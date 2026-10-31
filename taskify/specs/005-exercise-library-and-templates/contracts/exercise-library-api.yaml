@@ -4,7 +4,7 @@ info:
   version: 1.1.0
   description: >-
     Endpoints para gestión de biblioteca de ejercicios y rutinas genéricas (US-08, US-09).
-    Los campos de video y notas técnicas se incorporan con US-12 y US-52.
+    Los campos de video se incorporan con US-12 y las notas técnicas con US-52.
     Todos los errores usan RFC 7807 (application/problem+json).
 
 paths:
@@ -270,6 +270,12 @@ components:
         has_no_materials_alternative:
           type: boolean
           default: false
+        video_url:
+          type: string
+          format: uri
+          maxLength: 500
+          nullable: true
+          description: URL de YouTube, Vimeo o Google Drive; null elimina el video asociado.
 
     ExerciseResponse:
       type: object
@@ -292,6 +298,11 @@ components:
           type: string
         has_no_materials_alternative:
           type: boolean
+        video_url:
+          type: string
+          format: uri
+          maxLength: 500
+          nullable: true
         created_at:
           type: string
           format: date-time

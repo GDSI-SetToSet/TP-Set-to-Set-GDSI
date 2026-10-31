@@ -4,6 +4,8 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_core import PydanticCustomError
 
+from backend.src.core.video_urls import parse_video_url
+from backend.src.models.exercise import VideoPlatform
 from backend.src.schemas.trainer import REQUIRED_FIELD_MESSAGE
 
 EXERCISE_CATEGORIES = ("FUERZA", "CARDIO", "MOVILIDAD", "FLEXIBILIDAD", "EQUILIBRIO")
@@ -42,12 +44,19 @@ class ExerciseInput(BaseModel):
     target_muscle_group: str | None = Field(default=None, validate_default=True)
     equipment_needed: str | None = Field(default=None, validate_default=True)
     has_no_materials_alternative: bool = False
+    video_url: str | None = Field(default=None, max_length=500)
 
     _name = field_validator("name")(required_text(NAME_MAX_LENGTH))
     _description = field_validator("description")(required_text())
     _category = field_validator("category")(validate_category)
     _muscle = field_validator("target_muscle_group")(required_text(MUSCLE_MAX_LENGTH))
     _equipment = field_validator("equipment_needed")(required_text(EQUIPMENT_MAX_LENGTH))
+
+    @field_validator("video_url")
+    @classmethod
+    def validate_video_url(cls, value: str | None) -> str | None:
+        parse_video_url(value)
+        return value
 
 
 class ExerciseResponse(BaseModel):
@@ -61,5 +70,7 @@ class ExerciseResponse(BaseModel):
     target_muscle_group: str
     equipment_needed: str
     has_no_materials_alternative: bool
+    video_url: str | None
+    video_platform: VideoPlatform
     created_at: datetime
     updated_at: datetime

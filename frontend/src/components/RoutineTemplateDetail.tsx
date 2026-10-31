@@ -20,6 +20,16 @@ export function RoutineTemplateDetail({ template }: RoutineTemplateDetailProps) 
                     <strong>{item.exercise.name}</strong>
                     <span>{EXERCISE_CATEGORIES[item.exercise.category]} · {item.exercise.target_muscle_group}</span>
                     <span>{item.sets} series · Repeticiones: {item.reps} · {item.rest_seconds} s de descanso</span>
+                    {item.exercise.video_url && (
+                      <iframe
+                        className="exercise-video"
+                        src={item.exercise.video_url}
+                        title={`Video demostrativo de ${item.exercise.name}`}
+                        loading="lazy"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                      />
+                    )}
                   </li>
                 ))}
               </ul>
