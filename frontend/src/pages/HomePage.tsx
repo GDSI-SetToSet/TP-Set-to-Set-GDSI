@@ -204,8 +204,16 @@ export function HomePage() {
                   <strong>
                     {action.label}
                     {action.warning && (
-                      <span className="home-action__warning" role="img" aria-label="Pendiente: es necesario completar el cuestionario">
+                      <span
+                        className="home-action__warning"
+                        tabIndex={0}
+                        aria-label="Cuestionario de salud incompleto"
+                        aria-describedby="health-questionnaire-warning-tooltip"
+                      >
                         <AlertTriangle size={15} aria-hidden="true" />
+                        <span id="health-questionnaire-warning-tooltip" className="home-action__warning-tooltip" role="tooltip">
+                          Todavía no completaste el cuestionario de salud. Completalo para poder contratar entrenadores.
+                        </span>
                       </span>
                     )}
                   </strong>

@@ -119,7 +119,7 @@ export function MedicalClearancePage() {
   return (
     <main className="profile-shell">
       <header className="profile-header">
-        <Link className="back-link" to={ROUTES.studentHome}>
+        <Link className="profile-back" to={ROUTES.studentHome}>
           <ArrowLeft size={18} /> Volver al inicio
         </Link>
       </header>
@@ -182,6 +182,7 @@ export function MedicalClearancePage() {
                   id="medical-clearance-file"
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png"
+                  className="medical-clearance-file-input"
                   onChange={handleFileSelection}
                 />
               </label>
