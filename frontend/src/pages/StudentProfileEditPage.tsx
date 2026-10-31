@@ -1,11 +1,12 @@
 import axios from 'axios';
-import { ArrowLeft, CheckCircle2, Pencil, Save, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Pencil, Plus, Save, X } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { getOwnStudentProfile, updateOwnStudentProfile } from '../services/studentService';
 import { phoneError } from '../utils/phone';
 import { FITNESS_GOALS, type FitnessGoal, type StudentProfile, type StudentProfileUpdate } from '../types/student';
+import '../styles/profile-choice-fields.css';
 
 type TextField = Exclude<keyof StudentProfileUpdate, 'fitness_goals'>;
 type FormState = Record<TextField, string>;
@@ -31,7 +32,8 @@ interface ProblemDetails {
 export function StudentProfileEditPage() {
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [goals, setGoals] = useState<FitnessGoal[]>([]);
+  const [goalSelections, setGoalSelections] = useState<Array<FitnessGoal | ''>>(['']);
+  const goals = goalSelections.filter((goal): goal is FitnessGoal => goal !== '');
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -44,14 +46,19 @@ export function StudentProfileEditPage() {
       .then((data) => {
         setProfile(data);
         setForm(toForm(data));
-        setGoals(data.fitness_goals);
+        setGoalSelections(data.fitness_goals.length ? data.fitness_goals : ['']);
       })
       .catch(() => setError('No pudimos cargar tu perfil. Intentá nuevamente.'))
       .finally(() => setLoading(false));
   }, []);
 
-  function toggleGoal(goal: FitnessGoal) {
-    setGoals((current) => (current.includes(goal) ? current.filter((item) => item !== goal) : [...current, goal]));
+  function updateGoal(index: number, goal: FitnessGoal | '') {
+    setGoalSelections((current) => current.map((item, itemIndex) => itemIndex === index ? goal : item));
+    setFieldErrors((current) => ({ ...current, fitness_goals: '' }));
+  }
+
+  function removeGoal(index: number) {
+    setGoalSelections((current) => current.filter((_, itemIndex) => itemIndex !== index));
     setFieldErrors((current) => ({ ...current, fitness_goals: '' }));
   }
 
@@ -86,7 +93,7 @@ export function StudentProfileEditPage() {
       const updated = await updateOwnStudentProfile(payload);
       setProfile(updated);
       setForm(toForm(updated));
-      setGoals(updated.fitness_goals);
+      setGoalSelections(updated.fitness_goals.length ? updated.fitness_goals : ['']);
       setIsSubmitting(false);
       setIsSuccess(true);
       setIsEditing(false);
@@ -106,7 +113,7 @@ export function StudentProfileEditPage() {
   function cancelEditing() {
     if (!profile) return;
     setForm(toForm(profile));
-    setGoals(profile.fitness_goals);
+    setGoalSelections(profile.fitness_goals.length ? profile.fitness_goals : ['']);
     setFieldErrors({});
     setError('');
     setIsSuccess(false);
@@ -158,16 +165,46 @@ export function StudentProfileEditPage() {
               {fieldErrors.birth_date && <small className="field-error">{fieldErrors.birth_date}</small>}
             </label>
           </div>
-          <fieldset>
-            <legend>Objetivos de entrenamiento</legend>
-            {(Object.entries(FITNESS_GOALS) as [FitnessGoal, string][]).map(([goal, label]) => (
-              <label key={goal}>
-                <input type="checkbox" checked={goals.includes(goal)} onChange={() => toggleGoal(goal)} /> {label}
-              </label>
+          <div className="profile-choice-list" role="group" aria-labelledby="fitness-goals-label">
+            <span id="fitness-goals-label" className="profile-choice-heading">Objetivos de entrenamiento</span>
+            {goalSelections.map((selectedGoal, index) => (
+              <div className="profile-choice-row" key={index}>
+                <label className="profile-choice-field">
+                  {index === 0 ? 'Objetivo de entrenamiento' : 'Otro objetivo'}
+                  <select
+                    className="profile-choice-select"
+                    value={selectedGoal}
+                    onChange={(event) => updateGoal(index, event.target.value as FitnessGoal | '')}
+                    aria-invalid={Boolean(fieldErrors.fitness_goals)}
+                  >
+                    <option value="" disabled>Elegí un objetivo</option>
+                    {(Object.entries(FITNESS_GOALS) as [FitnessGoal, string][]).map(([goal, label]) => (
+                      <option key={goal} value={goal} disabled={goalSelections.some((selected, selectedIndex) => selected === goal && selectedIndex !== index)}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="profile-choice-actions">
+                  {index > 0 && (
+                    <button type="button" className="profile-choice-remove" aria-label="Quitar objetivo" onClick={() => removeGoal(index)}><X size={18} /></button>
+                  )}
+                  {index === goalSelections.length - 1 && (
+                    <button
+                      type="button"
+                      className="profile-choice-add"
+                      aria-label="Agregar objetivo"
+                      title="Agregar objetivo"
+                      disabled={goalSelections.length >= Object.keys(FITNESS_GOALS).length}
+                      onClick={() => setGoalSelections((current) => [...current, ''])}
+                    ><Plus size={20} /></button>
+                  )}
+                </div>
+              </div>
             ))}
             {goals.length === 0 && <small className="field-error">Elegí al menos un objetivo para publicar tu perfil.</small>}
             {fieldErrors.fitness_goals && <small className="field-error">{fieldErrors.fitness_goals}</small>}
-          </fieldset>
+          </div>
           <label>Motivación personal
             <textarea value={form.personal_motivation} onChange={(event) => updateField('personal_motivation', event.target.value)} rows={3} placeholder="Opcional: ¿qué te motiva a entrenar?" />
           </label>

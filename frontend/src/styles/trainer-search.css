@@ -114,6 +114,10 @@
   border-radius: 12px;
 }
 
+.trainer-search-page .trainer-card__specialties {
+  margin: 10px 0 14px;
+}
+
 .trainer-search-page .pagination-btn {
   min-height: 44px;
   padding: 0 14px;
@@ -162,4 +166,13 @@
   .trainer-search-page .pagination {
     flex-wrap: wrap;
   }
+}
+
+.trainer-search-select {
+  cursor: pointer;
+}
+
+.trainer-search-select:focus {
+  outline: 3px solid var(--pf-focus);
+  border-color: var(--pf-accent);
 }

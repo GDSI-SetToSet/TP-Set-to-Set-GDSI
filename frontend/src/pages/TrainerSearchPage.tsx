@@ -2,9 +2,11 @@ import { Search, ArrowLeft, ArrowRight, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
+import { parseTrainerSpecialties, TRAINER_SPECIALTIES } from '../constants/trainerSpecialties';
 import { searchTrainers } from '../services/discoveryService';
 import type { TrainerSearchResult, TrainerSearchFilters } from '../types/discovery';
 import '../styles/discovery.css';
+import '../styles/profile-choice-fields.css';
 import '../styles/trainer-search.css';
 
 export function TrainerSearchPage() {
@@ -80,14 +82,15 @@ export function TrainerSearchPage() {
           </label>
           <label className="trainer-search-field">
             Especialidad
-            <input
-              type="text"
+            <select
               value={specialty}
               onChange={event => setSpecialty(event.target.value)}
-              className="trainer-search-input"
-              placeholder="Ej. Fuerza"
+              className="trainer-search-input trainer-search-select"
               aria-label="Filtrar por especialidad"
-            />
+            >
+              <option value="">Todas las especialidades</option>
+              {TRAINER_SPECIALTIES.map(option => <option key={option} value={option}>{option}</option>)}
+            </select>
           </label>
           <label className="trainer-search-field">
             Precio máximo
@@ -122,7 +125,11 @@ export function TrainerSearchPage() {
               {results.map(trainer => (
                 <article key={trainer.id} className="trainer-card">
                   <h3 className="trainer-card__name">{trainer.full_name ?? 'Entrenador'}</h3>
-                  {trainer.specialty && <span className="trainer-card__specialty">{trainer.specialty}</span>}
+                  {trainer.specialty && (
+                    <ul className="trainer-card__specialties" aria-label="Especialidades">
+                      {parseTrainerSpecialties(trainer.specialty).map((item) => <li className="trainer-specialty-pill" key={item}>{item}</li>)}
+                    </ul>
+                  )}
                   {trainer.bio_preview && <p className="trainer-card__bio">{trainer.bio_preview}</p>}
                   <div className="trainer-card__meta">
                     <span className="trainer-card__price">{formatPrice(trainer.min_price)}{trainer.max_price !== trainer.min_price ? ` – ${formatPrice(trainer.max_price)}` : ''}</span>
