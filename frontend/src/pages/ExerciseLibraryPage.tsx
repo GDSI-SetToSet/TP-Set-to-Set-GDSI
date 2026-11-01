@@ -3,6 +3,7 @@ import { ArrowLeft, CheckCircle2, Plus, Save } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ExerciseCard } from '../components/ExerciseCard';
+import { BODY_AREAS, ZONES_ES } from '../constants/bodyAreas';
 import { ROUTES } from '../constants/routes';
 import { createExercise, deleteExercise, getExercises, updateExercise } from '../services/exerciseService';
 import { EXERCISE_CATEGORIES, type Exercise, type ExerciseCategory } from '../types/exercise';
@@ -19,9 +20,10 @@ interface FormState {
   equipment_needed: string;
   has_no_materials_alternative: boolean;
   video_url: string;
+  contraindicated_zones: string[];
 }
 
-type TextField = Exclude<keyof FormState, 'has_no_materials_alternative'>;
+type TextField = Exclude<keyof FormState, 'has_no_materials_alternative' | 'contraindicated_zones'>;
 
 const EMPTY_FORM: FormState = {
   name: '',
@@ -31,6 +33,7 @@ const EMPTY_FORM: FormState = {
   equipment_needed: '',
   has_no_materials_alternative: false,
   video_url: '',
+  contraindicated_zones: [],
 };
 const REQUIRED_FIELDS: TextField[] = ['name', 'description', 'category', 'target_muscle_group', 'equipment_needed'];
 
@@ -101,6 +104,7 @@ export function ExerciseLibraryPage() {
       equipment_needed: exercise.equipment_needed,
       has_no_materials_alternative: exercise.has_no_materials_alternative,
       video_url: exercise.video_url ?? '',
+      contraindicated_zones: exercise.contraindicated_zones ?? [],
     });
     setFieldErrors({});
     setMessage('');
@@ -236,6 +240,27 @@ export function ExerciseLibraryPage() {
               allowFullScreen
             />
           )}
+          <fieldset className="zone-checks">
+            <legend>Zonas contraindicadas</legend>
+            <p>Se bloquea este ejercicio en las rutinas de alumnos que declararon alguna de estas zonas a proteger.</p>
+            <div className="zone-checks__grid">
+              {BODY_AREAS.map((area) => (
+                <label key={area} className="exercise-check zone-checks__item">
+                  <input
+                    type="checkbox"
+                    checked={form.contraindicated_zones.includes(area)}
+                    onChange={(event) => setForm((current) => ({
+                      ...current,
+                      contraindicated_zones: event.target.checked
+                        ? [...current.contraindicated_zones, area]
+                        : current.contraindicated_zones.filter((zone) => zone !== area),
+                    }))}
+                  />
+                  {ZONES_ES[area]}
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <label className="exercise-check">
             <input type="checkbox" checked={form.has_no_materials_alternative} onChange={(event) => setForm((current) => ({ ...current, has_no_materials_alternative: event.target.checked }))} />
             Tiene alternativa "Sin materiales"

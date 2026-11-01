@@ -24,6 +24,11 @@ from backend.src.services.routine_template_service import (
     list_student_templates,
     update_template,
 )
+from backend.src.services.student_routine_service import (
+    on_reassign,
+    student_assigned_view,
+    template_conflicts,
+)
 from backend.src.services.student_service import StudentProfileError
 from backend.src.services.trainer_service import TrainerProfileError
 
@@ -73,7 +78,9 @@ def save_student_routine_assignment(
 ) -> RoutineAssignmentResponse:
     try:
         assignment = assign_routine_to_student(db, user, relationship_id, payload.routine_template_id)
-        return RoutineAssignmentResponse(**assignment)
+        on_reassign(db, relationship_id, payload.routine_template_id)
+        warnings = template_conflicts(db, relationship_id, payload.routine_template_id)
+        return RoutineAssignmentResponse(**assignment, warnings=warnings)
     except ServiceErrors as error:
         handle_error(error)
 
@@ -107,6 +114,9 @@ def list_available_templates(user: CurrentUser, db: DbDep) -> list[RoutineTempla
 @student_router.get("/assigned", response_model=RoutineTemplateResponse | None)
 def assigned_routine(user: CurrentUser, db: DbDep) -> RoutineTemplateResponse | None:
     try:
+        own_copy = student_assigned_view(db, user)
+        if own_copy is not None:
+            return RoutineTemplateResponse.model_validate(own_copy)
         template = get_assigned_student_template(db, user)
         return RoutineTemplateResponse.model_validate(template) if template else None
     except ServiceErrors as error:

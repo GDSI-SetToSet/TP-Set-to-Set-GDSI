@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '../constants/routes';
 import { assignRoutineToStudent, getRoutineAssignments } from '../services/routineTemplateService';
 import type { RoutineAssignmentStudent, RoutineTemplate } from '../types/routineTemplate';
 
@@ -13,6 +15,7 @@ export function RoutineAssignmentPanel({ templates }: RoutineAssignmentPanelProp
   const [savingId, setSavingId] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [warnings, setWarnings] = useState<string[]>([]);
 
   useEffect(() => {
     getRoutineAssignments()
@@ -28,9 +31,11 @@ export function RoutineAssignmentPanel({ templates }: RoutineAssignmentPanelProp
     setSavingId(student.relationship_id);
     setError('');
     setMessage('');
+    setWarnings([]);
     try {
       const routineTemplateId = selectedRoutines[student.relationship_id] || null;
-      await assignRoutineToStudent(student.relationship_id, routineTemplateId);
+      const conflicts = await assignRoutineToStudent(student.relationship_id, routineTemplateId);
+      setWarnings(conflicts);
       const routine = templates.find((item) => item.id === routineTemplateId);
       setStudents((current) => current.map((item) => item.relationship_id === student.relationship_id
         ? { ...item, routine_template_id: routineTemplateId, routine_name: routine?.name ?? null }
@@ -84,12 +89,26 @@ export function RoutineAssignmentPanel({ templates }: RoutineAssignmentPanelProp
               >
                 {savingId === student.relationship_id ? 'Guardando…' : 'Guardar asignación'}
               </button>
+              {student.routine_template_id && (
+                <Link className="profile-save" to={ROUTES.trainerStudentRoutine.replace(':studentId', student.student_id)}>
+                  Editar rutina
+                </Link>
+              )}
             </div>
           ))}
         </div>
       )}
       {error && students.length > 0 && <p className="form-alert" role="alert">{error}</p>}
       {message && <p className="profile-success" role="status">{message}</p>}
+      {warnings.length > 0 && (
+        <div className="rt-alert" role="alert">
+          <div>
+            <strong>Atención: la rutina asignada tiene ejercicios que no son compatibles con las limitaciones del alumno</strong>
+            <ul>{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
+            <p>El alumno ya puede verla. Usá “Editar rutina” para reemplazar esos ejercicios y confirmar.</p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

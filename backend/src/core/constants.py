@@ -26,6 +26,31 @@ PASSWORD_RESET_REQUESTED_MESSAGE: Final = "Si el correo está registrado, recibi
 PASSWORD_RESET_SUCCESS_MESSAGE: Final = "Tu contraseña se actualizó. Iniciá sesión con tu nueva contraseña."
 INVALID_RESET_TOKEN_MESSAGE: Final = "El enlace de recuperación no es válido o expiró. Solicitá uno nuevo."
 PASSWORD_RESET_EMAIL_SUBJECT: Final = "Restablecé tu contraseña de Set to Set"
+# Zonas corporales válidas (las mismas que ofrece el alumno al declarar sus zonas a proteger).
+BODY_AREAS: Final = (
+    "Neck",
+    "Shoulder",
+    "Elbow",
+    "Wrist and hand",
+    "Upper back",
+    "Lower back",
+    "Hip",
+    "Knee",
+    "Ankle and foot",
+)
+
+BODY_AREAS_ES: Final = {
+    "neck": "cuello",
+    "shoulder": "hombro",
+    "elbow": "codo",
+    "wrist and hand": "muñeca y mano",
+    "upper back": "espalda alta",
+    "lower back": "espalda baja",
+    "hip": "cadera",
+    "knee": "rodilla",
+    "ankle and foot": "tobillo y pie",
+}
+
 PASSWORD_RESET_EMAIL_BODY: Final = (
     "Recibimos un pedido para restablecer tu contraseña.\n\n"
     "Para definir una nueva, abrí este enlace dentro de los próximos {minutes} minutos:\n"

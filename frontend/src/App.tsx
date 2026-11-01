@@ -9,6 +9,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { RoutineTemplatesPage } from './pages/RoutineTemplatesPage';
+import { StudentRoutineEditPage } from './pages/StudentRoutineEditPage';
 import { TrainerStudentsPage } from './pages/TrainerStudentsPage';
 import { TrainerProfileEditPage } from './pages/TrainerProfileEditPage';
 import { TrainerPlansManagementPage } from './pages/TrainerPlansManagementPage';
@@ -54,6 +55,7 @@ export default function App() {
       <Route path={ROUTES.trainerExercises} element={<ProtectedRoute role={USER_ROLES.trainer}><ExerciseLibraryPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerRoutines} element={<ProtectedRoute role={USER_ROLES.trainer}><RoutineTemplatesPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerStudents} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerStudentsPage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerStudentRoutine} element={<ProtectedRoute role={USER_ROLES.trainer}><StudentRoutineEditPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerRequests} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerRequestsInboxPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerRequestDetail} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerRequestDetailPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentHome} element={<ProtectedRoute role={USER_ROLES.student}><HomePage /></ProtectedRoute>} />
