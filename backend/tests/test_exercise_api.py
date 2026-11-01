@@ -38,6 +38,8 @@ def test_create_exercise_with_required_fields(client):
     assert exercise["name"] == "Sentadilla búlgara"
     assert exercise["category"] == "FUERZA"
     assert exercise["has_no_materials_alternative"] is False
+    assert exercise["technical_cues"] is None
+    assert exercise["breathing_cues"] is None
     assert exercise["video_url"] is None
     assert exercise["video_platform"] == "NONE"
     assert api.get(f"{EXERCISES_PATH}/{exercise['id']}", headers=trainer).json() == exercise
@@ -117,6 +119,42 @@ def test_update_exercise_replaces_and_removes_video(client):
     assert removed.status_code == 200
     assert removed.json()["video_url"] is None
     assert removed.json()["video_platform"] == "NONE"
+
+
+def test_create_update_and_remove_technical_and_breathing_cues(client):
+    api, _ = client
+    trainer = register_and_login(api, "coach@example.com", "TRAINER")
+
+    exercise = create_exercise(
+        api,
+        trainer,
+        technical_cues="  Espalda neutra y rodillas alineadas.  ",
+        breathing_cues="  Inhalá al bajar y exhalá al subir.  ",
+    )
+
+    assert exercise["technical_cues"] == "Espalda neutra y rodillas alineadas."
+    assert exercise["breathing_cues"] == "Inhalá al bajar y exhalá al subir."
+
+    updated = api.put(
+        f"{EXERCISES_PATH}/{exercise['id']}",
+        headers=trainer,
+        json={**VALID_EXERCISE, "technical_cues": "  ", "breathing_cues": None},
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["technical_cues"] is None
+    assert updated.json()["breathing_cues"] is None
+
+
+@pytest.mark.parametrize("field", ["technical_cues", "breathing_cues"])
+def test_exercise_rejects_cues_over_maximum_length(client, field):
+    api, _ = client
+    trainer = register_and_login(api, "coach@example.com", "TRAINER")
+
+    response = api.post(EXERCISES_PATH, headers=trainer, json={**VALID_EXERCISE, field: "x" * 2001})
+
+    assert response.status_code == 422
+    assert response.json()["errors"][0]["field"] == field
 
 
 @pytest.mark.parametrize("field", ["name", "description", "category", "target_muscle_group", "equipment_needed"])

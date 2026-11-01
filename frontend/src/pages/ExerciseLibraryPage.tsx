@@ -10,11 +10,14 @@ import { EXERCISE_CATEGORIES, type Exercise, type ExerciseCategory } from '../ty
 import { getVideoEmbedUrl } from '../utils/videoUrl';
 
 const REQUIRED_MESSAGE = 'Este campo es obligatorio';
+const CUE_MAX_LENGTH = 2000;
 const CATEGORY_OPTIONS = Object.entries(EXERCISE_CATEGORIES) as [ExerciseCategory, string][];
 
 interface FormState {
   name: string;
   description: string;
+  technical_cues: string;
+  breathing_cues: string;
   category: ExerciseCategory | '';
   target_muscle_group: string;
   equipment_needed: string;
@@ -28,6 +31,8 @@ type TextField = Exclude<keyof FormState, 'has_no_materials_alternative' | 'cont
 const EMPTY_FORM: FormState = {
   name: '',
   description: '',
+  technical_cues: '',
+  breathing_cues: '',
   category: '',
   target_muscle_group: '',
   equipment_needed: '',
@@ -99,6 +104,8 @@ export function ExerciseLibraryPage() {
     setForm({
       name: exercise.name,
       description: exercise.description,
+      technical_cues: exercise.technical_cues ?? '',
+      breathing_cues: exercise.breathing_cues ?? '',
       category: exercise.category,
       target_muscle_group: exercise.target_muscle_group,
       equipment_needed: exercise.equipment_needed,
@@ -131,7 +138,13 @@ export function ExerciseLibraryPage() {
     setFieldErrors(missing);
     if (Object.keys(missing).length > 0 || !form.category) return;
 
-    const payload = { ...form, category: form.category, video_url: form.video_url.trim() || null };
+    const payload = {
+      ...form,
+      category: form.category,
+      video_url: form.video_url.trim() || null,
+      technical_cues: form.technical_cues.trim() || null,
+      breathing_cues: form.breathing_cues.trim() || null,
+    };
     setSaving(true);
     try {
       if (editingId) {
@@ -215,6 +228,28 @@ export function ExerciseLibraryPage() {
           <label>Descripción
             <textarea value={form.description} onChange={(event) => updateField('description', event.target.value)} rows={3} aria-invalid={Boolean(fieldErrors.description)} />
             {fieldErrors.description && <small className="field-error">{fieldErrors.description}</small>}
+          </label>
+          <label>Notas técnicas y de postura (opcional)
+            <textarea
+              value={form.technical_cues}
+              onChange={(event) => updateField('technical_cues', event.target.value)}
+              rows={3}
+              maxLength={CUE_MAX_LENGTH}
+              placeholder="Ej.: mantené la espalda neutra y las rodillas alineadas con los pies."
+              aria-invalid={Boolean(fieldErrors.technical_cues)}
+            />
+            {fieldErrors.technical_cues && <small className="field-error">{fieldErrors.technical_cues}</small>}
+          </label>
+          <label>Claves de respiración (opcional)
+            <textarea
+              value={form.breathing_cues}
+              onChange={(event) => updateField('breathing_cues', event.target.value)}
+              rows={2}
+              maxLength={CUE_MAX_LENGTH}
+              placeholder="Ej.: inhalá al bajar y exhalá durante el esfuerzo."
+              aria-invalid={Boolean(fieldErrors.breathing_cues)}
+            />
+            {fieldErrors.breathing_cues && <small className="field-error">{fieldErrors.breathing_cues}</small>}
           </label>
           <label>Video demostrativo (YouTube, Vimeo o Google Drive)
             <input

@@ -36,19 +36,20 @@
 }
 .student-daily-routine .student-daily-routine__block li::before {
   grid-column: 1;
-  grid-row: 1 / span 3;
+  grid-row: 1;
   content: counter(routine-exercise) ".";
   padding-top: 1px;
   color: var(--pf-muted);
   font-weight: 700;
   text-align: right;
 }
-.student-daily-routine .student-daily-routine__block li > div,
-.student-daily-routine .student-daily-routine__block li > p {
+.student-daily-routine .student-daily-routine__block li > .student-routine-exercise__summary,
+.student-daily-routine .student-daily-routine__block li > p,
+.student-daily-routine .student-daily-routine__block li > dl {
   grid-column: 2;
   min-width: 0;
 }
-.student-daily-routine .student-daily-routine__block li > div {
+.student-daily-routine .student-daily-routine__block li > .student-routine-exercise__summary {
   grid-row: 1;
 }
 .student-daily-routine .student-daily-routine__block li > p {
@@ -58,11 +59,52 @@
 .student-daily-routine .student-daily-routine__block li h4 {
   margin: 0;
 }
-.student-daily-routine .student-daily-routine__block li > div p {
+.student-daily-routine .student-daily-routine__block li > .student-routine-exercise__summary p {
   margin: 4px 0 0;
   color: var(--pf-body);
   font-size: 14px;
 }
+.student-routine-exercise__muscle {
+  display: block;
+  margin-top: 4px;
+  color: var(--pf-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+.student-routine-exercise__cues {
+  margin: 6px 0 0;
+  padding: 12px;
+  border-left: 3px solid var(--pf-accent);
+  border-radius: 0 10px 10px 0;
+  background: var(--pf-arch-bg);
+  white-space: pre-line;
+}
+.student-routine-exercise__cues dt {
+  color: var(--pf-label);
+  font-size: 13px;
+  font-weight: 800;
+}
+.student-routine-exercise__cues dt:not(:first-child) { margin-top: 10px; }
+.student-routine-exercise__cues dd { margin: 3px 0 0; color: var(--pf-body); font-size: 14px; }
+.student-routine-exercise__media { grid-column: 2; min-width: 0; }
+.student-routine-exercise__video-toggle {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid var(--pf-accent);
+  border-radius: 10px;
+  color: var(--pf-accent);
+  background: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.student-routine-exercise__video-toggle:hover { background: var(--pf-arch-bg); }
+.student-routine-exercise__video-toggle:focus-visible { outline: 3px solid var(--pf-focus); outline-offset: 2px; }
+.student-routine-exercise__media .exercise-video { width: min(100%, 640px); margin-top: 12px; }
 @media (max-width: 680px) {
   .student-daily-routine .student-daily-routine__summary > div,
   .student-daily-routine .student-daily-routine__summary > strong {
