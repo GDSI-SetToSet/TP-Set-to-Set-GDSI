@@ -44,6 +44,7 @@ export function HomePage() {
   const homeActions: Array<{ label: string; description: string; to: string; icon: ReactNode; count?: number; countLabel?: string; featured?: boolean; warning?: boolean }> = isTrainer
     ? [
         { label: 'Mis rutinas', description: 'Diseñá y organizá rutinas para tus alumnos.', to: ROUTES.trainerRoutines, icon: <Dumbbell size={20} /> },
+        { label: 'Rutina con IA', description: 'Generá una rutina adaptada con IA para un alumno.', to: ROUTES.trainerGenerateAIRoutine, icon: <Sparkles size={20} /> },
         { label: 'Mis alumnos', description: 'Consultá tus alumnos activos y asignales rutinas.', to: ROUTES.trainerStudents, icon: <Users size={20} />, count: activeStudentsCount, countLabel: 'alumnos activos' },
         { label: 'Mis ejercicios', description: 'Administrá los ejercicios de tu biblioteca.', to: ROUTES.trainerExercises, icon: <Activity size={20} /> },
         { label: 'Mis paquetes', description: 'Gestioná tus propuestas de entrenamiento.', to: ROUTES.trainerPlans, icon: <Package size={20} /> },

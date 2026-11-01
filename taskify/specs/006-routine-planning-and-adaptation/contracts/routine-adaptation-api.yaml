@@ -1,0 +1,313 @@
+openapi: 3.0.3
+info:
+  title: Set to Set - Routine Planning & AI Adaptation API (US-13)
+  version: 1.0.0
+  description: >-
+    Endpoints para la generación asistida por IA de rutinas particulares con supervisión humana obligatoria.
+    Todos los errores siguen la especificación RFC 7807 (application/problem+json).
+
+paths:
+  /api/v1/trainers/me/active-students:
+    get:
+      summary: Listar alumnos con vínculo activo con el entrenador autenticado
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Lista de alumnos activos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ActiveStudentResponse'
+        '401':
+          description: No autenticado
+        '403':
+          description: El usuario no es entrenador
+
+  /api/v1/routines/generate-ai:
+    post:
+      summary: Generar propuesta de rutina particular asistida por IA (US-13)
+      description: >-
+        Toma una rutina genérica de la biblioteca del entrenador y el perfil, objetivos,
+        zonas protegidas y cuestionario de salud del alumno activo. Devuelve una propuesta
+        en estado PENDING_REVIEW sin activar la rutina.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateAIRoutineInput'
+      responses:
+        '201':
+          description: Propuesta de rutina particular creada en estado PENDING_REVIEW
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignedRoutineResponse'
+        '401':
+          description: No autenticado
+        '403':
+          description: El entrenador no tiene vínculo activo con el alumno
+        '404':
+          description: Rutina genérica o alumno no encontrado
+        '422':
+          description: Datos de entrada incompletos o inválidos
+
+  /api/v1/routines/assigned/{routine_id}:
+    get:
+      summary: Obtener el detalle de una rutina particular o propuesta de IA
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: routine_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detalle de la rutina particular
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignedRoutineResponse'
+        '401':
+          description: No autenticado
+        '403':
+          description: No autorizado para acceder a esta rutina
+        '404':
+          description: Rutina no encontrada
+
+  /api/v1/routines/assigned/{routine_id}/approve:
+    post:
+      summary: Aprobar manualmente la propuesta de rutina generada por IA (Human-in-the-Loop)
+      description: >-
+        El entrenador revisa y aprueba explícitamente la rutina, pasando su estado a APPROVED
+        y asignándola formalmente al alumno.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: routine_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Rutina aprobada y activada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignedRoutineResponse'
+        '401':
+          description: No autenticado
+        '403':
+          description: El usuario no es el entrenador autor de la rutina
+        '404':
+          description: Rutina no encontrada
+        '409':
+          description: La rutina ya fue aprobada
+
+  /api/v1/students/me/assigned-routine:
+    get:
+      summary: Consultar la rutina activa aprobada del alumno autenticado
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Rutina aprobada actual del alumno, o null si no tiene
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/AssignedRoutineResponse'
+                  - type: 'null'
+        '401':
+          description: No autenticado
+        '403':
+          description: El usuario no es alumno
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ActiveStudentResponse:
+      type: object
+      required:
+        - relationship_id
+        - student_id
+        - full_name
+        - fitness_goals
+      properties:
+        relationship_id:
+          type: string
+        student_id:
+          type: string
+        full_name:
+          type: string
+        age:
+          type: integer
+          nullable: true
+        fitness_goals:
+          type: array
+          items:
+            type: string
+        protected_zones_count:
+          type: integer
+
+    GenerateAIRoutineInput:
+      type: object
+      required:
+        - student_id
+        - template_id
+      properties:
+        student_id:
+          type: string
+          description: Identificador del perfil del alumno con vínculo activo.
+        template_id:
+          type: string
+          description: Identificador de la rutina genérica de la biblioteca del entrenador.
+
+    AssignedRoutineResponse:
+      type: object
+      required:
+        - id
+        - trainer_id
+        - student_id
+        - name
+        - duration_weeks
+        - intensity
+        - status
+        - days
+      properties:
+        id:
+          type: string
+        trainer_id:
+          type: string
+        student_id:
+          type: string
+        template_id:
+          type: string
+          nullable: true
+        name:
+          type: string
+        duration_weeks:
+          type: integer
+        intensity:
+          type: string
+        status:
+          type: string
+          enum: [PENDING_REVIEW, APPROVED]
+        adaptation_summary:
+          type: string
+          nullable: true
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        exercise_count:
+          type: integer
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssignedRoutineDayResponse'
+
+    AssignedRoutineDayResponse:
+      type: object
+      required:
+        - id
+        - name
+        - order_index
+        - blocks
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        order_index:
+          type: integer
+        blocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssignedRoutineBlockResponse'
+
+    AssignedRoutineBlockResponse:
+      type: object
+      required:
+        - id
+        - name
+        - order_index
+        - exercises
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        order_index:
+          type: integer
+        exercises:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssignedRoutineExerciseResponse'
+
+    AssignedRoutineExerciseResponse:
+      type: object
+      required:
+        - id
+        - sets
+        - reps
+        - rest_seconds
+        - order_index
+        - exercise
+      properties:
+        id:
+          type: string
+        sets:
+          type: integer
+        reps:
+          type: string
+        rest_seconds:
+          type: integer
+        order_index:
+          type: integer
+        adaptation_notes:
+          type: string
+          nullable: true
+        exercise:
+          $ref: '#/components/schemas/ExerciseItemResponse'
+
+    ExerciseItemResponse:
+      type: object
+      required:
+        - id
+        - name
+        - category
+        - target_muscle_group
+        - equipment_needed
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        target_muscle_group:
+          type: string
+        equipment_needed:
+          type: string
+        video_url:
+          type: string
+          nullable: true
+        video_platform:
+          type: string

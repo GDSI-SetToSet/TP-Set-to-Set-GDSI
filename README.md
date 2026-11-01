@@ -49,7 +49,7 @@ Los archivos de configuración y las especificaciones compartidas forman parte d
 ### Rutas del Frontend (`frontend/src/constants/routes.ts` y `frontend/src/App.tsx`)
 
 - **Autenticación (`001`):** `/login`, `/registro`, `/olvide-mi-contrasena`, `/restablecer-contrasena`, `/inicio`
-- **Entrenador (`002` / `004` / `005` / `006`):** `/entrenador/inicio`, `/entrenador/perfil`, `/entrenador/paquetes`, `/entrenador/ejercicios`, `/entrenador/rutinas`, `/entrenador/alumnos`, `/entrenador/alumnos/:studentId/rutina`, `/entrenador/solicitudes`, `/entrenador/solicitudes/:requestId`
+- **Entrenador (`002` / `004` / `005` / `006`):** `/entrenador/inicio`, `/entrenador/perfil`, `/entrenador/paquetes`, `/entrenador/ejercicios`, `/entrenador/rutinas`, `/entrenador/rutinas/generar-ia`, `/entrenador/alumnos`, `/entrenador/alumnos/:studentId/rutina`, `/entrenador/solicitudes`, `/entrenador/solicitudes/:requestId`
 - **Alumno (`003` / `004` / `005`):** `/alumno/inicio`, `/alumno/perfil`, `/alumno/salud`, `/alumno/zonas-a-proteger`, `/alumno/apto-medico`, `/alumno/buscar-entrenadores`, `/entrenadores/:trainerId`, `/entrenadores/:trainerId/solicitar`, `/alumno/mis-solicitudes`, `/alumno/mis-entrenamientos`, `/alumno/rutinas`
 
 ### Endpoints principales de la API (`backend/src/api/v1/`)
@@ -136,3 +136,51 @@ python backend/scripts/seed_demo.py --reset
 ```
 
 > **Credenciales:** Todas las cuentas de prueba comparten la contraseña `DemoPassword123!` y pertenecen al dominio `@demo.settoset.com` (ej. `lucas.benitez@demo.settoset.com`, `mateo.gomez@demo.settoset.com`).
+
+### Generación de rutinas particulares con IA — Google Gemini (US-13)
+
+La historia US-13 permite que un entrenador genere una propuesta de rutina particular (`PENDING_REVIEW`) adaptada a los objetivos y restricciones de un alumno con vínculo activo, reutilizando la interfaz `AIRoutineAdapter` con soporte para **Google Gemini API** (`gemini`) y para el **adaptador heurístico local** (`heuristic`).
+
+#### 1. Cómo obtener una API Key gratuita en Google AI Studio
+
+1. Ingresar a [Google AI Studio](https://aistudio.google.com/apikey) con una cuenta de Google.
+2. Hacer clic en **Create API key** (no requiere tarjeta de crédito para utilizar el Free Tier).
+3. Copiar la clave generada. **Nunca** subirla a Git ni compartirla en archivos versionados.
+   - *Nota de privacidad del Free Tier:* Usar exclusivamente perfiles ficticios de prueba durante el MVP.
+
+#### 2. Configuración de variables de entorno
+
+En `backend/.env` (o en `.env` en la raíz del proyecto, ambos excluidos por `.gitignore`), configurar:
+
+```env
+# Proveedor de IA: gemini | heuristic
+AI_PROVIDER=gemini
+GEMINI_API_KEY=tu_clave_de_google_ai_studio_aqui
+GEMINI_MODEL=gemini-3.5-flash-lite
+GEMINI_TIMEOUT_SECONDS=30
+```
+
+- **`AI_PROVIDER`**: selecciona el adaptador activo (`gemini` para Google Gemini API o `heuristic` para el motor determinista local). Si no se especifica en el entorno, el sistema utiliza `heuristic` por defecto para no consumir cuota en ejecuciones de CI/tests.
+- **`GEMINI_API_KEY`**: clave obtenida en Google AI Studio.
+- **`GEMINI_MODEL`**: modelo disponible en el Free Tier de Gemini API con soporte de salida estructurada JSON Schema (por defecto `gemini-3.5-flash-lite`).
+- **`GEMINI_TIMEOUT_SECONDS`**: tiempo máximo de espera por solicitud en segundos (por defecto `30`).
+
+#### 3. Cómo ejecutar y probar la integración localmente con perfiles ficticios
+
+1. Sembrar los perfiles ficticios de demostración (`python backend/scripts/seed_demo.py`).
+2. Levantar el backend (`uvicorn backend.src.main:app --reload`) y el frontend (`cd frontend && npm run dev`).
+3. Iniciar sesión como entrenador de demostración con vínculo activo (por ejemplo, `mariana.vega@demo.settoset.com` o `gonzalo.morales@demo.settoset.com` con contraseña `DemoPassword123!`), crear al menos una rutina genérica en `/entrenador/rutinas` y dirigirse a `/entrenador/rutinas/generar-ia`.
+4. Seleccionar el alumno activo ficticio y la rutina base, y presionar **Generar propuesta de rutina con IA**.
+5. Revisar el resumen de adaptaciones (`KEEP`, `REPLACE`, `REMOVE`) y aprobar explícitamente la rutina para asignarla al alumno sin modificar la plantilla genérica original.
+6. Opcionalmente, para verificar la conexión con Gemini desde consola sin levantar el frontend, ejecutar la prueba manual de humo (separada de la suite de `pytest`):
+
+```bash
+python backend/scripts/smoke_test_gemini_us13.py
+```
+
+#### 4. Qué hacer cuando se agota la cuota gratuita (`429`) o falla el proveedor
+
+- Si se alcanza el límite de solicitudes por minuto/día del Free Tier (`HTTP 429`) o si `GEMINI_API_KEY` no está configurada (`HTTP 503`), el sistema **no oculta el error ni cambia silenciosamente** de proveedor: informa el motivo en pantalla.
+- El entrenador puede:
+  1. Esperar unos instantes y presionar **Reintentar con proveedor configurado**.
+  2. Presionar **Usar adaptador heurístico explícitamente** en la interfaz para generar la propuesta con el motor biomecánico local, o cambiar `AI_PROVIDER=heuristic` en `.env`.

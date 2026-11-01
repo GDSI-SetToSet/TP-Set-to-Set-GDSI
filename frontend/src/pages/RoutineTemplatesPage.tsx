@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { ArrowLeft, CheckCircle2, Plus, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Plus, Save, Sparkles, Trash2 } from 'lucide-react';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { RoutineTemplateCard } from '../components/RoutineTemplateCard';
@@ -281,6 +281,11 @@ export function RoutineTemplatesPage() {
           <span>RUTINAS GENÉRICAS</span>
           <h1>Tus rutinas</h1>
           <p>Creá y organizá las rutinas que después podés asignar a tus alumnos.</p>
+          <div style={{ marginTop: '14px' }}>
+            <Link to={ROUTES.trainerGenerateAIRoutine} className="profile-cta" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#4f46e5' }}>
+              <Sparkles size={16} /> Generar rutina particular con IA para un alumno
+            </Link>
+          </div>
         </div>
         <div className="routine-template-actions">
           <button className="profile-save" type="button" onClick={formVisible ? resetForm : startCreating} disabled={saving}>
