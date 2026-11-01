@@ -386,7 +386,14 @@ def test_assigned_routine_is_visible_with_day_durations_and_prescribed_weights(c
     trainer = register_and_login(api, "coach@example.com", "TRAINER")
     student = register_and_login(api, "student@example.com", "STUDENT")
     plank_id = create_exercise(api, trainer, name="Plancha")
-    squat_id = create_exercise(api, trainer, name="Sentadilla")
+    squat_id = create_exercise(
+        api,
+        trainer,
+        name="Sentadilla",
+        video_url="https://youtu.be/dQw4w9WgXcQ",
+        technical_cues="Mantené el torso firme y las rodillas alineadas.",
+        breathing_cues="Inhalá al bajar y exhalá al subir.",
+    )
     relationship_id = link_student(sessions, "coach@example.com", "student@example.com")
 
     template = create_template(
@@ -442,6 +449,10 @@ def test_assigned_routine_is_visible_with_day_durations_and_prescribed_weights(c
     assert [day["name"] for day in data["days"]] == ["Día A", "Día C"]
     first_day_blocks = data["days"][0]["blocks"]
     assert [block["estimated_duration_minutes"] for block in first_day_blocks] == [6, 14]
-    assert first_day_blocks[1]["exercises"][0]["exercise"]["name"] == "Sentadilla"
+    student_exercise = first_day_blocks[1]["exercises"][0]["exercise"]
+    assert student_exercise["name"] == "Sentadilla"
+    assert student_exercise["video_url"] == "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"
+    assert student_exercise["technical_cues"] == "Mantené el torso firme y las rodillas alineadas."
+    assert student_exercise["breathing_cues"] == "Inhalá al bajar y exhalá al subir."
     assert first_day_blocks[1]["exercises"][0]["target_weight_kg"] == 25
     assert data["days"][1]["blocks"][0]["exercises"][0]["target_weight_kg"] == 0

@@ -25,6 +25,8 @@ class Exercise(Base):
     )
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    technical_cues: Mapped[str | None] = mapped_column(Text, nullable=True)
+    breathing_cues: Mapped[str | None] = mapped_column(Text, nullable=True)
     category: Mapped[str] = mapped_column(String(16), nullable=False)
     target_muscle_group: Mapped[str] = mapped_column(String(100), nullable=False)
     equipment_needed: Mapped[str] = mapped_column(String(150), nullable=False)

@@ -257,6 +257,16 @@ components:
         description:
           type: string
           example: "Flexión de cadera manteniendo columna neutra hasta sentir tensión en isquiotibiales."
+        technical_cues:
+          type: string
+          maxLength: 2000
+          nullable: true
+          description: Notas opcionales de postura, ejecución y seguridad; null elimina las notas.
+        breathing_cues:
+          type: string
+          maxLength: 2000
+          nullable: true
+          description: Claves opcionales de respiración; null elimina las claves.
         category:
           $ref: '#/components/schemas/ExerciseCategory'
         target_muscle_group:
@@ -270,6 +280,12 @@ components:
         has_no_materials_alternative:
           type: boolean
           default: false
+        contraindicated_zones:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+          default: []
         video_url:
           type: string
           format: uri
@@ -290,6 +306,14 @@ components:
           type: string
         description:
           type: string
+        technical_cues:
+          type: string
+          maxLength: 2000
+          nullable: true
+        breathing_cues:
+          type: string
+          maxLength: 2000
+          nullable: true
         category:
           $ref: '#/components/schemas/ExerciseCategory'
         target_muscle_group:
@@ -298,11 +322,18 @@ components:
           type: string
         has_no_materials_alternative:
           type: boolean
+        contraindicated_zones:
+          type: array
+          items:
+            type: string
         video_url:
           type: string
           format: uri
           maxLength: 500
           nullable: true
+        video_platform:
+          type: string
+          enum: [YOUTUBE, VIMEO, GOOGLE_DRIVE, NONE]
         created_at:
           type: string
           format: date-time
