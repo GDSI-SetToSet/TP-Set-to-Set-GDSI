@@ -3,10 +3,8 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock,
-  Dumbbell,
   RefreshCw,
   Sparkles,
-  User,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -16,12 +14,27 @@ import {
   generateAIRoutine,
   getActiveStudents,
 } from '../services/assignedRoutineService';
+import { getApiErrorInfo } from '../services/errorMessage';
 import { getRoutineTemplates } from '../services/routineTemplateService';
 import type {
   ActiveStudent,
   AssignedRoutine,
 } from '../types/assignedRoutine';
 import type { RoutineTemplate } from '../types/routineTemplate';
+
+function getErrorHeading(status?: number, message?: string): string {
+  const lower = (message ?? '').toLowerCase();
+  if (status === 503 || lower.includes('no está configurado') || lower.includes('gemini_api_key')) {
+    return 'Google Gemini no está configurado';
+  }
+  if (status === 429 || lower.includes('cuota')) {
+    return 'Cuota gratuita de Google Gemini agotada';
+  }
+  if (status === 504 || lower.includes('tiempo de espera')) {
+    return 'Tiempo de espera agotado al consultar Google Gemini';
+  }
+  return 'No se pudo generar la propuesta con IA';
+}
 
 export function GenerateAIRoutinePage() {
   const [students, setStudents] = useState<ActiveStudent[]>([]);
@@ -34,6 +47,8 @@ export function GenerateAIRoutinePage() {
   const [approving, setApproving] = useState(false);
 
   const [error, setError] = useState('');
+  const [errorStatus, setErrorStatus] = useState<number | undefined>(undefined);
+  const [canFallbackHeuristic, setCanFallbackHeuristic] = useState(false);
   const [proposal, setProposal] = useState<AssignedRoutine | null>(null);
   const [approvedSuccess, setApprovedSuccess] = useState(false);
 
@@ -45,27 +60,36 @@ export function GenerateAIRoutinePage() {
         if (studentsData.length > 0) setSelectedStudentId(studentsData[0].student_id);
         if (templatesData.length > 0) setSelectedTemplateId(templatesData[0].id);
       })
-      .catch(() => setError('No pudimos cargar los alumnos o rutinas. Intentá nuevamente.'))
+      .catch(() => {
+        setError('No pudimos cargar los alumnos o rutinas. Intentá nuevamente.');
+        setErrorStatus(undefined);
+        setCanFallbackHeuristic(false);
+      })
       .finally(() => setLoadingInitial(false));
   }, []);
 
   const selectedStudent = students.find((s) => s.student_id === selectedStudentId);
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId);
 
-  async function handleGenerateProposal() {
+  async function handleGenerateProposal(providerOverride?: 'gemini' | 'heuristic') {
     if (!selectedStudentId || !selectedTemplateId || generating) return;
     setGenerating(true);
     setError('');
+    setErrorStatus(undefined);
+    setCanFallbackHeuristic(false);
     setApprovedSuccess(false);
     try {
       const result = await generateAIRoutine({
         student_id: selectedStudentId,
         template_id: selectedTemplateId,
+        ...(providerOverride ? { provider: providerOverride } : {}),
       });
       setProposal(result);
-    } catch (err: any) {
-      const detail = err.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : 'Error al generar la propuesta con IA.');
+    } catch (err: unknown) {
+      const info = getApiErrorInfo(err, 'Error al generar la propuesta con IA.');
+      setError(info.message);
+      setErrorStatus(info.status);
+      setCanFallbackHeuristic(providerOverride !== 'heuristic');
     } finally {
       setGenerating(false);
     }
@@ -75,13 +99,16 @@ export function GenerateAIRoutinePage() {
     if (!proposal || approving) return;
     setApproving(true);
     setError('');
+    setErrorStatus(undefined);
+    setCanFallbackHeuristic(false);
     try {
       const updated = await approveAssignedRoutine(proposal.id);
       setProposal(updated);
       setApprovedSuccess(true);
-    } catch (err: any) {
-      const detail = err.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : 'Error al aprobar la rutina.');
+    } catch (err: unknown) {
+      const info = getApiErrorInfo(err, 'Error al aprobar la rutina.');
+      setError(info.message);
+      setErrorStatus(info.status);
     } finally {
       setApproving(false);
     }
@@ -91,6 +118,8 @@ export function GenerateAIRoutinePage() {
     setProposal(null);
     setApprovedSuccess(false);
     setError('');
+    setErrorStatus(undefined);
+    setCanFallbackHeuristic(false);
   }
 
   if (loadingInitial) {
@@ -120,9 +149,33 @@ export function GenerateAIRoutinePage() {
         </div>
 
         {error && (
-          <p className="form-alert" role="alert">
-            {error}
-          </p>
+          <div className="form-alert ai-error-panel" role="alert">
+            <div className="ai-error-header">
+              <AlertTriangle size={20} />
+              <strong>{getErrorHeading(errorStatus, error)}</strong>
+            </div>
+            <p style={{ margin: '6px 0 0' }}>{error}</p>
+            {canFallbackHeuristic && !proposal && (
+              <div className="ai-error-actions">
+                <button
+                  type="button"
+                  className="plan-action-btn"
+                  onClick={() => handleGenerateProposal()}
+                  disabled={generating}
+                >
+                  <RefreshCw size={16} /> Reintentar con proveedor configurado
+                </button>
+                <button
+                  type="button"
+                  className="plan-action-btn ai-fallback-btn"
+                  onClick={() => handleGenerateProposal('heuristic')}
+                  disabled={generating}
+                >
+                  <Sparkles size={16} /> Usar adaptador heurístico explícitamente
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {approvedSuccess && (
@@ -148,6 +201,7 @@ export function GenerateAIRoutinePage() {
                       id="student-selector"
                       value={selectedStudentId}
                       onChange={(e) => setSelectedStudentId(e.target.value)}
+                      disabled={generating}
                     >
                       {students.map((st) => (
                         <option key={st.student_id} value={st.student_id}>
@@ -184,6 +238,7 @@ export function GenerateAIRoutinePage() {
                       id="template-selector"
                       value={selectedTemplateId}
                       onChange={(e) => setSelectedTemplateId(e.target.value)}
+                      disabled={generating}
                     >
                       {templates.map((tpl) => (
                         <option key={tpl.id} value={tpl.id}>
@@ -210,12 +265,12 @@ export function GenerateAIRoutinePage() {
               <button
                 type="button"
                 className="profile-cta"
-                onClick={handleGenerateProposal}
+                onClick={() => handleGenerateProposal()}
                 disabled={generating || students.length === 0 || templates.length === 0}
               >
                 {generating ? (
                   <>
-                    <RefreshCw size={18} className="spin-icon" /> Analizando y adaptando rutina…
+                    <RefreshCw size={18} className="spin-icon" /> Analizando perfil y generando propuesta con IA…
                   </>
                 ) : (
                   <>
@@ -227,18 +282,23 @@ export function GenerateAIRoutinePage() {
           </div>
         ) : (
           <div className="ai-proposal-banner">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span className="ai-proposal-badge">
-                {proposal.status === 'APPROVED' ? (
-                  <>
-                    <CheckCircle2 size={16} /> Rutina Aprobada y Asignada
-                  </>
-                ) : (
-                  <>
-                    <Clock size={16} /> Propuesta IA - Pendiente de revisión
-                  </>
-                )}
-              </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span className="ai-proposal-badge">
+                  <Sparkles size={15} /> Generada mediante IA
+                </span>
+                <span className="ai-proposal-badge" style={{ background: proposal.status === 'APPROVED' ? '#16a34a' : '#4f46e5' }}>
+                  {proposal.status === 'APPROVED' ? (
+                    <>
+                      <CheckCircle2 size={16} /> Rutina Aprobada y Asignada
+                    </>
+                  ) : (
+                    <>
+                      <Clock size={16} /> Propuesta en Revisión (Human-in-the-Loop)
+                    </>
+                  )}
+                </span>
+              </div>
               <button
                 type="button"
                 className="plan-action-btn"
@@ -250,7 +310,7 @@ export function GenerateAIRoutinePage() {
             </div>
 
             <h2>{proposal.name}</h2>
-            <div style={{ display: 'flex', gap: '16px', fontSize: '14px', color: 'var(--pf-body)' }}>
+            <div style={{ display: 'flex', gap: '16px', fontSize: '14px', color: 'var(--pf-body)', flexWrap: 'wrap' }}>
               <span>
                 <strong>Intensidad:</strong> {proposal.intensity}
               </span>

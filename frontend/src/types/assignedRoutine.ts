@@ -12,6 +12,7 @@ export interface ActiveStudent {
 export interface GenerateAIRoutineInput {
   student_id: string;
   template_id: string;
+  provider?: 'gemini' | 'heuristic';
 }
 
 export interface AssignedRoutineExercise {

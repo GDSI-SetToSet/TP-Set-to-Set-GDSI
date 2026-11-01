@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -12,6 +13,7 @@ from backend.src.models.assigned_routine import (
     AssignedRoutineExercise,
 )
 from backend.src.models.exercise import Exercise
+from backend.src.models.protected_zone import ProtectedZone
 from backend.src.models.routine_template import RoutineTemplate
 from backend.src.models.student_profile import StudentProfile
 from backend.src.models.training_relationship import TrainingRelationship
@@ -20,7 +22,18 @@ from backend.src.schemas.assigned_routine import (
     ActiveStudentResponse,
     GenerateAIRoutineInput,
 )
-from backend.src.services.ai_routine_adapter import get_ai_routine_adapter
+from backend.src.services.ai_routine_adapter import (
+    INTENSITY_ORDER,
+    REST_MAX_SECONDS,
+    REST_MIN_SECONDS,
+    SETS_MAX,
+    SETS_MIN,
+    AIRoutineAdapterError,
+    AIRoutineProposalResult,
+    _conflicts_with_zones,
+    get_ai_routine_adapter,
+    is_valid_reps_format,
+)
 from backend.src.services.student_service import (
     current_questionnaire,
 )
@@ -33,6 +46,8 @@ from backend.src.services.trainer_service import (
 from backend.src.services.trainer_service import (
     require_trainer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def utc_now() -> datetime:
@@ -54,6 +69,67 @@ class AssignedRoutineError(Exception):
         self.detail = detail
         self.errors = errors
         super().__init__(detail)
+
+
+def validate_ai_proposal_domain_rules(
+    proposal_result: AIRoutineProposalResult,
+    template: RoutineTemplate,
+    trainer_exercises: list[Exercise],
+    protected_zones: list[ProtectedZone],
+) -> None:
+    """Valida en el backend que la propuesta de IA respete el catálogo y rangos del dominio."""
+    if proposal_result.intensity not in INTENSITY_ORDER:
+        raise AssignedRoutineError(
+            status.HTTP_502_BAD_GATEWAY,
+            f"La propuesta de IA contiene una intensidad inválida ('{proposal_result.intensity}').",
+        )
+
+    if not (1 <= proposal_result.duration_weeks <= 52):
+        raise AssignedRoutineError(
+            status.HTTP_502_BAD_GATEWAY,
+            "La propuesta de IA contiene una duración en semanas fuera del rango permitido (1 a 52).",
+        )
+
+    allowed_exercises: dict[str, Exercise] = {
+        ex.id: ex for ex in trainer_exercises if ex.deleted_at is None
+    }
+    for day in template.days:
+        for block in day.blocks:
+            for entry in block.exercises:
+                if entry.exercise.deleted_at is None:
+                    allowed_exercises.setdefault(entry.exercise_id, entry.exercise)
+
+    for day_data in proposal_result.days:
+        for block_data in day_data.blocks:
+            for ex_data in block_data.exercises:
+                exercise = allowed_exercises.get(ex_data.exercise_id)
+                if not exercise:
+                    raise AssignedRoutineError(
+                        status.HTTP_502_BAD_GATEWAY,
+                        f"La propuesta de IA referencia un ejercicio inexistente o no permitido ('{ex_data.exercise_id}').",
+                    )
+                conflict = _conflicts_with_zones(exercise, protected_zones)
+                if conflict:
+                    raise AssignedRoutineError(
+                        status.HTTP_502_BAD_GATEWAY,
+                        f"La propuesta de IA incluye el ejercicio '{exercise.name}' que compromete la zona protegida '{conflict}'.",
+                    )
+                if not (SETS_MIN <= ex_data.sets <= SETS_MAX):
+                    raise AssignedRoutineError(
+                        status.HTTP_502_BAD_GATEWAY,
+                        f"La propuesta de IA contiene series fuera del rango válido ({SETS_MIN}-{SETS_MAX}).",
+                    )
+                reps_clean = (ex_data.reps or "").strip()
+                if not is_valid_reps_format(reps_clean):
+                    raise AssignedRoutineError(
+                        status.HTTP_502_BAD_GATEWAY,
+                        f"La propuesta de IA contiene repeticiones vacías o con un formato inválido ('{reps_clean}').",
+                    )
+                if not (REST_MIN_SECONDS <= ex_data.rest_seconds <= REST_MAX_SECONDS):
+                    raise AssignedRoutineError(
+                        status.HTTP_502_BAD_GATEWAY,
+                        f"La propuesta de IA contiene un descanso fuera del rango válido ({REST_MIN_SECONDS}-{REST_MAX_SECONDS}s).",
+                    )
 
 
 def list_active_students_for_trainer(db: Session, user: User) -> list[ActiveStudentResponse]:
@@ -131,9 +207,9 @@ def generate_ai_routine_proposal(
         )
     )
 
-    # 5. Ejecutar adaptación con el motor de IA
+    # 5. Ejecutar adaptación con el motor de IA (sin fallback silencioso)
     try:
-        adapter = get_ai_routine_adapter()
+        adapter = get_ai_routine_adapter(provider_override=payload.provider)
         proposal_result = adapter.generate_adapted_routine(
             template=template,
             student=student,
@@ -141,13 +217,27 @@ def generate_ai_routine_proposal(
             protected_zones=protected_zones,
             trainer_exercises=trainer_exercises,
         )
+    except AIRoutineAdapterError as exc:
+        raise AssignedRoutineError(exc.status_code, exc.detail) from exc
     except Exception as exc:
+        logger.error(
+            "Falla inesperada en el mecanismo de adaptación con IA (%s).",
+            type(exc).__name__,
+        )
         raise AssignedRoutineError(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Falla en el mecanismo de adaptación con IA: {exc}",
+            "Falla interna en el mecanismo de adaptación con IA. Intentá nuevamente más tarde.",
         ) from exc
 
-    # 6. Persistir la propuesta en estado 'PENDING_REVIEW' (Human-in-the-Loop)
+    # 6. Validar reglas de seguridad y dominio sobre la propuesta generada
+    validate_ai_proposal_domain_rules(
+        proposal_result=proposal_result,
+        template=template,
+        trainer_exercises=trainer_exercises,
+        protected_zones=protected_zones,
+    )
+
+    # 7. Persistir la propuesta en estado 'PENDING_REVIEW' (Human-in-the-Loop)
     now = utc_now()
     assigned_routine = AssignedRoutine(
         trainer_id=trainer_profile.id,
@@ -206,6 +296,19 @@ def approve_assigned_routine(db: Session, user: User, routine_id: str) -> Assign
     if routine.trainer_id != trainer_profile.id:
         raise AssignedRoutineError(status.HTTP_403_FORBIDDEN, "No sos el entrenador autor de esta rutina.")
 
+    relationship = db.scalar(
+        select(TrainingRelationship).where(
+            TrainingRelationship.trainer_id == trainer_profile.id,
+            TrainingRelationship.student_id == routine.student_id,
+            TrainingRelationship.status == "ACTIVE",
+        )
+    )
+    if not relationship:
+        raise AssignedRoutineError(
+            status.HTTP_403_FORBIDDEN,
+            "No tenés un vínculo activo con este alumno para aprobar la rutina.",
+        )
+
     if routine.status == "APPROVED":
         raise AssignedRoutineError(status.HTTP_409_CONFLICT, "La rutina ya fue aprobada previamente.")
 
@@ -215,14 +318,7 @@ def approve_assigned_routine(db: Session, user: User, routine_id: str) -> Assign
     routine.updated_at = now
 
     # Vincular en TrainingRelationship si no poseía rutina inicial configurada
-    relationship = db.scalar(
-        select(TrainingRelationship).where(
-            TrainingRelationship.trainer_id == trainer_profile.id,
-            TrainingRelationship.student_id == routine.student_id,
-            TrainingRelationship.status == "ACTIVE",
-        )
-    )
-    if relationship and not relationship.initial_routine_id:
+    if not relationship.initial_routine_id:
         relationship.initial_routine_id = routine.id
 
     db.commit()

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -19,6 +20,10 @@ class ActiveStudentResponse(BaseModel):
 class GenerateAIRoutineInput(BaseModel):
     student_id: str = Field(..., min_length=1, description="ID del perfil del alumno")
     template_id: str = Field(..., min_length=1, description="ID de la plantilla genérica")
+    provider: Literal["gemini", "heuristic"] | None = Field(
+        default=None,
+        description="Proveedor de IA opcional ('gemini' o 'heuristic'). Si se omite, utiliza AI_PROVIDER.",
+    )
 
 
 class AssignedRoutineExerciseResponse(BaseModel):

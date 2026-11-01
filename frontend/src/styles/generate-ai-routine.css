@@ -214,3 +214,27 @@
   font-size: 15px;
   font-weight: 600;
 }
+
+.ai-error-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.ai-error-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-error-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.ai-fallback-btn {
+  background: #ffffff;
+  border: 1px solid #b45309;
+  color: #92400e;
+}
