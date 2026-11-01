@@ -59,7 +59,7 @@ def create_template(api, headers, *exercise_ids: str, **overrides) -> dict:
     return response.json()
 
 
-def link_student(sessions, trainer_email: str, student_email: str, status: str = "ACTIVE") -> None:
+def link_student(sessions, trainer_email: str, student_email: str, status: str = "ACTIVE") -> str:
     now = datetime.now(UTC).replace(tzinfo=None)
     with sessions() as db:
         trainer_user = db.scalar(select(User).where(User.email == trainer_email))
@@ -76,18 +76,20 @@ def link_student(sessions, trainer_email: str, student_email: str, status: str =
         )
         db.add_all([profile, plan])
         db.flush()
-        db.add(
-            TrainingRelationship(
-                student_id=profile.id,
-                trainer_id=trainer_user.trainer_profile.id,
-                plan_id=plan.id,
-                agreed_monthly_price=Decimal("25000.00"),
-                agreed_currency="ARS",
-                status=status,
-                start_date=now.date(),
-            )
+        relationship = TrainingRelationship(
+            student_id=profile.id,
+            trainer_id=trainer_user.trainer_profile.id,
+            plan_id=plan.id,
+            agreed_monthly_price=Decimal("25000.00"),
+            agreed_currency="ARS",
+            status=status,
+            start_date=now.date(),
         )
+        db.add(relationship)
+        db.flush()
+        relationship_id = relationship.id
         db.commit()
+        return relationship_id
 
 
 def test_create_template_preserves_structure_and_reports_exercises(client):
@@ -315,3 +317,130 @@ def test_student_without_active_relationship_cannot_read_templates(client):
     for student in (stranger, former):
         assert api.get(STUDENT_TEMPLATES_PATH, headers=student).json() == []
         assert api.get(f"{STUDENT_TEMPLATES_PATH}/{template['id']}", headers=student).status_code == 404
+
+
+def test_trainer_assigns_and_removes_routine_for_active_students(client):
+    api, sessions = client
+    trainer = register_and_login(api, "coach@example.com", "TRAINER")
+    another_trainer = register_and_login(api, "other-coach@example.com", "TRAINER")
+    active_student = register_and_login(api, "active-student@example.com", "STUDENT")
+    register_and_login(api, "former-student@example.com", "STUDENT")
+
+    own_template = create_template(api, trainer, create_exercise(api, trainer))
+    foreign_template = create_template(api, another_trainer, create_exercise(api, another_trainer))
+    active_relationship_id = link_student(sessions, "coach@example.com", "active-student@example.com")
+    inactive_relationship_id = link_student(
+        sessions, "coach@example.com", "former-student@example.com", status="TERMINATED"
+    )
+
+    assignments_path = f"{TEMPLATES_PATH}/assignments"
+    assignment_path = f"{assignments_path}/{active_relationship_id}"
+    listed = api.get(assignments_path, headers=trainer)
+    assert listed.status_code == 200
+    assert len(listed.json()) == 1
+    assert listed.json()[0]["student_name"] == "active-student@example.com"
+    assert listed.json()[0]["routine_template_id"] is None
+
+    assigned = api.put(
+        assignment_path,
+        headers=trainer,
+        json={"routine_template_id": own_template["id"]},
+    )
+    assert assigned.status_code == 200
+    assert assigned.json() == {
+        "relationship_id": active_relationship_id,
+        "routine_template_id": own_template["id"],
+    }
+
+    listed = api.get(assignments_path, headers=trainer)
+    assert listed.json()[0]["routine_template_id"] == own_template["id"]
+    assert listed.json()[0]["routine_name"] == own_template["name"]
+
+    assert (
+        api.put(assignment_path, headers=trainer, json={"routine_template_id": foreign_template["id"]}).status_code
+        == 404
+    )
+    assert (
+        api.put(assignment_path, headers=another_trainer, json={"routine_template_id": foreign_template["id"]}).status_code
+        == 404
+    )
+    assert (
+        api.put(
+            f"{assignments_path}/{inactive_relationship_id}",
+            headers=trainer,
+            json={"routine_template_id": own_template["id"]},
+        ).status_code
+        == 404
+    )
+
+    cleared = api.put(assignment_path, headers=trainer, json={"routine_template_id": None})
+    assert cleared.status_code == 200
+    assert cleared.json()["routine_template_id"] is None
+    assert api.get(assignments_path, headers=trainer).json()[0]["routine_template_id"] is None
+    assert api.get(f"{STUDENT_TEMPLATES_PATH}/assigned", headers=active_student).json() is None
+
+
+def test_assigned_routine_is_visible_with_day_durations_and_prescribed_weights(client):
+    api, sessions = client
+    trainer = register_and_login(api, "coach@example.com", "TRAINER")
+    student = register_and_login(api, "student@example.com", "STUDENT")
+    plank_id = create_exercise(api, trainer, name="Plancha")
+    squat_id = create_exercise(api, trainer, name="Sentadilla")
+    relationship_id = link_student(sessions, "coach@example.com", "student@example.com")
+
+    template = create_template(
+        api,
+        trainer,
+        plank_id,
+        squat_id,
+        days=[
+            {
+                "name": "Día A",
+                "blocks": [
+                    {
+                        "name": "Entrada en calor",
+                        "estimated_duration_minutes": 6,
+                        "exercises": [entry(plank_id, sets=1, reps="5 min", rest_seconds=0)],
+                    },
+                    {
+                        "name": "Principal",
+                        "estimated_duration_minutes": 14,
+                        "exercises": [entry(squat_id, sets=3, reps="8", target_weight_kg=25)],
+                    },
+                ],
+            },
+            {
+                "name": "Día C",
+                "blocks": [
+                    {
+                        "name": "Movilidad",
+                        "estimated_duration_minutes": 9,
+                        "exercises": [entry(plank_id, sets=2, reps="30 s", rest_seconds=15, target_weight_kg=0)],
+                    }
+                ],
+            },
+        ],
+    )
+
+    assigned_path = f"{STUDENT_TEMPLATES_PATH}/assigned"
+    assert api.get(assigned_path, headers=student).status_code == 200
+    assert api.get(assigned_path, headers=student).json() is None
+
+    assignment = api.put(
+        f"{TEMPLATES_PATH}/assignments/{relationship_id}",
+        headers=trainer,
+        json={"routine_template_id": template["id"]},
+    )
+    assert assignment.status_code == 200
+
+    response = api.get(assigned_path, headers=student)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == template["id"]
+    assert data["name"] == "Fuerza 3 Días"
+    assert [day["name"] for day in data["days"]] == ["Día A", "Día C"]
+    first_day_blocks = data["days"][0]["blocks"]
+    assert [block["estimated_duration_minutes"] for block in first_day_blocks] == [6, 14]
+    assert first_day_blocks[1]["exercises"][0]["exercise"]["name"] == "Sentadilla"
+    assert first_day_blocks[1]["exercises"][0]["target_weight_kg"] == 25
+    assert data["days"][1]["blocks"][0]["exercises"][0]["target_weight_kg"] == 0

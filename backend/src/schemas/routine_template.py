@@ -53,6 +53,7 @@ class RoutineExerciseInput(BaseModel):
     sets: int | None = Field(default=None, validate_default=True)
     reps: str | None = Field(default=None, validate_default=True)
     rest_seconds: int | None = Field(default=None, validate_default=True)
+    target_weight_kg: float | None = Field(default=None, ge=0, le=9999.99)
 
     _exercise = field_validator("exercise_id")(required_text())
     _sets = field_validator("sets")(required_range(1, 20))
@@ -62,6 +63,7 @@ class RoutineExerciseInput(BaseModel):
 
 class RoutineBlockInput(BaseModel):
     name: str | None = Field(default=None, validate_default=True)
+    estimated_duration_minutes: int | None = Field(default=None, ge=1, le=600)
     exercises: list[RoutineExerciseInput] | None = Field(default=None, validate_default=True)
 
     _name = field_validator("name")(required_text(SECTION_NAME_MAX_LENGTH))
@@ -96,6 +98,7 @@ class RoutineExerciseResponse(BaseModel):
     sets: int
     reps: str
     rest_seconds: int
+    target_weight_kg: float | None = None
     exercise: ExerciseResponse
 
 
@@ -104,6 +107,7 @@ class RoutineBlockResponse(BaseModel):
 
     id: str
     name: str
+    estimated_duration_minutes: int | None = None
     exercises: list[RoutineExerciseResponse]
 
 
@@ -127,3 +131,20 @@ class RoutineTemplateResponse(BaseModel):
     has_no_materials_alternative: bool
     exercise_count: int
     days: list[RoutineDayResponse]
+
+
+class RoutineAssignmentUpdate(BaseModel):
+    routine_template_id: str | None
+
+
+class RoutineAssignmentResponse(BaseModel):
+    relationship_id: str
+    routine_template_id: str | None
+
+
+class RoutineAssignmentStudentResponse(BaseModel):
+    relationship_id: str
+    student_id: str
+    student_name: str
+    routine_template_id: str | None
+    routine_name: str | None

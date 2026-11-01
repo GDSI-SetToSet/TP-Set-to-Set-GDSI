@@ -83,6 +83,34 @@
   font: inherit;
 }
 
+.medical-clearance-upload-box .medical-clearance-file-input {
+  min-height: 52px;
+  padding: 7px;
+  border-radius: 12px;
+}
+
+.medical-clearance-file-input::file-selector-button {
+  min-height: 36px;
+  margin-right: 12px;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--pf-ink, #173a32);
+  color: #fff;
+  font: 700 0.9rem 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: filter .15s ease;
+}
+
+.medical-clearance-file-input::file-selector-button:hover {
+  filter: brightness(1.12);
+}
+
+.medical-clearance-file-input:focus-visible {
+  outline: 3px solid var(--pf-focus, rgba(64, 121, 88, .18));
+  border-color: var(--pf-accent, #397050);
+}
+
 .medical-clearance-notice {
   font-size: 0.85rem;
   color: #556c5e;

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { ArrowLeft, CheckCircle2, Save } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Plus, Save } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ExerciseCard } from '../components/ExerciseCard';
@@ -50,6 +50,7 @@ export function ExerciseLibraryPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [formVisible, setFormVisible] = useState(false);
   const videoPreviewUrl = getVideoEmbedUrl(form.video_url);
 
   // El filtro se arma con la biblioteca completa para no perder opciones al elegir un músculo.
@@ -77,6 +78,17 @@ export function ExerciseLibraryPage() {
     setForm(EMPTY_FORM);
     setEditingId(null);
     setFieldErrors({});
+    setFormVisible(false);
+  }
+
+  function startCreating() {
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setFieldErrors({});
+    setMessage('');
+    setError('');
+    setFormVisible(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function startEditing(exercise: Exercise) {
@@ -93,6 +105,7 @@ export function ExerciseLibraryPage() {
     setFieldErrors({});
     setMessage('');
     setError('');
+    setFormVisible(true);
   }
 
   function handleError(caught: unknown) {
@@ -158,14 +171,24 @@ export function ExerciseLibraryPage() {
         <Link to={ROUTES.trainerHome} className="profile-back"><ArrowLeft size={18} /> Volver al inicio</Link>
       </header>
 
-      <section className="profile-card">
-        <div className="profile-heading">
+      <section className="profile-card exercise-library-page">
+        <div className="exercise-library-header">
+          <div className="profile-heading">
           <span>BIBLIOTECA</span>
           <h1>Tus ejercicios</h1>
           <p>Cargá los ejercicios que después vas a usar en las rutinas de tus alumnos.</p>
+          </div>
+          <div className="exercise-library-actions">
+            <button className="profile-save" type="button" onClick={formVisible ? resetForm : startCreating} disabled={saving}>
+              {formVisible ? 'Cerrar formulario' : <><Plus size={18} /> Crear ejercicio</>}
+            </button>
+          </div>
         </div>
 
-        <form className="profile-form" onSubmit={handleSubmit} noValidate>
+        {error && <p className="form-alert" role="alert">{error}</p>}
+        {message && <p className="profile-success exercise-library-message" role="status"><CheckCircle2 size={18} /> {message}</p>}
+
+        {formVisible && <form className="profile-form" onSubmit={handleSubmit} noValidate>
           <label>Nombre
             <input value={form.name} onChange={(event) => updateField('name', event.target.value)} maxLength={150} aria-invalid={Boolean(fieldErrors.name)} />
             {fieldErrors.name && <small className="field-error">{fieldErrors.name}</small>}
@@ -217,16 +240,13 @@ export function ExerciseLibraryPage() {
             <input type="checkbox" checked={form.has_no_materials_alternative} onChange={(event) => setForm((current) => ({ ...current, has_no_materials_alternative: event.target.checked }))} />
             Tiene alternativa "Sin materiales"
           </label>
-          {error && <p className="form-alert" role="alert">{error}</p>}
-          {message && <p className="profile-success" role="status"><CheckCircle2 size={18} /> {message}</p>}
           <div className="plan-form__actions">
             <button className="profile-save" type="submit" disabled={saving}>
               <Save size={18} /> {saving ? 'Guardando…' : editingId ? 'Guardar cambios' : 'Guardar'}
             </button>
             {editingId && <button className="plan-cancel" type="button" onClick={resetForm} disabled={saving}>Cancelar</button>}
           </div>
-        </form>
-      </section>
+        </form>}
 
       <section className="exercise-filter" aria-label="Filtros de la biblioteca">
         <label>Filtrar por músculo
@@ -241,6 +261,7 @@ export function ExerciseLibraryPage() {
         {exercises.length === 0
           ? <p className="plan-empty">Todavía no cargaste ejercicios.</p>
           : exercises.map((exercise) => <ExerciseCard key={exercise.id} exercise={exercise} busy={saving} onEdit={startEditing} onDelete={handleDelete} />)}
+      </section>
       </section>
     </main>
   );

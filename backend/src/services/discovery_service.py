@@ -147,6 +147,17 @@ def search_trainers(db: Session, filters: TrainerSearchFilters) -> PaginatedTrai
         )
     )
 
+    if filters.name and filters.name.strip():
+        escaped_name = (
+            filters.name.strip()
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        )
+        base = base.where(
+            TrainerProfile.full_name.ilike(f"%{escaped_name}%", escape="\\")
+        )
+
     if filters.specialty:
         escaped_specialty = (
             filters.specialty.replace("\\", "\\\\")

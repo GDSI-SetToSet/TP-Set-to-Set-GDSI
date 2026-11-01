@@ -1,0 +1,185 @@
+.profile-choice-list {
+  display: grid;
+  gap: 12px;
+}
+
+.trainer-profile-phone {
+  max-width: 620px;
+}
+
+.trainer-specialty-editor {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--pf-border);
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.trainer-specialty-editor__heading {
+  margin-bottom: 14px;
+}
+
+.trainer-specialty-editor__heading h2 {
+  margin: 0;
+  color: var(--pf-label);
+  font-size: 1rem;
+}
+
+.trainer-specialty-editor__heading p {
+  margin: 5px 0 0;
+  color: var(--pf-muted);
+  font-size: .9rem;
+  line-height: 1.45;
+}
+
+.trainer-specialty-editor .profile-choice-list {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: end;
+}
+
+.trainer-specialty-row {
+  gap: 8px;
+}
+
+.trainer-specialty-pills,
+.trainer-card__specialties {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trainer-specialty-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #d8f3df;
+  color: #20583e;
+  font-size: .88rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.profile-shell--trainer .trainer-specialty-pill {
+  background: #dce8ff;
+  color: #294b83;
+}
+
+.trainer-card__specialties {
+  margin: 8px 0 12px;
+}
+
+.profile-choice-heading {
+  color: var(--pf-label);
+  font-weight: 700;
+}
+
+.profile-choice-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.profile-choice-field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  color: var(--pf-label);
+  font-weight: 700;
+}
+
+.profile-choice-select {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 40px 10px 13px;
+  border: 1px solid var(--pf-input-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--pf-input-text);
+  font: inherit;
+}
+
+.profile-choice-select:focus-visible {
+  outline: 3px solid var(--pf-focus);
+  border-color: var(--pf-accent);
+}
+
+.profile-choice-select[aria-invalid='true'] {
+  border-color: #a22929;
+}
+
+.profile-choice-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-choice-add,
+.profile-choice-remove {
+  display: inline-flex;
+  width: 46px;
+  min-width: 46px;
+  height: 46px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--pf-border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, transform .15s ease;
+}
+
+.profile-choice-add {
+  background: var(--pf-ink);
+  color: #fff;
+}
+
+.profile-choice-add:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+.profile-choice-add:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.profile-choice-remove {
+  background: #fff;
+  color: var(--pf-muted);
+}
+
+.profile-choice-remove:hover {
+  border-color: #bd6b6b;
+  color: #8f2020;
+}
+
+.profile-choice-add:focus-visible,
+.profile-choice-remove:focus-visible {
+  outline: 3px solid var(--pf-focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 520px) {
+  .trainer-specialty-editor {
+    padding: 14px;
+  }
+
+  .trainer-specialty-editor .profile-choice-list {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-choice-row {
+    gap: 8px;
+  }
+
+  .profile-choice-add,
+  .profile-choice-remove {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+  }
+}

@@ -28,3 +28,27 @@
 .exercise-card__detail dt { margin-top: 6px; color: var(--pf-label); font-size: 13px; font-weight: 700; }
 .exercise-card__detail dd { margin: 0; color: var(--pf-body); white-space: pre-line; }
 .exercise-video { display: block; width: min(100%, 560px); aspect-ratio: 16 / 9; margin-top: 8px; border: 0; border-radius: 10px; }
+.exercise-library-header .profile-heading { margin-bottom: 0; }
+.exercise-library-actions { display: flex; justify-content: flex-end; margin-top: 20px; }
+.exercise-library-actions > button { white-space: nowrap; }
+.exercise-library-page .profile-form { margin-top: 28px; }
+.exercise-library-message { margin: 16px 0 0; }
+.exercise-library-page .exercise-filter { max-width: none; margin: 28px 0 0; }
+.exercise-library-page .plan-list {
+  max-width: none;
+  margin: 28px 0 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+.exercise-library-page .plan-card {
+  padding: 20px 0;
+  border: 0;
+  border-top: 1px solid var(--pf-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+@media (max-width: 680px) {
+  .exercise-library-actions > button { width: 100%; justify-content: center; }
+}
