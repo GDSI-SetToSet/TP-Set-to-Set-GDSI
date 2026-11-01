@@ -17,6 +17,7 @@ export interface ExerciseInput {
   equipment_needed: string;
   has_no_materials_alternative: boolean;
   video_url: string | null;
+  contraindicated_zones?: string[];
 }
 
 export interface Exercise extends ExerciseInput {

@@ -1,11 +1,12 @@
 import axios from 'axios';
-import { ArrowLeft, CheckCircle2, Save } from 'lucide-react';
-import { type FormEvent, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, CheckCircle2, Pencil, Plus, Save, X } from 'lucide-react';
+import { type FormEvent, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { getOwnStudentProfile, updateOwnStudentProfile } from '../services/studentService';
 import { phoneError } from '../utils/phone';
 import { FITNESS_GOALS, type FitnessGoal, type StudentProfile, type StudentProfileUpdate } from '../types/student';
+import '../styles/profile-choice-fields.css';
 
 type TextField = Exclude<keyof StudentProfileUpdate, 'fitness_goals'>;
 type FormState = Record<TextField, string>;
@@ -29,34 +30,35 @@ interface ProblemDetails {
 }
 
 export function StudentProfileEditPage() {
-  const navigate = useNavigate();
-  const redirectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [goals, setGoals] = useState<FitnessGoal[]>([]);
+  const [goalSelections, setGoalSelections] = useState<Array<FitnessGoal | ''>>(['']);
+  const goals = goalSelections.filter((goal): goal is FitnessGoal => goal !== '');
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     getOwnStudentProfile()
       .then((data) => {
         setProfile(data);
         setForm(toForm(data));
-        setGoals(data.fitness_goals);
+        setGoalSelections(data.fitness_goals.length ? data.fitness_goals : ['']);
       })
       .catch(() => setError('No pudimos cargar tu perfil. Intentá nuevamente.'))
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => () => {
-    if (redirectTimeout.current !== null) clearTimeout(redirectTimeout.current);
-  }, []);
+  function updateGoal(index: number, goal: FitnessGoal | '') {
+    setGoalSelections((current) => current.map((item, itemIndex) => itemIndex === index ? goal : item));
+    setFieldErrors((current) => ({ ...current, fitness_goals: '' }));
+  }
 
-  function toggleGoal(goal: FitnessGoal) {
-    setGoals((current) => (current.includes(goal) ? current.filter((item) => item !== goal) : [...current, goal]));
+  function removeGoal(index: number) {
+    setGoalSelections((current) => current.filter((_, itemIndex) => itemIndex !== index));
     setFieldErrors((current) => ({ ...current, fitness_goals: '' }));
   }
 
@@ -91,13 +93,10 @@ export function StudentProfileEditPage() {
       const updated = await updateOwnStudentProfile(payload);
       setProfile(updated);
       setForm(toForm(updated));
-      setGoals(updated.fitness_goals);
+      setGoalSelections(updated.fitness_goals.length ? updated.fitness_goals : ['']);
       setIsSubmitting(false);
       setIsSuccess(true);
-      redirectTimeout.current = setTimeout(() => {
-        navigate(ROUTES.studentHome);
-        redirectTimeout.current = null;
-      }, 1000);
+      setIsEditing(false);
     } catch (caught) {
       if (axios.isAxiosError<ProblemDetails>(caught)) {
         const fields = Object.fromEntries((caught.response?.data?.errors ?? []).map((item) => [item.field, item.message]));
@@ -111,6 +110,16 @@ export function StudentProfileEditPage() {
     }
   }
 
+  function cancelEditing() {
+    if (!profile) return;
+    setForm(toForm(profile));
+    setGoalSelections(profile.fitness_goals.length ? profile.fitness_goals : ['']);
+    setFieldErrors({});
+    setError('');
+    setIsSuccess(false);
+    setIsEditing(false);
+  }
+
   if (loading) return <main className="loading-screen"><span className="loading-mark" /> Cargando perfil…</main>;
 
   return (
@@ -118,20 +127,24 @@ export function StudentProfileEditPage() {
     <main className="profile-shell">
       <header className="profile-header">
         <Link to={ROUTES.studentHome} className="profile-back"><ArrowLeft size={18} /> Volver al inicio</Link>
-        <Link to={ROUTES.studentProtectedZones} className="profile-back">Zonas a proteger</Link>
         <span className={`profile-status profile-status--${profile?.status.toLowerCase()}`}>
           {profile?.status === 'PUBLISHED' ? 'Perfil publicado' : 'Perfil en borrador'}
         </span>
+        {isEditing ? (
+          <button type="button" className="profile-edit-toggle" onClick={cancelEditing}><X size={17} /> Cancelar</button>
+        ) : (
+          <button type="button" className="profile-edit-toggle" onClick={() => { setIsSuccess(false); setIsEditing(true); }}><Pencil size={17} /> Editar información</button>
+        )}
       </header>
 
       <section className="profile-card">
         <div className="profile-heading">
           <span>PERFIL PERSONAL</span>
           <h1>Contanos sobre vos</h1>
-          <p>Podés guardar avances. Para publicar necesitás nombre, apellido, fecha de nacimiento, teléfono y al menos un objetivo.</p>
+          <p>{isEditing ? 'Actualizá tus datos personales y objetivos de entrenamiento.' : 'Tu información personal y los objetivos que compartís con tus entrenadores.'}</p>
         </div>
 
-        <form className="profile-form" onSubmit={handleSubmit} noValidate>
+        {isEditing ? <form className="profile-form" onSubmit={handleSubmit} noValidate>
           <div className="profile-grid">
             <label>Nombre
               <input value={form.first_name} onChange={(event) => updateField('first_name', event.target.value)} maxLength={100} aria-invalid={Boolean(fieldErrors.first_name)} />
@@ -152,45 +165,75 @@ export function StudentProfileEditPage() {
               {fieldErrors.birth_date && <small className="field-error">{fieldErrors.birth_date}</small>}
             </label>
           </div>
-          <fieldset>
-            <legend>Objetivos de entrenamiento</legend>
-            {(Object.entries(FITNESS_GOALS) as [FitnessGoal, string][]).map(([goal, label]) => (
-              <label key={goal}>
-                <input type="checkbox" checked={goals.includes(goal)} onChange={() => toggleGoal(goal)} /> {label}
-              </label>
+          <div className="profile-choice-list" role="group" aria-labelledby="fitness-goals-label">
+            <span id="fitness-goals-label" className="profile-choice-heading">Objetivos de entrenamiento</span>
+            {goalSelections.map((selectedGoal, index) => (
+              <div className="profile-choice-row" key={index}>
+                <label className="profile-choice-field">
+                  {index === 0 ? 'Objetivo de entrenamiento' : 'Otro objetivo'}
+                  <select
+                    className="profile-choice-select"
+                    value={selectedGoal}
+                    onChange={(event) => updateGoal(index, event.target.value as FitnessGoal | '')}
+                    aria-invalid={Boolean(fieldErrors.fitness_goals)}
+                  >
+                    <option value="" disabled>Elegí un objetivo</option>
+                    {(Object.entries(FITNESS_GOALS) as [FitnessGoal, string][]).map(([goal, label]) => (
+                      <option key={goal} value={goal} disabled={goalSelections.some((selected, selectedIndex) => selected === goal && selectedIndex !== index)}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="profile-choice-actions">
+                  {index > 0 && (
+                    <button type="button" className="profile-choice-remove" aria-label="Quitar objetivo" onClick={() => removeGoal(index)}><X size={18} /></button>
+                  )}
+                  {index === goalSelections.length - 1 && (
+                    <button
+                      type="button"
+                      className="profile-choice-add"
+                      aria-label="Agregar objetivo"
+                      title="Agregar objetivo"
+                      disabled={goalSelections.length >= Object.keys(FITNESS_GOALS).length}
+                      onClick={() => setGoalSelections((current) => [...current, ''])}
+                    ><Plus size={20} /></button>
+                  )}
+                </div>
+              </div>
             ))}
             {goals.length === 0 && <small className="field-error">Elegí al menos un objetivo para publicar tu perfil.</small>}
             {fieldErrors.fitness_goals && <small className="field-error">{fieldErrors.fitness_goals}</small>}
-          </fieldset>
+          </div>
           <label>Motivación personal
             <textarea value={form.personal_motivation} onChange={(event) => updateField('personal_motivation', event.target.value)} rows={3} placeholder="Opcional: ¿qué te motiva a entrenar?" />
           </label>
           <label>Biografía
             <textarea value={form.bio} onChange={(event) => updateField('bio', event.target.value)} rows={4} placeholder="Opcional: Contale a tus entrenadores un poco más sobre vos" />
           </label>
-          {error && <p className="form-alert" role="alert">{error}</p>}
           <button className="profile-save" type="submit" disabled={isSubmitting || Boolean(phoneRangeError)}><Save size={18} /> {isSubmitting ? 'Guardando...' : 'Guardar perfil'}</button>
-        </form>
+        </form> : (
+          <dl className="profile-details">
+            <div><dt>Nombre</dt><dd>{profile?.first_name || 'Sin completar'}</dd></div>
+            <div><dt>Apellido</dt><dd>{profile?.last_name || 'Sin completar'}</dd></div>
+            <div><dt>Teléfono / WhatsApp</dt><dd>{profile?.contact_phone || 'Sin completar'}</dd></div>
+            <div><dt>Fecha de nacimiento</dt><dd>{profile?.birth_date ? new Date(profile.birth_date).toLocaleDateString('es-AR', { timeZone: 'UTC' }) : 'Sin completar'}</dd></div>
+            <div className="profile-details__wide">
+              <dt>Objetivos de entrenamiento</dt>
+              <dd>
+                {profile?.fitness_goals.length ? (
+                  <ul className="profile-goal-list">{profile.fitness_goals.map((goal) => <li key={goal}>{FITNESS_GOALS[goal]}</li>)}</ul>
+                ) : 'Todavía no agregaste objetivos.'}
+              </dd>
+            </div>
+            <div className="profile-details__wide"><dt>Motivación personal</dt><dd>{profile?.personal_motivation || 'Sin completar'}</dd></div>
+            <div className="profile-details__wide"><dt>Biografía</dt><dd>{profile?.bio || 'Sin completar'}</dd></div>
+          </dl>
+        )}
+        {error && <p className="form-alert" role="alert">{error}</p>}
+        {isSuccess && <p className="profile-success" role="status"><CheckCircle2 size={18} /> Perfil guardado correctamente.</p>}
       </section>
     </main>
-    {(isSubmitting || isSuccess) && (
-      <div className="success-overlay" role="status" aria-live="polite" aria-atomic="true">
-        <div className="success-overlay__card">
-          {isSuccess ? (
-            <>
-              <span className="success-overlay__icon"><CheckCircle2 size={32} aria-hidden="true" /></span>
-              <h2>¡Guardado con éxito!</h2>
-              <p>Redirigiendo...</p>
-            </>
-          ) : (
-            <>
-              <span className="success-overlay__spinner" aria-hidden="true" />
-              <h2>Guardando...</h2>
-            </>
-          )}
-        </div>
-      </div>
-    )}
     </>
   );
 }

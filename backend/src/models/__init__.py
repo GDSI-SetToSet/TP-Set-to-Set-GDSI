@@ -10,9 +10,12 @@ from backend.src.models.notification import Notification
 from backend.src.models.routine_template import (
     RoutineTemplate,
     RoutineTemplateBlock,
+    RoutineTemplateBlockEstimate,
     RoutineTemplateDay,
     RoutineTemplateExercise,
+    RoutineTemplateExercisePrescription,
 )
+from backend.src.models.student_routine import RoutineChangeLog, StudentRoutine
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.training_relationship import TrainingRelationship
@@ -34,11 +37,15 @@ __all__ = [
     "Notification",
     "PasswordResetToken",
     "ProtectedZone",
+    "RoutineChangeLog",
     "RoutineTemplate",
     "RoutineTemplateBlock",
+    "RoutineTemplateBlockEstimate",
     "RoutineTemplateDay",
     "RoutineTemplateExercise",
+    "RoutineTemplateExercisePrescription",
     "StudentProfile",
+    "StudentRoutine",
     "TrainerProfile",
     "TrainingPlan",
     "TrainingRelationship",

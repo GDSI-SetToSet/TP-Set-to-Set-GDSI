@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -29,6 +29,7 @@ class Exercise(Base):
     target_muscle_group: Mapped[str] = mapped_column(String(100), nullable=False)
     equipment_needed: Mapped[str] = mapped_column(String(150), nullable=False)
     has_no_materials_alternative: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    contraindicated_zones: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     video_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     video_platform: Mapped[VideoPlatform] = mapped_column(
         SqlEnum(VideoPlatform, name="video_platform"), default=VideoPlatform.NONE, nullable=False

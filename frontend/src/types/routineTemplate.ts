@@ -14,10 +14,12 @@ export interface RoutineExerciseInput {
   sets: number;
   reps: string;
   rest_seconds: number;
+  target_weight_kg: number | null;
 }
 
 export interface RoutineBlockInput {
   name: string;
+  estimated_duration_minutes: number;
   exercises: RoutineExerciseInput[];
 }
 
@@ -39,12 +41,14 @@ export interface RoutineExercise {
   sets: number;
   reps: string;
   rest_seconds: number;
+  target_weight_kg: number | null;
   exercise: Exercise;
 }
 
 export interface RoutineBlock {
   id: string;
   name: string;
+  estimated_duration_minutes: number | null;
   exercises: RoutineExercise[];
 }
 
@@ -64,4 +68,12 @@ export interface RoutineTemplate {
   has_no_materials_alternative: boolean;
   exercise_count: number;
   days: RoutineDay[];
+}
+
+export interface RoutineAssignmentStudent {
+  relationship_id: string;
+  student_id: string;
+  student_name: string;
+  routine_template_id: string | null;
+  routine_name: string | null;
 }
