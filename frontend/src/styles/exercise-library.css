@@ -52,3 +52,9 @@
 @media (max-width: 680px) {
   .exercise-library-actions > button { width: 100%; justify-content: center; }
 }
+
+.zone-checks { margin: 0; padding: 14px; border: 1px solid var(--pf-border); border-radius: 12px; display: grid; gap: 8px; }
+.zone-checks legend { padding: 0 6px; color: var(--pf-label); font-weight: 700; }
+.zone-checks p { margin: 0; color: var(--pf-muted); font-size: 14px; }
+.zone-checks__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 4px 12px; }
+.zone-checks__item { font-weight: 500; }
