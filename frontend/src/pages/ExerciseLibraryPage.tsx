@@ -19,6 +19,7 @@ interface FormState {
   equipment_needed: string;
   has_no_materials_alternative: boolean;
   video_url: string;
+  contraindicated_zones: string;
 }
 
 type TextField = Exclude<keyof FormState, 'has_no_materials_alternative'>;
@@ -31,6 +32,7 @@ const EMPTY_FORM: FormState = {
   equipment_needed: '',
   has_no_materials_alternative: false,
   video_url: '',
+  contraindicated_zones: '',
 };
 const REQUIRED_FIELDS: TextField[] = ['name', 'description', 'category', 'target_muscle_group', 'equipment_needed'];
 
@@ -101,6 +103,7 @@ export function ExerciseLibraryPage() {
       equipment_needed: exercise.equipment_needed,
       has_no_materials_alternative: exercise.has_no_materials_alternative,
       video_url: exercise.video_url ?? '',
+      contraindicated_zones: (exercise.contraindicated_zones ?? []).join(', '),
     });
     setFieldErrors({});
     setMessage('');
@@ -127,7 +130,12 @@ export function ExerciseLibraryPage() {
     setFieldErrors(missing);
     if (Object.keys(missing).length > 0 || !form.category) return;
 
-    const payload = { ...form, category: form.category, video_url: form.video_url.trim() || null };
+    const payload = {
+      ...form,
+      category: form.category,
+      video_url: form.video_url.trim() || null,
+      contraindicated_zones: form.contraindicated_zones.split(',').map((zone) => zone.trim()).filter(Boolean),
+    };
     setSaving(true);
     try {
       if (editingId) {
@@ -236,6 +244,15 @@ export function ExerciseLibraryPage() {
               allowFullScreen
             />
           )}
+          <label>Zonas contraindicadas (separadas por coma)
+            <input
+              type="text"
+              value={form.contraindicated_zones}
+              onChange={(event) => updateField('contraindicated_zones', event.target.value)}
+              placeholder="rodilla, hombro"
+            />
+            <small>Se bloquea este ejercicio en rutinas de alumnos con esas zonas a proteger.</small>
+          </label>
           <label className="exercise-check">
             <input type="checkbox" checked={form.has_no_materials_alternative} onChange={(event) => setForm((current) => ({ ...current, has_no_materials_alternative: event.target.checked }))} />
             Tiene alternativa "Sin materiales"

@@ -45,12 +45,18 @@ class ExerciseInput(BaseModel):
     equipment_needed: str | None = Field(default=None, validate_default=True)
     has_no_materials_alternative: bool = False
     video_url: str | None = Field(default=None, max_length=500)
+    contraindicated_zones: list[str] = Field(default_factory=list, max_length=20)
 
     _name = field_validator("name")(required_text(NAME_MAX_LENGTH))
     _description = field_validator("description")(required_text())
     _category = field_validator("category")(validate_category)
     _muscle = field_validator("target_muscle_group")(required_text(MUSCLE_MAX_LENGTH))
     _equipment = field_validator("equipment_needed")(required_text(EQUIPMENT_MAX_LENGTH))
+
+    @field_validator("contraindicated_zones")
+    @classmethod
+    def normalize_zones(cls, value: list[str]) -> list[str]:
+        return sorted({zone.strip().lower() for zone in value if zone.strip()})
 
     @field_validator("video_url")
     @classmethod
@@ -70,6 +76,7 @@ class ExerciseResponse(BaseModel):
     target_muscle_group: str
     equipment_needed: str
     has_no_materials_alternative: bool
+    contraindicated_zones: list[str] = []
     video_url: str | None
     video_platform: VideoPlatform
     created_at: datetime

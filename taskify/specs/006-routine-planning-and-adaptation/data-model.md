@@ -3,9 +3,9 @@
 ## StudentRoutine
 - `id`, `relationship_id` (FK `training_relationships`, único por alumno–entrenador activo), `source_template_id` (nullable), `source_kind` (`GENERIC`; el valor `AI` se agrega con US-13)
 - `name`, `duration_weeks`, `intensity`, `has_no_materials_alternative`, `desired_weekly_volume` (nullable, entre 1 y 7); `intensity` con los mismos valores válidos que `RoutineTemplate.intensity`
-- Contenido vigente: días → bloques → ejercicios (misma forma que `RoutineTemplate*`: `exercise_id`, `sets` > 0, `reps`, `rest_seconds` ≥ 0, `target_weight_kg` ≥ 0 opcional)
+- Contenido vigente (`days`, JSON): días → bloques → ejercicios (misma forma que la entrada de `RoutineTemplate`: `exercise_id`, `sets` > 0, `reps`, `rest_seconds` ≥ 0, `target_weight_kg` ≥ 0 opcional)
 - `draft_*`: contenido en borrador con la misma forma; `draft_version` (entero, +1 por guardado), `draft_updated_at`
-- `status`: `ACTIVE` | `DRAFT_PENDING` (hay borrador sin confirmar)
+- `status`: `ACTIVE` | `DRAFT_PENDING` | `UNASSIGNED` (el entrenador quitó la rutina; la copia y su log se conservan) (hay borrador sin confirmar)
 - `created_at`, `updated_at` (UTC)
 
 Reglas: solo el entrenador del vínculo ACTIVE edita; el alumno solo lee el contenido vigente. Si el vínculo termina, el acceso se revoca (Principio III).

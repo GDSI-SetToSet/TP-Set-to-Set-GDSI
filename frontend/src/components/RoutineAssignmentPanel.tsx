@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '../constants/routes';
 import { assignRoutineToStudent, getRoutineAssignments } from '../services/routineTemplateService';
 import type { RoutineAssignmentStudent, RoutineTemplate } from '../types/routineTemplate';
 
@@ -84,6 +86,11 @@ export function RoutineAssignmentPanel({ templates }: RoutineAssignmentPanelProp
               >
                 {savingId === student.relationship_id ? 'Guardando…' : 'Guardar asignación'}
               </button>
+              {student.routine_template_id && (
+                <Link className="profile-save" to={ROUTES.trainerStudentRoutine.replace(':studentId', student.student_id)}>
+                  Editar rutina
+                </Link>
+              )}
             </div>
           ))}
         </div>

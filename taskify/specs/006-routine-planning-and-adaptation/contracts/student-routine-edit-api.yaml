@@ -31,14 +31,16 @@ components:
   schemas:
     RoutineDraftInput:
       type: object
-      required: [draft_version, days]
+      required: [draft_version, name, duration_weeks, intensity, days]
       properties:
         draft_version: {type: integer}
-        intensity: {type: string}
-        desired_weekly_volume: {type: integer, minimum: 1, nullable: true}
+        name: {type: string}
+        duration_weeks: {type: integer}
+        has_no_materials_alternative: {type: boolean}
+        intensity: {type: string, enum: [BAJA, MEDIA, ALTA, EXIGENTE]}
+        desired_weekly_volume: {type: integer, minimum: 1, maximum: 7, nullable: true}
         days: {type: array, items: {type: object}}
     DraftResponse:
       type: object
       properties:
         draft_version: {type: integer}
-        warnings: {type: array, items: {type: object, properties: {exercise_id: {type: string}, zone: {type: string}, safe_variant: {type: object, nullable: true}}}}
