@@ -4,6 +4,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_core import PydanticCustomError
 
+from backend.src.core.constants import BODY_AREAS
 from backend.src.core.video_urls import parse_video_url
 from backend.src.models.exercise import VideoPlatform
 from backend.src.schemas.trainer import REQUIRED_FIELD_MESSAGE
@@ -56,7 +57,11 @@ class ExerciseInput(BaseModel):
     @field_validator("contraindicated_zones")
     @classmethod
     def normalize_zones(cls, value: list[str]) -> list[str]:
-        return sorted({zone.strip().lower() for zone in value if zone.strip()})
+        canonical = {area.casefold(): area for area in BODY_AREAS}
+        unknown = [zone for zone in value if zone.strip().casefold() not in canonical]
+        if unknown:
+            raise PydanticCustomError("zone", "Elegí zonas de la lista: {zones}", {"zones": ", ".join(unknown)})
+        return sorted({canonical[zone.strip().casefold()] for zone in value})
 
     @field_validator("video_url")
     @classmethod

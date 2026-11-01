@@ -350,6 +350,7 @@ def test_trainer_assigns_and_removes_routine_for_active_students(client):
     assert assigned.json() == {
         "relationship_id": active_relationship_id,
         "routine_template_id": own_template["id"],
+        "warnings": [],
     }
 
     listed = api.get(assignments_path, headers=trainer)

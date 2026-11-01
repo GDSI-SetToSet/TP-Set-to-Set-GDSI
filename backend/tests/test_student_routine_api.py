@@ -93,10 +93,10 @@ def test_contraindicated_exercise_is_blocked_and_cannot_be_forced(client):
     api.put(
         f"{EXERCISES_PATH}/{plank}",
         headers=trainer,
-        json=exercise_payload(contraindicated_zones=[" Rodilla "]),
+        json=exercise_payload(contraindicated_zones=["knee"]),
     )
     with sessions() as db:
-        db.add(ProtectedZone(student_id=sid, body_area="rodilla", created_at=datetime.now(UTC)))
+        db.add(ProtectedZone(student_id=sid, body_area="Knee", created_at=datetime.now(UTC)))
         db.commit()
 
     blocked = api.put(path(sid, "/draft"), headers=trainer, json=draft(0, squat, plank))
@@ -197,3 +197,36 @@ def test_reassigning_replaces_copy_and_unassigning_hides_it(client):
     api.put(assignment, headers=trainer, json={"routine_template_id": None})
     assert api.get(f"{STUDENT_TEMPLATES_PATH}/assigned", headers=student).json() is None
     assert api.get(path(sid), headers=trainer).status_code == 404
+
+
+def test_exercise_zones_must_come_from_the_body_area_list(client):
+    api, _, trainer, _, _, _, squat, _ = setup_case(client)
+    body = exercise_payload(name="Sentadilla", target_muscle_group="Piernas")
+    bad = api.put(f"{EXERCISES_PATH}/{squat}", headers=trainer, json={**body, "contraindicated_zones": ["muñeca"]})
+    assert bad.status_code == 422
+    good = api.put(f"{EXERCISES_PATH}/{squat}", headers=trainer, json={**body, "contraindicated_zones": ["wrist and hand"]})
+    assert good.json()["contraindicated_zones"] == ["Wrist and hand"]
+
+
+def test_existing_conflicts_are_reported_when_opening_and_when_assigning(client):
+    api, sessions, trainer, _, sid, _template, squat, plank = setup_case(client)
+    # el ejercicio ya está en la rutina y luego se lo marca como contraindicado
+    api.put(path(sid, "/draft"), headers=trainer, json=draft(0, squat, plank))
+    api.post(path(sid, "/draft/confirm"), headers=trainer)
+    api.put(f"{EXERCISES_PATH}/{plank}", headers=trainer, json=exercise_payload(contraindicated_zones=["Knee"]))
+    with sessions() as db:
+        db.add(ProtectedZone(student_id=sid, body_area="Knee", created_at=datetime.now(UTC)))
+        db.commit()
+
+    opened = api.get(path(sid), headers=trainer).json()
+    assert [c["field"] for c in opened["conflicts"]] == ["days.0.blocks.0.exercises.1.exercise_id"]
+    assert "rodilla" in opened["conflicts"][0]["message"]
+
+    clean = create_template(api, trainer, squat, name="Limpia")
+    risky = create_template(api, trainer, plank, name="Riesgosa")
+    relationship_id = api.get(f"{TEMPLATES_PATH}/assignments", headers=trainer).json()[0]["relationship_id"]
+    assignment = f"{TEMPLATES_PATH}/assignments/{relationship_id}"
+    assert api.put(assignment, headers=trainer, json={"routine_template_id": clean["id"]}).json()["warnings"] == []
+    warned = api.put(assignment, headers=trainer, json={"routine_template_id": risky["id"]}).json()
+    assert warned["routine_template_id"] == risky["id"] and "Plancha" in warned["warnings"][0]
+    assert api.put(assignment, headers=trainer, json={"routine_template_id": None}).json()["warnings"] == []

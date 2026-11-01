@@ -140,6 +140,7 @@ class RoutineAssignmentUpdate(BaseModel):
 class RoutineAssignmentResponse(BaseModel):
     relationship_id: str
     routine_template_id: str | None
+    warnings: list[str] = []
 
 
 class RoutineAssignmentStudentResponse(BaseModel):

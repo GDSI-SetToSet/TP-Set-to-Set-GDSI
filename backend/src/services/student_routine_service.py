@@ -4,7 +4,7 @@ from fastapi import status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.src.core.constants import VALIDATION_ERROR_MESSAGE
+from backend.src.core.constants import BODY_AREAS_ES, VALIDATION_ERROR_MESSAGE
 from backend.src.models.exercise import Exercise
 from backend.src.models.protected_zone import ProtectedZone
 from backend.src.models.routine_template import RoutineTemplate
@@ -127,34 +127,62 @@ def get_routine(db: Session, user: User, student_id: str) -> StudentRoutine:
     return ensure_routine(db, active_relationship(db, user, student_id))
 
 
-def _validate_draft_content(
-    db: Session, relationship: TrainingRelationship, days: list[dict], retained_ids: set[str]
-) -> dict[str, Exercise]:
+def find_conflicts(
+    db: Session, relationship: TrainingRelationship, days: list[dict]
+) -> tuple[list[dict[str, str]], dict[str, Exercise]]:
+    """Ejercicios de `days` contraindicados por las zonas protegidas del alumno (bloqueo absoluto)."""
     entries = list(_entries(days))
-    ids = {e["exercise_id"] for _, e in entries}
     exercises = {
         ex.id: ex
         for ex in db.scalars(
-            select(Exercise).where(Exercise.id.in_(ids), Exercise.trainer_id == relationship.trainer_id)
+            select(Exercise).where(
+                Exercise.id.in_({e["exercise_id"] for _, e in entries}), Exercise.trainer_id == relationship.trainer_id
+            )
         )
     }
     zones = {
         norm(z)
         for z in db.scalars(select(ProtectedZone.body_area).where(ProtectedZone.student_id == relationship.student_id))
     }
-    errors: list[dict[str, str]] = []
+    conflicts: list[dict[str, str]] = []
     for field, entry in entries:
         ex = exercises.get(entry["exercise_id"])
-        if ex is None or (ex.deleted_at is not None and ex.id not in retained_ids):
-            errors.append({"field": field, "message": UNAVAILABLE_MESSAGE})
-            continue
-        conflict = sorted(zones & {norm(z) for z in ex.contraindicated_zones})
-        if conflict:  # bloqueo absoluto, sin forzar (research D3)
-            msg = f'"{ex.name}" está contraindicado por la limitación del alumno: {", ".join(conflict)}'
-            errors.append({"field": field, "message": msg})
+        conflict = sorted(zones & {norm(z) for z in ex.contraindicated_zones}) if ex else []
+        if conflict:
+            names = ", ".join(BODY_AREAS_ES.get(z, z) for z in conflict)
+            conflicts.append({"field": field, "message": f'"{ex.name}" está contraindicado por la limitación del alumno: {names}'})
+    return conflicts, exercises
+
+
+def _validate_draft_content(
+    db: Session, relationship: TrainingRelationship, days: list[dict], retained_ids: set[str]
+) -> dict[str, Exercise]:
+    conflicts, exercises = find_conflicts(db, relationship, days)
+    errors = [
+        {"field": field, "message": UNAVAILABLE_MESSAGE}
+        for field, entry in _entries(days)
+        if (ex := exercises.get(entry["exercise_id"])) is None
+        or (ex.deleted_at is not None and ex.id not in retained_ids)
+    ] + conflicts
     if errors:
         raise RoutineTemplateError(422, VALIDATION_ERROR_MESSAGE, errors)
     return exercises
+
+
+def current_conflicts(db: Session, routine: StudentRoutine) -> list[dict[str, str]]:
+    """Conflictos del contenido que se está mostrando (borrador si existe, si no la versión vigente)."""
+    relationship = db.get(TrainingRelationship, routine.relationship_id)
+    days = routine.draft["days"] if routine.draft else routine.days
+    return find_conflicts(db, relationship, days)[0]
+
+
+def template_conflicts(db: Session, relationship_id: str, template_id: str | None) -> list[str]:
+    """Avisos al asignar una plantilla: ejercicios que chocan con las zonas del alumno."""
+    template = db.get(RoutineTemplate, template_id) if template_id else None
+    relationship = db.get(TrainingRelationship, relationship_id)
+    if template is None or relationship is None:
+        return []
+    return [c["message"] for c in find_conflicts(db, relationship, _content_from_template(template))[0]]
 
 
 def save_draft(db: Session, user: User, student_id: str, payload: RoutineDraftInput) -> StudentRoutine:

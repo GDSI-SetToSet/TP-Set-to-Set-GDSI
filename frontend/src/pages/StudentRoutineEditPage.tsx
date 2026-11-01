@@ -68,6 +68,8 @@ export function StudentRoutineEditPage() {
     setView(next);
     setForm(toInput(next.draft ?? next.routine, next.draft_version, next.desired_weekly_volume));
     setDirty(false);
+    setProblems(next.conflicts);
+    setError(next.conflicts.length ? 'Esta rutina tiene ejercicios que no son compatibles con las limitaciones del alumno' : '');
   }
 
   useEffect(() => {

@@ -33,6 +33,11 @@ export async function getRoutineAssignments(): Promise<RoutineAssignmentStudent[
   return data;
 }
 
-export async function assignRoutineToStudent(relationshipId: string, routineTemplateId: string | null): Promise<void> {
-  await api.put(`${TEMPLATES_PATH}/assignments/${relationshipId}`, { routine_template_id: routineTemplateId });
+/** Devuelve avisos: ejercicios de la rutina que chocan con las zonas a proteger del alumno. */
+export async function assignRoutineToStudent(relationshipId: string, routineTemplateId: string | null): Promise<string[]> {
+  const { data } = await api.put<{ warnings: string[] }>(
+    `${TEMPLATES_PATH}/assignments/${relationshipId}`,
+    { routine_template_id: routineTemplateId },
+  );
+  return data.warnings ?? [];
 }

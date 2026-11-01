@@ -17,12 +17,18 @@ class RoutineDraftInput(RoutineTemplateInput):
         return None if value is None else required_range(1, 7)(value)
 
 
+class RoutineConflict(BaseModel):
+    field: str
+    message: str
+
+
 class StudentRoutineResponse(BaseModel):
     routine: RoutineTemplateResponse
     draft: RoutineTemplateResponse | None = None
     draft_version: int
     desired_weekly_volume: int | None = None
     status: str
+    conflicts: list[RoutineConflict] = []
 
 
 class DraftSavedResponse(BaseModel):

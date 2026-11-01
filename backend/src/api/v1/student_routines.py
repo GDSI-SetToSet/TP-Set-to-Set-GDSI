@@ -36,6 +36,7 @@ def view(db, routine) -> StudentRoutineResponse:
         draft_version=routine.draft_version,
         desired_weekly_volume=draft["desired_weekly_volume"] if draft else routine.desired_weekly_volume,
         status=routine.status,
+        conflicts=service.current_conflicts(db, routine),
     )
 
 
