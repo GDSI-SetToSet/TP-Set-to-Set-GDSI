@@ -14,6 +14,8 @@ Ejercicio de la biblioteca personal de un entrenador.
 | `trainer_id` | UUID / String(36) | No | - | Clave foránea a `TrainerProfile.id`, propietario del ejercicio. |
 | `name` | String(150) | No | - | Nombre del ejercicio (ej. "Sentadilla búlgara"). |
 | `description` | Text | No | - | Descripción y metodología de ejecución. |
+| `technical_cues` | Text | Sí | `None` | Notas de postura, ejecución y seguridad cargadas por el entrenador, hasta 2000 caracteres (US-52). |
+| `breathing_cues` | Text | Sí | `None` | Claves de respiración durante el movimiento, hasta 2000 caracteres (US-52). |
 | `category` | Enum(`FUERZA`, `CARDIO`, `MOVILIDAD`, `FLEXIBILIDAD`, `EQUILIBRIO`) | No | - | Tipo de ejercicio. |
 | `target_muscle_group` | String(100) | No | - | Músculo principal trabajado (ej. "Cuádriceps", "Pectoral"). |
 | `equipment_needed` | String(150) | No | - | Materiales requeridos (ej. "Mancuernas", "Sin materiales / Peso corporal"). |
@@ -23,8 +25,6 @@ Ejercicio de la biblioteca personal de un entrenador.
 | `deleted_at` | DateTime (UTC) | Sí | `None` | Baja lógica: si tiene valor, el ejercicio no se lista ni se puede seleccionar. |
 | `created_at` | DateTime (UTC) | No | `utcnow()` | Fecha de creación. |
 | `updated_at` | DateTime (UTC) | No | `utcnow()` | Fecha de modificación. |
-
-**Pendiente de US-52**: `technical_cues` Text.
 
 ### 2. `RoutineTemplate` (Plantillas Genéricas, US-09)
 Plantillas predeterminadas configuradas por el entrenador para reutilizar con alumnos.
