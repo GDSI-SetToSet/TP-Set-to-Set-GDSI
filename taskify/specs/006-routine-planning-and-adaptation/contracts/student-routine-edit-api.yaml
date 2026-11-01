@@ -1,0 +1,44 @@
+openapi: 3.0.3
+info: {title: Edición de rutina del alumno (US-14), version: 1.0.0}
+paths:
+  /api/v1/trainers/me/students/{studentId}/routine:
+    get:
+      summary: Rutina vigente y borrador (si existe) del alumno
+      responses: {"200": {description: OK}, "403": {description: Sin vínculo activo}, "404": {description: Sin rutina asignada}}
+  /api/v1/trainers/me/students/{studentId}/routine/draft:
+    put:
+      summary: Guardar borrador (crea la copia por alumno si no existe)
+      requestBody:
+        content: {application/json: {schema: {$ref: '#/components/schemas/RoutineDraftInput'}}}
+      responses:
+        "200": {description: Borrador guardado, content: {application/json: {schema: {$ref: '#/components/schemas/DraftResponse'}}}}
+        "409": {description: draft_version desactualizada}
+        "422": {description: Valor inválido o ejercicio contrario a limitación física (problem+json con errors[])}
+    delete:
+      summary: Descartar borrador
+      responses: {"204": {description: Descartado}}
+  /api/v1/trainers/me/students/{studentId}/routine/draft/confirm:
+    post:
+      summary: Confirmar y publicar el borrador
+      responses:
+        "200": {description: Publicada y registrada en el log de cambios}
+        "422": {description: Falta alternativa "Sin materiales" u otra validación}
+  /api/v1/students/me/routine:
+    get:
+      summary: El alumno lee solo la versión vigente
+      responses: {"200": {description: OK}}
+components:
+  schemas:
+    RoutineDraftInput:
+      type: object
+      required: [draft_version, days]
+      properties:
+        draft_version: {type: integer}
+        intensity: {type: string}
+        desired_weekly_volume: {type: integer, minimum: 1, nullable: true}
+        days: {type: array, items: {type: object}}
+    DraftResponse:
+      type: object
+      properties:
+        draft_version: {type: integer}
+        warnings: {type: array, items: {type: object, properties: {exercise_id: {type: string}, zone: {type: string}, safe_variant: {type: object, nullable: true}}}}

@@ -10,6 +10,17 @@
 
 **User Stories Cubiertas**: US-13, US-14, US-53, US-54, US-55
 
+## Clarifications
+
+### Session 2026-11-01
+
+- Q: Cuando el entrenador edita una rutina ya activa y asignada, ¿los cambios se aplican de inmediato o quedan en borrador hasta confirmarlos? → A: Quedan en borrador y el entrenador los confirma para publicarlos; el alumno sigue viendo la versión vigente hasta entonces.
+- Q: Si el entrenador intenta agregar un ejercicio que choca con una limitación física del alumno, ¿puede forzar la edición? → A: No; el bloqueo es absoluto y solo se ofrece la variante segura.
+- Q: ¿La alternativa "Sin materiales" se exige en cada guardado de borrador o al confirmar? → A: Solo al confirmar y publicar la rutina.
+- Q: ¿Qué se considera ejercicio editado para exigir la alternativa "Sin materiales"? → A: Los ejercicios agregados o reemplazados respecto de la versión vigente.
+- Q: ¿Se conserva historial de versiones restaurable o solo un registro de cambios? → A: Solo la versión actual más un registro de cambios (autor, fecha, qué cambió); sin restauración.
+- Q: ¿Cómo informa el alumno su volumen semanal deseado? → A: Se lo comunica al entrenador, que lo registra.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-13: generar rutina particular con IA] (Priority: P2, Estimación: 5 SP)
@@ -45,11 +56,13 @@ Como entrenador personal,
 
 1. Dada una rutina creada por el entrenador (genérica o IA), cuando el alumno pide un cambio o el entrenador considera necesario modificar parte de la rutina, entonces el sistema debe permitir modificar uno o más ejercicios, intensidad, duración o cualquier parámetro de la rutina.
 
-2. Dado que la rutina creada por el entrenador está disponible "Sin materiales", cuando el entrenador intenta modificar algún ejercicio y no provee alternativa "Sin materiales", entonces el sistema no debe permitir editar el ejercicio y debe mostrar una alerta al entrenador.
+2. Dado que la rutina está disponible "Sin materiales", cuando el entrenador intenta confirmar una edición que agrega o reemplaza un ejercicio sin alternativa "Sin materiales", entonces el sistema no permite confirmar y muestra una alerta al entrenador; el borrador puede guardarse incompleto.
 
-3. Dado que el alumno tiene limitaciones físicas establecidas en su perfil, cuando el entrenador intenta introducir un ejercicio que va en contra de dichas limitaciones, entonces el sistema no debe permitir modificar el ejercicio y debe mostrar una alerta al entrenador.
+3. Dado que el alumno tiene limitaciones físicas establecidas en su perfil, cuando el entrenador intenta introducir un ejercicio que va en contra de dichas limitaciones, entonces el sistema no debe permitir modificar el ejercicio (sin opción de forzarlo), debe mostrar una alerta al entrenador y ofrecer la variante segura si está configurada (US-53).
 
 4. Dada una rutina creada por el entrenador, cuando el alumno indica un volumen semanal de entrenamiento deseado, entonces el sistema debe poder permitir editar la intensidad de la rutina para adaptarse a la carga indicada por el alumno.
+
+5. Dada una rutina activa asignada al alumno, cuando el entrenador la edita, entonces los cambios quedan en borrador y el alumno sigue viendo la versión vigente hasta que el entrenador los confirme.
 
 
 ---
@@ -131,7 +144,15 @@ Como alumno, quiero alternar la modalidad de mi rutina entre versión de gimnasi
 
 - **FR-002**: El sistema DEBE exigir la revisión y aprobación manual del entrenador antes de activar cualquier rutina generada por IA (US-13, Constitución).
 
-- **FR-003**: El sistema DEBE permitir al entrenador editar ejercicios, series, repeticiones y cargas de la rutina personalizada (US-14).
+- **FR-003**: El sistema DEBE permitir al entrenador editar ejercicios, series, repeticiones y cargas de la rutina personalizada, manteniendo los cambios en borrador hasta que el entrenador los confirme; el alumno ve la versión vigente hasta entonces (US-14).
+
+- **FR-003b**: El sistema DEBE bloquear de forma absoluta (sin posibilidad de forzar) la introducción de ejercicios contrarios a las limitaciones físicas del alumno, ofreciendo la variante segura si está configurada (US-14).
+
+- **FR-003c**: El sistema DEBE exigir la alternativa "Sin materiales" de cada ejercicio agregado o reemplazado respecto de la versión vigente en una rutina disponible como "Sin materiales", al confirmar la edición y no en cada guardado de borrador; los ejercicios que solo cambian series, repeticiones, carga o intensidad no requieren nueva alternativa (US-14).
+
+- **FR-003d**: El sistema DEBE registrar cada edición confirmada de una rutina (autor, fecha y qué cambió) conservando solo la versión actual, sin función de restaurar versiones anteriores (US-14).
+
+- **FR-003e**: El sistema DEBE permitir al entrenador registrar el volumen semanal deseado que el alumno le comunica y usarlo para ajustar la intensidad de la rutina (US-14).
 
 - **FR-004**: El sistema DEBE presentar variantes seguras para alumnos con restricciones físicas o articulares cargadas en su perfil (US-53).
 
@@ -163,6 +184,14 @@ Como alumno, quiero alternar la modalidad de mi rutina entre versión de gimnasi
 
 - **SC-003**: La solicitud de alternativa de ejercicio por máquina ocupada devuelve opciones válidas en menos de 2 segundos.
 
+- **SC-004**: El 100% de los intentos de agregar un ejercicio contrario a una limitación física del alumno son bloqueados (US-14).
+
+- **SC-005**: El 100% de las ediciones confirmadas quedan registradas con autor, fecha y diferencias (US-14).
+
+- **SC-006**: Guardar o confirmar una edición responde en menos de 1 segundo para rutinas de hasta 7 días × 10 bloques × 30 ejercicios (US-14).
+
+- **SC-007**: El alumno nunca ve contenido en borrador antes de la confirmación (US-14).
+
 
 
 ## Assumptions
@@ -170,5 +199,3 @@ Como alumno, quiero alternar la modalidad de mi rutina entre versión de gimnasi
 - El modelo de IA devuelve sugerencias estructuradas basadas en las plantillas y reglas de entrenamiento cargadas.
 
 - El entrenador posee el criterio profesional final sobre la idoneidad biomecánica del plan.
-
-
