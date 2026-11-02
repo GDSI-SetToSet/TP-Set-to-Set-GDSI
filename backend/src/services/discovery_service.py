@@ -638,13 +638,49 @@ def get_student_active_plans(db: Session, user: User) -> list[ActivePlanResponse
         plan = db.get(TrainingPlan, rel.plan_id)
 
         routine = None
-        if rel.initial_routine_id:
+        # Resolver nombre real de la rutina asignada (StudentRoutine, RoutineTemplate o AssignedRoutine)
+        from backend.src.models.assigned_routine import AssignedRoutine
+        from backend.src.models.routine_template import RoutineTemplate
+        from backend.src.models.student_routine import StudentRoutine
+
+        sr = db.scalar(
+            select(StudentRoutine).where(
+                StudentRoutine.relationship_id == rel.id,
+                StudentRoutine.status != "UNASSIGNED",
+            )
+        )
+        if sr:
             routine = ActiveRoutineSummary(
-                id=rel.initial_routine_id,
-                name="Rutina Inicial",
+                id=sr.id,
+                name=sr.name,
                 status="PUBLISHED",
                 is_available=True,
             )
+        elif rel.initial_routine_id:
+            tpl = db.get(RoutineTemplate, rel.initial_routine_id)
+            if tpl:
+                routine = ActiveRoutineSummary(
+                    id=tpl.id,
+                    name=tpl.name,
+                    status="PUBLISHED",
+                    is_available=True,
+                )
+            else:
+                ar = db.get(AssignedRoutine, rel.initial_routine_id)
+                if ar:
+                    routine = ActiveRoutineSummary(
+                        id=ar.id,
+                        name=ar.name,
+                        status="PUBLISHED",
+                        is_available=True,
+                    )
+                else:
+                    routine = ActiveRoutineSummary(
+                        id=rel.initial_routine_id,
+                        name="Rutina Asignada",
+                        status="PUBLISHED",
+                        is_available=True,
+                    )
 
         trainer_summary = (
             ActiveTrainerSummary(

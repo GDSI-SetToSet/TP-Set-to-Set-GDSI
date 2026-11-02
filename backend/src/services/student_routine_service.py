@@ -289,29 +289,46 @@ def discard_draft(db: Session, user: User, student_id: str) -> None:
     db.commit()
 
 
-def _flat(days: list[dict]) -> dict[str, dict]:
-    flat: dict[str, dict] = {}
-    for _, e in _entries(days):
-        flat.setdefault(e["exercise_id"], e)
-    return flat
-
-
 def _diff(routine: StudentRoutine, draft: dict) -> dict:
-    before, after = _flat(routine.days), _flat(draft["days"])
     fields = ("name", "duration_weeks", "intensity", "has_no_materials_alternative", "desired_weekly_volume")
+
+    # Mapeo por ubicación única (day_idx, block_idx, exercise_id) para evitar colisiones entre días
+    before_entries: dict[tuple[int, int, str], dict] = {}
+    for di, day in enumerate(routine.days):
+        for bi, block in enumerate(day.get("blocks", [])):
+            for entry in block.get("exercises", []):
+                before_entries[(di, bi, entry["exercise_id"])] = entry
+
+    after_entries: dict[tuple[int, int, str], dict] = {}
+    for di, day in enumerate(draft.get("days", [])):
+        for bi, block in enumerate(day.get("blocks", [])):
+            for entry in block.get("exercises", []):
+                after_entries[(di, bi, entry["exercise_id"])] = entry
+
+    before_ids = {e["exercise_id"] for _, e in _entries(routine.days)}
+    after_ids = {e["exercise_id"] for _, e in _entries(draft["days"])}
+
+    modified = []
+    for key in sorted(before_entries.keys() & after_entries.keys()):
+        di, bi, ex_id = key
+        if before_entries[key] != after_entries[key]:
+            modified.append({
+                "exercise_id": ex_id,
+                "day_index": di,
+                "block_index": bi,
+                "before": before_entries[key],
+                "after": after_entries[key],
+            })
+
     return {
         "fields": {
             f: {"before": getattr(routine, f), "after": draft.get(f)}
             for f in fields
             if getattr(routine, f) != draft.get(f)
         },
-        "added": sorted(after.keys() - before.keys()),
-        "removed": sorted(before.keys() - after.keys()),
-        "modified": [
-            {"exercise_id": i, "before": before[i], "after": after[i]}
-            for i in sorted(before.keys() & after.keys())
-            if before[i] != after[i]
-        ],
+        "added": sorted(after_ids - before_ids),
+        "removed": sorted(before_ids - after_ids),
+        "modified": modified,
     }
 
 
