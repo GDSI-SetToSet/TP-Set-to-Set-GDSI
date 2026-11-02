@@ -140,7 +140,6 @@ export function GenerateAIRoutinePage() {
 
       <section className="profile-card ai-routine-container">
         <div className="profile-heading">
-          <span>INTELIGENCIA ARTIFICIAL ASISTIDA (US-13)</span>
           <h1>Generar rutina particular para un alumno</h1>
           <p>
             Adaptá una de tus rutinas genéricas a los objetivos y limitaciones específicas de tu
