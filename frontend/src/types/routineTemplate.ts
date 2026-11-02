@@ -19,7 +19,7 @@ export interface RoutineExerciseInput {
 
 export interface RoutineBlockInput {
   name: string;
-  estimated_duration_minutes: number;
+  estimated_duration_minutes: number | null;
   exercises: RoutineExerciseInput[];
 }
 

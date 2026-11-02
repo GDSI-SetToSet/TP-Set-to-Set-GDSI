@@ -34,7 +34,7 @@ function toInput(source: RoutineTemplate, version: number, volume: number | null
       name: day.name,
       blocks: day.blocks.map((block) => ({
         name: block.name,
-        estimated_duration_minutes: block.estimated_duration_minutes ?? 1,
+        estimated_duration_minutes: block.estimated_duration_minutes ?? null,
         exercises: block.exercises.map((item) => ({
           exercise_id: item.exercise.id,
           sets: item.sets,

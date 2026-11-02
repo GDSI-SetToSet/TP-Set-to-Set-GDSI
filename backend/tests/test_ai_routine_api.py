@@ -1540,3 +1540,267 @@ def test_approve_routine_requires_active_relationship_and_author(client):
     assert "vínculo activo" in inactive_resp.json()["detail"].lower()
 
 
+
+
+def test_ai_routine_preserves_metadata_duration_weight_trainer_name_no_materials(client):
+    """AUD-04: Preservación de metadatos (duración, carga, alternativa sin materiales, nombre del entrenador)."""
+    api, sessions = client
+    trainer = register_and_login(api, "coach_metadata@example.com", "TRAINER")
+    student = register_and_login(api, "student_metadata@example.com", "STUDENT")
+
+    # Configurar nombre del entrenador
+    api.put(
+        "/api/v1/trainers/me/profile",
+        headers=trainer,
+        json={"full_name": "Profesor Carlos Bilardo", "contact_phone": "+541144445555", "specialty": "Fuerza"},
+    )
+
+    _, student_id = setup_trainer_and_student_relationship(
+        sessions,
+        "coach_metadata@example.com",
+        "student_metadata@example.com",
+        status="ACTIVE",
+    )
+
+    ex = create_exercise(api, trainer, name="Press Militar", target_muscle_group="Hombros", has_no_materials_alternative=True)
+
+    # Plantilla con metadatos completos
+    template = create_template(
+        api,
+        trainer,
+        [ex],
+        name="Rutina Metadatos",
+        has_no_materials_alternative=True,
+        days=[
+            {
+                "name": "Día Fuerza",
+                "blocks": [
+                    {
+                        "name": "Bloque A",
+                        "estimated_duration_minutes": 35,
+                        "exercises": [
+                            {
+                                "exercise_id": ex,
+                                "sets": 4,
+                                "reps": "8",
+                                "rest_seconds": 90,
+                                "target_weight_kg": 42.5,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    )
+
+    # 1. Generar propuesta por IA (heurístico)
+    gen_resp = api.post(
+        AI_GENERATE_PATH,
+        headers=trainer,
+        json={"student_id": student_id, "template_id": template["id"], "provider": "heuristic"},
+    )
+    assert gen_resp.status_code == 201
+    prop = gen_resp.json()
+    assert prop["has_no_materials_alternative"] is True
+    assert prop["trainer_name"] == "Profesor Carlos Bilardo"
+    assert prop["days"][0]["blocks"][0]["estimated_duration_minutes"] == 35
+    assert prop["days"][0]["blocks"][0]["exercises"][0]["target_weight_kg"] == 42.5
+
+    # 2. Aprobar la propuesta y verificar sincronización con StudentRoutine y endpoints de consulta
+    routine_id = prop["id"]
+    appr_resp = api.post(f"/api/v1/routines/assigned/{routine_id}/approve", headers=trainer)
+    assert appr_resp.status_code == 200
+    appr_data = appr_resp.json()
+    assert appr_data["has_no_materials_alternative"] is True
+    assert appr_data["days"][0]["blocks"][0]["estimated_duration_minutes"] == 35
+
+    # Consulta del alumno por endpoint US-13
+    st_active = api.get(STUDENT_ASSIGNED_PATH, headers=student)
+    assert st_active.status_code == 200
+    assert st_active.json()["has_no_materials_alternative"] is True
+    assert st_active.json()["days"][0]["blocks"][0]["estimated_duration_minutes"] == 35
+    assert st_active.json()["days"][0]["blocks"][0]["exercises"][0]["target_weight_kg"] == 42.5
+
+    # Consulta del alumno por endpoint US-14 (routine-templates/assigned)
+    st_template_assigned = api.get("/api/v1/students/me/routine-templates/assigned", headers=student)
+    assert st_template_assigned.status_code == 200
+    st_tpl = st_template_assigned.json()
+    assert st_tpl is not None
+    assert st_tpl["has_no_materials_alternative"] is True
+    assert st_tpl["days"][0]["blocks"][0]["estimated_duration_minutes"] == 35
+    assert st_tpl["days"][0]["blocks"][0]["exercises"][0]["target_weight_kg"] == 42.5
+
+    # Consulta de asignaciones del entrenador
+    assignments_resp = api.get("/api/v1/routine-templates/assignments", headers=trainer)
+    assert assignments_resp.status_code == 200
+    matching = [a for a in assignments_resp.json() if a["student_id"] == student_id]
+    assert len(matching) == 1
+    assert matching[0]["routine_name"] is not None
+
+
+def test_biomechanical_zone_conflict_detection_cross_language_and_aliases(client):
+    """AUD-03: Validación unificada de zonas protegidas con equivalencias español/inglés y aliases."""
+    api, sessions = client
+    trainer = register_and_login(api, "coach_bio@example.com", "TRAINER")
+    register_and_login(api, "student_bio@example.com", "STUDENT")
+
+    # Alumno declara zonas protegidas en español y con alias
+    _, student_id = setup_trainer_and_student_relationship(
+        sessions,
+        "coach_bio@example.com",
+        "student_bio@example.com",
+        status="ACTIVE",
+    )
+
+    with sessions() as db:
+        db.add(ProtectedZone(student_id=student_id, body_area="Espalda baja", created_at=datetime.now(UTC)))
+        db.add(ProtectedZone(student_id=student_id, body_area="Hombro derecho", created_at=datetime.now(UTC)))
+        db.commit()
+
+    # Ejercicio contraindicado usando nombres canónicos en inglés
+    ex_squat = create_exercise(api, trainer, name="Sentadilla Barra", contraindicated_zones=["Lower back"])
+    ex_overhead = create_exercise(api, trainer, name="Press Hombro", contraindicated_zones=["Shoulder"])
+    create_exercise(api, trainer, name="Curl de Bíceps", contraindicated_zones=[])
+
+    template = create_template(api, trainer, [ex_squat, ex_overhead])
+
+    # La generación heurística debe detectar las zonas y sustituir o remover los ejercicios incompatibles
+    gen_resp = api.post(
+        AI_GENERATE_PATH,
+        headers=trainer,
+        json={"student_id": student_id, "template_id": template["id"], "provider": "heuristic"},
+    )
+    assert gen_resp.status_code == 201
+    prop = gen_resp.json()
+    assigned_exercises = [
+        e["exercise_id"]
+        for d in prop["days"]
+        for b in d["blocks"]
+        for e in b["exercises"]
+    ]
+    # Ninguno de los ejercicios contraindicados debe figurar en la propuesta adaptada
+    assert ex_squat not in assigned_exercises
+    assert ex_overhead not in assigned_exercises
+
+
+def test_assigned_routine_access_blocked_on_terminated_relationship(client):
+    """AUD-06: Verificación de que el vínculo activo sea exigido para consultar la rutina asignada."""
+    api, sessions = client
+    trainer = register_and_login(api, "coach_term@example.com", "TRAINER")
+    student = register_and_login(api, "student_term@example.com", "STUDENT")
+
+    _, student_id = setup_trainer_and_student_relationship(
+        sessions,
+        "coach_term@example.com",
+        "student_term@example.com",
+        status="ACTIVE",
+    )
+
+    ex = create_exercise(api, trainer, name="Plancha")
+    template = create_template(api, trainer, [ex])
+
+    gen_resp = api.post(
+        AI_GENERATE_PATH,
+        headers=trainer,
+        json={"student_id": student_id, "template_id": template["id"]},
+    )
+    routine_id = gen_resp.json()["id"]
+    api.post(f"/api/v1/routines/assigned/{routine_id}/approve", headers=trainer)
+
+    # Mientras el vínculo está ACTIVE, ambos pueden consultar el detalle
+    assert api.get(f"/api/v1/routines/assigned/{routine_id}", headers=trainer).status_code == 200
+    assert api.get(f"/api/v1/routines/assigned/{routine_id}", headers=student).status_code == 200
+    assert api.get(STUDENT_ASSIGNED_PATH, headers=student).json() is not None
+
+    # Se finaliza el vínculo (TERMINATED)
+    with sessions() as db:
+        rel = db.scalar(select(TrainingRelationship).where(TrainingRelationship.student_id == student_id))
+        rel.status = "TERMINATED"
+        db.commit()
+
+    # Tras terminar el vínculo: 403 Forbidden para ambos y None para la rutina activa del alumno
+    assert api.get(f"/api/v1/routines/assigned/{routine_id}", headers=trainer).status_code == 403
+    assert api.get(f"/api/v1/routines/assigned/{routine_id}", headers=student).status_code == 403
+    assert api.get(STUDENT_ASSIGNED_PATH, headers=student).json() is None
+
+def test_generate_ai_routine_rate_limiting(client, monkeypatch):
+    """AUD-11: Rate limiting en /routines/generate-ai (10 req/min por entrenador)."""
+    from unittest.mock import MagicMock
+
+    import backend.src.api.v1.assigned_routines as ar_module
+
+    api, sessions = client
+
+    # Entrenador A y Alumna A con vínculo activo
+    trainer_a = register_and_login(api, "coach_limiter_a@example.com", "TRAINER")
+    register_and_login(api, "student_limiter_a@example.com", "STUDENT")
+    _, student_a_id = setup_trainer_and_student_relationship(
+        sessions, "coach_limiter_a@example.com", "student_limiter_a@example.com", status="ACTIVE"
+    )
+    ex_a = create_exercise(api, trainer_a, name="Ejercicio A")
+    template_a = create_template(api, trainer_a, [ex_a])
+
+    # Entrenador B y Alumno B con vínculo activo
+    trainer_b = register_and_login(api, "coach_limiter_b@example.com", "TRAINER")
+    register_and_login(api, "student_limiter_b@example.com", "STUDENT")
+    _, student_b_id = setup_trainer_and_student_relationship(
+        sessions, "coach_limiter_b@example.com", "student_limiter_b@example.com", status="ACTIVE"
+    )
+    ex_b = create_exercise(api, trainer_b, name="Ejercicio B")
+    template_b = create_template(api, trainer_b, [ex_b])
+
+    # Instrumentar generate_ai_routine_proposal para verificar si se ejecuta o se aborta antes
+    real_generate_proposal = ar_module.generate_ai_routine_proposal
+    spy_proposal = MagicMock(side_effect=real_generate_proposal)
+    monkeypatch.setattr(ar_module, "generate_ai_routine_proposal", spy_proposal)
+
+    # 1. Las primeras 10 solicitudes del Entrenador A deben tener éxito
+    for i in range(10):
+        resp = api.post(
+            AI_GENERATE_PATH,
+            headers=trainer_a,
+            json={"student_id": student_a_id, "template_id": template_a["id"]},
+        )
+        assert resp.status_code == 201, f"Fallo en intento {i+1}: {resp.text}"
+
+    assert spy_proposal.call_count == 10
+
+    # 2. La solicitud número 11 es rechazada con HTTP 429
+    blocked_resp = api.post(
+        AI_GENERATE_PATH,
+        headers=trainer_a,
+        json={"student_id": student_a_id, "template_id": template_a["id"]},
+    )
+    assert blocked_resp.status_code == 429
+    assert "límite de generación de rutinas" in blocked_resp.json()["detail"].lower()
+
+    # 3. El rechazo no ejecuta la generación de IA (el conteo sigue en 10)
+    assert spy_proposal.call_count == 10
+
+    # 4. El límite es independiente por entrenador: Entrenador B puede generar sin bloqueo
+    resp_b = api.post(
+        AI_GENERATE_PATH,
+        headers=trainer_b,
+        json={"student_id": student_b_id, "template_id": template_b["id"]},
+    )
+    assert resp_b.status_code == 201
+    assert spy_proposal.call_count == 11
+
+    # 5. Comportamiento temporal: cuando expira la ventana deslizante, vuelve a permitirse
+    with sessions() as db:
+        user_a = db.scalar(select(User).where(User.email == "coach_limiter_a@example.com"))
+
+    # Desplazamos las marcas de tiempo 61 segundos al pasado
+    ar_module.ai_generate_limiter._records[user_a.id] = [
+        t - 61.0 for t in ar_module.ai_generate_limiter._records[user_a.id]
+    ]
+
+    # Ahora el Entrenador A puede generar nuevamente
+    resp_unblocked = api.post(
+        AI_GENERATE_PATH,
+        headers=trainer_a,
+        json={"student_id": student_a_id, "template_id": template_a["id"]},
+    )
+    assert resp_unblocked.status_code == 201
+    assert spy_proposal.call_count == 12
+

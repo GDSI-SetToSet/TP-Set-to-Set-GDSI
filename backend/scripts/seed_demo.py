@@ -26,13 +26,18 @@ from sqlalchemy.orm import Session
 
 from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
 from backend.src.core.database import Base, SessionLocal, engine
+from backend.src.core.migrations import apply_migrations
 from backend.src.core.security import hash_password
 from backend.src.core.storage import UPLOADS_DIR
+from backend.src.models.assigned_routine import AssignedRoutine
+from backend.src.models.exercise import Exercise
 from backend.src.models.health_questionnaire import HealthQuestionnaire
 from backend.src.models.medical_clearance import MedicalClearance
 from backend.src.models.notification import Notification
 from backend.src.models.protected_zone import ProtectedZone
+from backend.src.models.routine_template import RoutineTemplate
 from backend.src.models.student_profile import StudentProfile
+from backend.src.models.student_routine import RoutineChangeLog, StudentRoutine
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.training_relationship import TrainingRelationship
@@ -181,7 +186,7 @@ TRAINERS_DEMO_DATA: list[dict[str, Any]] = [
         "email": f"camila.navarro@{DEMO_DOMAIN}",
         "full_name": "Camila Navarro",
         "contact_phone": "+541145218904",
-        "specialty": "Movilidad y Rehabilitación Postural",
+        "specialty": "Movilidad/rehabilitación",
         "bio": (
             "Kinesióloga y preparadora física. Enfoque preventivo, fortalecimiento de la zona media y recuperación funcional "
             "para volver a entrenar sin dolor tras molestias articulares o largas jornadas sedentarias."
@@ -504,6 +509,7 @@ def seed_demo_data(db: Session, verbose: bool = True) -> dict[str, int]:
     """Crea o actualiza de forma idempotente todos los datos de demostración."""
     # Asegurar que todas las tablas del esquema existan
     Base.metadata.create_all(bind=engine)
+    apply_migrations(engine)
 
     stats = {
         "trainers": 0,
@@ -940,13 +946,46 @@ def clean_demo_data(db: Session, verbose: bool = True) -> dict[str, int]:
             db.delete(plan)
             counts["plans"] += 1
 
+    # 4b. Limpieza de rutinas y ejercicios asociados a cuentas demo
+    if student_ids:
+        for sr in db.scalars(
+            select(StudentRoutine)
+            .join(TrainingRelationship, StudentRoutine.relationship_id == TrainingRelationship.id)
+            .where(TrainingRelationship.student_id.in_(student_ids))
+        ).all():
+            for rcl in db.scalars(
+                select(RoutineChangeLog).where(RoutineChangeLog.student_routine_id == sr.id)
+            ).all():
+                db.delete(rcl)
+            db.delete(sr)
+
+    if trainer_ids or student_ids:
+        for ar in db.scalars(
+            select(AssignedRoutine).where(
+                (AssignedRoutine.trainer_id.in_(trainer_ids))
+                | (AssignedRoutine.student_id.in_(student_ids))
+            )
+        ).all():
+            db.delete(ar)
+
+    if trainer_ids:
+        for rt in db.scalars(
+            select(RoutineTemplate).where(RoutineTemplate.trainer_id.in_(trainer_ids))
+        ).all():
+            db.delete(rt)
+
+        for ex in db.scalars(
+            select(Exercise).where(Exercise.trainer_id.in_(trainer_ids))
+        ).all():
+            db.delete(ex)
+
     # 5. Aptos médicos de alumnos demo (y sus archivos en disco)
     if student_ids:
         for mc in db.scalars(
             select(MedicalClearance).where(MedicalClearance.student_id.in_(student_ids))
         ).all():
             file_p = Path(mc.file_path)
-            if file_p.exists() and DEMO_DOMAIN in mc.original_filename or "demo" in mc.original_filename:
+            if file_p.exists() and (DEMO_DOMAIN in mc.original_filename or "demo" in mc.original_filename):
                 file_p.unlink(missing_ok=True)
             db.delete(mc)
             counts["medical_clearances"] += 1
