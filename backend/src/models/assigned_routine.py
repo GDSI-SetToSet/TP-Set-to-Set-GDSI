@@ -1,6 +1,7 @@
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.src.core.database import Base
@@ -24,6 +25,7 @@ class AssignedRoutine(Base):
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     duration_weeks: Mapped[int] = mapped_column(Integer, nullable=False)
     intensity: Mapped[str] = mapped_column(String(16), nullable=False)
+    has_no_materials_alternative: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # 'PENDING_REVIEW' (borrador IA) o 'APPROVED' (revisada y aprobada por el entrenador)
     status: Mapped[str] = mapped_column(String(16), default="PENDING_REVIEW", nullable=False)
     adaptation_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -39,6 +41,10 @@ class AssignedRoutine(Base):
     )
 
     @property
+    def trainer_name(self) -> str | None:
+        return self.trainer.full_name if self.trainer else None
+
+    @property
     def exercise_count(self) -> int:
         return sum(len(block.exercises) for day in self.days for block in day.blocks)
 
@@ -52,6 +58,7 @@ class AssignedRoutineDay(Base):
     )
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
+    estimated_duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     routine: Mapped[AssignedRoutine] = relationship(back_populates="days")
     blocks: Mapped[list["AssignedRoutineBlock"]] = relationship(
@@ -68,6 +75,7 @@ class AssignedRoutineBlock(Base):
     )
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
+    estimated_duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     day: Mapped[AssignedRoutineDay] = relationship(back_populates="blocks")
     exercises: Mapped[list["AssignedRoutineExercise"]] = relationship(
@@ -88,6 +96,7 @@ class AssignedRoutineExercise(Base):
     reps: Mapped[str] = mapped_column(String(50), nullable=False)
     rest_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
     adaptation_notes: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    target_weight_kg: Mapped[Decimal | None] = mapped_column(Numeric(7, 2), nullable=True)
 
     block: Mapped[AssignedRoutineBlock] = relationship(back_populates="exercises")
     exercise: Mapped[Exercise] = relationship()

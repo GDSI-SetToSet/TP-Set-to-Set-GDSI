@@ -35,6 +35,7 @@ class AssignedRoutineExerciseResponse(BaseModel):
     rest_seconds: int
     order_index: int
     adaptation_notes: str | None = None
+    target_weight_kg: float | None = None
     exercise: ExerciseResponse
 
 
@@ -44,6 +45,7 @@ class AssignedRoutineBlockResponse(BaseModel):
     id: str
     name: str
     order_index: int
+    estimated_duration_minutes: int | None = None
     exercises: list[AssignedRoutineExerciseResponse]
 
 
@@ -61,11 +63,13 @@ class AssignedRoutineResponse(BaseModel):
 
     id: str
     trainer_id: str
+    trainer_name: str | None = None
     student_id: str
     template_id: str | None = None
     name: str
     duration_weeks: int
     intensity: str
+    has_no_materials_alternative: bool = False
     status: str
     adaptation_summary: str | None = None
     approved_at: datetime | None = None

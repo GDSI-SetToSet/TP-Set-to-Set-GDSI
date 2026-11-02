@@ -18,6 +18,7 @@ from backend.src.core.config import (
     get_gemini_model,
     get_gemini_timeout_seconds,
 )
+from backend.src.core.constants import canonical_zone_key
 from backend.src.models.exercise import Exercise
 from backend.src.models.health_questionnaire import HealthQuestionnaire
 from backend.src.models.protected_zone import ProtectedZone
@@ -87,6 +88,7 @@ class AdaptedExerciseData:
     reps: str
     rest_seconds: int
     adaptation_notes: str | None = None
+    target_weight_kg: float | None = None
 
 
 @dataclass
@@ -94,6 +96,7 @@ class AdaptedBlockData:
     name: str
     order_index: int
     exercises: list[AdaptedExerciseData] = field(default_factory=list)
+    estimated_duration_minutes: int | None = None
 
 
 @dataclass
@@ -110,6 +113,7 @@ class AIRoutineProposalResult:
     intensity: str
     adaptation_summary: str
     days: list[AdaptedDayData] = field(default_factory=list)
+    has_no_materials_alternative: bool = False
 
 
 class GeminiExerciseDecisionSchema(BaseModel):
@@ -190,9 +194,20 @@ class AIRoutineAdapter(ABC):
 
 def _conflicts_with_zones(exercise: Exercise, zones: list[ProtectedZone]) -> str | None:
     """Verifica si el ejercicio compromete alguna de las zonas corporales protegidas."""
+    if not zones:
+        return None
+
+    # 1. Comparación canónica con exercise.contraindicated_zones
+    student_canonical = {canonical_zone_key(z.body_area): z.body_area for z in zones if z.body_area}
+    if exercise.contraindicated_zones:
+        for cz in exercise.contraindicated_zones:
+            cz_canon = canonical_zone_key(cz)
+            if cz_canon and cz_canon in student_canonical:
+                return student_canonical[cz_canon]
+
+    # 2. Búsqueda por texto y palabras clave como fallback seguro
     searchable_text = f"{exercise.name} {exercise.target_muscle_group} {exercise.description}".lower()
 
-    # Mapeo de términos de zonas protegidas a raíces corporales (español e inglés para datos de seed)
     zone_keywords: dict[str, list[str]] = {
         "hombro": ["hombro", "deltoid", "manguito", "press militar"],
         "shoulder": ["hombro", "deltoid", "manguito", "press militar"],
@@ -200,7 +215,11 @@ def _conflicts_with_zones(exercise: Exercise, zones: list[ProtectedZone]) -> str
         "knee": ["rodilla", "cuadricep", "cuádriceps", "isquio", "patel", "sentadilla", "estocada"],
         "lumbar": ["lumbar", "espalda baja", "peso muerto", "dorsal", "raquis"],
         "lower back": ["lumbar", "espalda baja", "peso muerto", "dorsal", "raquis"],
+        "upper back": ["espalda alta", "trapecio", "romboides", "dorsal"],
+        "espalda alta": ["espalda alta", "trapecio", "romboides", "dorsal"],
         "espalda": ["espalda", "dorsal", "trapecio", "lumbar"],
+        "cadera": ["cadera", "glúteo", "gluteo", "pelvis", "abductor", "aductor"],
+        "hip": ["cadera", "glúteo", "gluteo", "pelvis", "abductor", "aductor", "hip"],
         "codo": ["codo", "tricep", "tríceps", "bicep", "bíceps", "brazo"],
         "elbow": ["codo", "tricep", "tríceps", "bicep", "bíceps", "brazo"],
         "cuello": ["cuello", "cervical", "trapecio"],
@@ -214,7 +233,6 @@ def _conflicts_with_zones(exercise: Exercise, zones: list[ProtectedZone]) -> str
 
     for zone in zones:
         area_lower = zone.body_area.lower()
-        # Verificar coincidencia directa de la zona en el músculo objetivo o nombre
         if area_lower in searchable_text:
             return zone.body_area
         for key, tokens in zone_keywords.items():
@@ -328,6 +346,9 @@ class HeuristicAIRoutineAdapter(AIRoutineAdapter):
                         adapted_sets = min(adapted_sets, 3)
                         adapted_rest = max(adapted_rest, 90)
 
+                    orig_weight = float(entry.target_weight_kg) if getattr(entry, "target_weight_kg", None) is not None else None
+                    prescribed_weight = orig_weight if selected_exercise_id == orig_ex.id else None
+
                     adapted_exercises.append(
                         AdaptedExerciseData(
                             exercise_id=selected_exercise_id,
@@ -336,6 +357,7 @@ class HeuristicAIRoutineAdapter(AIRoutineAdapter):
                             reps=adapted_reps,
                             rest_seconds=adapted_rest,
                             adaptation_notes=adaptation_note,
+                            target_weight_kg=prescribed_weight,
                         )
                     )
 
@@ -345,6 +367,7 @@ class HeuristicAIRoutineAdapter(AIRoutineAdapter):
                             name=block.name,
                             order_index=len(adapted_blocks),
                             exercises=adapted_exercises,
+                            estimated_duration_minutes=getattr(block, "estimated_duration_minutes", None),
                         )
                     )
 
@@ -379,6 +402,7 @@ class HeuristicAIRoutineAdapter(AIRoutineAdapter):
             intensity=target_intensity,
             adaptation_summary="\n".join(summary_lines),
             days=adapted_days,
+            has_no_materials_alternative=getattr(template, "has_no_materials_alternative", False),
         )
 
 
@@ -487,6 +511,7 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                             "sets": entry.sets,
                             "reps": entry.reps,
                             "rest_seconds": entry.rest_seconds,
+                            "contraindicated_zones": ex.contraindicated_zones or [],
                         }
                     )
                 day_blocks.append(
@@ -512,6 +537,7 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                 "target_muscle_group": ex.target_muscle_group,
                 "equipment_needed": ex.equipment_needed,
                 "description": ex.description,
+                "contraindicated_zones": ex.contraindicated_zones or [],
             }
             for ex in trainer_exercises
             if ex.deleted_at is None and _conflicts_with_zones(ex, protected_zones) is None
@@ -619,10 +645,14 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
         }
         # Ejercicios originales presentes en la plantilla base
         template_exercises_by_id: dict[str, Exercise] = {}
-        for t_day in template.days:
-            for t_block in t_day.blocks:
+        template_entries_by_id: dict[str, Any] = {}
+        template_blocks_by_day_block: dict[tuple[int, int], Any] = {}
+        for d_i, t_day in enumerate(template.days):
+            for b_i, t_block in enumerate(t_day.blocks):
+                template_blocks_by_day_block[(d_i, b_i)] = t_block
                 for t_entry in t_block.exercises:
                     template_exercises_by_id[t_entry.exercise_id] = t_entry.exercise
+                    template_entries_by_id[t_entry.exercise_id] = t_entry
                     if t_entry.exercise.deleted_at is None:
                         catalog_by_id.setdefault(t_entry.exercise_id, t_entry.exercise)
 
@@ -792,6 +822,13 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                     full_note = f"{note_prefix}{reason}"[:ADAPTATION_NOTE_MAX_LENGTH]
                     action_logs.append(full_note)
 
+                    orig_entry_match = template_entries_by_id.get(decision.original_exercise_id)
+                    target_wt = (
+                        float(orig_entry_match.target_weight_kg)
+                        if orig_entry_match and getattr(orig_entry_match, "target_weight_kg", None) is not None and action == "KEEP"
+                        else None
+                    )
+
                     adapted_exercises.append(
                         AdaptedExerciseData(
                             exercise_id=target_exercise.id,
@@ -800,15 +837,19 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                             reps=reps,
                             rest_seconds=rest_seconds,
                             adaptation_notes=full_note,
+                            target_weight_kg=target_wt,
                         )
                     )
 
                 if adapted_blocks is not None and adapted_exercises:
+                    t_blk = template_blocks_by_day_block.get((day_idx, block_idx))
+                    estimated_duration = getattr(t_blk, "estimated_duration_minutes", None) if t_blk else None
                     adapted_blocks.append(
                         AdaptedBlockData(
                             name=block_name,
                             order_index=len(adapted_blocks),
                             exercises=adapted_exercises,
+                            estimated_duration_minutes=estimated_duration,
                         )
                     )
 
@@ -862,6 +903,7 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
             intensity=intensity,
             adaptation_summary="\n".join(summary_lines),
             days=adapted_days,
+            has_no_materials_alternative=getattr(template, "has_no_materials_alternative", False),
         )
 
     def generate_adapted_routine(

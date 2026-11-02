@@ -22,6 +22,7 @@ export interface AssignedRoutineExercise {
   rest_seconds: number;
   order_index: number;
   adaptation_notes?: string | null;
+  target_weight_kg?: number | null;
   exercise: Exercise;
 }
 
@@ -29,6 +30,7 @@ export interface AssignedRoutineBlock {
   id: string;
   name: string;
   order_index: number;
+  estimated_duration_minutes?: number | null;
   exercises: AssignedRoutineExercise[];
 }
 
@@ -42,11 +44,13 @@ export interface AssignedRoutineDay {
 export interface AssignedRoutine {
   id: string;
   trainer_id: string;
+  trainer_name?: string | null;
   student_id: string;
   template_id?: string | null;
   name: string;
   duration_weeks: number;
   intensity: string;
+  has_no_materials_alternative: boolean;
   status: 'PENDING_REVIEW' | 'APPROVED';
   adaptation_summary?: string | null;
   approved_at?: string | null;

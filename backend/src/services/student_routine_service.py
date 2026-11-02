@@ -4,7 +4,12 @@ from fastapi import status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.src.core.constants import BODY_AREAS_ES, VALIDATION_ERROR_MESSAGE
+from backend.src.core.constants import (
+    BODY_AREAS_ES,
+    VALIDATION_ERROR_MESSAGE,
+    canonical_zone_key,
+)
+from backend.src.models.assigned_routine import AssignedRoutine
 from backend.src.models.exercise import Exercise
 from backend.src.models.protected_zone import ProtectedZone
 from backend.src.models.routine_template import RoutineTemplate
@@ -33,6 +38,36 @@ def _entries(days: list[dict]):
         for bi, block in enumerate(day["blocks"]):
             for ei, entry in enumerate(block["exercises"]):
                 yield f"days.{di}.blocks.{bi}.exercises.{ei}.exercise_id", entry
+
+
+def _content_from_assigned_routine(assigned: AssignedRoutine) -> list[dict]:
+    return [
+        {
+            "name": day.name,
+            "blocks": [
+                {
+                    "name": block.name,
+                    "estimated_duration_minutes": getattr(block, "estimated_duration_minutes", None),
+                    "exercises": [
+                        {
+                            "exercise_id": e.exercise_id,
+                            "sets": e.sets,
+                            "reps": e.reps,
+                            "rest_seconds": e.rest_seconds,
+                            "target_weight_kg": (
+                                float(e.target_weight_kg)
+                                if getattr(e, "target_weight_kg", None) is not None
+                                else None
+                            ),
+                        }
+                        for e in block.exercises
+                    ],
+                }
+                for block in day.blocks
+            ],
+        }
+        for day in assigned.days
+    ]
 
 
 def _content_from_template(template: RoutineTemplate) -> list[dict]:
@@ -80,15 +115,19 @@ def ensure_routine(db: Session, relationship: TrainingRelationship) -> StudentRo
     routine = db.scalar(select(StudentRoutine).where(StudentRoutine.relationship_id == relationship.id))
     if routine is not None and routine.status != "UNASSIGNED":
         return routine
-    template = (
-        db.get(RoutineTemplate, relationship.initial_routine_id) if relationship.initial_routine_id else None
-    )
-    if template is None or template.trainer_id != relationship.trainer_id:
+    source: RoutineTemplate | AssignedRoutine | None = None
+    if relationship.initial_routine_id:
+        source = db.get(RoutineTemplate, relationship.initial_routine_id)
+        if source is None:
+            assigned = db.get(AssignedRoutine, relationship.initial_routine_id)
+            if assigned is not None and assigned.status == "APPROVED":
+                source = assigned
+    if source is None or source.trainer_id != relationship.trainer_id:
         raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "El alumno no tiene una rutina asignada.")
     now = utc_now()
     is_new = routine is None
     routine = routine or StudentRoutine(relationship_id=relationship.id, created_at=now, draft_version=0)
-    _seed(routine, template)
+    _seed(routine, source)
     if is_new:
         routine.draft_version = 0
     db.add(routine)
@@ -97,18 +136,48 @@ def ensure_routine(db: Session, relationship: TrainingRelationship) -> StudentRo
     return routine
 
 
-def _seed(routine: StudentRoutine, template: RoutineTemplate) -> None:
-    routine.source_template_id = template.id
-    routine.name = template.name
-    routine.duration_weeks = template.duration_weeks
-    routine.intensity = template.intensity
-    routine.has_no_materials_alternative = template.has_no_materials_alternative
-    routine.desired_weekly_volume = None
-    routine.days = _content_from_template(template)
+def _seed(routine: StudentRoutine, source: RoutineTemplate | AssignedRoutine) -> None:
+    if isinstance(source, AssignedRoutine):
+        routine.source_kind = "AI"
+        routine.source_template_id = source.template_id or source.id
+        routine.name = source.name
+        routine.duration_weeks = source.duration_weeks
+        routine.intensity = source.intensity
+        routine.has_no_materials_alternative = getattr(source, "has_no_materials_alternative", False)
+        routine.desired_weekly_volume = None
+        routine.days = _content_from_assigned_routine(source)
+    else:
+        routine.source_kind = "GENERIC"
+        routine.source_template_id = source.id
+        routine.name = source.name
+        routine.duration_weeks = source.duration_weeks
+        routine.intensity = source.intensity
+        routine.has_no_materials_alternative = source.has_no_materials_alternative
+        routine.desired_weekly_volume = None
+        routine.days = _content_from_template(source)
     routine.draft = None
     routine.draft_version = (routine.draft_version or 0) + 1
     routine.status = "ACTIVE"
     routine.updated_at = utc_now()
+
+
+def sync_assigned_routine(
+    db: Session, relationship: TrainingRelationship, assigned: AssignedRoutine
+) -> StudentRoutine:
+    routine = db.scalar(select(StudentRoutine).where(StudentRoutine.relationship_id == relationship.id))
+    now = utc_now()
+    if routine is None:
+        routine = StudentRoutine(
+            relationship_id=relationship.id,
+            created_at=now,
+            draft_version=0,
+        )
+    _seed(routine, assigned)
+    routine.draft_version = 0
+    db.add(routine)
+    db.commit()
+    db.refresh(routine)
+    return routine
 
 
 # El entrenador reasignó la rutina: la copia vigente se reemplaza (el log de cambios se conserva).
@@ -140,16 +209,25 @@ def find_conflicts(
             )
         )
     }
-    zones = {
-        norm(z)
-        for z in db.scalars(select(ProtectedZone.body_area).where(ProtectedZone.student_id == relationship.student_id))
-    }
+    raw_zones = list(
+        db.scalars(select(ProtectedZone.body_area).where(ProtectedZone.student_id == relationship.student_id))
+    )
+    student_canonical: dict[str, str] = {}
+    for z in raw_zones:
+        if z:
+            k = canonical_zone_key(z)
+            if k:
+                student_canonical[k] = z
+
     conflicts: list[dict[str, str]] = []
     for field, entry in entries:
         ex = exercises.get(entry["exercise_id"])
-        conflict = sorted(zones & {norm(z) for z in ex.contraindicated_zones}) if ex else []
-        if conflict:
-            names = ", ".join(BODY_AREAS_ES.get(z, z) for z in conflict)
+        if not ex:
+            continue
+        ex_canonical = {canonical_zone_key(cz) for cz in (ex.contraindicated_zones or [])}
+        matching_keys = sorted(student_canonical.keys() & ex_canonical)
+        if matching_keys:
+            names = ", ".join(BODY_AREAS_ES.get(k, student_canonical[k]) for k in matching_keys)
             conflicts.append({"field": field, "message": f'"{ex.name}" está contraindicado por la limitación del alumno: {names}'})
     return conflicts, exercises
 

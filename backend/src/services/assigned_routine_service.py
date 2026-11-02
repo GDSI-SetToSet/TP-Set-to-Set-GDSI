@@ -1,5 +1,6 @@
 import logging
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Any
 
 from fastapi import status
@@ -246,6 +247,9 @@ def generate_ai_routine_proposal(
         name=proposal_result.name,
         duration_weeks=proposal_result.duration_weeks,
         intensity=proposal_result.intensity,
+        has_no_materials_alternative=getattr(
+            proposal_result, "has_no_materials_alternative", template.has_no_materials_alternative
+        ),
         status="PENDING_REVIEW",
         adaptation_summary=proposal_result.adaptation_summary,
         created_at=now,
@@ -261,6 +265,7 @@ def generate_ai_routine_proposal(
                 AssignedRoutineBlock(
                     order_index=block_data.order_index,
                     name=block_data.name,
+                    estimated_duration_minutes=block_data.estimated_duration_minutes,
                     exercises=[
                         AssignedRoutineExercise(
                             order_index=ex_data.order_index,
@@ -269,6 +274,9 @@ def generate_ai_routine_proposal(
                             reps=ex_data.reps,
                             rest_seconds=ex_data.rest_seconds,
                             adaptation_notes=ex_data.adaptation_notes,
+                            target_weight_kg=Decimal(str(ex_data.target_weight_kg))
+                            if ex_data.target_weight_kg is not None
+                            else None,
                         )
                         for ex_data in block_data.exercises
                     ],
@@ -317,9 +325,11 @@ def approve_assigned_routine(db: Session, user: User, routine_id: str) -> Assign
     routine.approved_at = now
     routine.updated_at = now
 
-    # Vincular en TrainingRelationship si no poseía rutina inicial configurada
-    if not relationship.initial_routine_id:
-        relationship.initial_routine_id = routine.id
+    relationship.initial_routine_id = routine.id
+
+    from backend.src.services.student_routine_service import sync_assigned_routine
+
+    sync_assigned_routine(db, relationship, routine)
 
     db.commit()
     db.refresh(routine)
@@ -335,10 +345,32 @@ def get_assigned_routine_detail(db: Session, user: User, routine_id: str) -> Ass
         trainer_profile = get_trainer_profile(db, user)
         if routine.trainer_id != trainer_profile.id:
             raise AssignedRoutineError(status.HTTP_403_FORBIDDEN, "No tenés permiso para ver esta rutina.")
+        has_active_rel = db.scalar(
+            select(TrainingRelationship.id).where(
+                TrainingRelationship.trainer_id == trainer_profile.id,
+                TrainingRelationship.student_id == routine.student_id,
+                TrainingRelationship.status == "ACTIVE",
+            )
+        )
+        if not has_active_rel:
+            raise AssignedRoutineError(
+                status.HTTP_403_FORBIDDEN, "No tenés un vínculo activo con este alumno."
+            )
     elif user.role == "STUDENT":
         student_profile = get_student_profile(db, user)
         if routine.student_id != student_profile.id:
             raise AssignedRoutineError(status.HTTP_403_FORBIDDEN, "No tenés permiso para ver esta rutina.")
+        has_active_rel = db.scalar(
+            select(TrainingRelationship.id).where(
+                TrainingRelationship.trainer_id == routine.trainer_id,
+                TrainingRelationship.student_id == student_profile.id,
+                TrainingRelationship.status == "ACTIVE",
+            )
+        )
+        if not has_active_rel:
+            raise AssignedRoutineError(
+                status.HTTP_403_FORBIDDEN, "No tenés un vínculo activo con este entrenador."
+            )
         # El alumno solo puede consultar rutinas aprobadas por su entrenador
         if routine.status != "APPROVED":
             raise AssignedRoutineError(
@@ -353,12 +385,18 @@ def get_assigned_routine_detail(db: Session, user: User, routine_id: str) -> Ass
 
 def get_active_routine_for_student(db: Session, user: User) -> AssignedRoutine | None:
     student_profile = get_student_profile(db, user)
-    # Busca la rutina aprobada más reciente del alumno
+    # Busca la rutina aprobada más reciente del alumno con vínculo activo
     query = (
         select(AssignedRoutine)
+        .join(
+            TrainingRelationship,
+            (TrainingRelationship.student_id == AssignedRoutine.student_id)
+            & (TrainingRelationship.trainer_id == AssignedRoutine.trainer_id),
+        )
         .where(
             AssignedRoutine.student_id == student_profile.id,
             AssignedRoutine.status == "APPROVED",
+            TrainingRelationship.status == "ACTIVE",
         )
         .order_by(AssignedRoutine.approved_at.desc(), AssignedRoutine.created_at.desc())
     )

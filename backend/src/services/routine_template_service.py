@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.src.core.constants import VALIDATION_ERROR_MESSAGE
+from backend.src.models.assigned_routine import AssignedRoutine
 from backend.src.models.exercise import Exercise
 from backend.src.models.routine_template import (
     RoutineTemplate,
@@ -13,6 +14,7 @@ from backend.src.models.routine_template import (
     RoutineTemplateExercisePrescription,
 )
 from backend.src.models.student_profile import StudentProfile
+from backend.src.models.student_routine import StudentRoutine
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.user import User
@@ -179,7 +181,7 @@ def get_student_template(db: Session, user: User, template_id: str) -> RoutineTe
     return template
 
 
-def get_assigned_student_template(db: Session, user: User) -> RoutineTemplate | None:
+def get_assigned_student_template(db: Session, user: User) -> RoutineTemplate | dict | None:
     profile = get_student_profile(db, user)
     relationship = db.scalar(
         select(TrainingRelationship)
@@ -192,12 +194,27 @@ def get_assigned_student_template(db: Session, user: User) -> RoutineTemplate | 
     )
     if relationship is None or relationship.initial_routine_id is None:
         return None
-    return db.scalar(
+    template = db.scalar(
         select(RoutineTemplate).where(
             RoutineTemplate.id == relationship.initial_routine_id,
             RoutineTemplate.trainer_id == relationship.trainer_id,
         )
     )
+    if template is not None:
+        return template
+    # Si initial_routine_id corresponde a una AssignedRoutine aprobada, renderizar vista
+    assigned = db.scalar(
+        select(AssignedRoutine).where(
+            AssignedRoutine.id == relationship.initial_routine_id,
+            AssignedRoutine.trainer_id == relationship.trainer_id,
+            AssignedRoutine.status == "APPROVED",
+        )
+    )
+    if assigned is not None:
+        from backend.src.services.student_routine_service import ensure_routine, render
+        sr = ensure_routine(db, relationship)
+        return render(db, sr)
+    return None
 
 
 def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | None]]:
@@ -215,22 +232,58 @@ def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | No
 
     assignments: list[dict[str, str | None]] = []
     for relationship, student, student_user in rows:
-        routine = None
+        routine_template_id = None
+        routine_name = None
         if relationship.initial_routine_id:
-            routine = db.scalar(
+            tpl = db.scalar(
                 select(RoutineTemplate).where(
                     RoutineTemplate.id == relationship.initial_routine_id,
                     RoutineTemplate.trainer_id == trainer.id,
                 )
             )
+            if tpl:
+                routine_template_id = tpl.id
+                routine_name = tpl.name
+            else:
+                ar = db.scalar(
+                    select(AssignedRoutine).where(
+                        AssignedRoutine.id == relationship.initial_routine_id,
+                        AssignedRoutine.trainer_id == trainer.id,
+                        AssignedRoutine.status == "APPROVED",
+                    )
+                )
+                if ar:
+                    routine_template_id = ar.id
+                    routine_name = ar.name
+                else:
+                    sr = db.scalar(
+                        select(StudentRoutine).where(
+                            StudentRoutine.relationship_id == relationship.id,
+                            StudentRoutine.status != "UNASSIGNED",
+                        )
+                    )
+                    if sr:
+                        routine_template_id = sr.id
+                        routine_name = sr.name
+        else:
+            sr = db.scalar(
+                select(StudentRoutine).where(
+                    StudentRoutine.relationship_id == relationship.id,
+                    StudentRoutine.status != "UNASSIGNED",
+                )
+            )
+            if sr:
+                routine_template_id = sr.id
+                routine_name = sr.name
+
         student_name = " ".join(part for part in (student.first_name, student.last_name) if part).strip()
         assignments.append(
             {
                 "relationship_id": relationship.id,
                 "student_id": student.id,
                 "student_name": student_name or student_user.email,
-                "routine_template_id": routine.id if routine else None,
-                "routine_name": routine.name if routine else None,
+                "routine_template_id": routine_template_id,
+                "routine_name": routine_name,
             }
         )
     return assignments
