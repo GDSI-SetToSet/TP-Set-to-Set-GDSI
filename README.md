@@ -115,7 +115,12 @@ PYTHONPATH=. pytest backend/tests --cov=backend/src --cov-report=term-missing
 
 ### Datos de demostración (Seed para demo académica)
 
-El repositorio incluye un script idempotente para inicializar datos ficticios de prueba (alumnos, entrenadores con paquetes publicados, cuestionarios de salud, solicitudes y vínculos activos) que permiten recorrer de punta a punta el flujo de descubrimiento, perfil público, solicitud e inbox de entrenadores.
+El repositorio incluye un script idempotente para inicializar datos ficticios de prueba (alumnos, entrenadores con paquetes publicados, cuestionarios de salud, solicitudes, vínculos activos, ejercicios y rutinas) que permiten recorrer de punta a punta el flujo de descubrimiento, perfil público, solicitud e inbox de entrenadores, y mostrar rutinas sin cargarlas en vivo:
+
+- **Lucas Benítez:** ejercicios y dos rutinas genéricas.
+- **Mariana Vega:** ejercicios, dos rutinas genéricas y a Martín Herrera con una rutina con IA aprobada.
+- **Gonzalo Morales:** ejercicios, dos rutinas genéricas, a Tomás Castro con una rutina asignada y una propuesta con IA pendiente de revisión.
+- **Ignacio Rossi y Camila Navarro:** sin ejercicios ni rutinas, para mostrar la carga manual.
 
 Para sembrar o actualizar los datos de demostración:
 
