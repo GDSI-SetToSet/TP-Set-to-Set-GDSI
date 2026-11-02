@@ -180,16 +180,37 @@ def sync_assigned_routine(
     return routine
 
 
+def _assignable_source(db: Session, routine_id: str | None) -> RoutineTemplate | AssignedRoutine | None:
+    if routine_id is None:
+        return None
+    return db.get(RoutineTemplate, routine_id) or db.get(AssignedRoutine, routine_id)
+
+
 # El entrenador reasignó la rutina: la copia vigente se reemplaza (el log de cambios se conserva).
 def on_reassign(db: Session, relationship_id: str, template_id: str | None) -> None:
     routine = db.scalar(select(StudentRoutine).where(StudentRoutine.relationship_id == relationship_id))
     if routine is None:
         return
-    if template_id is None:
+    source = _assignable_source(db, template_id)
+    if source is None:
         routine.status, routine.draft = "UNASSIGNED", None
     else:
-        _seed(routine, db.get(RoutineTemplate, template_id))
+        _seed(routine, source)
     db.commit()
+
+
+def preserve_student_copies(db: Session, trainer_id: str, routine_id: str) -> None:
+    """Deja a cada alumno activo con su copia propia antes de eliminar la rutina de origen."""
+    relationships = db.scalars(
+        select(TrainingRelationship).where(
+            TrainingRelationship.trainer_id == trainer_id,
+            TrainingRelationship.initial_routine_id == routine_id,
+            TrainingRelationship.status == "ACTIVE",
+        )
+    ).all()
+    for relationship in relationships:
+        ensure_routine(db, relationship)
+        relationship.initial_routine_id = None
 
 
 def get_routine(db: Session, user: User, student_id: str) -> StudentRoutine:
@@ -255,12 +276,16 @@ def current_conflicts(db: Session, routine: StudentRoutine) -> list[dict[str, st
 
 
 def template_conflicts(db: Session, relationship_id: str, template_id: str | None) -> list[str]:
-    """Avisos al asignar una plantilla: ejercicios que chocan con las zonas del alumno."""
-    template = db.get(RoutineTemplate, template_id) if template_id else None
+    """Avisos al asignar una rutina: ejercicios que chocan con las zonas del alumno."""
+    source = _assignable_source(db, template_id)
     relationship = db.get(TrainingRelationship, relationship_id)
-    if template is None or relationship is None:
+    if source is None or relationship is None:
         return []
-    return [c["message"] for c in find_conflicts(db, relationship, _content_from_template(template))[0]]
+    if isinstance(source, AssignedRoutine):
+        content = _content_from_assigned_routine(source)
+    else:
+        content = _content_from_template(source)
+    return [c["message"] for c in find_conflicts(db, relationship, content)[0]]
 
 
 def save_draft(db: Session, user: User, student_id: str, payload: RoutineDraftInput) -> StudentRoutine:

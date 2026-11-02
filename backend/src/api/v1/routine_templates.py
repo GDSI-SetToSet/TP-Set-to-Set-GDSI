@@ -16,6 +16,7 @@ from backend.src.services.routine_template_service import (
     RoutineTemplateError,
     assign_routine_to_student,
     create_template,
+    delete_template,
     get_assigned_student_template,
     get_own_template,
     get_student_template,
@@ -99,6 +100,14 @@ def edit_template(
 ) -> RoutineTemplateResponse:
     try:
         return RoutineTemplateResponse.model_validate(update_template(db, user, template_id, payload))
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_template(template_id: str, user: CurrentUser, db: DbDep) -> None:
+    try:
+        delete_template(db, user, template_id)
     except ServiceErrors as error:
         handle_error(error)
 

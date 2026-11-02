@@ -155,6 +155,15 @@ def update_template(db: Session, user: User, template_id: str, payload: RoutineT
     return template
 
 
+def delete_template(db: Session, user: User, template_id: str) -> None:
+    from backend.src.services.student_routine_service import preserve_student_copies
+
+    template = get_own_template(db, user, template_id)
+    preserve_student_copies(db, template.trainer_id, template.id)
+    db.delete(template)
+    db.commit()
+
+
 def active_trainer_ids(student_profile_id: str):
     return select(TrainingRelationship.trainer_id).where(
         TrainingRelationship.student_id == student_profile_id,
@@ -318,6 +327,16 @@ def assign_routine_to_student(
                 RoutineTemplate.trainer_id == trainer.id,
             )
         )
+        # Una rutina con IA solo se reasigna aprobada y al alumno para el que se adaptó (Principio II).
+        if routine is None:
+            routine = db.scalar(
+                select(AssignedRoutine).where(
+                    AssignedRoutine.id == routine_template_id,
+                    AssignedRoutine.trainer_id == trainer.id,
+                    AssignedRoutine.student_id == relationship.student_id,
+                    AssignedRoutine.status == "APPROVED",
+                )
+            )
         if routine is None:
             raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "Rutina no encontrada.")
 

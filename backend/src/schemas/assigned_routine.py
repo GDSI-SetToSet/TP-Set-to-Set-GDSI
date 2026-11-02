@@ -76,3 +76,11 @@ class AssignedRoutineResponse(BaseModel):
     created_at: datetime
     exercise_count: int
     days: list[AssignedRoutineDayResponse]
+
+
+class TrainerAIRoutineResponse(AssignedRoutineResponse):
+    """Rutina con IA tal como la ve el entrenador en "Mis rutinas"."""
+
+    student_name: str = ""
+    relationship_id: str = ""
+    is_assigned: bool = False
