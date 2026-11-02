@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
+from backend.src.core.rate_limiter import SimpleRateLimiter
 from backend.src.models.user import User
 from backend.src.schemas.assigned_routine import (
     ActiveStudentResponse,
@@ -22,6 +23,11 @@ from backend.src.services.student_service import StudentProfileError
 from backend.src.services.trainer_service import TrainerProfileError
 
 router = APIRouter(prefix=API_V1_PREFIX, tags=["assigned-routines"])
+ai_generate_limiter = SimpleRateLimiter(
+    max_requests=10,
+    window_seconds=60,
+    detail="Se superó el límite de generación de rutinas por minuto. Intentá nuevamente más tarde.",
+)
 CurrentUser = Annotated[User, Depends(get_current_user)]
 ServiceErrors = (AssignedRoutineError, TrainerProfileError, StudentProfileError)
 

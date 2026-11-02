@@ -78,3 +78,14 @@ def student_token_headers(client, registered_user):
     token = response.json()["access_token"]
 
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiters():
+    from backend.src.api.v1.assigned_routines import ai_generate_limiter
+    from backend.src.api.v1.auth import forgot_password_limiter
+    forgot_password_limiter.reset()
+    ai_generate_limiter.reset()
+    yield
+    forgot_password_limiter.reset()
+    ai_generate_limiter.reset()
