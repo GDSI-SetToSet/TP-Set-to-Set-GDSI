@@ -5,7 +5,7 @@ from typing import Any
 
 from fastapi import status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from backend.src.models.assigned_routine import (
     AssignedRoutine,
@@ -146,9 +146,22 @@ def list_active_students_for_trainer(db: Session, user: User) -> list[ActiveStud
         )
     )
 
+    if not relationships:
+        return []
+
+    student_ids = [rel.student_id for rel in relationships]
+    students = list(
+        db.scalars(
+            select(StudentProfile)
+            .where(StudentProfile.id.in_(student_ids))
+            .options(selectinload(StudentProfile.protected_zones))
+        )
+    )
+    student_map = {s.id: s for s in students}
+
     results: list[ActiveStudentResponse] = []
     for rel in relationships:
-        student = db.get(StudentProfile, rel.student_id)
+        student = student_map.get(rel.student_id)
         if not student:
             continue
         full_name = f"{student.first_name or ''} {student.last_name or ''}".strip() or "Alumno/a"

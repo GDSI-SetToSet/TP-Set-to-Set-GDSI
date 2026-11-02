@@ -230,51 +230,59 @@ def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | No
         .order_by(StudentProfile.last_name, StudentProfile.first_name)
     ).all()
 
+    if not rows:
+        return []
+
+    rel_ids = [rel.id for rel, _, _ in rows]
+    initial_routine_ids = [rel.initial_routine_id for rel, _, _ in rows if rel.initial_routine_id]
+
+    tpl_map: dict[str, str] = {}
+    if initial_routine_ids:
+        for tpl in db.scalars(
+            select(RoutineTemplate).where(
+                RoutineTemplate.id.in_(initial_routine_ids),
+                RoutineTemplate.trainer_id == trainer.id,
+            )
+        ):
+            tpl_map[tpl.id] = tpl.name
+
+    ar_map: dict[str, str] = {}
+    if initial_routine_ids:
+        for ar in db.scalars(
+            select(AssignedRoutine).where(
+                AssignedRoutine.id.in_(initial_routine_ids),
+                AssignedRoutine.trainer_id == trainer.id,
+                AssignedRoutine.status == "APPROVED",
+            )
+        ):
+            ar_map[ar.id] = ar.name
+
+    sr_map: dict[str, tuple[str, str]] = {}
+    if rel_ids:
+        for sr in db.scalars(
+            select(StudentRoutine).where(
+                StudentRoutine.relationship_id.in_(rel_ids),
+                StudentRoutine.status != "UNASSIGNED",
+            )
+        ):
+            sr_map[sr.relationship_id] = (sr.id, sr.name)
+
     assignments: list[dict[str, str | None]] = []
     for relationship, student, student_user in rows:
         routine_template_id = None
         routine_name = None
         if relationship.initial_routine_id:
-            tpl = db.scalar(
-                select(RoutineTemplate).where(
-                    RoutineTemplate.id == relationship.initial_routine_id,
-                    RoutineTemplate.trainer_id == trainer.id,
-                )
-            )
-            if tpl:
-                routine_template_id = tpl.id
-                routine_name = tpl.name
-            else:
-                ar = db.scalar(
-                    select(AssignedRoutine).where(
-                        AssignedRoutine.id == relationship.initial_routine_id,
-                        AssignedRoutine.trainer_id == trainer.id,
-                        AssignedRoutine.status == "APPROVED",
-                    )
-                )
-                if ar:
-                    routine_template_id = ar.id
-                    routine_name = ar.name
-                else:
-                    sr = db.scalar(
-                        select(StudentRoutine).where(
-                            StudentRoutine.relationship_id == relationship.id,
-                            StudentRoutine.status != "UNASSIGNED",
-                        )
-                    )
-                    if sr:
-                        routine_template_id = sr.id
-                        routine_name = sr.name
+            if relationship.initial_routine_id in tpl_map:
+                routine_template_id = relationship.initial_routine_id
+                routine_name = tpl_map[relationship.initial_routine_id]
+            elif relationship.initial_routine_id in ar_map:
+                routine_template_id = relationship.initial_routine_id
+                routine_name = ar_map[relationship.initial_routine_id]
+            elif relationship.id in sr_map:
+                routine_template_id, routine_name = sr_map[relationship.id]
         else:
-            sr = db.scalar(
-                select(StudentRoutine).where(
-                    StudentRoutine.relationship_id == relationship.id,
-                    StudentRoutine.status != "UNASSIGNED",
-                )
-            )
-            if sr:
-                routine_template_id = sr.id
-                routine_name = sr.name
+            if relationship.id in sr_map:
+                routine_template_id, routine_name = sr_map[relationship.id]
 
         student_name = " ".join(part for part in (student.first_name, student.last_name) if part).strip()
         assignments.append(
