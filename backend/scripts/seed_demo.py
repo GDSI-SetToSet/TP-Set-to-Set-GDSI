@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
 from backend.src.core.database import Base, SessionLocal, engine
+from backend.src.core.migrations import apply_migrations
 from backend.src.core.security import hash_password
 from backend.src.core.storage import UPLOADS_DIR
 from backend.src.models.assigned_routine import AssignedRoutine
@@ -508,6 +509,7 @@ def seed_demo_data(db: Session, verbose: bool = True) -> dict[str, int]:
     """Crea o actualiza de forma idempotente todos los datos de demostración."""
     # Asegurar que todas las tablas del esquema existan
     Base.metadata.create_all(bind=engine)
+    apply_migrations(engine)
 
     stats = {
         "trainers": 0,

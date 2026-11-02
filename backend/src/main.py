@@ -18,6 +18,7 @@ from backend.src.api.v1.students import router as students_router
 from backend.src.api.v1.trainers import router as trainers_router
 from backend.src.core.config import API_TITLE, API_VERSION, CORS_ALLOWED_ORIGINS
 from backend.src.core.database import Base, engine
+from backend.src.core.migrations import apply_migrations
 from backend.src.models import (  # noqa: F401
     AssignedRoutine,
     AssignedRoutineBlock,
@@ -50,6 +51,7 @@ def create_app(create_tables: bool = True) -> FastAPI:
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         if create_tables:
             Base.metadata.create_all(bind=engine)
+            apply_migrations(engine)
         yield
 
     app = FastAPI(title=API_TITLE, version=API_VERSION, lifespan=lifespan)
