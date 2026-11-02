@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-PHONE_PATTERN = re.compile(r"^\+?[0-9]{10,15}$")
+PHONE_PATTERN = re.compile(r"^\+?[0-9]{8,15}$")
 
 FitnessGoal = Literal[
     "fuerza", "hipertrofia", "resistencia", "perdida_de_peso", "salud_general", "movilidad_rehabilitacion"
@@ -33,14 +33,14 @@ class StudentProfileUpdate(BaseModel):
     @classmethod
     def validate_phone(cls, value: str | None) -> str | None:
         if value is not None and not PHONE_PATTERN.fullmatch(value):
-            raise ValueError("The contact phone must have 10 to 15 digits, with an optional leading '+'.")
+            raise ValueError("El teléfono de contacto debe tener entre 8 y 15 dígitos (puede comenzar con +).")
         return value
 
     @field_validator("fitness_goals")
     @classmethod
     def validate_unique_goals(cls, value: list[str]) -> list[str]:
         if len(set(value)) != len(value):
-            raise ValueError("Fitness goals must not repeat.")
+            raise ValueError("Los objetivos fitness no pueden repetirse.")
         return value
 
 

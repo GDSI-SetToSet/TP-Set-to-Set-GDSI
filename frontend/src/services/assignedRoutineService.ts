@@ -26,8 +26,3 @@ export async function approveAssignedRoutine(routineId: string): Promise<Assigne
   const { data } = await api.post<AssignedRoutine>(`/api/v1/routines/assigned/${routineId}/approve`);
   return data;
 }
-
-export async function getStudentAssignedRoutine(): Promise<AssignedRoutine | null> {
-  const { data } = await api.get<AssignedRoutine | null>('/api/v1/students/me/assigned-routine');
-  return data;
-}

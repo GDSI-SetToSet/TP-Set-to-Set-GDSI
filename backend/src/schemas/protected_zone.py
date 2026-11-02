@@ -11,11 +11,11 @@ class ProtectedZonesUpdate(BaseModel):
     def normalize_zones(cls, zones: list[str]) -> list[str]:
         normalized = [zone.strip() for zone in zones]
         if any(not zone for zone in normalized):
-            raise ValueError("Protected zones cannot be empty.")
+            raise ValueError("Las zonas protegidas no pueden estar vacías.")
         if any(len(zone) > 80 for zone in normalized):
-            raise ValueError("Protected zones cannot exceed 80 characters.")
+            raise ValueError("Las zonas protegidas no pueden superar los 80 caracteres.")
         if len({zone.casefold() for zone in normalized}) != len(normalized):
-            raise ValueError("Protected zones must not repeat.")
+            raise ValueError("Las zonas protegidas no pueden repetirse.")
         return normalized
 
 
