@@ -1722,3 +1722,85 @@ def test_assigned_routine_access_blocked_on_terminated_relationship(client):
     assert api.get(f"/api/v1/routines/assigned/{routine_id}", headers=trainer).status_code == 403
     assert api.get(f"/api/v1/routines/assigned/{routine_id}", headers=student).status_code == 403
     assert api.get(STUDENT_ASSIGNED_PATH, headers=student).json() is None
+
+def test_generate_ai_routine_rate_limiting(client, monkeypatch):
+    """AUD-11: Rate limiting en /routines/generate-ai (10 req/min por entrenador)."""
+    from unittest.mock import MagicMock
+
+    import backend.src.api.v1.assigned_routines as ar_module
+
+    api, sessions = client
+
+    # Entrenador A y Alumna A con vínculo activo
+    trainer_a = register_and_login(api, "coach_limiter_a@example.com", "TRAINER")
+    register_and_login(api, "student_limiter_a@example.com", "STUDENT")
+    _, student_a_id = setup_trainer_and_student_relationship(
+        sessions, "coach_limiter_a@example.com", "student_limiter_a@example.com", status="ACTIVE"
+    )
+    ex_a = create_exercise(api, trainer_a, name="Ejercicio A")
+    template_a = create_template(api, trainer_a, [ex_a])
+
+    # Entrenador B y Alumno B con vínculo activo
+    trainer_b = register_and_login(api, "coach_limiter_b@example.com", "TRAINER")
+    register_and_login(api, "student_limiter_b@example.com", "STUDENT")
+    _, student_b_id = setup_trainer_and_student_relationship(
+        sessions, "coach_limiter_b@example.com", "student_limiter_b@example.com", status="ACTIVE"
+    )
+    ex_b = create_exercise(api, trainer_b, name="Ejercicio B")
+    template_b = create_template(api, trainer_b, [ex_b])
+
+    # Instrumentar generate_ai_routine_proposal para verificar si se ejecuta o se aborta antes
+    real_generate_proposal = ar_module.generate_ai_routine_proposal
+    spy_proposal = MagicMock(side_effect=real_generate_proposal)
+    monkeypatch.setattr(ar_module, "generate_ai_routine_proposal", spy_proposal)
+
+    # 1. Las primeras 10 solicitudes del Entrenador A deben tener éxito
+    for i in range(10):
+        resp = api.post(
+            AI_GENERATE_PATH,
+            headers=trainer_a,
+            json={"student_id": student_a_id, "template_id": template_a["id"]},
+        )
+        assert resp.status_code == 201, f"Fallo en intento {i+1}: {resp.text}"
+
+    assert spy_proposal.call_count == 10
+
+    # 2. La solicitud número 11 es rechazada con HTTP 429
+    blocked_resp = api.post(
+        AI_GENERATE_PATH,
+        headers=trainer_a,
+        json={"student_id": student_a_id, "template_id": template_a["id"]},
+    )
+    assert blocked_resp.status_code == 429
+    assert "límite de generación de rutinas" in blocked_resp.json()["detail"].lower()
+
+    # 3. El rechazo no ejecuta la generación de IA (el conteo sigue en 10)
+    assert spy_proposal.call_count == 10
+
+    # 4. El límite es independiente por entrenador: Entrenador B puede generar sin bloqueo
+    resp_b = api.post(
+        AI_GENERATE_PATH,
+        headers=trainer_b,
+        json={"student_id": student_b_id, "template_id": template_b["id"]},
+    )
+    assert resp_b.status_code == 201
+    assert spy_proposal.call_count == 11
+
+    # 5. Comportamiento temporal: cuando expira la ventana deslizante, vuelve a permitirse
+    with sessions() as db:
+        user_a = db.scalar(select(User).where(User.email == "coach_limiter_a@example.com"))
+
+    # Desplazamos las marcas de tiempo 61 segundos al pasado
+    ar_module.ai_generate_limiter._records[user_a.id] = [
+        t - 61.0 for t in ar_module.ai_generate_limiter._records[user_a.id]
+    ]
+
+    # Ahora el Entrenador A puede generar nuevamente
+    resp_unblocked = api.post(
+        AI_GENERATE_PATH,
+        headers=trainer_a,
+        json={"student_id": student_a_id, "template_id": template_a["id"]},
+    )
+    assert resp_unblocked.status_code == 201
+    assert spy_proposal.call_count == 12
+

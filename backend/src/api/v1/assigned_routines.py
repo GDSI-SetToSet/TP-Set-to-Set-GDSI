@@ -56,6 +56,7 @@ def get_trainer_active_students(user: CurrentUser, db: DbDep) -> list[ActiveStud
 def generate_ai_routine(
     payload: GenerateAIRoutineInput, user: CurrentUser, db: DbDep
 ) -> AssignedRoutineResponse:
+    ai_generate_limiter.check(user.id)
     try:
         routine = generate_ai_routine_proposal(db, user, payload)
         return AssignedRoutineResponse.model_validate(routine)

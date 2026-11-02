@@ -977,39 +977,6 @@ def clean_demo_data(db: Session, verbose: bool = True) -> dict[str, int]:
         ).all():
             db.delete(ex)
 
-    # 4b. Limpieza de rutinas y ejercicios asociados a cuentas demo
-    if student_ids:
-        for sr in db.scalars(
-            select(StudentRoutine)
-            .join(TrainingRelationship, StudentRoutine.relationship_id == TrainingRelationship.id)
-            .where(TrainingRelationship.student_id.in_(student_ids))
-        ).all():
-            for rcl in db.scalars(
-                select(RoutineChangeLog).where(RoutineChangeLog.student_routine_id == sr.id)
-            ).all():
-                db.delete(rcl)
-            db.delete(sr)
-
-    if trainer_ids or student_ids:
-        for ar in db.scalars(
-            select(AssignedRoutine).where(
-                (AssignedRoutine.trainer_id.in_(trainer_ids))
-                | (AssignedRoutine.student_id.in_(student_ids))
-            )
-        ).all():
-            db.delete(ar)
-
-    if trainer_ids:
-        for rt in db.scalars(
-            select(RoutineTemplate).where(RoutineTemplate.trainer_id.in_(trainer_ids))
-        ).all():
-            db.delete(rt)
-
-        for ex in db.scalars(
-            select(Exercise).where(Exercise.trainer_id.in_(trainer_ids))
-        ).all():
-            db.delete(ex)
-
     # 5. Aptos médicos de alumnos demo (y sus archivos en disco)
     if student_ids:
         for mc in db.scalars(
