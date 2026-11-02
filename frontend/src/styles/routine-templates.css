@@ -124,3 +124,5 @@
   .routine-assignment__row { grid-template-columns: minmax(0, 1fr); }
   .routine-assignment__row > strong { padding-bottom: 0; }
 }
+
+.routine-card__ai { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: #4f46e5; font-size: 14px; font-weight: 700; }

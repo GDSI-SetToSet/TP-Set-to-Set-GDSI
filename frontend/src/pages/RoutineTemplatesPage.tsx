@@ -2,10 +2,13 @@ import axios from 'axios';
 import { ArrowLeft, CheckCircle2, Plus, Save, Sparkles, Trash2 } from 'lucide-react';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AIRoutineCard } from '../components/AIRoutineCard';
 import { RoutineTemplateCard } from '../components/RoutineTemplateCard';
 import { ROUTES } from '../constants/routes';
+import { approveAssignedRoutine, deleteAssignedRoutine, getTrainerAIRoutines } from '../services/assignedRoutineService';
 import { getExercises } from '../services/exerciseService';
-import { createRoutineTemplate, getRoutineTemplates, updateRoutineTemplate } from '../services/routineTemplateService';
+import { assignRoutineToStudent, createRoutineTemplate, deleteRoutineTemplate, getRoutineAssignments, getRoutineTemplates, updateRoutineTemplate } from '../services/routineTemplateService';
+import type { TrainerAIRoutine } from '../types/assignedRoutine';
 import { EXERCISE_CATEGORIES, type Exercise } from '../types/exercise';
 import { ROUTINE_INTENSITIES, type RoutineIntensity, type RoutineTemplate, type RoutineTemplateInput } from '../types/routineTemplate';
 
@@ -141,6 +144,7 @@ function toPayload(form: FormState, intensity: RoutineIntensity): RoutineTemplat
 
 export function RoutineTemplatesPage() {
   const [templates, setTemplates] = useState<RoutineTemplate[]>([]);
+  const [aiRoutines, setAIRoutines] = useState<TrainerAIRoutine[]>([]);
   const [library, setLibrary] = useState<Exercise[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editing, setEditing] = useState<RoutineTemplate | null>(null);
@@ -152,10 +156,11 @@ export function RoutineTemplatesPage() {
   const [formVisible, setFormVisible] = useState(false);
 
   useEffect(() => {
-    Promise.all([getRoutineTemplates(), getExercises()])
-      .then(([loadedTemplates, loadedExercises]) => {
+    Promise.all([getRoutineTemplates(), getExercises(), getTrainerAIRoutines()])
+      .then(([loadedTemplates, loadedExercises, loadedAIRoutines]) => {
         setTemplates(loadedTemplates);
         setLibrary(loadedExercises);
+        setAIRoutines(loadedAIRoutines);
       })
       .catch(() => setError('No pudimos cargar tus rutinas. Intentá nuevamente.'))
       .finally(() => setLoading(false));
@@ -268,6 +273,61 @@ export function RoutineTemplatesPage() {
     }
   }
 
+  // Las acciones sobre tarjetas comparten bloqueo y mensajes: se lanzan de a una.
+  async function runCardAction(action: () => Promise<string | void>) {
+    setMessage('');
+    setError('');
+    setSaving(true);
+    try {
+      const success = await action();
+      if (success) setMessage(success);
+    } catch (caught) {
+      handleError(caught);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleDeleteTemplate(template: RoutineTemplate) {
+    void runCardAction(async () => {
+      const assignments = await getRoutineAssignments();
+      const assigned = assignments.filter((item) => item.routine_template_id === template.id).length;
+      const impact = assigned > 0 ? ` Está asignada a ${assigned} alumno(s): la conservan como copia, pero ya no vas a poder reasignarla.` : '';
+      if (!window.confirm(`¿Eliminar "${template.name}"?${impact}`)) return;
+      await deleteRoutineTemplate(template.id);
+      setTemplates((current) => current.filter((item) => item.id !== template.id));
+      if (editing?.id === template.id) resetForm();
+      return 'Rutina eliminada.';
+    });
+  }
+
+  function handleDeleteAIRoutine(routine: TrainerAIRoutine) {
+    const impact = routine.is_assigned ? ` ${routine.student_name} la conserva como copia, pero ya no vas a poder reasignarla.` : '';
+    if (!window.confirm(`¿Eliminar "${routine.name}"?${impact}`)) return;
+    void runCardAction(async () => {
+      await deleteAssignedRoutine(routine.id);
+      setAIRoutines((current) => current.filter((item) => item.id !== routine.id));
+      return 'Rutina eliminada.';
+    });
+  }
+
+  function handleApproveAIRoutine(routine: TrainerAIRoutine) {
+    void runCardAction(async () => {
+      await approveAssignedRoutine(routine.id);
+      setAIRoutines(await getTrainerAIRoutines());
+      return `Rutina aprobada y asignada a ${routine.student_name}.`;
+    });
+  }
+
+  function handleReassignAIRoutine(routine: TrainerAIRoutine) {
+    void runCardAction(async () => {
+      const warnings = await assignRoutineToStudent(routine.relationship_id, routine.id);
+      setAIRoutines(await getTrainerAIRoutines());
+      const notice = warnings.length > 0 ? ` Atención: ${warnings.join(' ')}` : '';
+      return `Rutina asignada a ${routine.student_name}.${notice}`;
+    });
+  }
+
   if (loading) return <main className="loading-screen"><span className="loading-mark" /> Cargando rutinas…</main>;
 
   return (
@@ -282,7 +342,7 @@ export function RoutineTemplatesPage() {
           <h1>Tus rutinas</h1>
           <p>Creá y organizá las rutinas que después podés asignar a tus alumnos.</p>
           <div style={{ marginTop: '14px' }}>
-            <Link to={ROUTES.trainerGenerateAIRoutine} className="profile-cta" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#4f46e5' }}>
+            <Link to={ROUTES.trainerGenerateAIRoutine} state={{ from: 'routines' }} className="profile-cta" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#4f46e5' }}>
               <Sparkles size={16} /> Generar rutina particular con IA para un alumno
             </Link>
           </div>
@@ -293,6 +353,7 @@ export function RoutineTemplatesPage() {
           </button>
         </div>
         {message && <p className="profile-success routine-template-message" role="status"><CheckCircle2 size={18} /> {message}</p>}
+        {error && !formVisible && <p className="form-alert" role="alert">{error}</p>}
 
       {formVisible && (
         <div className="routine-template-form">
@@ -423,7 +484,27 @@ export function RoutineTemplatesPage() {
       <section className="plan-list" aria-label="Rutinas cargadas">
         {templates.length === 0
           ? <p className="plan-empty">Todavía no creaste rutinas.</p>
-          : templates.map((template) => <RoutineTemplateCard key={template.id} template={template} busy={saving} onEdit={startEditing} />)}
+          : templates.map((template) => <RoutineTemplateCard key={template.id} template={template} busy={saving} onEdit={startEditing} onDelete={handleDeleteTemplate} />)}
+      </section>
+
+      <section className="plan-list" aria-labelledby="ai-routines-title">
+        <div className="profile-heading">
+          <span>RUTINAS PARTICULARES</span>
+          <h2 id="ai-routines-title">Generadas con IA</h2>
+          <p>Quedan guardadas para revisarlas o reasignarlas a su alumno sin generarlas de nuevo.</p>
+        </div>
+        {aiRoutines.length === 0
+          ? <p className="plan-empty">Todavía no generaste rutinas con IA.</p>
+          : aiRoutines.map((routine) => (
+            <AIRoutineCard
+              key={routine.id}
+              routine={routine}
+              busy={saving}
+              onApprove={handleApproveAIRoutine}
+              onReassign={handleReassignAIRoutine}
+              onDelete={handleDeleteAIRoutine}
+            />
+          ))}
       </section>
       </section>
     </main>

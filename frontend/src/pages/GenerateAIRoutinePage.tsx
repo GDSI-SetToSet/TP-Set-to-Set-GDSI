@@ -7,12 +7,13 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import {
   approveAssignedRoutine,
   generateAIRoutine,
   getActiveStudents,
+  getTrainerAIRoutines,
 } from '../services/assignedRoutineService';
 import { getApiErrorInfo } from '../services/errorMessage';
 import { getRoutineTemplates } from '../services/routineTemplateService';
@@ -37,6 +38,8 @@ function getErrorHeading(status?: number, message?: string): string {
 }
 
 export function GenerateAIRoutinePage() {
+  const location = useLocation();
+  const cameFromRoutines = (location.state as { from?: string } | null)?.from === 'routines';
   const [students, setStudents] = useState<ActiveStudent[]>([]);
   const [templates, setTemplates] = useState<RoutineTemplate[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState('');
@@ -50,13 +53,15 @@ export function GenerateAIRoutinePage() {
   const [errorStatus, setErrorStatus] = useState<number | undefined>(undefined);
   const [canFallbackHeuristic, setCanFallbackHeuristic] = useState(false);
   const [proposal, setProposal] = useState<AssignedRoutine | null>(null);
+  const [savedRoutines, setSavedRoutines] = useState<AssignedRoutine[]>([]);
   const [approvedSuccess, setApprovedSuccess] = useState(false);
 
   useEffect(() => {
-    Promise.all([getActiveStudents(), getRoutineTemplates()])
-      .then(([studentsData, templatesData]) => {
+    Promise.all([getActiveStudents(), getRoutineTemplates(), getTrainerAIRoutines()])
+      .then(([studentsData, templatesData, savedData]) => {
         setStudents(studentsData);
         setTemplates(templatesData);
+        setSavedRoutines(savedData);
         if (studentsData.length > 0) setSelectedStudentId(studentsData[0].student_id);
         if (templatesData.length > 0) setSelectedTemplateId(templatesData[0].id);
       })
@@ -70,6 +75,10 @@ export function GenerateAIRoutinePage() {
 
   const selectedStudent = students.find((s) => s.student_id === selectedStudentId);
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId);
+  // El listado viene de la más reciente a la más antigua.
+  const savedForSelection = savedRoutines.find(
+    (r) => r.student_id === selectedStudentId && r.template_id === selectedTemplateId,
+  );
 
   async function handleGenerateProposal(providerOverride?: 'gemini' | 'heuristic') {
     if (!selectedStudentId || !selectedTemplateId || generating) return;
@@ -85,6 +94,7 @@ export function GenerateAIRoutinePage() {
         ...(providerOverride ? { provider: providerOverride } : {}),
       });
       setProposal(result);
+      setSavedRoutines((current) => [result, ...current]);
     } catch (err: unknown) {
       const info = getApiErrorInfo(err, 'Error al generar la propuesta con IA.');
       setError(info.message);
@@ -104,6 +114,7 @@ export function GenerateAIRoutinePage() {
     try {
       const updated = await approveAssignedRoutine(proposal.id);
       setProposal(updated);
+      setSavedRoutines((current) => current.map((r) => (r.id === updated.id ? updated : r)));
       setApprovedSuccess(true);
     } catch (err: unknown) {
       const info = getApiErrorInfo(err, 'Error al aprobar la rutina.');
@@ -133,8 +144,8 @@ export function GenerateAIRoutinePage() {
   return (
     <main className="profile-shell">
       <header className="profile-header">
-        <Link to={ROUTES.trainerRoutines} className="profile-back">
-          <ArrowLeft size={18} /> Volver a mis rutinas
+        <Link to={cameFromRoutines ? ROUTES.trainerRoutines : ROUTES.trainerHome} className="profile-back">
+          <ArrowLeft size={18} /> {cameFromRoutines ? 'Volver a mis rutinas' : 'Volver al inicio'}
         </Link>
       </header>
 
@@ -182,7 +193,10 @@ export function GenerateAIRoutinePage() {
             <CheckCircle2 size={24} />
             <div>
               <strong>¡Rutina aprobada y asignada exitosamente!</strong>
-              <p>Tu alumno ya tiene disponible su rutina personalizada en su espacio de entrenamiento.</p>
+              <p>
+                Tu alumno ya tiene disponible su rutina personalizada en su espacio de entrenamiento.
+                También quedó guardada en <Link to={ROUTES.trainerRoutines}>Mis rutinas</Link>.
+              </p>
             </div>
           </div>
         )}
@@ -259,6 +273,22 @@ export function GenerateAIRoutinePage() {
                 )}
               </div>
             </div>
+
+            {savedForSelection && (
+              <div className="ai-saved-notice" role="status">
+                <p>
+                  Ya generaste <strong>{savedForSelection.name}</strong> para este alumno con esta rutina base.
+                </p>
+                <button
+                  type="button"
+                  className="plan-action-btn"
+                  onClick={() => setProposal(savedForSelection)}
+                  disabled={generating}
+                >
+                  Abrir la rutina guardada
+                </button>
+              </div>
+            )}
 
             <div style={{ marginTop: '24px' }}>
               <button

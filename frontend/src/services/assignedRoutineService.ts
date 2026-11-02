@@ -3,6 +3,7 @@ import type {
   ActiveStudent,
   AssignedRoutine,
   GenerateAIRoutineInput,
+  TrainerAIRoutine,
 } from '../types/assignedRoutine';
 
 export async function getActiveStudents(): Promise<ActiveStudent[]> {
@@ -15,6 +16,15 @@ export async function generateAIRoutine(
 ): Promise<AssignedRoutine> {
   const { data } = await api.post<AssignedRoutine>('/api/v1/routines/generate-ai', payload);
   return data;
+}
+
+export async function getTrainerAIRoutines(): Promise<TrainerAIRoutine[]> {
+  const { data } = await api.get<TrainerAIRoutine[]>('/api/v1/routines/assigned');
+  return data;
+}
+
+export async function deleteAssignedRoutine(routineId: string): Promise<void> {
+  await api.delete(`/api/v1/routines/assigned/${routineId}`);
 }
 
 export async function getAssignedRoutine(routineId: string): Promise<AssignedRoutine> {

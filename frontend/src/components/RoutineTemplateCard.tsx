@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { RoutineTemplateDetail } from './RoutineTemplateDetail';
 import { ROUTINE_INTENSITIES, type RoutineTemplate } from '../types/routineTemplate';
@@ -7,9 +7,10 @@ interface RoutineTemplateCardProps {
   template: RoutineTemplate;
   busy?: boolean;
   onEdit?: (template: RoutineTemplate) => void;
+  onDelete?: (template: RoutineTemplate) => void;
 }
 
-export function RoutineTemplateCard({ template, busy = false, onEdit }: RoutineTemplateCardProps) {
+export function RoutineTemplateCard({ template, busy = false, onEdit, onDelete }: RoutineTemplateCardProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -27,6 +28,7 @@ export function RoutineTemplateCard({ template, busy = false, onEdit }: RoutineT
           {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />} {open ? 'Ocultar' : 'Ver detalle'}
         </button>
         {onEdit && <button type="button" onClick={() => onEdit(template)} disabled={busy}><Pencil size={16} /> Editar</button>}
+        {onDelete && <button type="button" onClick={() => onDelete(template)} disabled={busy}><Trash2 size={16} /> Eliminar</button>}
       </div>
     </article>
   );
