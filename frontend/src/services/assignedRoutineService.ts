@@ -4,6 +4,7 @@ import type {
   AssignedRoutine,
   GenerateAIRoutineInput,
   TrainerAIRoutine,
+  AssignedRoutineUpdatePayload,
 } from '../types/assignedRoutine';
 
 export async function getActiveStudents(): Promise<ActiveStudent[]> {
@@ -34,5 +35,14 @@ export async function getAssignedRoutine(routineId: string): Promise<AssignedRou
 
 export async function approveAssignedRoutine(routineId: string): Promise<AssignedRoutine> {
   const { data } = await api.post<AssignedRoutine>(`/api/v1/routines/assigned/${routineId}/approve`);
+  return data;
+}
+
+
+export async function updateAssignedRoutine(
+  routineId: string,
+  payload: AssignedRoutineUpdatePayload
+): Promise<AssignedRoutine> {
+  const { data } = await api.put<AssignedRoutine>(`/api/v1/routines/assigned/${routineId}`, payload);
   return data;
 }

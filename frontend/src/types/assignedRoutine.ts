@@ -64,3 +64,35 @@ export interface TrainerAIRoutine extends AssignedRoutine {
   relationship_id: string;
   is_assigned: boolean;
 }
+
+
+export interface AssignedRoutineExerciseUpdate {
+  exercise_id: string;
+  order_index?: number;
+  sets: number;
+  reps: string;
+  rest_seconds: number;
+  adaptation_notes?: string | null;
+  target_weight_kg?: number | null;
+}
+
+export interface AssignedRoutineBlockUpdate {
+  name: string;
+  order_index?: number;
+  estimated_duration_minutes?: number | null;
+  exercises: AssignedRoutineExerciseUpdate[];
+}
+
+export interface AssignedRoutineDayUpdate {
+  name: string;
+  order_index?: number;
+  blocks: AssignedRoutineBlockUpdate[];
+}
+
+export interface AssignedRoutineUpdatePayload {
+  name: string;
+  duration_weeks: number;
+  intensity: string;
+  has_no_materials_alternative?: boolean;
+  days: AssignedRoutineDayUpdate[];
+}

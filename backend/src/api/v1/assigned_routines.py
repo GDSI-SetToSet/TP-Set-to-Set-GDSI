@@ -9,6 +9,7 @@ from backend.src.models.user import User
 from backend.src.schemas.assigned_routine import (
     ActiveStudentResponse,
     AssignedRoutineResponse,
+    AssignedRoutineUpdateInput,
     GenerateAIRoutineInput,
     TrainerAIRoutineResponse,
 )
@@ -21,6 +22,7 @@ from backend.src.services.assigned_routine_service import (
     get_assigned_routine_detail,
     list_active_students_for_trainer,
     list_trainer_ai_routines,
+    update_assigned_routine,
 )
 from backend.src.services.student_service import StudentProfileError
 from backend.src.services.trainer_service import TrainerProfileError
@@ -87,6 +89,20 @@ def remove_assigned_routine(routine_id: str, user: CurrentUser, db: DbDep) -> No
 def get_assigned_routine(routine_id: str, user: CurrentUser, db: DbDep) -> AssignedRoutineResponse:
     try:
         routine = get_assigned_routine_detail(db, user, routine_id)
+        return AssignedRoutineResponse.model_validate(routine)
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@router.put("/routines/assigned/{routine_id}", response_model=AssignedRoutineResponse)
+def edit_assigned_routine(
+    routine_id: str,
+    payload: AssignedRoutineUpdateInput,
+    user: CurrentUser,
+    db: DbDep,
+) -> AssignedRoutineResponse:
+    try:
+        routine = update_assigned_routine(db, user, routine_id, payload)
         return AssignedRoutineResponse.model_validate(routine)
     except ServiceErrors as error:
         handle_error(error)

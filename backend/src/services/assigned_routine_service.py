@@ -21,6 +21,7 @@ from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.user import User
 from backend.src.schemas.assigned_routine import (
     ActiveStudentResponse,
+    AssignedRoutineUpdateInput,
     GenerateAIRoutineInput,
     TrainerAIRoutineResponse,
 )
@@ -458,3 +459,155 @@ def get_active_routine_for_student(db: Session, user: User) -> AssignedRoutine |
         .order_by(AssignedRoutine.approved_at.desc(), AssignedRoutine.created_at.desc())
     )
     return db.scalars(query).first()
+
+
+def update_assigned_routine(
+    db: Session, user: User, routine_id: str, payload: AssignedRoutineUpdateInput
+) -> AssignedRoutine:
+    """Actualiza manualmente una rutina asignada (borrador o aprobada) sin llamar a ningún proveedor de IA."""
+    require_trainer(user)
+    trainer_profile = get_trainer_profile(db, user)
+
+    routine = db.get(AssignedRoutine, routine_id)
+    if not routine or routine.trainer_id != trainer_profile.id:
+        raise AssignedRoutineError(status.HTTP_404_NOT_FOUND, "Rutina no encontrada.")
+
+    relationship = db.scalar(
+        select(TrainingRelationship).where(
+            TrainingRelationship.trainer_id == trainer_profile.id,
+            TrainingRelationship.student_id == routine.student_id,
+            TrainingRelationship.status == "ACTIVE",
+        )
+    )
+    if not relationship:
+        raise AssignedRoutineError(
+            status.HTTP_403_FORBIDDEN,
+            "No tenés un vínculo activo con este alumno para modificar su rutina.",
+        )
+
+    if payload.intensity not in INTENSITY_ORDER:
+        raise AssignedRoutineError(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Intensidad inválida ('{payload.intensity}').",
+        )
+
+    if not (1 <= payload.duration_weeks <= 52):
+        raise AssignedRoutineError(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "La duración en semanas debe estar entre 1 y 52.",
+        )
+
+    if not payload.days:
+        raise AssignedRoutineError(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "La rutina debe contener al menos un día de entrenamiento.",
+        )
+
+    student = db.get(StudentProfile, routine.student_id)
+    protected_zones = list(student.protected_zones) if student else []
+
+    allowed_exercises: dict[str, Exercise] = {
+        ex.id: ex
+        for ex in db.scalars(
+            select(Exercise).where(
+                Exercise.trainer_id == trainer_profile.id,
+                Exercise.deleted_at.is_(None),
+            )
+        )
+    }
+
+    has_at_least_one_exercise = False
+    for day_idx, day_input in enumerate(payload.days):
+        if not (day_input.name or "").strip():
+            raise AssignedRoutineError(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                f"El nombre del día {day_idx + 1} no puede estar vacío.",
+            )
+        for block_idx, block_input in enumerate(day_input.blocks):
+            if not (block_input.name or "").strip():
+                raise AssignedRoutineError(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    f"El nombre del bloque {block_idx + 1} no puede estar vacío.",
+                )
+            for ex_input in block_input.exercises:
+                has_at_least_one_exercise = True
+                exercise = allowed_exercises.get(ex_input.exercise_id)
+                if not exercise:
+                    raise AssignedRoutineError(
+                        status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        f"El ejercicio '{ex_input.exercise_id}' no pertenece a tu biblioteca activa.",
+                    )
+                conflict = _conflicts_with_zones(exercise, protected_zones)
+                if conflict:
+                    raise AssignedRoutineError(
+                        status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        f"El ejercicio '{exercise.name}' está contraindicado para la zona protegida '{conflict}' del alumno.",
+                    )
+                if not (SETS_MIN <= ex_input.sets <= SETS_MAX):
+                    raise AssignedRoutineError(
+                        status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        f"Las series deben estar entre {SETS_MIN} y {SETS_MAX}.",
+                    )
+                reps_clean = (ex_input.reps or "").strip()
+                if not is_valid_reps_format(reps_clean):
+                    raise AssignedRoutineError(
+                        status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        f"Formato de repeticiones inválido ('{reps_clean}').",
+                    )
+                if not (REST_MIN_SECONDS <= ex_input.rest_seconds <= REST_MAX_SECONDS):
+                    raise AssignedRoutineError(
+                        status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        f"El descanso debe estar entre {REST_MIN_SECONDS} y {REST_MAX_SECONDS} segundos.",
+                    )
+
+    if not has_at_least_one_exercise:
+        raise AssignedRoutineError(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "La rutina debe contener al menos un ejercicio.",
+        )
+
+    now = utc_now()
+    routine.name = payload.name.strip()
+    routine.duration_weeks = payload.duration_weeks
+    routine.intensity = payload.intensity
+    routine.has_no_materials_alternative = payload.has_no_materials_alternative
+    routine.updated_at = now
+
+    routine.days = [
+        AssignedRoutineDay(
+            order_index=d_i,
+            name=day_data.name.strip(),
+            blocks=[
+                AssignedRoutineBlock(
+                    order_index=b_i,
+                    name=block_data.name.strip(),
+                    estimated_duration_minutes=block_data.estimated_duration_minutes,
+                    exercises=[
+                        AssignedRoutineExercise(
+                            order_index=e_i,
+                            exercise_id=ex_data.exercise_id,
+                            sets=ex_data.sets,
+                            reps=ex_data.reps.strip(),
+                            rest_seconds=ex_data.rest_seconds,
+                            adaptation_notes=ex_data.adaptation_notes.strip() if ex_data.adaptation_notes else None,
+                            target_weight_kg=Decimal(str(ex_data.target_weight_kg))
+                            if ex_data.target_weight_kg is not None
+                            else None,
+                        )
+                        for e_i, ex_data in enumerate(block_data.exercises)
+                    ],
+                )
+                for b_i, block_data in enumerate(day_data.blocks)
+            ],
+        )
+        for d_i, day_data in enumerate(payload.days)
+    ]
+
+    if routine.status == "APPROVED":
+        from backend.src.services.student_routine_service import sync_assigned_routine
+
+        sync_assigned_routine(db, relationship, routine)
+
+    db.commit()
+    db.refresh(routine)
+    return routine
