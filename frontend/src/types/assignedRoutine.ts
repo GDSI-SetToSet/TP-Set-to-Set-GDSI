@@ -58,3 +58,9 @@ export interface AssignedRoutine {
   exercise_count: number;
   days: AssignedRoutineDay[];
 }
+
+export interface TrainerAIRoutine extends AssignedRoutine {
+  student_name: string;
+  relationship_id: string;
+  is_assigned: boolean;
+}

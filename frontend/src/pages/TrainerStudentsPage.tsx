@@ -3,17 +3,23 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { RoutineAssignmentPanel } from '../components/RoutineAssignmentPanel';
 import { ROUTES } from '../constants/routes';
+import { getTrainerAIRoutines } from '../services/assignedRoutineService';
 import { getRoutineTemplates } from '../services/routineTemplateService';
+import type { TrainerAIRoutine } from '../types/assignedRoutine';
 import type { RoutineTemplate } from '../types/routineTemplate';
 
 export function TrainerStudentsPage() {
   const [templates, setTemplates] = useState<RoutineTemplate[]>([]);
+  const [aiRoutines, setAIRoutines] = useState<TrainerAIRoutine[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    getRoutineTemplates()
-      .then(setTemplates)
+    Promise.all([getRoutineTemplates(), getTrainerAIRoutines()])
+      .then(([loadedTemplates, loadedAIRoutines]) => {
+        setTemplates(loadedTemplates);
+        setAIRoutines(loadedAIRoutines);
+      })
       .catch(() => setError('No pudimos cargar tus rutinas. Intentá nuevamente.'))
       .finally(() => setLoading(false));
   }, []);
@@ -33,7 +39,7 @@ export function TrainerStudentsPage() {
           <p>Consultá tus vínculos activos y asigná a cada alumno la rutina que va a ver en “Rutina del día”.</p>
         </div>
         {error && <p className="form-alert" role="alert">{error}</p>}
-        {!error && <RoutineAssignmentPanel templates={templates} />}
+        {!error && <RoutineAssignmentPanel templates={templates} aiRoutines={aiRoutines} />}
       </section>
     </main>
   );

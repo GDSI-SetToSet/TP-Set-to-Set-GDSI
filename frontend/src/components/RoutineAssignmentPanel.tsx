@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { assignRoutineToStudent, getRoutineAssignments } from '../services/routineTemplateService';
+import type { TrainerAIRoutine } from '../types/assignedRoutine';
 import type { RoutineAssignmentStudent, RoutineTemplate } from '../types/routineTemplate';
 
 interface RoutineAssignmentPanelProps {
   templates: RoutineTemplate[];
+  aiRoutines: TrainerAIRoutine[];
 }
 
-export function RoutineAssignmentPanel({ templates }: RoutineAssignmentPanelProps) {
+export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignmentPanelProps) {
   const [students, setStudents] = useState<RoutineAssignmentStudent[]>([]);
   const [selectedRoutines, setSelectedRoutines] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -27,6 +29,13 @@ export function RoutineAssignmentPanel({ templates }: RoutineAssignmentPanelProp
       .finally(() => setLoading(false));
   }, []);
 
+  const approvedAIRoutines = (studentId: string) => aiRoutines.filter((item) => item.student_id === studentId && item.status === 'APPROVED');
+
+  // La rutina vigente puede ser una copia cuyo origen ya no existe: se muestra, pero no se reasigna.
+  const isDetachedCopy = (student: RoutineAssignmentStudent) => Boolean(student.routine_template_id)
+    && !templates.some((item) => item.id === student.routine_template_id)
+    && !approvedAIRoutines(student.student_id).some((item) => item.id === student.routine_template_id);
+
   async function saveAssignment(student: RoutineAssignmentStudent) {
     setSavingId(student.relationship_id);
     setError('');
@@ -36,7 +45,7 @@ export function RoutineAssignmentPanel({ templates }: RoutineAssignmentPanelProp
       const routineTemplateId = selectedRoutines[student.relationship_id] || null;
       const conflicts = await assignRoutineToStudent(student.relationship_id, routineTemplateId);
       setWarnings(conflicts);
-      const routine = templates.find((item) => item.id === routineTemplateId);
+      const routine = [...templates, ...aiRoutines].find((item) => item.id === routineTemplateId);
       setStudents((current) => current.map((item) => item.relationship_id === student.relationship_id
         ? { ...item, routine_template_id: routineTemplateId, routine_name: routine?.name ?? null }
         : item));
@@ -78,14 +87,16 @@ export function RoutineAssignmentPanel({ templates }: RoutineAssignmentPanelProp
                   }))}
                 >
                   <option value="">Sin rutina asignada</option>
+                  {isDetachedCopy(student) && <option value={student.routine_template_id ?? ''}>{student.routine_name} (actual)</option>}
                   {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
+                  {approvedAIRoutines(student.student_id).map((routine) => <option key={routine.id} value={routine.id}>{routine.name} (IA)</option>)}
                 </select>
               </label>
               <button
                 type="button"
                 className="profile-save"
                 onClick={() => void saveAssignment(student)}
-                disabled={savingId === student.relationship_id}
+                disabled={savingId === student.relationship_id || (isDetachedCopy(student) && selectedRoutines[student.relationship_id] === student.routine_template_id)}
               >
                 {savingId === student.relationship_id ? 'Guardando…' : 'Guardar asignación'}
               </button>

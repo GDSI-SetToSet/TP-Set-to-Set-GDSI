@@ -10,14 +10,17 @@ from backend.src.schemas.assigned_routine import (
     ActiveStudentResponse,
     AssignedRoutineResponse,
     GenerateAIRoutineInput,
+    TrainerAIRoutineResponse,
 )
 from backend.src.services.assigned_routine_service import (
     AssignedRoutineError,
     approve_assigned_routine,
+    delete_assigned_routine,
     generate_ai_routine_proposal,
     get_active_routine_for_student,
     get_assigned_routine_detail,
     list_active_students_for_trainer,
+    list_trainer_ai_routines,
 )
 from backend.src.services.student_service import StudentProfileError
 from backend.src.services.trainer_service import TrainerProfileError
@@ -60,6 +63,22 @@ def generate_ai_routine(
     try:
         routine = generate_ai_routine_proposal(db, user, payload)
         return AssignedRoutineResponse.model_validate(routine)
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@router.get("/routines/assigned", response_model=list[TrainerAIRoutineResponse])
+def get_trainer_ai_routines(user: CurrentUser, db: DbDep) -> list[TrainerAIRoutineResponse]:
+    try:
+        return list_trainer_ai_routines(db, user)
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@router.delete("/routines/assigned/{routine_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_assigned_routine(routine_id: str, user: CurrentUser, db: DbDep) -> None:
+    try:
+        delete_assigned_routine(db, user, routine_id)
     except ServiceErrors as error:
         handle_error(error)
 

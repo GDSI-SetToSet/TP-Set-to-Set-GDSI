@@ -242,3 +242,18 @@
   border: 1px solid #b45309;
   color: #92400e;
 }
+
+.ai-saved-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 12px 14px;
+  border: 1px solid #e0e7ff;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.ai-saved-notice p { margin: 0; }

@@ -18,6 +18,10 @@ export async function updateRoutineTemplate(templateId: string, payload: Routine
   return data;
 }
 
+export async function deleteRoutineTemplate(templateId: string): Promise<void> {
+  await api.delete(`${TEMPLATES_PATH}/${templateId}`);
+}
+
 export async function getStudentRoutineTemplates(): Promise<RoutineTemplate[]> {
   const { data } = await api.get<RoutineTemplate[]>('/api/v1/students/me/routine-templates');
   return data;

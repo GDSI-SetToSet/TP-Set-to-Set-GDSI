@@ -22,6 +22,7 @@ from backend.src.models.user import User
 from backend.src.schemas.assigned_routine import (
     ActiveStudentResponse,
     GenerateAIRoutineInput,
+    TrainerAIRoutineResponse,
 )
 from backend.src.services.ai_routine_adapter import (
     INTENSITY_ORDER,
@@ -347,6 +348,49 @@ def approve_assigned_routine(db: Session, user: User, routine_id: str) -> Assign
     db.commit()
     db.refresh(routine)
     return routine
+
+
+def list_trainer_ai_routines(db: Session, user: User) -> list[TrainerAIRoutineResponse]:
+    """Rutinas con IA del entrenador; el vínculo activo se exige porque el resumen expone datos de salud."""
+    require_trainer(user)
+    trainer_profile = get_trainer_profile(db, user)
+    rows = db.execute(
+        select(AssignedRoutine, TrainingRelationship)
+        .join(
+            TrainingRelationship,
+            (TrainingRelationship.student_id == AssignedRoutine.student_id)
+            & (TrainingRelationship.trainer_id == AssignedRoutine.trainer_id),
+        )
+        .where(
+            AssignedRoutine.trainer_id == trainer_profile.id,
+            TrainingRelationship.status == "ACTIVE",
+        )
+        .order_by(AssignedRoutine.created_at.desc())
+    ).all()
+    return [
+        TrainerAIRoutineResponse.model_validate(routine).model_copy(
+            update={
+                "student_name": f"{routine.student.first_name or ''} {routine.student.last_name or ''}".strip()
+                or "Alumno/a",
+                "relationship_id": relationship.id,
+                "is_assigned": relationship.initial_routine_id == routine.id,
+            }
+        )
+        for routine, relationship in rows
+    ]
+
+
+def delete_assigned_routine(db: Session, user: User, routine_id: str) -> None:
+    from backend.src.services.student_routine_service import preserve_student_copies
+
+    require_trainer(user)
+    trainer_profile = get_trainer_profile(db, user)
+    routine = db.get(AssignedRoutine, routine_id)
+    if routine is None or routine.trainer_id != trainer_profile.id:
+        raise AssignedRoutineError(status.HTTP_404_NOT_FOUND, "Rutina no encontrada.")
+    preserve_student_copies(db, trainer_profile.id, routine.id)
+    db.delete(routine)
+    db.commit()
 
 
 def get_assigned_routine_detail(db: Session, user: User, routine_id: str) -> AssignedRoutine:
