@@ -41,8 +41,73 @@ REPS_MAX_VALUE = 100
 ADAPTATION_NOTE_MAX_LENGTH = 255
 
 _REPS_FORMAT_PATTERN = re.compile(
-    r"^(\d{1,3})(?:\s*-\s*(\d{1,3}))?(?:\s+[a-zA-ZáéíóúÁÉÍÓÚñÑ/.\s]{1,35})?$"
+    r"^(\d{1,3})(?:\s*-\s*(\d{1,3}))?(?:\s*[a-zA-ZáéíóúÁÉÍÓÚñÑ/.\s]{1,35})?$"
 )
+
+
+def normalize_exercise_name(name: str | None) -> str:
+    """Normaliza el nombre de un ejercicio para comparaciones semánticas libres de acentos y puntuación."""
+    import unicodedata
+
+    if not name:
+        return ""
+    nfkd = unicodedata.normalize("NFKD", name.strip().lower())
+    ascii_text = "".join(c for c in nfkd if not unicodedata.combining(c))
+    return re.sub(r"[^a-z0-9]", "", ascii_text)
+
+
+def find_safe_substitute(
+    orig_exercise: Exercise,
+    protected_zones: list[ProtectedZone],
+    catalog: list[Exercise],
+    exclude_ids: set[str] | None = None,
+) -> Exercise | None:
+    """Encuentra un sustituto seguro y biomecánicamente compatible en el catálogo del entrenador.
+
+    Reglas deterministas obligatorias:
+    1. Nunca puede ser el mismo ejercicio (ni por ID ni por nombre normalizado).
+    2. Nunca puede comprometer ninguna zona corporal protegida del alumno.
+    3. No puede ser un ejercicio ya excluido (por ejemplo, ya conservado en la misma rutina/bloque).
+    4. Prioridad de compatibilidad funcional:
+       a) Mismo grupo muscular y misma categoría de ejercicio.
+       b) Mismo grupo muscular.
+       c) Misma categoría.
+       d) Cualquier candidato del catálogo libre de contraindicaciones.
+    """
+    excluded = exclude_ids or set()
+    orig_norm_name = normalize_exercise_name(orig_exercise.name)
+    safe_candidates: list[Exercise] = []
+
+    for cand in catalog:
+        if cand.deleted_at is not None:
+            continue
+        if cand.id == orig_exercise.id or cand.id in excluded:
+            continue
+        if normalize_exercise_name(cand.name) == orig_norm_name:
+            continue
+        if _conflicts_with_zones(cand, protected_zones) is not None:
+            continue
+        safe_candidates.append(cand)
+
+    if not safe_candidates:
+        return None
+
+    same_muscle_and_cat = [
+        c for c in safe_candidates
+        if c.target_muscle_group == orig_exercise.target_muscle_group and c.category == orig_exercise.category
+    ]
+    if same_muscle_and_cat:
+        return same_muscle_and_cat[0]
+
+    same_muscle = [c for c in safe_candidates if c.target_muscle_group == orig_exercise.target_muscle_group]
+    if same_muscle:
+        return same_muscle[0]
+
+    same_cat = [c for c in safe_candidates if c.category == orig_exercise.category]
+    if same_cat:
+        return same_cat[0]
+
+    return safe_candidates[0]
 
 
 def is_valid_reps_format(reps: str | None) -> bool:
@@ -192,13 +257,20 @@ class AIRoutineAdapter(ABC):
         pass
 
 
-def _conflicts_with_zones(exercise: Exercise, zones: list[ProtectedZone]) -> str | None:
+def _conflicts_with_zones(exercise: Exercise, zones: list[ProtectedZone | str]) -> str | None:
     """Verifica si el ejercicio compromete alguna de las zonas corporales protegidas."""
     if not zones:
         return None
 
+    def _area_str(z: ProtectedZone | str) -> str:
+        return z.body_area if hasattr(z, "body_area") else str(z)
+
     # 1. Comparación canónica con exercise.contraindicated_zones
-    student_canonical = {canonical_zone_key(z.body_area): z.body_area for z in zones if z.body_area}
+    student_canonical = {
+        canonical_zone_key(_area_str(z)): _area_str(z)
+        for z in zones
+        if _area_str(z)
+    }
     if exercise.contraindicated_zones:
         for cz in exercise.contraindicated_zones:
             cz_canon = canonical_zone_key(cz)
@@ -232,12 +304,13 @@ def _conflicts_with_zones(exercise: Exercise, zones: list[ProtectedZone]) -> str
     }
 
     for zone in zones:
-        area_lower = zone.body_area.lower()
+        area_str = _area_str(zone)
+        area_lower = area_str.lower()
         if area_lower in searchable_text:
-            return zone.body_area
+            return area_str
         for key, tokens in zone_keywords.items():
             if key in area_lower and any(token in searchable_text for token in tokens):
-                return zone.body_area
+                return area_str
     return None
 
 
@@ -279,14 +352,7 @@ class HeuristicAIRoutineAdapter(AIRoutineAdapter):
                     f"Intensidad ajustada de {current_intensity} a {target_intensity} por antecedentes de salud informados."
                 )
 
-        # 2. Catálogo de ejercicios disponibles para reemplazo
-        available_alternatives = [
-            e
-            for e in trainer_exercises
-            if e.deleted_at is None and _conflicts_with_zones(e, protected_zones) is None
-        ]
-
-        # 3. Procesamiento y adaptación de días, bloques y ejercicios
+        # 2. Procesamiento y adaptación de días, bloques y ejercicios
         adapted_days: list[AdaptedDayData] = []
 
         for day in template.days:
@@ -301,21 +367,33 @@ class HeuristicAIRoutineAdapter(AIRoutineAdapter):
                     adaptation_note = None
 
                     if conflict_zone:
-                        # Buscar alternativa segura en la biblioteca del entrenador
-                        candidates = [e for e in available_alternatives if e.id != orig_ex.id]
-                        if candidates:
-                            # Preferir ejercicio de categoría similar
-                            same_cat = [e for e in candidates if e.category == orig_ex.category]
-                            replacement = same_cat[0] if same_cat else candidates[0]
+                        # Buscar alternativa segura y compatible en la biblioteca del entrenador
+                        used_in_routine = {
+                            ex_item.exercise_id
+                            for day_it in adapted_days
+                            for blk_it in day_it.blocks
+                            for ex_item in blk_it.exercises
+                        } | {
+                            ex_item.exercise_id
+                            for blk_it in adapted_blocks
+                            for ex_item in blk_it.exercises
+                        }
+                        replacement = find_safe_substitute(
+                            orig_exercise=orig_ex,
+                            protected_zones=protected_zones,
+                            catalog=trainer_exercises,
+                            exclude_ids=used_in_routine,
+                        )
+                        if replacement:
                             selected_exercise_id = replacement.id
                             adaptation_note = (
-                                f"Sustituido '{orig_ex.name}' por '{replacement.name}' para proteger {conflict_zone}."
+                                f"[REPLACE] Sustituido '{orig_ex.name}' por '{replacement.name}' para proteger {conflict_zone}."
                             )
                             modifications_log.append(adaptation_note)
                         else:
-                            # Si no hay alternativa segura, eliminar el ejercicio de la rutina
+                            # Si no hay alternativa segura, eliminar el ejercicio de la rutina con aviso explícito
                             modifications_log.append(
-                                f"Eliminado '{orig_ex.name}' por incompatibilidad con zona protegida '{conflict_zone}' sin alternativa disponible."
+                                f"[REMOVE] Eliminado '{orig_ex.name}' por contraindicación con zona protegida '{conflict_zone}' sin sustituto seguro disponible en el catálogo."
                             )
                             continue
 
@@ -407,27 +485,27 @@ class HeuristicAIRoutineAdapter(AIRoutineAdapter):
 
 
 GEMINI_SYSTEM_INSTRUCTION = (
-    "Sos un asistente técnico de planificación de entrenamiento físico para entrenadores personales en Taskify.\n"
+    "Sos un asistente técnico de planificación de entrenamiento físico para entrenadores personales en Set to Set.\n"
     "Tu única función es proponer una adaptación estructurada de una rutina genérica en base a los objetivos de entrenamiento, "
     "las zonas corporales a proteger y las restricciones reportadas por el alumno.\n\n"
     "REGLAS OBLIGATORIAS:\n"
     "1. Para cada ejercicio de la rutina genérica debés indicar una acción explícita en el campo 'action':\n"
-    "   - 'KEEP': conservar el ejercicio original (ajustando series, repeticiones y descanso según los objetivos).\n"
+    "   - 'KEEP': conservar el ejercicio original cuando NO comprometa zonas protegidas ni presente contraindicaciones.\n"
     "   - 'REPLACE': sustituir el ejercicio original cuando comprometa una zona protegida o restricción del alumno, "
-    "eligiendo EXCLUSIVAMENTE un 'replacement_exercise_id' presente en 'available_exercises_catalog' que sea seguro.\n"
+    "eligiendo EXCLUSIVAMENTE un 'replacement_exercise_id' presente en 'available_exercises_catalog' que sea seguro. "
+    "NUNCA propongas como sustituto el mismo ejercicio ni una variante con el mismo nombre o contraindicación.\n"
     "   - 'REMOVE': eliminar el ejercicio cuando sea inadecuado para las zonas protegidas o restricciones del alumno y "
     "no exista un ejercicio sustituto seguro en 'available_exercises_catalog'.\n"
     "2. Jamás inventes ni modifiques identificadores ('original_exercise_id' o 'replacement_exercise_id').\n"
-    "3. Respetá estrictamente los rangos del dominio para ejercicios con acción KEEP o REPLACE:\n"
+    "3. Respetá estrictamente los rangos y formatos del dominio para ejercicios con acción KEEP o REPLACE:\n"
     "   - 'sets': entero entre 1 y 20.\n"
-    "   - 'reps': texto no vacío de hasta 50 caracteres (ej. '8-12', '15', '5-6').\n"
+    "   - 'reps': texto no vacío de hasta 50 caracteres indicando repeticiones o duración (ej. '10', '8-12', '12 c/l', '30s', '45s').\n"
     "   - 'rest_seconds': entero entre 0 y 600.\n"
     "   - 'intensity': únicamente uno de 'BAJA', 'MEDIA', 'ALTA', 'EXIGENTE'.\n"
-    "4. En 'reason' incluí una justificación breve en español para el entrenador.\n"
+    "4. En 'reason' incluí una justificación breve en español para el entrenador, diferenciando si fue conservado, sustituido o eliminado.\n"
     "5. LÍMITE DE SEGURIDAD NO CLÍNICO: NO realices diagnósticos médicos, NO prescribas tratamientos clínicos para lesiones "
-    "o enfermedades y NO afirmes que una rutina es médicamente segura. Si los datos de entrada sugieren riesgo médico, "
-    "reducí preventivamente la exigencia física sin emitir recomendaciones clínicas. Toda propuesta queda sujeta a la "
-    "revisión del entrenador y no sustituye la evaluación de un profesional de la salud."
+    "o enfermedades y NO afirmes que una rutina es médicamente segura. Toda propuesta queda sujeta a la "
+    "revisión y edición manual obligatoria del entrenador (Human-in-the-Loop)."
 )
 
 
@@ -727,7 +805,24 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                                 ),
                                 error_code="GEMINI_INVALID_SUBSTITUTE",
                             )
-                        if rep_id == orig_id or rep_id in kept_exercise_ids:
+                        if rep_id == orig_id:
+                            raise AIRoutineAdapterError(
+                                status_code=status.HTTP_502_BAD_GATEWAY,
+                                detail=(
+                                    f"La propuesta de Gemini intentó sustituir el ejercicio '{orig_exercise.name}' por el mismo ejercicio (mismo ID)."
+                                ),
+                                error_code="GEMINI_INVALID_SUBSTITUTE",
+                            )
+                        candidate = catalog_by_id[rep_id]
+                        if normalize_exercise_name(candidate.name) == normalize_exercise_name(orig_exercise.name):
+                            raise AIRoutineAdapterError(
+                                status_code=status.HTTP_502_BAD_GATEWAY,
+                                detail=(
+                                    f"La propuesta de Gemini intentó sustituir '{orig_exercise.name}' por una variante con el mismo nombre ('{candidate.name}')."
+                                ),
+                                error_code="GEMINI_INVALID_SUBSTITUTE",
+                            )
+                        if rep_id in kept_exercise_ids:
                             raise AIRoutineAdapterError(
                                 status_code=status.HTTP_502_BAD_GATEWAY,
                                 detail=(
@@ -735,7 +830,7 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                                 ),
                                 error_code="GEMINI_DUPLICATE_EXERCISE",
                             )
-                        target_exercise = catalog_by_id[rep_id]
+                        target_exercise = candidate
                         note_prefix = f"[REPLACE] Sustituido '{orig_exercise.name}' por '{target_exercise.name}': "
                     else:  # KEEP
                         if (
@@ -762,7 +857,7 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                         )
                     block_final_exercise_ids.add(target_exercise.id)
 
-                    # Validar que el ejercicio final no comprometa zonas protegidas del alumno
+                    # Verificación final determinista: asegurar que el ejercicio seleccionado nunca viole zonas protegidas
                     conflict_zone = _conflicts_with_zones(target_exercise, protected_zones)
                     if conflict_zone:
                         raise AIRoutineAdapterError(
@@ -939,7 +1034,7 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                     system_instruction=GEMINI_SYSTEM_INSTRUCTION,
                     response_mime_type="application/json",
                     response_schema=GeminiRoutineAdaptationSchema,
-                    temperature=0.2,
+                    temperature=0.0,
                 ),
             )
         except AIRoutineAdapterError:
