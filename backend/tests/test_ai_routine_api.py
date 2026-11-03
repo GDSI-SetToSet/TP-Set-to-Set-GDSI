@@ -1293,6 +1293,286 @@ def test_gemini_duplicate_exercises_in_block_or_kept_collision_rejected(client, 
         assert "duplicado" in resp.json()["detail"].lower()
 
 
+def test_gemini_allows_same_exercise_in_different_days_and_blocks(client, monkeypatch):
+    """Verifica que una plantilla con el mismo ejercicio en múltiples días (ej. Plancha en Día 1 y Día 2) se adapte con éxito sin error de duplicados."""
+    api, sessions = client
+    _configure_gemini_env(monkeypatch)
+
+    trainer = register_and_login(api, "coach_multi_day@example.com", "TRAINER")
+    register_and_login(api, "student_multi_day@example.com", "STUDENT")
+
+    _, student_id = setup_trainer_and_student_relationship(
+        sessions,
+        "coach_multi_day@example.com",
+        "student_multi_day@example.com",
+        status="ACTIVE",
+    )
+
+    ex_squat = create_exercise(api, trainer, name="Sentadilla con Barra", target_muscle_group="Piernas")
+    ex_core = create_exercise(api, trainer, name="Plancha Abdominal", target_muscle_group="Core")
+    ex_deadlift = create_exercise(api, trainer, name="Peso Muerto", target_muscle_group="Espalda")
+
+    template_payload = {
+        "name": "Fuerza Base 2 Días - Core en ambos",
+        "duration_weeks": 6,
+        "intensity": "ALTA",
+        "days": [
+            {
+                "name": "Día 1 - Pierna",
+                "blocks": [
+                    {
+                        "name": "Principal",
+                        "exercises": [
+                            {"exercise_id": ex_squat, "sets": 5, "reps": "5", "rest_seconds": 120, "target_weight_kg": 80.0},
+                            {"exercise_id": ex_core, "sets": 3, "reps": "45 seg", "rest_seconds": 60, "target_weight_kg": None},
+                        ],
+                    }
+                ],
+            },
+            {
+                "name": "Día 2 - Tirón",
+                "blocks": [
+                    {
+                        "name": "Principal",
+                        "exercises": [
+                            {"exercise_id": ex_deadlift, "sets": 4, "reps": "5", "rest_seconds": 150, "target_weight_kg": 100.0},
+                            {"exercise_id": ex_core, "sets": 3, "reps": "60 seg", "rest_seconds": 60, "target_weight_kg": None},
+                        ],
+                    }
+                ],
+            },
+        ],
+    }
+    t_resp = api.post("/api/v1/routine-templates", headers=trainer, json=template_payload)
+    assert t_resp.status_code == 201
+    template_id = t_resp.json()["id"]
+
+    gemini_payload = {
+        "intensity": "ALTA",
+        "adaptation_summary": "Rutina adaptada en 2 días conservando el trabajo de core en ambos días.",
+        "days": [
+            {
+                "name": "Día 1 - Pierna Adaptado",
+                "blocks": [
+                    {
+                        "name": "Principal",
+                        "exercises": [
+                            {
+                                "original_exercise_id": ex_squat,
+                                "action": "KEEP",
+                                "replacement_exercise_id": None,
+                                "sets": 5,
+                                "reps": "5",
+                                "rest_seconds": 120,
+                                "reason": "Conservado para tren inferior.",
+                            },
+                            {
+                                "original_exercise_id": ex_core,
+                                "action": "KEEP",
+                                "replacement_exercise_id": None,
+                                "sets": 3,
+                                "reps": "45 seg",
+                                "rest_seconds": 60,
+                                "reason": "Conservado para estabilidad de core.",
+                            },
+                        ],
+                    }
+                ],
+            },
+            {
+                "name": "Día 2 - Tirón Adaptado",
+                "blocks": [
+                    {
+                        "name": "Principal",
+                        "exercises": [
+                            {
+                                "original_exercise_id": ex_deadlift,
+                                "action": "KEEP",
+                                "replacement_exercise_id": None,
+                                "sets": 4,
+                                "reps": "5",
+                                "rest_seconds": 150,
+                                "reason": "Conservado para cadena posterior.",
+                            },
+                            {
+                                "original_exercise_id": ex_core,
+                                "action": "KEEP",
+                                "replacement_exercise_id": None,
+                                "sets": 3,
+                                "reps": "60 seg",
+                                "rest_seconds": 60,
+                                "reason": "Conservado para core Día 2.",
+                            },
+                        ],
+                    }
+                ],
+            },
+        ],
+    }
+
+    mock_client = MagicMock()
+    mock_client.models.generate_content.return_value = SimpleNamespace(
+        text=json.dumps(gemini_payload),
+        parsed=None,
+    )
+
+    with patch("backend.src.services.ai_routine_adapter.genai.Client", return_value=mock_client):
+        resp = api.post(
+            AI_GENERATE_PATH,
+            headers=trainer,
+            json={"student_id": student_id, "template_id": template_id},
+        )
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["status"] == "PENDING_REVIEW"
+    assert len(data["days"]) == 2
+    day1_exs = data["days"][0]["blocks"][0]["exercises"]
+    day2_exs = data["days"][1]["blocks"][0]["exercises"]
+
+    assert len(day1_exs) == 2
+    assert day1_exs[0]["exercise"]["id"] == ex_squat
+    assert day1_exs[0]["target_weight_kg"] == 80.0
+    assert day1_exs[1]["exercise"]["id"] == ex_core
+    assert day1_exs[1]["reps"] == "45 seg"
+
+    assert len(day2_exs) == 2
+    assert day2_exs[0]["exercise"]["id"] == ex_deadlift
+    assert day2_exs[0]["target_weight_kg"] == 100.0
+    assert day2_exs[1]["exercise"]["id"] == ex_core
+    assert day2_exs[1]["reps"] == "60 seg"
+
+
+def test_gemini_rejects_omission_of_repeated_exercise_in_subsequent_day(client, monkeypatch):
+    """Caso 2: Plantilla con Plancha en Día 1 y Día 2. Gemini devuelve decisión para Día 1 pero omite Plancha en Día 2.
+    El endpoint POST /generate-ai debe rechazar con 502 Bad Gateway e indicar que la propuesta está incompleta."""
+    api, sessions = client
+    _configure_gemini_env(monkeypatch)
+
+    trainer = register_and_login(api, "coach_omission_d2@example.com", "TRAINER")
+    register_and_login(api, "student_omission_d2@example.com", "STUDENT")
+
+    _, student_id = setup_trainer_and_student_relationship(
+        sessions,
+        "coach_omission_d2@example.com",
+        "student_omission_d2@example.com",
+        status="ACTIVE",
+    )
+
+    ex_squat = create_exercise(api, trainer, name="Sentadilla con Barra", target_muscle_group="Piernas")
+    ex_core = create_exercise(api, trainer, name="Plancha Abdominal", target_muscle_group="Core")
+    ex_deadlift = create_exercise(api, trainer, name="Peso Muerto", target_muscle_group="Espalda")
+
+    template_payload = {
+        "name": "Fuerza Base 2 Días - Omisión Test",
+        "duration_weeks": 6,
+        "intensity": "ALTA",
+        "days": [
+            {
+                "name": "Día 1 - Pierna",
+                "blocks": [
+                    {
+                        "name": "Principal",
+                        "exercises": [
+                            {"exercise_id": ex_squat, "sets": 5, "reps": "5", "rest_seconds": 120, "target_weight_kg": 80.0},
+                            {"exercise_id": ex_core, "sets": 3, "reps": "45 seg", "rest_seconds": 60, "target_weight_kg": None},
+                        ],
+                    }
+                ],
+            },
+            {
+                "name": "Día 2 - Tirón",
+                "blocks": [
+                    {
+                        "name": "Principal",
+                        "exercises": [
+                            {"exercise_id": ex_deadlift, "sets": 4, "reps": "5", "rest_seconds": 150, "target_weight_kg": 100.0},
+                            {"exercise_id": ex_core, "sets": 3, "reps": "60 seg", "rest_seconds": 60, "target_weight_kg": None},
+                        ],
+                    }
+                ],
+            },
+        ],
+    }
+    t_resp = api.post("/api/v1/routine-templates", headers=trainer, json=template_payload)
+    assert t_resp.status_code == 201
+    template_id = t_resp.json()["id"]
+
+    # Gemini devuelve decisiones para Día 1 (Sentadilla + Plancha), pero para Día 2 omite Plancha
+    gemini_payload_with_omission = {
+        "intensity": "ALTA",
+        "adaptation_summary": "Propuesta con omisión en Día 2.",
+        "days": [
+            {
+                "name": "Día 1 - Pierna",
+                "blocks": [
+                    {
+                        "name": "Principal",
+                        "exercises": [
+                            {
+                                "original_exercise_id": ex_squat,
+                                "action": "KEEP",
+                                "replacement_exercise_id": None,
+                                "sets": 5,
+                                "reps": "5",
+                                "rest_seconds": 120,
+                                "reason": "Conservado pierna.",
+                            },
+                            {
+                                "original_exercise_id": ex_core,
+                                "action": "KEEP",
+                                "replacement_exercise_id": None,
+                                "sets": 3,
+                                "reps": "45 seg",
+                                "rest_seconds": 60,
+                                "reason": "Conservado core día 1.",
+                            },
+                        ],
+                    }
+                ],
+            },
+            {
+                "name": "Día 2 - Tirón",
+                "blocks": [
+                    {
+                        "name": "Principal",
+                        "exercises": [
+                            {
+                                "original_exercise_id": ex_deadlift,
+                                "action": "KEEP",
+                                "replacement_exercise_id": None,
+                                "sets": 4,
+                                "reps": "5",
+                                "rest_seconds": 150,
+                                "reason": "Conservado tirón.",
+                            },
+                            # Omitida la decisión de ex_core en Día 2!
+                        ],
+                    }
+                ],
+            },
+        ],
+    }
+
+    mock_client = MagicMock()
+    mock_client.models.generate_content.return_value = SimpleNamespace(
+        text=json.dumps(gemini_payload_with_omission),
+        parsed=None,
+    )
+
+    with patch("backend.src.services.ai_routine_adapter.genai.Client", return_value=mock_client):
+        resp = api.post(
+            AI_GENERATE_PATH,
+            headers=trainer,
+            json={"student_id": student_id, "template_id": template_id},
+        )
+
+    assert resp.status_code == 502
+    detail_lower = resp.json()["detail"].lower()
+    assert "incompleta" in detail_lower
+    assert "plancha abdominal" in detail_lower
+
+
 @pytest.mark.parametrize(
     "valid_reps",
     ["10", "8-12", "12 c/l", "15 por lado", "10 min", "5-6"],
@@ -1804,3 +2084,98 @@ def test_generate_ai_routine_rate_limiting(client, monkeypatch):
     assert resp_unblocked.status_code == 201
     assert spy_proposal.call_count == 12
 
+def test_gemini_timeout_is_60_seconds_and_attempts_is_one(monkeypatch):
+    """Verifica que el timeout por defecto de Gemini sea 60 segundos y attempts=1."""
+    from backend.src.core.config import (
+        DEFAULT_GEMINI_TIMEOUT_SECONDS,
+        get_gemini_timeout_seconds,
+    )
+    from backend.src.services.ai_routine_adapter import GeminiAIRoutineAdapter
+
+    monkeypatch.delenv("GEMINI_TIMEOUT_SECONDS", raising=False)
+    assert DEFAULT_GEMINI_TIMEOUT_SECONDS == 60.0
+    assert get_gemini_timeout_seconds() == 60.0
+
+    adapter = GeminiAIRoutineAdapter(api_key="dummy-key", model="gemini-3.5-flash-lite")
+    assert adapter.timeout_seconds == 60.0
+
+    with patch("backend.src.services.ai_routine_adapter.genai.Client") as mock_client_cls:
+        adapter._get_client()
+        mock_client_cls.assert_called_once()
+        call_kwargs = mock_client_cls.call_args.kwargs
+        http_options = call_kwargs["http_options"]
+        assert http_options.timeout == 60000  # 60.0s en ms
+        assert http_options.retry_options.attempts == 1
+
+
+def test_gemini_distinct_logging_for_read_timeout_504_503_and_429(caplog):
+    """Verifica logs diferenciados para ReadTimeout, 504, 503 y 429 sin llamadas reales."""
+    import logging
+
+    from backend.src.services.ai_routine_adapter import (
+        AIRoutineAdapterError,
+        GeminiAIRoutineAdapter,
+    )
+
+    mock_client = MagicMock()
+    adapter = GeminiAIRoutineAdapter(api_key="test-key", model="gemini-3.5-flash-lite", client=mock_client)
+    dummy_template = SimpleNamespace(name="Plantilla", duration_weeks=4, intensity="MEDIA", days=[])
+    dummy_student = SimpleNamespace(fitness_goals=["FUERZA"], personal_motivation="Motivacion", protected_zones=[])
+
+    # 1. ReadTimeout
+    mock_client.models.generate_content.side_effect = httpx.ReadTimeout("Socket read timed out")
+    with caplog.at_level(logging.WARNING):
+        caplog.clear()
+        try:
+            adapter.generate_adapted_routine(
+                dummy_template, dummy_student, None, [], []
+            )
+        except AIRoutineAdapterError as exc:
+            assert exc.status_code == 504
+            assert exc.error_code == "GEMINI_TIMEOUT"
+        assert any("tipo=ReadTimeout" in record.message for record in caplog.records)
+
+    # 2. HTTP 504 / DEADLINE_EXCEEDED
+    mock_client.models.generate_content.side_effect = genai_errors.APIError(
+        504, {"error": {"message": "Deadline Exceeded", "status": "DEADLINE_EXCEEDED"}}
+    )
+    with caplog.at_level(logging.WARNING):
+        caplog.clear()
+        try:
+            adapter.generate_adapted_routine(
+                dummy_template, dummy_student, None, [], []
+            )
+        except AIRoutineAdapterError as exc:
+            assert exc.status_code == 504
+            assert exc.error_code == "GEMINI_TIMEOUT"
+        assert any("HTTP 504 / DEADLINE_EXCEEDED" in record.message for record in caplog.records)
+
+    # 3. HTTP 503 / UNAVAILABLE
+    mock_client.models.generate_content.side_effect = genai_errors.APIError(
+        503, {"error": {"message": "The service is temporarily unavailable", "status": "UNAVAILABLE"}}
+    )
+    with caplog.at_level(logging.WARNING):
+        caplog.clear()
+        try:
+            adapter.generate_adapted_routine(
+                dummy_template, dummy_student, None, [], []
+            )
+        except AIRoutineAdapterError as exc:
+            assert exc.status_code == 503
+            assert exc.error_code == "GEMINI_SERVICE_UNAVAILABLE"
+        assert any("HTTP 503" in record.message and "UNAVAILABLE" in record.message for record in caplog.records)
+
+    # 4. HTTP 429 / RESOURCE_EXHAUSTED
+    mock_client.models.generate_content.side_effect = genai_errors.APIError(
+        429, {"error": {"message": "Quota exceeded", "status": "RESOURCE_EXHAUSTED"}}
+    )
+    with caplog.at_level(logging.WARNING):
+        caplog.clear()
+        try:
+            adapter.generate_adapted_routine(
+                dummy_template, dummy_student, None, [], []
+            )
+        except AIRoutineAdapterError as exc:
+            assert exc.status_code == 429
+            assert exc.error_code == "GEMINI_QUOTA_EXCEEDED"
+        assert any("HTTP 429" in record.message and "RESOURCE_EXHAUSTED" in record.message for record in caplog.records)

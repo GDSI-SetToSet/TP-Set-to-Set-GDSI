@@ -530,6 +530,7 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
         if self._client is not None:
             return self._client
         if not self.api_key:
+            logger.warning("Google Gemini no está configurado en el servidor (falta GEMINI_API_KEY, HTTP 503).")
             raise AIRoutineAdapterError(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=(
@@ -539,6 +540,7 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                 error_code="GEMINI_NOT_CONFIGURED",
             )
         if not self.model:
+            logger.warning("El modelo de Google Gemini (GEMINI_MODEL) no está configurado en el servidor (HTTP 503).")
             raise AIRoutineAdapterError(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="El modelo de Google Gemini (GEMINI_MODEL) no está configurado.",
@@ -734,27 +736,56 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                     if t_entry.exercise.deleted_at is None:
                         catalog_by_id.setdefault(t_entry.exercise_id, t_entry.exercise)
 
+        t_days = list(template.days or [])
+        if len(structured.days) != len(t_days):
+            raise AIRoutineAdapterError(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=(
+                    f"La propuesta de Gemini contiene {len(structured.days)} día(s), "
+                    f"pero la plantilla original define {len(t_days)} día(s)."
+                ),
+                error_code="GEMINI_INCOMPLETE_DAYS",
+            )
+
         adapted_days: list[AdaptedDayData] = []
         action_logs: list[str] = []
-        seen_original_ids: set[str] = set()
-        kept_exercise_ids: set[str] = {
-            (d.original_exercise_id or "").strip()
-            for day_s in structured.days
-            for block_s in day_s.blocks
-            for d in block_s.exercises
-            if (d.action or "").strip().upper() == "KEEP" and (d.original_exercise_id or "").strip()
-        }
+        all_decided_original_ids: set[str] = set()
 
         for day_idx, day_schema in enumerate(structured.days):
             day_name = (day_schema.name or "").strip() or f"Día {day_idx + 1}"
             day_name = day_name[:100]
             adapted_blocks: list[AdaptedBlockData] = []
+            t_day = t_days[day_idx]
+            t_blocks = list(getattr(t_day, "blocks", []) or [])
+
+            if len(day_schema.blocks) != len(t_blocks):
+                raise AIRoutineAdapterError(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=(
+                        f"La propuesta de Gemini para el día '{day_name}' contiene {len(day_schema.blocks)} bloque(s), "
+                        f"pero la plantilla original define {len(t_blocks)} bloque(s)."
+                    ),
+                    error_code="GEMINI_INCOMPLETE_BLOCKS",
+                )
 
             for block_idx, block_schema in enumerate(day_schema.blocks):
                 block_name = (block_schema.name or "").strip() or f"Bloque {block_idx + 1}"
                 block_name = block_name[:100]
                 adapted_exercises: list[AdaptedExerciseData] = []
                 block_final_exercise_ids: set[str] = set()
+                block_seen_original_ids: set[str] = set()
+                t_blk = t_blocks[block_idx]
+                t_blk_orig_set: set[str] = {
+                    e.exercise_id
+                    for e in getattr(t_blk, "exercises", []) or []
+                    if getattr(e, "exercise_id", None)
+                }
+
+                block_kept_exercise_ids: set[str] = {
+                    (d.original_exercise_id or "").strip()
+                    for d in block_schema.exercises
+                    if (d.action or "").strip().upper() == "KEEP" and (d.original_exercise_id or "").strip()
+                }
 
                 for decision in block_schema.exercises:
                     orig_id = (decision.original_exercise_id or "").strip()
@@ -767,7 +798,18 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                             error_code="GEMINI_INVALID_EXERCISE",
                         )
 
-                    if orig_id in seen_original_ids:
+                    if orig_id not in t_blk_orig_set:
+                        orig_ex_name = template_exercises_by_id[orig_id].name
+                        raise AIRoutineAdapterError(
+                            status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail=(
+                                f"La propuesta de Gemini incluye una decisión para el ejercicio '{orig_ex_name}' en el bloque '{block_name}', "
+                                "pero dicho ejercicio no pertenece a ese bloque en la plantilla original."
+                            ),
+                            error_code="GEMINI_INVALID_EXERCISE",
+                        )
+
+                    if orig_id in block_seen_original_ids:
                         raise AIRoutineAdapterError(
                             status_code=status.HTTP_502_BAD_GATEWAY,
                             detail=(
@@ -775,7 +817,8 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                             ),
                             error_code="GEMINI_DUPLICATE_DECISION",
                         )
-                    seen_original_ids.add(orig_id)
+                    block_seen_original_ids.add(orig_id)
+                    all_decided_original_ids.add(orig_id)
 
                     orig_exercise = template_exercises_by_id[orig_id]
                     action = (decision.action or "").strip().upper()
@@ -822,7 +865,7 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                                 ),
                                 error_code="GEMINI_INVALID_SUBSTITUTE",
                             )
-                        if rep_id in kept_exercise_ids:
+                        if rep_id in block_kept_exercise_ids:
                             raise AIRoutineAdapterError(
                                 status_code=status.HTTP_502_BAD_GATEWAY,
                                 detail=(
@@ -917,7 +960,16 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                     full_note = f"{note_prefix}{reason}"[:ADAPTATION_NOTE_MAX_LENGTH]
                     action_logs.append(full_note)
 
-                    orig_entry_match = template_entries_by_id.get(decision.original_exercise_id)
+                    t_blk = template_blocks_by_day_block.get((day_idx, block_idx))
+                    orig_entry_match = None
+                    if t_blk:
+                        for candidate_entry in getattr(t_blk, "exercises", []):
+                            if getattr(candidate_entry, "exercise_id", None) == decision.original_exercise_id:
+                                orig_entry_match = candidate_entry
+                                break
+                    if orig_entry_match is None:
+                        orig_entry_match = template_entries_by_id.get(decision.original_exercise_id)
+
                     target_wt = (
                         float(orig_entry_match.target_weight_kg)
                         if orig_entry_match and getattr(orig_entry_match, "target_weight_kg", None) is not None and action == "KEEP"
@@ -934,6 +986,18 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                             adaptation_notes=full_note,
                             target_weight_kg=target_wt,
                         )
+                    )
+
+                missing_in_block = t_blk_orig_set - block_seen_original_ids
+                if missing_in_block:
+                    missing_names = [template_exercises_by_id[mid].name for mid in sorted(missing_in_block) if mid in template_exercises_by_id]
+                    raise AIRoutineAdapterError(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=(
+                            f"La propuesta de Gemini está incompleta para el bloque '{block_name}': faltan decisiones explícitas (KEEP, REPLACE o REMOVE) "
+                            f"para {len(missing_in_block)} ejercicio(s) de la plantilla original ({', '.join(missing_names)})."
+                        ),
+                        error_code="GEMINI_INCOMPLETE_DECISIONS",
                     )
 
                 if adapted_blocks is not None and adapted_exercises:
@@ -957,7 +1021,7 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                     )
                 )
 
-        missing_original_ids = set(template_exercises_by_id.keys()) - seen_original_ids
+        missing_original_ids = set(template_exercises_by_id.keys()) - all_decided_original_ids
         if missing_original_ids:
             missing_names = [template_exercises_by_id[mid].name for mid in sorted(missing_original_ids)]
             raise AIRoutineAdapterError(
@@ -1050,7 +1114,11 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                 or "quota" in err_msg
                 or "rate limit" in err_msg
             ):
-                logger.warning("Cuota agotada en Google Gemini API (HTTP 429).")
+                logger.warning(
+                    "Cuota agotada en Google Gemini API (HTTP 429, estado=%s, mensaje=%s).",
+                    err_status,
+                    err_msg,
+                )
                 raise AIRoutineAdapterError(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     detail=(
@@ -1078,7 +1146,12 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                 ) from exc
 
             if code in (408, 504) or "DEADLINE_EXCEEDED" in err_status or "timeout" in err_msg:
-                logger.warning("Timeout reportado por Google Gemini API (código=%s).", code)
+                logger.warning(
+                    "Timeout reportado por Google Gemini API (HTTP 504 / DEADLINE_EXCEEDED, código=%s, estado=%s, mensaje=%s).",
+                    code,
+                    err_status,
+                    err_msg,
+                )
                 raise AIRoutineAdapterError(
                     status_code=status.HTTP_504_GATEWAY_TIMEOUT,
                     detail=(
@@ -1086,6 +1159,22 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                         "Podés reintentar la generación o utilizar explícitamente el modo heurístico."
                     ),
                     error_code="GEMINI_TIMEOUT",
+                ) from exc
+
+            if code == 503 or "UNAVAILABLE" in err_status or "service unavailable" in err_msg:
+                logger.warning(
+                    "Servicio no disponible en Google Gemini API (HTTP 503, código=%s, estado=%s, mensaje=%s).",
+                    code,
+                    err_status,
+                    err_msg,
+                )
+                raise AIRoutineAdapterError(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=(
+                        "Google Gemini no se encuentra disponible temporalmente. "
+                        "Podés reintentar en unos instantes o utilizar explícitamente el modo heurístico."
+                    ),
+                    error_code="GEMINI_SERVICE_UNAVAILABLE",
                 ) from exc
 
             logger.error("Error de comunicación con Google Gemini API (código=%s, estado=%s).", code, err_status)
@@ -1098,7 +1187,12 @@ class GeminiAIRoutineAdapter(AIRoutineAdapter):
                 error_code="GEMINI_API_ERROR",
             ) from exc
         except (TimeoutError, httpx.TimeoutException) as exc:
-            logger.warning("Timeout de red esperando respuesta de Google Gemini API.")
+            exc_name = type(exc).__name__
+            logger.warning(
+                "Timeout de red/socket esperando respuesta de Google Gemini API (tipo=%s, detalle=%s).",
+                exc_name,
+                exc,
+            )
             raise AIRoutineAdapterError(
                 status_code=status.HTTP_504_GATEWAY_TIMEOUT,
                 detail=(
