@@ -1384,7 +1384,7 @@ def clean_demo_data(db: Session, verbose: bool = True) -> dict[str, int]:
         print(f" • Zonas a proteger eliminadas: {counts['protected_zones']}")
         print(f" • Aptos médicos eliminados:    {counts['medical_clearances']}")
         print(f" • Notificaciones eliminadas:   {counts['notifications']}")
-        print(" [✓] Todos los datos ajenos a la demo permanecen intactos.")
+        print(" [OK] Todos los datos ajenos a la demo permanecen intactos.")
         print("=" * 70)
 
     return counts
