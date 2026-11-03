@@ -58,7 +58,7 @@ if EMAIL_BACKEND == "smtp" and not SMTP_HOST:
 # Configuración de IA para generación de rutinas particulares (US-13)
 DEFAULT_AI_PROVIDER = "heuristic"
 DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
-DEFAULT_GEMINI_TIMEOUT_SECONDS = 30.0
+DEFAULT_GEMINI_TIMEOUT_SECONDS = 60.0
 
 AI_PROVIDER = (os.getenv("AI_PROVIDER") or os.getenv("AI_ROUTINE_PROVIDER") or DEFAULT_AI_PROVIDER).strip().lower()
 GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or "").strip() or None

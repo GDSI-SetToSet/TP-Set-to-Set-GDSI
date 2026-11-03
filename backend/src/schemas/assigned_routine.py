@@ -84,3 +84,34 @@ class TrainerAIRoutineResponse(AssignedRoutineResponse):
     student_name: str = ""
     relationship_id: str = ""
     is_assigned: bool = False
+
+
+class AssignedRoutineExerciseUpdateInput(BaseModel):
+    exercise_id: str = Field(..., min_length=1)
+    order_index: int = Field(default=0, ge=0)
+    sets: int = Field(..., ge=1, le=20)
+    reps: str = Field(..., min_length=1, max_length=50)
+    rest_seconds: int = Field(default=60, ge=0, le=600)
+    adaptation_notes: str | None = Field(default=None, max_length=255)
+    target_weight_kg: float | None = Field(default=None, ge=0, le=9999.99)
+
+
+class AssignedRoutineBlockUpdateInput(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    order_index: int = Field(default=0, ge=0)
+    estimated_duration_minutes: int | None = Field(default=None, ge=1, le=600)
+    exercises: list[AssignedRoutineExerciseUpdateInput] = Field(default_factory=list)
+
+
+class AssignedRoutineDayUpdateInput(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    order_index: int = Field(default=0, ge=0)
+    blocks: list[AssignedRoutineBlockUpdateInput] = Field(default_factory=list)
+
+
+class AssignedRoutineUpdateInput(BaseModel):
+    name: str = Field(..., min_length=1, max_length=150)
+    duration_weeks: int = Field(..., ge=1, le=52)
+    intensity: Literal["BAJA", "MEDIA", "ALTA", "EXIGENTE"]
+    has_no_materials_alternative: bool = False
+    days: list[AssignedRoutineDayUpdateInput] = Field(default_factory=list)

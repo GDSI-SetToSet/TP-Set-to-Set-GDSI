@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { ArrowLeft, CheckCircle2, Plus, Save, Sparkles, Trash2 } from 'lucide-react';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AIRoutineCard } from '../components/AIRoutineCard';
 import { RoutineTemplateCard } from '../components/RoutineTemplateCard';
 import { ROUTES } from '../constants/routes';
@@ -143,6 +143,11 @@ function toPayload(form: FormState, intensity: RoutineIntensity): RoutineTemplat
 }
 
 export function RoutineTemplatesPage() {
+  const navigate = useNavigate();
+
+  function handleEditAIRoutine(routine: TrainerAIRoutine) {
+    navigate(ROUTES.trainerGenerateAIRoutine, { state: { editRoutineId: routine.id, from: 'routines' } });
+  }
   const [templates, setTemplates] = useState<RoutineTemplate[]>([]);
   const [aiRoutines, setAIRoutines] = useState<TrainerAIRoutine[]>([]);
   const [library, setLibrary] = useState<Exercise[]>([]);
@@ -503,6 +508,7 @@ export function RoutineTemplatesPage() {
               onApprove={handleApproveAIRoutine}
               onReassign={handleReassignAIRoutine}
               onDelete={handleDeleteAIRoutine}
+              onEdit={handleEditAIRoutine}
             />
           ))}
       </section>
