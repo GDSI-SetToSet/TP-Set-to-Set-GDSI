@@ -53,6 +53,7 @@ def handle_error(error: DiscoveryError | TrainerProfileError) -> None:
 def trainer_search(
     _: CurrentUser,
     db: DbDep,
+    name: str | None = Query(default=None),
     specialty: str | None = Query(default=None),
     max_price: float | None = Query(default=None, ge=0),
     only_available: bool = Query(default=True),
@@ -60,6 +61,7 @@ def trainer_search(
     page_size: int = Query(default=20, ge=1, le=50),
 ) -> PaginatedTrainers:
     filters = TrainerSearchFilters(
+        name=name,
         specialty=specialty,
         max_price=max_price,
         only_available=only_available,

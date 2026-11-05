@@ -26,6 +26,97 @@ PASSWORD_RESET_REQUESTED_MESSAGE: Final = "Si el correo está registrado, recibi
 PASSWORD_RESET_SUCCESS_MESSAGE: Final = "Tu contraseña se actualizó. Iniciá sesión con tu nueva contraseña."
 INVALID_RESET_TOKEN_MESSAGE: Final = "El enlace de recuperación no es válido o expiró. Solicitá uno nuevo."
 PASSWORD_RESET_EMAIL_SUBJECT: Final = "Restablecé tu contraseña de Set to Set"
+# Zonas corporales válidas (las mismas que ofrece el alumno al declarar sus zonas a proteger).
+BODY_AREAS: Final = (
+    "Neck",
+    "Shoulder",
+    "Elbow",
+    "Wrist and hand",
+    "Upper back",
+    "Lower back",
+    "Hip",
+    "Knee",
+    "Ankle and foot",
+)
+
+BODY_AREAS_ES: Final = {
+    "neck": "cuello",
+    "shoulder": "hombro",
+    "elbow": "codo",
+    "wrist and hand": "muñeca y mano",
+    "upper back": "espalda alta",
+    "lower back": "espalda baja",
+    "hip": "cadera",
+    "knee": "rodilla",
+    "ankle and foot": "tobillo y pie",
+}
+ZONE_SYNONYMS: Final[dict[str, str]] = {
+    "cuello": "neck",
+    "neck": "neck",
+    "cervical": "neck",
+    "trapecio": "neck",
+    "hombro": "shoulder",
+    "shoulder": "shoulder",
+    "hombros": "shoulder",
+    "deltoides": "shoulder",
+    "deltoid": "shoulder",
+    "manguito": "shoulder",
+    "codo": "elbow",
+    "elbow": "elbow",
+    "codos": "elbow",
+    "muñeca y mano": "wrist and hand",
+    "wrist and hand": "wrist and hand",
+    "muñeca": "wrist and hand",
+    "muneca": "wrist and hand",
+    "mano": "wrist and hand",
+    "wrist": "wrist and hand",
+    "hand": "wrist and hand",
+    "espalda alta": "upper back",
+    "upper back": "upper back",
+    "dorsal": "upper back",
+    "romboides": "upper back",
+    "espalda baja": "lower back",
+    "lower back": "lower back",
+    "lumbar": "lower back",
+    "lumbares": "lower back",
+    "raquis": "lower back",
+    "cadera": "hip",
+    "hip": "hip",
+    "caderas": "hip",
+    "pelvis": "hip",
+    "gluteo": "hip",
+    "glúteo": "hip",
+    "gluteos": "hip",
+    "glúteos": "hip",
+    "rodilla": "knee",
+    "knee": "knee",
+    "rodillas": "knee",
+    "patela": "knee",
+    "rotula": "knee",
+    "rótula": "knee",
+    "tobillo y pie": "ankle and foot",
+    "ankle and foot": "ankle and foot",
+    "tobillo": "ankle and foot",
+    "tobillos": "ankle and foot",
+    "pie": "ankle and foot",
+    "pies": "ankle and foot",
+    "ankle": "ankle and foot",
+    "foot": "ankle and foot",
+}
+
+
+def canonical_zone_key(area: str | None) -> str:
+    if not area:
+        return ""
+    clean = area.strip().lower()
+    if clean in ZONE_SYNONYMS:
+        return ZONE_SYNONYMS[clean]
+    for term, canon in ZONE_SYNONYMS.items():
+        if term in clean:
+            return canon
+    return clean
+
+
 PASSWORD_RESET_EMAIL_BODY: Final = (
     "Recibimos un pedido para restablecer tu contraseña.\n\n"
     "Para definir una nueva, abrí este enlace dentro de los próximos {minutes} minutos:\n"

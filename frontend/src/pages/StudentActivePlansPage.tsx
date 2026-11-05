@@ -81,6 +81,7 @@ export function StudentActivePlansPage() {
               <ActivePlanCard
                 key={plan.relationship_id ?? plan.request_id ?? plan.trainer?.id ?? index}
                 plan={plan}
+                onRoutineClick={() => navigate(ROUTES.studentRoutines)}
               />
             ))}
           </div>

@@ -1,7 +1,11 @@
+import os
+import subprocess
+import sys
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -12,9 +16,13 @@ from backend.scripts.seed_demo import (
     seed_demo_data,
 )
 from backend.src.core.database import Base
+from backend.src.models.assigned_routine import AssignedRoutine
+from backend.src.models.exercise import Exercise
 from backend.src.models.health_questionnaire import HealthQuestionnaire
 from backend.src.models.notification import Notification
+from backend.src.models.routine_template import RoutineTemplate
 from backend.src.models.student_profile import StudentProfile
+from backend.src.models.student_routine import StudentRoutine
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.training_relationship import TrainingRelationship
@@ -27,7 +35,14 @@ from backend.src.services.discovery_service import (
     get_public_detail,
     search_trainers,
 )
+from backend.src.services.student_routine_service import (
+    _content_from_assigned_routine,
+    _content_from_template,
+    find_conflicts,
+)
 from backend.src.services.trainer_service import quota_summary
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def create_test_db():
@@ -300,3 +315,110 @@ def test_referential_integrity():
             assert rel.status == "ACTIVE"
     finally:
         db.close()
+
+
+def enforce_foreign_keys(db) -> None:
+    db.execute(text("PRAGMA foreign_keys=ON"))
+
+
+def trainer_by_email(db, email: str) -> TrainerProfile:
+    return db.scalar(select(TrainerProfile).join(User).where(User.email == f"{email}@{DEMO_DOMAIN}"))
+
+
+def student_by_email(db, email: str) -> StudentProfile:
+    return db.scalar(select(StudentProfile).join(User).where(User.email == f"{email}@{DEMO_DOMAIN}"))
+
+
+def test_seed_loads_routines_only_for_some_trainers():
+    db = create_test_db()
+    try:
+        seed_demo_data(db, verbose=False)
+
+        for email in ("lucas.benitez", "mariana.vega", "gonzalo.morales"):
+            trainer = trainer_by_email(db, email)
+            assert db.scalar(select(func.count(Exercise.id)).where(Exercise.trainer_id == trainer.id)) >= 5
+            assert db.scalar(select(func.count(RoutineTemplate.id)).where(RoutineTemplate.trainer_id == trainer.id)) == 2
+
+        for email in ("ignacio.rossi", "camila.navarro"):
+            trainer = trainer_by_email(db, email)
+            assert db.scalar(select(func.count(Exercise.id)).where(Exercise.trainer_id == trainer.id)) == 0
+            assert db.scalar(select(func.count(RoutineTemplate.id)).where(RoutineTemplate.trainer_id == trainer.id)) == 0
+    finally:
+        db.close()
+
+
+def test_seed_covers_assigned_approved_and_pending_routines():
+    db = create_test_db()
+    try:
+        seed_demo_data(db, verbose=False)
+
+        # Martín ve una rutina con IA aprobada a través de su copia.
+        martin_rel = db.scalar(
+            select(TrainingRelationship).where(TrainingRelationship.student_id == student_by_email(db, "martin.herrera").id)
+        )
+        approved = db.get(AssignedRoutine, martin_rel.initial_routine_id)
+        assert approved.status == "APPROVED"
+        copy = db.scalar(select(StudentRoutine).where(StudentRoutine.relationship_id == martin_rel.id))
+        assert copy.source_kind == "AI"
+
+        # Tomás entrena una genérica segura y tiene una propuesta sin aprobar, también segura.
+        tomas = student_by_email(db, "tomas.castro")
+        tomas_rel = db.scalar(select(TrainingRelationship).where(TrainingRelationship.student_id == tomas.id))
+        assigned = db.get(RoutineTemplate, tomas_rel.initial_routine_id)
+        assert find_conflicts(db, tomas_rel, _content_from_template(assigned))[0] == []
+
+        pending = db.scalar(select(AssignedRoutine).where(AssignedRoutine.student_id == tomas.id))
+        assert pending.status == "PENDING_REVIEW"
+        assert find_conflicts(db, tomas_rel, _content_from_assigned_routine(pending))[0] == []
+        assert pending.exercise_count > 0
+    finally:
+        db.close()
+
+
+def test_seed_does_not_duplicate_or_override_routine_changes():
+    db = create_test_db()
+    try:
+        seed_demo_data(db, verbose=False)
+        tomas = student_by_email(db, "tomas.castro")
+        relationship = db.scalar(select(TrainingRelationship).where(TrainingRelationship.student_id == tomas.id))
+        other = db.scalar(
+            select(RoutineTemplate).where(
+                RoutineTemplate.trainer_id == relationship.trainer_id,
+                RoutineTemplate.id != relationship.initial_routine_id,
+            )
+        )
+        relationship.initial_routine_id = other.id
+        db.commit()
+        counts = [db.scalar(select(func.count(model.id))) for model in (Exercise, RoutineTemplate, AssignedRoutine)]
+
+        seed_demo_data(db, verbose=False)
+
+        db.refresh(relationship)
+        assert relationship.initial_routine_id == other.id
+        assert counts == [db.scalar(select(func.count(model.id))) for model in (Exercise, RoutineTemplate, AssignedRoutine)]
+    finally:
+        db.close()
+
+
+def test_clean_removes_seeded_routines_with_foreign_keys_enforced():
+    db = create_test_db()
+    try:
+        enforce_foreign_keys(db)
+        seed_demo_data(db, verbose=False)
+        assert db.scalar(select(func.count(StudentRoutine.id))) > 0
+
+        clean_demo_data(db, verbose=False)
+
+        for model in (StudentRoutine, AssignedRoutine, RoutineTemplate, Exercise, User):
+            assert db.scalar(select(func.count(model.id))) == 0
+    finally:
+        db.close()
+
+
+def test_cli_reset_works_on_a_database_without_tables(tmp_path):
+    env = {**os.environ, "DATABASE_URL": f"sqlite:///{tmp_path / 'fresh.db'}", "PYTHONPATH": str(ROOT)}
+    command = [sys.executable, str(ROOT / "backend/scripts/seed_demo.py"), "--reset"]
+
+    for _ in range(2):  # base nueva y base ya poblada
+        result = subprocess.run(command, env=env, cwd=tmp_path, capture_output=True, text=True, timeout=60, check=False)
+        assert result.returncode == 0, result.stderr

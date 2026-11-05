@@ -3,8 +3,8 @@
 
 Crea un conjunto variado, coherente e idempotente de usuarios (entrenadores y alumnos),
 perfiles completos, paquetes de entrenamiento, cuestionarios de salud, zonas a proteger,
-aptos médicos y solicitudes/vínculos para una demostración académica completa del flujo
-de búsqueda y matchmaking.
+aptos médicos, solicitudes/vínculos, ejercicios y rutinas (genéricas y con IA) para una
+demostración académica completa, sin tener que cargar rutinas durante la presentación.
 """
 
 from __future__ import annotations
@@ -26,18 +26,31 @@ from sqlalchemy.orm import Session
 
 from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
 from backend.src.core.database import Base, SessionLocal, engine
+from backend.src.core.migrations import apply_migrations
 from backend.src.core.security import hash_password
 from backend.src.core.storage import UPLOADS_DIR
+from backend.src.models.assigned_routine import (
+    AssignedRoutine,
+    AssignedRoutineBlock,
+    AssignedRoutineDay,
+    AssignedRoutineExercise,
+)
+from backend.src.models.exercise import Exercise
 from backend.src.models.health_questionnaire import HealthQuestionnaire
 from backend.src.models.medical_clearance import MedicalClearance
 from backend.src.models.notification import Notification
 from backend.src.models.protected_zone import ProtectedZone
+from backend.src.models.routine_template import RoutineTemplate
 from backend.src.models.student_profile import StudentProfile
+from backend.src.models.student_routine import RoutineChangeLog, StudentRoutine
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.training_request import TrainingRequest
 from backend.src.models.user import PasswordResetToken, User, UserSession
+from backend.src.schemas.routine_template import RoutineTemplateInput
+from backend.src.services.routine_template_service import build_days
+from backend.src.services.student_routine_service import sync_assigned_routine
 
 DEMO_DOMAIN = "demo.settoset.com"
 DEMO_PASSWORD = "DemoPassword123!"
@@ -181,7 +194,7 @@ TRAINERS_DEMO_DATA: list[dict[str, Any]] = [
         "email": f"camila.navarro@{DEMO_DOMAIN}",
         "full_name": "Camila Navarro",
         "contact_phone": "+541145218904",
-        "specialty": "Movilidad y Rehabilitación Postural",
+        "specialty": "Movilidad/rehabilitación",
         "bio": (
             "Kinesióloga y preparadora física. Enfoque preventivo, fortalecimiento de la zona media y recuperación funcional "
             "para volver a entrenar sin dolor tras molestias articulares o largas jornadas sedentarias."
@@ -500,11 +513,329 @@ REQUESTS_DEMO_DATA: list[dict[str, Any]] = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Ejercicios y Rutinas de Demostración
+# ---------------------------------------------------------------------------
+def _exercise(
+    name: str,
+    category: str,
+    muscle: str,
+    equipment: str,
+    description: str,
+    cues: str,
+    zones: tuple[str, ...] = (),
+    no_materials: bool = False,
+) -> dict[str, Any]:
+    return {
+        "name": name,
+        "category": category,
+        "target_muscle_group": muscle,
+        "equipment_needed": equipment,
+        "description": description,
+        "technical_cues": cues,
+        "contraindicated_zones": list(zones),
+        "has_no_materials_alternative": no_materials,
+    }
+
+
+def _block(name: str, minutes: int, *exercises: tuple[str, int, str, int, float | None]) -> dict[str, Any]:
+    return {
+        "name": name,
+        "estimated_duration_minutes": minutes,
+        "exercises": [
+            {"exercise": exercise, "sets": sets, "reps": reps, "rest_seconds": rest, "target_weight_kg": weight}
+            for exercise, sets, reps, rest, weight in exercises
+        ],
+    }
+
+
+# Ignacio y Camila quedan sin ejercicios ni rutinas para poder mostrar la carga manual.
+EXERCISES_DEMO_DATA: dict[str, list[dict[str, Any]]] = {
+    "trainer_lucas": [
+        _exercise("Sentadilla con Barra", "FUERZA", "Cuádriceps", "Barra y rack", "Sentadilla trasera con barra.", "Rodillas en línea con la punta de los pies.", ("Knee", "Lower back")),
+        _exercise("Press de Banca", "FUERZA", "Pectoral", "Barra y banco", "Empuje horizontal con barra.", "Escápulas retraídas durante todo el recorrido.", ("Shoulder",)),
+        _exercise("Peso Muerto", "FUERZA", "Cadena posterior", "Barra", "Levantamiento de la barra desde el piso.", "Espalda neutra y barra pegada al cuerpo.", ("Lower back",)),
+        _exercise("Remo con Barra", "FUERZA", "Dorsales", "Barra", "Tirón horizontal con el torso inclinado.", "Llevar los codos hacia atrás sin balancear el torso."),
+        _exercise("Plancha Abdominal", "FUERZA", "Core", "Ninguno", "Isométrico de zona media.", "Cadera alineada con hombros y talones.", no_materials=True),
+    ],
+    "trainer_mariana": [
+        _exercise("Sentadilla con Peso Corporal", "FUERZA", "Cuádriceps", "Ninguno", "Sentadilla libre sin carga externa.", "Bajar controlado y empujar con todo el pie.", ("Knee",), True),
+        _exercise("Remo con Banda Elástica", "FUERZA", "Dorsales", "Banda elástica", "Tirón horizontal con banda.", "Mantener los hombros lejos de las orejas."),
+        _exercise("Flexiones de Brazos", "FUERZA", "Pectoral", "Ninguno", "Empuje horizontal con el peso del cuerpo.", "Cuerpo en bloque; apoyar rodillas si hace falta.", ("Shoulder",), True),
+        _exercise("Caminata en Cinta", "CARDIO", "Sistema cardiovascular", "Cinta", "Trabajo aeróbico continuo.", "Ritmo que permita conversar.", no_materials=True),
+        _exercise("Burpees Modificados", "CARDIO", "Cuerpo completo", "Ninguno", "Burpee sin salto ni flexión.", "Apoyar los pies de a uno para reducir el impacto.", no_materials=True),
+        _exercise("Movilidad de Cadera", "MOVILIDAD", "Cadera", "Colchoneta", "Círculos de cadera en cuadrupedia.", "Movimiento lento y sin dolor.", no_materials=True),
+    ],
+    "trainer_gonzalo": [
+        _exercise("Sentadilla Frontal", "FUERZA", "Cuádriceps", "Barra y rack", "Sentadilla con la barra adelante.", "Codos altos y torso vertical.", ("Wrist and hand",)),
+        _exercise("Peso Muerto Rumano", "FUERZA", "Isquiotibiales", "Barra", "Bisagra de cadera con piernas semirrígidas.", "Empujar la cadera hacia atrás.", ("Lower back",)),
+        _exercise("Power Clean", "FUERZA", "Cuerpo completo", "Barra", "Cargada de potencia desde el piso.", "Extensión completa antes de recibir la barra.", ("Wrist and hand", "Lower back")),
+        _exercise("Snatch", "FUERZA", "Cuerpo completo", "Barra", "Arranque olímpico.", "Barra cerca del cuerpo y recepción estable.", ("Wrist and hand", "Shoulder")),
+        _exercise("Remo Ergómetro", "CARDIO", "Cuerpo completo", "Remo ergómetro", "Intervalos en remo.", "Empujar con piernas y terminar con brazos."),
+        _exercise("Sentadilla Goblet", "FUERZA", "Cuádriceps", "Kettlebell", "Sentadilla con la carga al pecho.", "Pecho arriba y codos adentro."),
+        _exercise("Swing con Kettlebell", "FUERZA", "Cadena posterior", "Kettlebell", "Balanceo balístico desde la cadera.", "La potencia sale de la cadera, no de los brazos."),
+    ],
+}
+
+ROUTINES_DEMO_DATA: list[dict[str, Any]] = [
+    {
+        "trainer_key": "trainer_lucas",
+        "name": "Fuerza Base 3 Días",
+        "duration_weeks": 8,
+        "intensity": "ALTA",
+        "days": [
+            {"name": "Día 1 - Pierna", "blocks": [_block("Principal", 50, ("Sentadilla con Barra", 5, "5", 150, 80.0), ("Plancha Abdominal", 3, "45 seg", 60, None))]},
+            {"name": "Día 2 - Empuje", "blocks": [_block("Principal", 45, ("Press de Banca", 5, "5", 150, 60.0), ("Remo con Barra", 4, "8", 90, 50.0))]},
+            {"name": "Día 3 - Tirón", "blocks": [_block("Principal", 50, ("Peso Muerto", 4, "5", 180, 100.0), ("Plancha Abdominal", 3, "60 seg", 60, None))]},
+        ],
+    },
+    {
+        "trainer_key": "trainer_lucas",
+        "name": "Iniciación Cuerpo Completo",
+        "duration_weeks": 6,
+        "intensity": "MEDIA",
+        "days": [
+            {"name": "Día 1", "blocks": [_block("Técnica", 40, ("Sentadilla con Barra", 3, "10", 90, 30.0), ("Press de Banca", 3, "10", 90, 25.0), ("Remo con Barra", 3, "10", 90, 25.0))]},
+        ],
+    },
+    {
+        "trainer_key": "trainer_mariana",
+        "name": "Recomposición Inicial",
+        "duration_weeks": 8,
+        "intensity": "MEDIA",
+        "days": [
+            {"name": "Día 1 - Fuerza", "blocks": [_block("Principal", 35, ("Sentadilla con Peso Corporal", 4, "12", 60, None), ("Remo con Banda Elástica", 4, "12", 60, None), ("Flexiones de Brazos", 3, "10", 60, None))]},
+            {"name": "Día 2 - Cardio", "blocks": [_block("Aeróbico", 30, ("Caminata en Cinta", 1, "30 min", 0, None)), _block("Vuelta a la calma", 10, ("Movilidad de Cadera", 2, "10", 30, None))]},
+        ],
+    },
+    {
+        "trainer_key": "trainer_mariana",
+        "name": "Circuito Metabólico en Casa",
+        "duration_weeks": 4,
+        "intensity": "ALTA",
+        "has_no_materials_alternative": True,
+        "days": [
+            {"name": "Día 1", "blocks": [_block("Circuito", 25, ("Burpees Modificados", 4, "12", 45, None), ("Sentadilla con Peso Corporal", 4, "15", 45, None), ("Flexiones de Brazos", 4, "10", 45, None))]},
+        ],
+    },
+    {
+        "trainer_key": "trainer_gonzalo",
+        "name": "Acondicionamiento Cross Training",
+        "duration_weeks": 6,
+        "intensity": "ALTA",
+        "days": [
+            {"name": "Día 1 - Fuerza", "blocks": [_block("Principal", 40, ("Sentadilla Goblet", 5, "8", 90, 32.0), ("Swing con Kettlebell", 5, "15", 60, 24.0))]},
+            {"name": "Día 2 - Motor", "blocks": [_block("Intervalos", 30, ("Remo Ergómetro", 6, "500 m", 90, None))]},
+        ],
+    },
+    {
+        # Incluye ejercicios contraindicados para Tomás: sirve para mostrar la adaptación con IA.
+        "trainer_key": "trainer_gonzalo",
+        "name": "Halterofilia Técnica",
+        "duration_weeks": 6,
+        "intensity": "EXIGENTE",
+        "days": [
+            {"name": "Día 1 - Arranque", "blocks": [_block("Técnica", 45, ("Snatch", 6, "3", 120, 50.0), ("Sentadilla Frontal", 4, "5", 120, 70.0))]},
+            {"name": "Día 2 - Envión", "blocks": [_block("Técnica", 45, ("Power Clean", 6, "3", 120, 70.0), ("Peso Muerto Rumano", 4, "6", 120, 80.0))]},
+        ],
+    },
+]
+
+# Martín ya tiene una rutina con IA aprobada; Tomás entrena una genérica y tiene una propuesta por revisar.
+AI_ROUTINES_DEMO_DATA: list[dict[str, Any]] = [
+    {
+        "trainer_key": "trainer_mariana",
+        "student_key": "student_martin",
+        "template_name": "Recomposición Inicial",
+        "name": "Recomposición Inicial - Adaptada para Martín",
+        "status": "APPROVED",
+        "intensity": "BAJA",
+        "rest_bonus_seconds": 30,
+        "replacements": {},
+        "adaptation_note": "Más descanso por el control de presión arterial.",
+        "adaptation_summary": (
+            "Se bajó la intensidad de Media a Baja y se sumaron 30 segundos de descanso por la medicación "
+            "para la presión informada en el cuestionario de salud."
+        ),
+    },
+    {
+        "trainer_key": "trainer_gonzalo",
+        "student_key": "student_tomas",
+        "template_name": "Halterofilia Técnica",
+        "name": "Halterofilia Técnica - Adaptada para Tomás",
+        "status": "PENDING_REVIEW",
+        "intensity": "ALTA",
+        "rest_bonus_seconds": 0,
+        "replacements": {
+            "Snatch": "Swing con Kettlebell",
+            "Sentadilla Frontal": "Sentadilla Goblet",
+            "Power Clean": "Remo Ergómetro",
+        },
+        "adaptation_note": "Reemplazado por la molestia de muñeca.",
+        "adaptation_summary": (
+            "Se reemplazaron los ejercicios con carga sobre la muñeca derecha (Snatch, Sentadilla Frontal y "
+            "Power Clean) por alternativas de la biblioteca, y se bajó la intensidad de Exigente a Alta."
+        ),
+    },
+]
+# Rutinas genéricas asignadas directamente: (entrenador, alumno, rutina).
+ROUTINE_ASSIGNMENTS_DEMO_DATA: list[tuple[str, str, str]] = [
+    ("trainer_gonzalo", "student_tomas", "Acondicionamiento Cross Training"),
+]
+
+
+def _seed_routines(
+    db: Session,
+    trainer_map: dict[str, TrainerProfile],
+    student_map: dict[str, StudentProfile],
+    stats: dict[str, int],
+    now: datetime,
+) -> None:
+    """Carga ejercicios y rutinas; lo existente no se pisa para respetar cambios hechos en la demo."""
+    exercise_ids: dict[tuple[str, str], str] = {}
+    for trainer_key, exercises in EXERCISES_DEMO_DATA.items():
+        trainer = trainer_map[trainer_key]
+        for data in exercises:
+            exercise = db.scalar(
+                select(Exercise).where(Exercise.trainer_id == trainer.id, Exercise.name == data["name"])
+            )
+            if exercise is None:
+                exercise = Exercise(trainer_id=trainer.id, created_at=now, updated_at=now, **data)
+                db.add(exercise)
+                db.flush()
+            exercise_ids[(trainer_key, data["name"])] = exercise.id
+            stats["exercises"] += 1
+
+    templates: dict[tuple[str, str], RoutineTemplate] = {}
+    for data in ROUTINES_DEMO_DATA:
+        trainer_key = data["trainer_key"]
+        trainer = trainer_map[trainer_key]
+        template = db.scalar(
+            select(RoutineTemplate).where(RoutineTemplate.trainer_id == trainer.id, RoutineTemplate.name == data["name"])
+        )
+        if template is None:
+            content = {key: value for key, value in data.items() if key != "trainer_key"}
+            for day in content["days"]:
+                for block in day["blocks"]:
+                    for entry in block["exercises"]:
+                        entry["exercise_id"] = exercise_ids[(trainer_key, entry["exercise"])]
+            # Pasa por el schema real para que el seed no pueda cargar rutinas inválidas.
+            payload = RoutineTemplateInput.model_validate(content)
+            template = RoutineTemplate(
+                trainer_id=trainer.id,
+                name=payload.name,
+                duration_weeks=payload.duration_weeks,
+                intensity=payload.intensity,
+                has_no_materials_alternative=payload.has_no_materials_alternative,
+                days=build_days(payload),
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(template)
+            db.flush()
+        templates[(trainer_key, data["name"])] = template
+        stats["routines"] += 1
+
+    for trainer_key, student_key, routine_name in ROUTINE_ASSIGNMENTS_DEMO_DATA:
+        relationship = _active_relationship(db, trainer_map[trainer_key], student_map[student_key])
+        if relationship.initial_routine_id is None:
+            relationship.initial_routine_id = templates[(trainer_key, routine_name)].id
+            db.flush()
+
+    for data in AI_ROUTINES_DEMO_DATA:
+        trainer_key = data["trainer_key"]
+        trainer = trainer_map[trainer_key]
+        student = student_map[data["student_key"]]
+        routine = db.scalar(
+            select(AssignedRoutine).where(
+                AssignedRoutine.trainer_id == trainer.id,
+                AssignedRoutine.student_id == student.id,
+                AssignedRoutine.name == data["name"],
+            )
+        )
+        stats["ai_routines"] += 1
+        if routine is not None:
+            continue
+        routine = _build_ai_routine(data, trainer, student, templates, exercise_ids, now)
+        db.add(routine)
+        db.flush()
+        if routine.status == "APPROVED":
+            relationship = _active_relationship(db, trainer, student)
+            relationship.initial_routine_id = routine.id
+            sync_assigned_routine(db, relationship, routine)
+
+
+def _active_relationship(db: Session, trainer: TrainerProfile, student: StudentProfile) -> TrainingRelationship:
+    return db.scalars(
+        select(TrainingRelationship).where(
+            TrainingRelationship.trainer_id == trainer.id,
+            TrainingRelationship.student_id == student.id,
+            TrainingRelationship.status == "ACTIVE",
+        )
+    ).one()
+
+
+def _build_ai_routine(
+    data: dict[str, Any],
+    trainer: TrainerProfile,
+    student: StudentProfile,
+    templates: dict[tuple[str, str], RoutineTemplate],
+    exercise_ids: dict[tuple[str, str], str],
+    now: datetime,
+) -> AssignedRoutine:
+    """Arma una propuesta fija a partir de la rutina base: la demo no depende de un proveedor de IA."""
+    trainer_key = data["trainer_key"]
+    template = templates[(trainer_key, data["template_name"])]
+    replacements = data["replacements"]
+    bonus = data["rest_bonus_seconds"]
+
+    def adapted_entry(entry: Any) -> AssignedRoutineExercise:
+        replacement = replacements.get(entry.exercise.name)
+        changed = replacement is not None or bonus > 0
+        return AssignedRoutineExercise(
+            order_index=entry.order_index,
+            exercise_id=exercise_ids[(trainer_key, replacement)] if replacement else entry.exercise_id,
+            sets=entry.sets,
+            reps=entry.reps,
+            rest_seconds=entry.rest_seconds + bonus,
+            adaptation_notes=data["adaptation_note"] if changed else None,
+            target_weight_kg=None if replacement else entry.target_weight_kg,
+        )
+
+    return AssignedRoutine(
+        trainer_id=trainer.id,
+        student_id=student.id,
+        template_id=template.id,
+        name=data["name"],
+        duration_weeks=template.duration_weeks,
+        intensity=data["intensity"],
+        has_no_materials_alternative=template.has_no_materials_alternative,
+        status=data["status"],
+        adaptation_summary=data["adaptation_summary"],
+        approved_at=now if data["status"] == "APPROVED" else None,
+        created_at=now,
+        updated_at=now,
+        days=[
+            AssignedRoutineDay(
+                order_index=day.order_index,
+                name=day.name,
+                blocks=[
+                    AssignedRoutineBlock(
+                        order_index=block.order_index,
+                        name=block.name,
+                        estimated_duration_minutes=block.estimated_duration_minutes,
+                        exercises=[adapted_entry(entry) for entry in block.exercises],
+                    )
+                    for block in day.blocks
+                ],
+            )
+            for day in template.days
+        ],
+    )
+
+
 def seed_demo_data(db: Session, verbose: bool = True) -> dict[str, int]:
     """Crea o actualiza de forma idempotente todos los datos de demostración."""
-    # Asegurar que todas las tablas del esquema existan
-    Base.metadata.create_all(bind=engine)
-
     stats = {
         "trainers": 0,
         "plans": 0,
@@ -515,6 +846,9 @@ def seed_demo_data(db: Session, verbose: bool = True) -> dict[str, int]:
         "requests": 0,
         "relationships": 0,
         "notifications": 0,
+        "exercises": 0,
+        "routines": 0,
+        "ai_routines": 0,
     }
 
     now = _utc_now()
@@ -845,6 +1179,9 @@ def seed_demo_data(db: Session, verbose: bool = True) -> dict[str, int]:
                 db.flush()
             stats["notifications"] += 1
 
+    # 4. Sembrar Ejercicios y Rutinas (requieren los vínculos activos)
+    _seed_routines(db, trainer_map, student_map, stats, now)
+
     db.commit()
 
     if verbose:
@@ -860,6 +1197,9 @@ def seed_demo_data(db: Session, verbose: bool = True) -> dict[str, int]:
         print(f" • Solicitudes demo:      {stats['requests']}")
         print(f" • Vínculos activos:      {stats['relationships']}")
         print(f" • Notificaciones:        {stats['notifications']}")
+        print(f" • Ejercicios:            {stats['exercises']}")
+        print(f" • Rutinas genéricas:     {stats['routines']}")
+        print(f" • Rutinas con IA:        {stats['ai_routines']}")
         print("=" * 70)
 
     return stats
@@ -910,7 +1250,20 @@ def clean_demo_data(db: Session, verbose: bool = True) -> dict[str, int]:
         db.delete(n)
         counts["notifications"] += 1
 
-    # 2. Vínculos activos / históricos de demo
+    # 2. Copias de rutina por alumno (se ubican a través del vínculo, que se borra después)
+    if student_ids:
+        for sr in db.scalars(
+            select(StudentRoutine)
+            .join(TrainingRelationship, StudentRoutine.relationship_id == TrainingRelationship.id)
+            .where(TrainingRelationship.student_id.in_(student_ids))
+        ).all():
+            for rcl in db.scalars(
+                select(RoutineChangeLog).where(RoutineChangeLog.student_routine_id == sr.id)
+            ).all():
+                db.delete(rcl)
+            db.delete(sr)
+
+    # 2b. Vínculos activos / históricos de demo
     if student_ids or trainer_ids:
         for rel in db.scalars(
             select(TrainingRelationship).where(
@@ -940,13 +1293,34 @@ def clean_demo_data(db: Session, verbose: bool = True) -> dict[str, int]:
             db.delete(plan)
             counts["plans"] += 1
 
+    # 4b. Rutinas y ejercicios asociados a cuentas demo
+    if trainer_ids or student_ids:
+        for ar in db.scalars(
+            select(AssignedRoutine).where(
+                (AssignedRoutine.trainer_id.in_(trainer_ids))
+                | (AssignedRoutine.student_id.in_(student_ids))
+            )
+        ).all():
+            db.delete(ar)
+
+    if trainer_ids:
+        for rt in db.scalars(
+            select(RoutineTemplate).where(RoutineTemplate.trainer_id.in_(trainer_ids))
+        ).all():
+            db.delete(rt)
+
+        for ex in db.scalars(
+            select(Exercise).where(Exercise.trainer_id.in_(trainer_ids))
+        ).all():
+            db.delete(ex)
+
     # 5. Aptos médicos de alumnos demo (y sus archivos en disco)
     if student_ids:
         for mc in db.scalars(
             select(MedicalClearance).where(MedicalClearance.student_id.in_(student_ids))
         ).all():
             file_p = Path(mc.file_path)
-            if file_p.exists() and DEMO_DOMAIN in mc.original_filename or "demo" in mc.original_filename:
+            if file_p.exists() and (DEMO_DOMAIN in mc.original_filename or "demo" in mc.original_filename):
                 file_p.unlink(missing_ok=True)
             db.delete(mc)
             counts["medical_clearances"] += 1
@@ -1010,7 +1384,7 @@ def clean_demo_data(db: Session, verbose: bool = True) -> dict[str, int]:
         print(f" • Zonas a proteger eliminadas: {counts['protected_zones']}")
         print(f" • Aptos médicos eliminados:    {counts['medical_clearances']}")
         print(f" • Notificaciones eliminadas:   {counts['notifications']}")
-        print(" [✓] Todos los datos ajenos a la demo permanecen intactos.")
+        print(" [OK] Todos los datos ajenos a la demo permanecen intactos.")
         print("=" * 70)
 
     return counts
@@ -1050,6 +1424,10 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    # También para --clean y --reset: una base nueva todavía no tiene tablas.
+    Base.metadata.create_all(bind=engine)
+    apply_migrations(engine)
 
     db: Session = SessionLocal()
     try:

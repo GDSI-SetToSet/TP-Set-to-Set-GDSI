@@ -1,10 +1,11 @@
 import axios from 'axios';
-import { ArrowLeft, CheckCircle2, Save } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Pencil, Save } from 'lucide-react';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { getOwnHealthQuestionnaire, saveHealthQuestionnaire } from '../services/studentHealthService';
 import { HEALTH_QUESTIONS, type HealthQuestionKey } from '../types/student';
+import '../styles/health-questionnaire.css';
 
 type Answers = Partial<Record<HealthQuestionKey, boolean>>;
 const QUESTION_KEYS = Object.keys(HEALTH_QUESTIONS) as HealthQuestionKey[];
@@ -13,7 +14,11 @@ export function HealthQuestionnairePage() {
   const navigate = useNavigate();
   const redirectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [answers, setAnswers] = useState<Answers>({});
+  const [savedAnswers, setSavedAnswers] = useState<Answers>({});
   const [other, setOther] = useState('');
+  const [savedOther, setSavedOther] = useState('');
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -24,8 +29,13 @@ export function HealthQuestionnairePage() {
     getOwnHealthQuestionnaire()
       .then((data) => {
         if (!data) return;
-        setAnswers(Object.fromEntries(QUESTION_KEYS.map((key) => [key, data[key]])));
-        setOther(data.other_medical_conditions ?? '');
+        const loadedAnswers = Object.fromEntries(QUESTION_KEYS.map((key) => [key, data[key]])) as Answers;
+        const loadedOther = data.other_medical_conditions ?? '';
+        setAnswers(loadedAnswers);
+        setSavedAnswers(loadedAnswers);
+        setOther(loadedOther);
+        setSavedOther(loadedOther);
+        setIsCompleted(true);
       })
       .catch(() => setError('No pudimos cargar tu cuestionario. Intentá nuevamente.'))
       .finally(() => setLoading(false));
@@ -37,6 +47,20 @@ export function HealthQuestionnairePage() {
 
   const allAnswered = QUESTION_KEYS.every((key) => answers[key] !== undefined);
 
+  function startEditing() {
+    setIsEditing(true);
+    setMissing(false);
+    setError('');
+  }
+
+  function cancelEditing() {
+    setAnswers(savedAnswers);
+    setOther(savedOther);
+    setMissing(false);
+    setError('');
+    setIsEditing(false);
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError('');
@@ -46,7 +70,13 @@ export function HealthQuestionnairePage() {
     }
     setIsSubmitting(true);
     try {
-      await saveHealthQuestionnaire({ ...(answers as Record<HealthQuestionKey, boolean>), other_medical_conditions: other.trim() || null });
+      const submittedAnswers = { ...answers } as Answers;
+      const submittedOther = other.trim();
+      await saveHealthQuestionnaire({ ...(submittedAnswers as Record<HealthQuestionKey, boolean>), other_medical_conditions: submittedOther || null });
+      setSavedAnswers(submittedAnswers);
+      setSavedOther(submittedOther);
+      setIsCompleted(true);
+      setIsEditing(false);
       setIsSubmitting(false);
       setIsSuccess(true);
       redirectTimeout.current = setTimeout(() => {
@@ -72,8 +102,29 @@ export function HealthQuestionnairePage() {
         <div className="profile-heading">
           <span>SALUD</span>
           <h1>Cuestionario de salud</h1>
-          <p>Respondé las cinco preguntas para que tu entrenador diseñe una rutina segura. Tus objetivos se cargan en tu perfil.</p>
+          <p>{isCompleted && !isEditing ? 'Estas son las respuestas que compartís con tu entrenador.' : 'Respondé las cinco preguntas para que tu entrenador diseñe una rutina segura.'}</p>
         </div>
+        {isCompleted && !isEditing ? (
+          <section className="health-summary">
+            <dl className="health-summary__grid" aria-label="Respuestas del cuestionario de salud">
+              {QUESTION_KEYS.map((key) => (
+                <div className="health-summary__item" key={key}>
+                  <dt>{HEALTH_QUESTIONS[key]}</dt>
+                  <dd>{answers[key] ? 'Sí' : 'No'}</dd>
+                </div>
+              ))}
+              <div className="health-summary__item">
+                <dt>Otras condiciones médicas</dt>
+                <dd>{other.trim() || 'Ninguna informada'}</dd>
+              </div>
+            </dl>
+            <div className="health-summary__actions">
+              <button className="profile-save" type="button" onClick={startEditing}>
+                <Pencil size={18} /> Editar
+              </button>
+            </div>
+          </section>
+        ) : (
         <form className="profile-form" onSubmit={handleSubmit} noValidate>
           {QUESTION_KEYS.map((key) => (
             <fieldset key={key}>
@@ -91,8 +142,12 @@ export function HealthQuestionnairePage() {
           </label>
           {missing && <p className="form-alert" role="alert">Respondé todas las preguntas.</p>}
           {error && <p className="form-alert" role="alert">{error}</p>}
-          <button className="profile-save" type="submit" disabled={isSubmitting}><Save size={18} /> {isSubmitting ? 'Guardando...' : 'Guardar cuestionario'}</button>
+          <div className="plan-form__actions">
+            <button className="profile-save" type="submit" disabled={isSubmitting}><Save size={18} /> {isSubmitting ? 'Guardando...' : 'Guardar cuestionario'}</button>
+            {isCompleted && isEditing && <button className="health-questionnaire-cancel" type="button" onClick={cancelEditing} disabled={isSubmitting}>Cancelar</button>}
+          </div>
         </form>
+        )}
       </section>
     </main>
     {(isSubmitting || isSuccess) && (

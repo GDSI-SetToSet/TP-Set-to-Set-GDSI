@@ -1,5 +1,5 @@
 import { api } from './api';
-import type { RoutineTemplate, RoutineTemplateInput } from '../types/routineTemplate';
+import type { RoutineAssignmentStudent, RoutineTemplate, RoutineTemplateInput } from '../types/routineTemplate';
 
 const TEMPLATES_PATH = '/api/v1/routine-templates';
 
@@ -18,7 +18,30 @@ export async function updateRoutineTemplate(templateId: string, payload: Routine
   return data;
 }
 
+export async function deleteRoutineTemplate(templateId: string): Promise<void> {
+  await api.delete(`${TEMPLATES_PATH}/${templateId}`);
+}
+
 export async function getStudentRoutineTemplates(): Promise<RoutineTemplate[]> {
   const { data } = await api.get<RoutineTemplate[]>('/api/v1/students/me/routine-templates');
   return data;
+}
+
+export async function getAssignedStudentRoutine(): Promise<RoutineTemplate | null> {
+  const { data } = await api.get<RoutineTemplate | null>('/api/v1/students/me/routine-templates/assigned');
+  return data;
+}
+
+export async function getRoutineAssignments(): Promise<RoutineAssignmentStudent[]> {
+  const { data } = await api.get<RoutineAssignmentStudent[]>(`${TEMPLATES_PATH}/assignments`);
+  return data;
+}
+
+/** Devuelve avisos: ejercicios de la rutina que chocan con las zonas a proteger del alumno. */
+export async function assignRoutineToStudent(relationshipId: string, routineTemplateId: string | null): Promise<string[]> {
+  const { data } = await api.put<{ warnings: string[] }>(
+    `${TEMPLATES_PATH}/assignments/${relationshipId}`,
+    { routine_template_id: routineTemplateId },
+  );
+  return data.warnings ?? [];
 }

@@ -186,3 +186,15 @@ def test_reset_revokes_all_active_sessions(client, registered_user, mailbox):
     assert reset(api, request_token(api, mailbox)).status_code == 200
     for access_token in tokens:
         assert api.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {access_token}"}).status_code == 401
+
+
+def test_forgot_password_rate_limiting(client):
+    """AUD-11: Rate limiting en solicitud de recuperación de contraseña (429 tras 5 intentos)."""
+    api, _ = client
+    target_email = "rate_limited_user@example.com"
+    for _ in range(5):
+        resp = api.post("/api/v1/auth/forgot-password", json={"email": target_email})
+        assert resp.status_code == 200
+    # El 6to intento consecutivo debe recibir 429 Too Many Requests
+    blocked_resp = api.post("/api/v1/auth/forgot-password", json={"email": target_email})
+    assert blocked_resp.status_code == 429

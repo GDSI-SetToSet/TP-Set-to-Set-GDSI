@@ -204,3 +204,14 @@ def test_filename_path_traversal_is_sanitized_and_open_upload_rejects_outside_pa
 
     tampered_resp = test_client.get(download_url, headers=student_token_headers)
     assert tampered_resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_executable_and_script_upload_blocked(client, student_token_headers):
+    """AUD-11: Bloqueo de subida de ejecutables y scripts camuflados como PDF/imagen."""
+    test_client, _ = client
+    # Archivo Windows PE executable camuflado como PDF
+    exe_content = b"MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00"
+    files = {"file": ("malware.pdf", io.BytesIO(exe_content), "application/pdf")}
+    response = test_client.post(URL_ME, headers=student_token_headers, files=files, data={"issue_date": "2026-10-01"})
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "ejecutables" in response.json()["detail"].lower()
