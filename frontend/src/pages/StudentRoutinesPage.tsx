@@ -1,6 +1,7 @@
 import { ArrowLeft } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { SafeVariantNotice } from '../components/SafeVariantNotice';
 import { ROUTES } from '../constants/routes';
 import { getAssignedStudentRoutine } from '../services/routineTemplateService';
 import type { RoutineTemplate } from '../types/routineTemplate';
@@ -11,6 +12,7 @@ export function StudentRoutinesPage() {
   const [selectedDayId, setSelectedDayId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [skipped, setSkipped] = useState<string[]>([]);
 
   useEffect(() => {
     getAssignedStudentRoutine()
@@ -74,7 +76,7 @@ export function StudentRoutinesPage() {
                   <span>{block.estimated_duration_minutes === null ? 'Duración sin configurar' : `${block.estimated_duration_minutes} min estimados`}</span>
                 </header>
                 <ol>
-                  {block.exercises.map((item) => (
+                  {block.exercises.filter((item) => !skipped.includes(item.id)).map((item) => (
                     <li key={item.id}>
                       <div>
                         <h4>{item.exercise.name}</h4>
@@ -82,6 +84,7 @@ export function StudentRoutinesPage() {
                       </div>
                       <p>{item.sets} series · {item.reps} repeticiones</p>
                       <p>{item.target_weight_kg === null ? 'Sin carga indicada' : `${item.target_weight_kg} kg`} · {item.rest_seconds} s de descanso</p>
+                      <SafeVariantNotice exerciseId={item.exercise.id} onSkip={() => setSkipped((current) => [...current, item.id])} />
                     </li>
                   ))}
                 </ol>

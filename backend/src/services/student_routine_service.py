@@ -13,6 +13,7 @@ from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.user import User
 from backend.src.schemas.student_routine import RoutineDraftInput
 from backend.src.services.routine_template_service import RoutineTemplateError
+from backend.src.services.safe_variant_service import resolve_variant
 from backend.src.services.student_service import (
     get_or_create_profile as get_student_profile,
 )
@@ -150,7 +151,17 @@ def find_conflicts(
         conflict = sorted(zones & {norm(z) for z in ex.contraindicated_zones}) if ex else []
         if conflict:
             names = ", ".join(BODY_AREAS_ES.get(z, z) for z in conflict)
-            conflicts.append({"field": field, "message": f'"{ex.name}" está contraindicado por la limitación del alumno: {names}'})
+            # resolución pura: nunca abre casos ni notifica desde acá (solo lo hace la consulta del alumno)
+            kind, variant = resolve_variant(db, ex, zones)
+            safe = {"exercise_id": variant.id, "name": variant.name} if kind == "VARIANT" else None
+            suffix = f' Variante segura: "{variant.name}".' if safe else ""
+            conflicts.append(
+                {
+                    "field": field,
+                    "message": f'"{ex.name}" está contraindicado por la limitación del alumno: {names}.{suffix}',
+                    "safe_variant": safe,
+                }
+            )
     return conflicts, exercises
 
 
@@ -158,6 +169,7 @@ def _validate_draft_content(
     db: Session, relationship: TrainingRelationship, days: list[dict], retained_ids: set[str]
 ) -> dict[str, Exercise]:
     conflicts, exercises = find_conflicts(db, relationship, days)
+    conflicts = [{"field": c["field"], "message": c["message"]} for c in conflicts]
     errors = [
         {"field": field, "message": UNAVAILABLE_MESSAGE}
         for field, entry in _entries(days)
@@ -326,6 +338,19 @@ def render(db: Session, routine: StudentRoutine, content: dict | None = None) ->
         "exercise_count": sum(len(b["exercises"]) for d in days for b in d["blocks"]),
         "days": days,
     }
+
+
+def current_exercise_ids(db: Session, relationship: TrainingRelationship) -> set[str]:
+    """Ejercicios de la rutina vigente del alumno (nunca el borrador); cae a la plantilla asignada si no hay copia."""
+    routine = db.scalar(select(StudentRoutine).where(StudentRoutine.relationship_id == relationship.id))
+    if routine is not None and routine.status != "UNASSIGNED":
+        days = routine.days
+    else:
+        template = db.get(RoutineTemplate, relationship.initial_routine_id) if relationship.initial_routine_id else None
+        if template is None or template.trainer_id != relationship.trainer_id:
+            return set()
+        days = _content_from_template(template)
+    return {e["exercise_id"] for _, e in _entries(days)}
 
 
 def student_assigned_view(db: Session, user: User) -> dict | None:

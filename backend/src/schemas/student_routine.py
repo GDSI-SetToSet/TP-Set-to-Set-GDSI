@@ -5,6 +5,7 @@ from backend.src.schemas.routine_template import (
     RoutineTemplateResponse,
     required_range,
 )
+from backend.src.schemas.safe_variant import SafeVariantRef
 
 
 class RoutineDraftInput(RoutineTemplateInput):
@@ -20,6 +21,7 @@ class RoutineDraftInput(RoutineTemplateInput):
 class RoutineConflict(BaseModel):
     field: str
     message: str
+    safe_variant: SafeVariantRef | None = None
 
 
 class StudentRoutineResponse(BaseModel):
