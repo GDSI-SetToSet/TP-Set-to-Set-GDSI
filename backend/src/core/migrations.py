@@ -80,6 +80,15 @@ TARGET_COLUMNS: tuple[ColumnMigration, ...] = (
         postgres_type="NUMERIC(7, 2)",
         nullable=True,
     ),
+    ColumnMigration(
+        table="training_relationships",
+        column="routine_modality",
+        sqlite_type="VARCHAR(16)",
+        postgres_type="VARCHAR(16)",
+        nullable=False,
+        sqlite_default="'GYM'",
+        postgres_default="'GYM'",
+    ),
 )
 
 

@@ -49,6 +49,7 @@ class TrainingRelationship(Base):
     welcome_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     welcome_message_sent: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     initial_routine_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    routine_modality: Mapped[str] = mapped_column(String(16), default="GYM", nullable=False)
     terminated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     termination_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 

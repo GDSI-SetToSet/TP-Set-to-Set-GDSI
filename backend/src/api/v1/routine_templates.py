@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
@@ -9,12 +9,16 @@ from backend.src.schemas.routine_template import (
     RoutineAssignmentResponse,
     RoutineAssignmentStudentResponse,
     RoutineAssignmentUpdate,
+    RoutineModalityUpdate,
     RoutineTemplateInput,
     RoutineTemplateResponse,
+    WorkoutSetLogInput,
+    WorkoutSetLogResponse,
 )
 from backend.src.services.routine_template_service import (
     RoutineTemplateError,
     assign_routine_to_student,
+    create_student_workout_log,
     create_template,
     delete_template,
     get_assigned_student_template,
@@ -23,6 +27,8 @@ from backend.src.services.routine_template_service import (
     list_own_templates,
     list_routine_assignments,
     list_student_templates,
+    list_student_workout_logs,
+    update_student_routine_modality,
     update_template,
 )
 from backend.src.services.student_routine_service import (
@@ -128,6 +134,45 @@ def assigned_routine(user: CurrentUser, db: DbDep) -> RoutineTemplateResponse | 
             return RoutineTemplateResponse.model_validate(own_copy)
         template = get_assigned_student_template(db, user)
         return RoutineTemplateResponse.model_validate(template) if template else None
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@student_router.put("/assigned/modality", response_model=RoutineTemplateResponse)
+def change_assigned_routine_modality(
+    payload: RoutineModalityUpdate, user: CurrentUser, db: DbDep
+) -> RoutineTemplateResponse:
+    try:
+        updated = update_student_routine_modality(db, user, payload)
+        return RoutineTemplateResponse.model_validate(updated)
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@student_router.get("/assigned/workout-logs", response_model=list[WorkoutSetLogResponse])
+def get_assigned_routine_workout_logs(
+    user: CurrentUser,
+    db: DbDep,
+    exercise_id: Annotated[str | None, Query()] = None,
+) -> list[WorkoutSetLogResponse]:
+    try:
+        logs = list_student_workout_logs(db, user, exercise_id=exercise_id)
+        return [WorkoutSetLogResponse.model_validate(item) for item in logs]
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@student_router.post(
+    "/assigned/workout-logs",
+    response_model=WorkoutSetLogResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def record_assigned_routine_workout_log(
+    payload: WorkoutSetLogInput, user: CurrentUser, db: DbDep
+) -> WorkoutSetLogResponse:
+    try:
+        created = create_student_workout_log(db, user, payload)
+        return WorkoutSetLogResponse.model_validate(created)
     except ServiceErrors as error:
         handle_error(error)
 
