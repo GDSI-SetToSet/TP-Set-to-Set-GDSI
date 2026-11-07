@@ -2,34 +2,9 @@ import axios from 'axios';
 import { ArrowLeft, CheckCircle2, Plus, Save, Trash2 } from 'lucide-react';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { BODY_AREAS, ZONES_ES } from '../constants/bodyAreas';
 import { ROUTES } from '../constants/routes';
 import { getOwnProtectedZones, updateOwnProtectedZones } from '../services/studentService';
-
-const BODY_AREAS = [
-  'Neck',
-  'Shoulder',
-  'Elbow',
-  'Wrist and hand',
-  'Upper back',
-  'Lower back',
-  'Hip',
-  'Knee',
-  'Ankle and foot',
-  'Other',
-] as const;
-
-const ZONES_ES: Record<string, string> = {
-  'Neck': 'Cuello',
-  'Shoulder': 'Hombro',
-  'Elbow': 'Codo',
-  'Wrist and hand': 'Muñeca y mano',
-  'Upper back': 'Espalda alta',
-  'Lower back': 'Espalda baja',
-  'Hip': 'Cadera',
-  'Knee': 'Rodilla',
-  'Ankle and foot': 'Tobillo y pie',
-  'Other': 'Otra',
-};
 
 const OTHER_OPTION = 'Other';
 
@@ -118,7 +93,7 @@ export function ProtectedZonesPage() {
                 onChange={(event) => setSelectedArea(event.target.value)}
               >
                 <option value="">Seleccioná una zona</option>
-                {BODY_AREAS.map((area) => <option key={area} value={area}>{ZONES_ES[area]}</option>)}
+                {[...BODY_AREAS, OTHER_OPTION].map((area) => <option key={area} value={area}>{ZONES_ES[area]}</option>)}
               </select>
               {selectedArea === OTHER_OPTION && (
                 <input

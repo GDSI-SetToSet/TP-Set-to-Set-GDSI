@@ -1,33 +1,44 @@
 import axios from 'axios';
-import { ArrowLeft, CheckCircle2, Save } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Plus, Save } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ExerciseCard } from '../components/ExerciseCard';
+import { BODY_AREAS, ZONES_ES } from '../constants/bodyAreas';
 import { ROUTES } from '../constants/routes';
 import { createExercise, deleteExercise, getExercises, updateExercise } from '../services/exerciseService';
 import { EXERCISE_CATEGORIES, type Exercise, type ExerciseCategory } from '../types/exercise';
+import { getVideoEmbedUrl } from '../utils/videoUrl';
 
 const REQUIRED_MESSAGE = 'Este campo es obligatorio';
+const CUE_MAX_LENGTH = 2000;
 const CATEGORY_OPTIONS = Object.entries(EXERCISE_CATEGORIES) as [ExerciseCategory, string][];
 
 interface FormState {
   name: string;
   description: string;
+  technical_cues: string;
+  breathing_cues: string;
   category: ExerciseCategory | '';
   target_muscle_group: string;
   equipment_needed: string;
   has_no_materials_alternative: boolean;
+  video_url: string;
+  contraindicated_zones: string[];
 }
 
-type TextField = Exclude<keyof FormState, 'has_no_materials_alternative'>;
+type TextField = Exclude<keyof FormState, 'has_no_materials_alternative' | 'contraindicated_zones'>;
 
 const EMPTY_FORM: FormState = {
   name: '',
   description: '',
+  technical_cues: '',
+  breathing_cues: '',
   category: '',
   target_muscle_group: '',
   equipment_needed: '',
   has_no_materials_alternative: false,
+  video_url: '',
+  contraindicated_zones: [],
 };
 const REQUIRED_FIELDS: TextField[] = ['name', 'description', 'category', 'target_muscle_group', 'equipment_needed'];
 
@@ -47,6 +58,8 @@ export function ExerciseLibraryPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [formVisible, setFormVisible] = useState(false);
+  const videoPreviewUrl = getVideoEmbedUrl(form.video_url);
 
   // El filtro se arma con la biblioteca completa para no perder opciones al elegir un músculo.
   const loadExercises = useCallback(async (muscle: string) => {
@@ -73,6 +86,17 @@ export function ExerciseLibraryPage() {
     setForm(EMPTY_FORM);
     setEditingId(null);
     setFieldErrors({});
+    setFormVisible(false);
+  }
+
+  function startCreating() {
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setFieldErrors({});
+    setMessage('');
+    setError('');
+    setFormVisible(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function startEditing(exercise: Exercise) {
@@ -80,14 +104,19 @@ export function ExerciseLibraryPage() {
     setForm({
       name: exercise.name,
       description: exercise.description,
+      technical_cues: exercise.technical_cues ?? '',
+      breathing_cues: exercise.breathing_cues ?? '',
       category: exercise.category,
       target_muscle_group: exercise.target_muscle_group,
       equipment_needed: exercise.equipment_needed,
       has_no_materials_alternative: exercise.has_no_materials_alternative,
+      video_url: exercise.video_url ?? '',
+      contraindicated_zones: exercise.contraindicated_zones ?? [],
     });
     setFieldErrors({});
     setMessage('');
     setError('');
+    setFormVisible(true);
   }
 
   function handleError(caught: unknown) {
@@ -109,7 +138,13 @@ export function ExerciseLibraryPage() {
     setFieldErrors(missing);
     if (Object.keys(missing).length > 0 || !form.category) return;
 
-    const payload = { ...form, category: form.category };
+    const payload = {
+      ...form,
+      category: form.category,
+      video_url: form.video_url.trim() || null,
+      technical_cues: form.technical_cues.trim() || null,
+      breathing_cues: form.breathing_cues.trim() || null,
+    };
     setSaving(true);
     try {
       if (editingId) {
@@ -153,14 +188,24 @@ export function ExerciseLibraryPage() {
         <Link to={ROUTES.trainerHome} className="profile-back"><ArrowLeft size={18} /> Volver al inicio</Link>
       </header>
 
-      <section className="profile-card">
-        <div className="profile-heading">
+      <section className="profile-card exercise-library-page">
+        <div className="exercise-library-header">
+          <div className="profile-heading">
           <span>BIBLIOTECA</span>
           <h1>Tus ejercicios</h1>
           <p>Cargá los ejercicios que después vas a usar en las rutinas de tus alumnos.</p>
+          </div>
+          <div className="exercise-library-actions">
+            <button className="profile-save" type="button" onClick={formVisible ? resetForm : startCreating} disabled={saving}>
+              {formVisible ? 'Cerrar formulario' : <><Plus size={18} /> Crear ejercicio</>}
+            </button>
+          </div>
         </div>
 
-        <form className="profile-form" onSubmit={handleSubmit} noValidate>
+        {error && <p className="form-alert" role="alert">{error}</p>}
+        {message && <p className="profile-success exercise-library-message" role="status"><CheckCircle2 size={18} /> {message}</p>}
+
+        {formVisible && <form className="profile-form" onSubmit={handleSubmit} noValidate>
           <label>Nombre
             <input value={form.name} onChange={(event) => updateField('name', event.target.value)} maxLength={150} aria-invalid={Boolean(fieldErrors.name)} />
             {fieldErrors.name && <small className="field-error">{fieldErrors.name}</small>}
@@ -184,20 +229,84 @@ export function ExerciseLibraryPage() {
             <textarea value={form.description} onChange={(event) => updateField('description', event.target.value)} rows={3} aria-invalid={Boolean(fieldErrors.description)} />
             {fieldErrors.description && <small className="field-error">{fieldErrors.description}</small>}
           </label>
+          <label>Notas técnicas y de postura (opcional)
+            <textarea
+              value={form.technical_cues}
+              onChange={(event) => updateField('technical_cues', event.target.value)}
+              rows={3}
+              maxLength={CUE_MAX_LENGTH}
+              placeholder="Ej.: mantené la espalda neutra y las rodillas alineadas con los pies."
+              aria-invalid={Boolean(fieldErrors.technical_cues)}
+            />
+            {fieldErrors.technical_cues && <small className="field-error">{fieldErrors.technical_cues}</small>}
+          </label>
+          <label>Claves de respiración (opcional)
+            <textarea
+              value={form.breathing_cues}
+              onChange={(event) => updateField('breathing_cues', event.target.value)}
+              rows={2}
+              maxLength={CUE_MAX_LENGTH}
+              placeholder="Ej.: inhalá al bajar y exhalá durante el esfuerzo."
+              aria-invalid={Boolean(fieldErrors.breathing_cues)}
+            />
+            {fieldErrors.breathing_cues && <small className="field-error">{fieldErrors.breathing_cues}</small>}
+          </label>
+          <label>Video demostrativo (YouTube, Vimeo o Google Drive)
+            <input
+              type="text"
+              value={form.video_url}
+              onChange={(event) => updateField('video_url', event.target.value)}
+              maxLength={500}
+              placeholder="https://youtu.be/..."
+              aria-invalid={Boolean(fieldErrors.video_url)}
+              aria-describedby={fieldErrors.video_url ? 'exercise-video-error' : 'exercise-video-help'}
+            />
+            {fieldErrors.video_url
+              ? <small id="exercise-video-error" className="field-error">{fieldErrors.video_url}</small>
+              : <small id="exercise-video-help">Dejá el campo vacío para quitar el video.</small>}
+          </label>
+          {videoPreviewUrl && (
+            <iframe
+              className="exercise-video"
+              src={videoPreviewUrl}
+              title="Vista previa del video demostrativo"
+              loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            />
+          )}
+          <fieldset className="zone-checks">
+            <legend>Zonas contraindicadas</legend>
+            <p>Se bloquea este ejercicio en las rutinas de alumnos que declararon alguna de estas zonas a proteger.</p>
+            <div className="zone-checks__grid">
+              {BODY_AREAS.map((area) => (
+                <label key={area} className="exercise-check zone-checks__item">
+                  <input
+                    type="checkbox"
+                    checked={form.contraindicated_zones.includes(area)}
+                    onChange={(event) => setForm((current) => ({
+                      ...current,
+                      contraindicated_zones: event.target.checked
+                        ? [...current.contraindicated_zones, area]
+                        : current.contraindicated_zones.filter((zone) => zone !== area),
+                    }))}
+                  />
+                  {ZONES_ES[area]}
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <label className="exercise-check">
             <input type="checkbox" checked={form.has_no_materials_alternative} onChange={(event) => setForm((current) => ({ ...current, has_no_materials_alternative: event.target.checked }))} />
             Tiene alternativa "Sin materiales"
           </label>
-          {error && <p className="form-alert" role="alert">{error}</p>}
-          {message && <p className="profile-success" role="status"><CheckCircle2 size={18} /> {message}</p>}
           <div className="plan-form__actions">
             <button className="profile-save" type="submit" disabled={saving}>
               <Save size={18} /> {saving ? 'Guardando…' : editingId ? 'Guardar cambios' : 'Guardar'}
             </button>
             {editingId && <button className="plan-cancel" type="button" onClick={resetForm} disabled={saving}>Cancelar</button>}
           </div>
-        </form>
-      </section>
+        </form>}
 
       <section className="exercise-filter" aria-label="Filtros de la biblioteca">
         <label>Filtrar por músculo
@@ -212,6 +321,7 @@ export function ExerciseLibraryPage() {
         {exercises.length === 0
           ? <p className="plan-empty">Todavía no cargaste ejercicios.</p>
           : exercises.map((exercise) => <ExerciseCard key={exercise.id} exercise={exercise} busy={saving} onEdit={startEditing} onDelete={handleDelete} />)}
+      </section>
       </section>
     </main>
   );

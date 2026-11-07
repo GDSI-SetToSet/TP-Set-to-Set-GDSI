@@ -4,6 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+load_dotenv(Path(__file__).resolve().parents[3] / ".env")
 
 API_TITLE = "Set to Set API"
 API_VERSION = "0.1.0"
@@ -53,3 +54,36 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").strip().lower() == "true"
 if EMAIL_BACKEND == "smtp" and not SMTP_HOST:
     raise RuntimeError("SMTP_HOST debe configurarse cuando EMAIL_BACKEND es 'smtp'.")
+
+# Configuración de IA para generación de rutinas particulares (US-13)
+DEFAULT_AI_PROVIDER = "heuristic"
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
+DEFAULT_GEMINI_TIMEOUT_SECONDS = 60.0
+
+AI_PROVIDER = (os.getenv("AI_PROVIDER") or os.getenv("AI_ROUTINE_PROVIDER") or DEFAULT_AI_PROVIDER).strip().lower()
+GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or "").strip() or None
+GEMINI_MODEL = (os.getenv("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL).strip()
+GEMINI_TIMEOUT_SECONDS = float(os.getenv("GEMINI_TIMEOUT_SECONDS") or DEFAULT_GEMINI_TIMEOUT_SECONDS)
+
+
+def get_ai_provider() -> str:
+    return (os.getenv("AI_PROVIDER") or os.getenv("AI_ROUTINE_PROVIDER") or DEFAULT_AI_PROVIDER).strip().lower()
+
+
+def get_gemini_api_key() -> str | None:
+    return (os.getenv("GEMINI_API_KEY") or "").strip() or None
+
+
+def get_gemini_model() -> str:
+    return (os.getenv("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL).strip()
+
+
+def get_gemini_timeout_seconds() -> float:
+    raw = (os.getenv("GEMINI_TIMEOUT_SECONDS") or "").strip()
+    if not raw:
+        return DEFAULT_GEMINI_TIMEOUT_SECONDS
+    try:
+        val = float(raw)
+        return val if val > 0 else DEFAULT_GEMINI_TIMEOUT_SECONDS
+    except ValueError:
+        return DEFAULT_GEMINI_TIMEOUT_SECONDS

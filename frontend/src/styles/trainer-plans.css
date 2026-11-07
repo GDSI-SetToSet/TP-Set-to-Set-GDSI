@@ -35,6 +35,14 @@
   gap: 10px;
   align-content: start;
 }
+
+.trainer-plans-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
 .plan-card--archived { background: var(--pf-arch-bg); }
 .plan-card__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .plan-card h3 { margin: 0; color: var(--pf-ink); font: 700 18px 'Manrope'; }
@@ -47,7 +55,17 @@
 .plan-badge--active { color: var(--pf-ok-text); background: var(--pf-ok-bg); }
 .plan-badge--archived { color: var(--pf-arch-text); background: var(--pf-arch-badge); }
 
+.trainer-plans-header .profile-heading { margin-bottom: 0; }
+.trainer-plans-header > button { flex: none; white-space: nowrap; }
+.trainer-plans-page .profile-form { margin-top: 28px; }
+.trainer-plans-message { margin: 16px 0 0; }
+.trainer-plans-page .plan-list { max-width: none; margin: 28px 0 0; }
+.trainer-plans-page .plan-empty { margin: 0; }
+
 @media (max-width: 680px) {
   .plan-list { grid-template-columns: 1fr; }
   .plan-form__actions > * { width: 100%; justify-content: center; }
+  .trainer-plans-header { align-items: stretch; flex-direction: column; gap: 16px; }
+  .trainer-plans-header > button { width: 100%; justify-content: center; }
 }
+

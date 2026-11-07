@@ -5,8 +5,10 @@
 @import './styles/trainer-plans.css';
 @import './styles/exercise-library.css';
 @import './styles/routine-templates.css';
+@import './styles/student-routine-editor.css';
 @import './styles/success-overlay.css';
 @import './styles/protected-zones.css';
 @import './styles/medical-clearance.css';
 @import './styles/discovery.css';
+@import './styles/generate-ai-routine.css';
 @import './styles/responsive.css';

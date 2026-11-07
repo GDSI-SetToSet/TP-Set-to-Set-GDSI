@@ -1,0 +1,63 @@
+/* Editor denso de rutina por alumno (US-14). Usa los tokens --pf-* del resto de la app. */
+.rt-editor { display: grid; gap: 18px; }
+.rt-form { display: grid; gap: 18px; padding-bottom: 96px; }
+
+.rt-status { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.rt-chip { padding: 6px 12px; border-radius: 999px; font-size: 14px; font-weight: 700; }
+.rt-chip--live { background: var(--pf-ok-bg); color: var(--pf-ok-text); }
+.rt-chip--draft { background: #fff1c9; color: #6b4a00; }
+.rt-dirty { color: var(--pf-muted); font-size: 14px; font-weight: 600; }
+
+.rt-alert {
+  display: flex; gap: 12px; padding: 14px 16px;
+  border: 1px solid #e3b4b4; border-left: 5px solid #a32020; border-radius: 12px;
+  background: #fff4f3; color: #7a1c1c;
+}
+.rt-alert:focus { outline: 3px solid var(--pf-focus); }
+.rt-alert strong { display: block; }
+.rt-alert ul { margin: 6px 0 0; padding-left: 18px; }
+.rt-alert p { margin: 6px 0 0; font-size: 14px; }
+
+.rt-settings {
+  margin: 0; padding: 16px; border: 1px solid var(--pf-border); border-radius: 14px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px 16px; align-items: end;
+}
+.rt-settings legend { padding: 0 6px; color: var(--pf-ink); font: 700 15px 'Manrope', sans-serif; }
+.rt-settings label, .rt-row label { display: grid; gap: 6px; color: var(--pf-label); font-size: 14px; font-weight: 700; }
+.rt-settings input:not([type='checkbox']), .rt-row input { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--pf-input-border); border-radius: 10px; color: var(--pf-input-text); background: #fff; }
+.rt-settings input:focus, .rt-row input:focus { outline: 3px solid var(--pf-focus); border-color: var(--pf-accent); }
+
+.rt-day { display: grid; gap: 12px; }
+.rt-day h2 { margin: 0; padding-bottom: 6px; border-bottom: 2px solid var(--pf-ink); color: var(--pf-ink); font: 700 20px 'Manrope', sans-serif; }
+.rt-block { display: grid; gap: 10px; padding: 14px; border-radius: 14px; background: var(--pf-arch-bg); }
+.rt-block h3 { display: flex; justify-content: space-between; align-items: baseline; margin: 0; color: var(--pf-label); font-size: 16px; }
+.rt-block h3 small { color: var(--pf-muted); font-weight: 600; }
+.rt-block > .plan-cancel { justify-self: start; }
+
+.rt-row {
+  display: grid; gap: 10px; align-items: end; padding: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid var(--pf-border); border-radius: 12px; background: #fff;
+}
+.rt-row__exercise { grid-column: 1 / -1; }
+.rt-row__remove { justify-content: center; width: 100%; }
+.rt-row--invalid { border-color: #a32020; box-shadow: inset 4px 0 0 #a32020; background: #fffafa; }
+.rt-row__error { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; margin: 0; color: #8f2020; font-size: 14px; font-weight: 700; }
+
+.rt-actions {
+  position: sticky; bottom: 0; z-index: 5;
+  display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 0;
+  border-top: 1px solid var(--pf-border); background: rgba(255, 255, 255, .96);
+}
+.rt-actions .profile-save, .rt-actions .plan-cancel { flex: 1 1 180px; justify-content: center; }
+.rt-actions button:disabled { opacity: .55; cursor: not-allowed; }
+
+@media (min-width: 900px) {
+  .rt-row { grid-template-columns: minmax(200px, 2.2fr) repeat(4, minmax(80px, 1fr)) 48px; }
+  .rt-row__exercise { grid-column: auto; }
+  .rt-row__remove { width: 44px; padding: 0; }
+  .rt-actions .profile-save, .rt-actions .plan-cancel { flex: 0 0 auto; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rt-row { transition: border-color .15s ease, box-shadow .15s ease; }
+}

@@ -42,7 +42,9 @@ export function LoginPage() {
       navigate(homePath(signedInUser.role), { replace: true });
     } catch (requestError) {
       const apiError = getApiErrorInfo(requestError, INVALID_CREDENTIALS_MESSAGE);
-      if (apiError.status === 423) {
+      if (apiError.status === undefined) {
+        setError('No pudimos conectar con el servidor. Verificá que el backend esté iniciado.');
+      } else if (apiError.status === 423) {
         startLockout(apiError.retryAfterSeconds ?? LOGIN_LOCKOUT_SECONDS);
         setError('');
       } else {

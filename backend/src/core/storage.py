@@ -87,6 +87,18 @@ async def save_upload(student_id: str, file: UploadFile) -> tuple[str, int]:
     if len(content) == 0:
         raise StorageError("El archivo está vacío.")
 
+    # Bloquear ejecutables y scripts peligrosos que simulan ser documentos o imágenes
+    DANGEROUS_SIGNATURES = (
+        b"MZ",          # Windows PE / EXE / DLL
+        b"\x7fELF",     # Linux ELF executable
+        b"\xca\xfe\xba\xbe",  # Mach-O / Java Class
+        b"#!",          # Shell script
+        b"<?php",       # PHP script
+        b"<script",     # HTML/JS script
+    )
+    if any(content.startswith(sig) for sig in DANGEROUS_SIGNATURES):
+        raise StorageError("Archivo no permitido: contiene ejecutables o scripts no autorizados.")
+
     safe_student_dir = sanitize_filename(student_id)
     base_dir = UPLOADS_DIR.resolve()
     dest_dir = (UPLOADS_DIR / safe_student_dir).resolve()

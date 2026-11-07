@@ -147,6 +147,17 @@ def search_trainers(db: Session, filters: TrainerSearchFilters) -> PaginatedTrai
         )
     )
 
+    if filters.name and filters.name.strip():
+        escaped_name = (
+            filters.name.strip()
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        )
+        base = base.where(
+            TrainerProfile.full_name.ilike(f"%{escaped_name}%", escape="\\")
+        )
+
     if filters.specialty:
         escaped_specialty = (
             filters.specialty.replace("\\", "\\\\")
@@ -620,20 +631,105 @@ def get_student_active_plans(db: Session, user: User) -> list[ActivePlanResponse
         .order_by(TrainingRelationship.start_date.desc())
     ).all()
 
+    pending_requests = db.scalars(
+        select(TrainingRequest)
+        .where(
+            TrainingRequest.student_id == student_profile.id,
+            TrainingRequest.status == "PENDING",
+        )
+        .order_by(TrainingRequest.created_at.desc(), TrainingRequest.id.desc())
+    ).all()
+
+    # Pre-cargar entidades para evitar N+1
+    from backend.src.models.assigned_routine import AssignedRoutine
+    from backend.src.models.routine_template import RoutineTemplate
+    from backend.src.models.student_routine import StudentRoutine
+
+    all_trainer_ids = {r.trainer_id for r in rels} | {pr.trainer_id for pr in pending_requests}
+    all_plan_ids = {r.plan_id for r in rels} | {pr.plan_id for pr in pending_requests}
+    rel_ids = [r.id for r in rels]
+    initial_routine_ids = [r.initial_routine_id for r in rels if r.initial_routine_id]
+
+    trainer_profiles = (
+        {tp.id: tp for tp in db.scalars(select(TrainerProfile).where(TrainerProfile.id.in_(all_trainer_ids)))}
+        if all_trainer_ids
+        else {}
+    )
+    trainer_user_ids = {tp.user_id for tp in trainer_profiles.values() if tp.user_id}
+    trainer_users = (
+        {u.id: u for u in db.scalars(select(User).where(User.id.in_(trainer_user_ids)))}
+        if trainer_user_ids
+        else {}
+    )
+    plans = (
+        {p.id: p for p in db.scalars(select(TrainingPlan).where(TrainingPlan.id.in_(all_plan_ids)))}
+        if all_plan_ids
+        else {}
+    )
+    student_routines = (
+        {
+            sr.relationship_id: sr
+            for sr in db.scalars(
+                select(StudentRoutine).where(
+                    StudentRoutine.relationship_id.in_(rel_ids),
+                    StudentRoutine.status != "UNASSIGNED",
+                )
+            )
+        }
+        if rel_ids
+        else {}
+    )
+    templates = (
+        {t.id: t for t in db.scalars(select(RoutineTemplate).where(RoutineTemplate.id.in_(initial_routine_ids)))}
+        if initial_routine_ids
+        else {}
+    )
+    assigned_routines = (
+        {a.id: a for a in db.scalars(select(AssignedRoutine).where(AssignedRoutine.id.in_(initial_routine_ids)))}
+        if initial_routine_ids
+        else {}
+    )
+
     items: list[ActivePlanResponse] = []
     for rel in rels:
-        trainer_profile = db.get(TrainerProfile, rel.trainer_id)
-        trainer_user = db.get(User, trainer_profile.user_id) if trainer_profile else None
-        plan = db.get(TrainingPlan, rel.plan_id)
+        trainer_profile = trainer_profiles.get(rel.trainer_id)
+        trainer_user = trainer_users.get(trainer_profile.user_id) if trainer_profile else None
+        plan = plans.get(rel.plan_id)
 
         routine = None
-        if rel.initial_routine_id:
+        sr = student_routines.get(rel.id)
+        if sr:
             routine = ActiveRoutineSummary(
-                id=rel.initial_routine_id,
-                name="Rutina Inicial",
+                id=sr.id,
+                name=sr.name,
                 status="PUBLISHED",
                 is_available=True,
             )
+        elif rel.initial_routine_id:
+            tpl = templates.get(rel.initial_routine_id)
+            if tpl:
+                routine = ActiveRoutineSummary(
+                    id=tpl.id,
+                    name=tpl.name,
+                    status="PUBLISHED",
+                    is_available=True,
+                )
+            else:
+                ar = assigned_routines.get(rel.initial_routine_id)
+                if ar:
+                    routine = ActiveRoutineSummary(
+                        id=ar.id,
+                        name=ar.name,
+                        status="PUBLISHED",
+                        is_available=True,
+                    )
+                else:
+                    routine = ActiveRoutineSummary(
+                        id=rel.initial_routine_id,
+                        name="Rutina Asignada",
+                        status="PUBLISHED",
+                        is_available=True,
+                    )
 
         trainer_summary = (
             ActiveTrainerSummary(
@@ -665,17 +761,9 @@ def get_student_active_plans(db: Session, user: User) -> list[ActivePlanResponse
             )
         )
 
-    pending_requests = db.scalars(
-        select(TrainingRequest)
-        .where(
-            TrainingRequest.student_id == student_profile.id,
-            TrainingRequest.status == "PENDING",
-        )
-        .order_by(TrainingRequest.created_at.desc(), TrainingRequest.id.desc())
-    ).all()
     for request in pending_requests:
-        trainer_profile = db.get(TrainerProfile, request.trainer_id)
-        plan = db.get(TrainingPlan, request.plan_id)
+        trainer_profile = trainer_profiles.get(request.trainer_id)
+        plan = plans.get(request.plan_id)
 
         # H-03 / Paso 3: no exponer email ni teléfono privado del entrenador mientras esté PENDING
         trainer_summary = (

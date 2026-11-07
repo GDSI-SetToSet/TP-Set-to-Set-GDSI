@@ -2,6 +2,7 @@ from fastapi import status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from backend.src.core.video_urls import parse_video_url
 from backend.src.models.exercise import Exercise
 from backend.src.models.routine_template import (
     RoutineTemplate,
@@ -33,7 +34,11 @@ def list_own_exercises(db: Session, user: User, muscle_group: str | None = None)
 def create_exercise(db: Session, user: User, payload: ExerciseInput) -> Exercise:
     profile = get_or_create_profile(db, user)
     now = utc_now()
-    exercise = Exercise(trainer_id=profile.id, **payload.model_dump(), created_at=now, updated_at=now)
+    values = payload.model_dump()
+    video = parse_video_url(values["video_url"])
+    values["video_url"] = video[1] if video else None
+    values["video_platform"] = video[0] if video else "NONE"
+    exercise = Exercise(trainer_id=profile.id, **values, created_at=now, updated_at=now)
     db.add(exercise)
     db.commit()
     db.refresh(exercise)
@@ -49,7 +54,8 @@ def get_own_exercise(db: Session, user: User, exercise_id: str) -> Exercise:
 
 
 def is_in_no_materials_template(db: Session, exercise_id: str) -> bool:
-    query = (
+    # 1. Consulta en plantillas genéricas (RoutineTemplate)
+    query_template = (
         select(RoutineTemplateExercise.id)
         .join(RoutineTemplateBlock, RoutineTemplateExercise.block_id == RoutineTemplateBlock.id)
         .join(RoutineTemplateDay, RoutineTemplateBlock.day_id == RoutineTemplateDay.id)
@@ -59,7 +65,43 @@ def is_in_no_materials_template(db: Session, exercise_id: str) -> bool:
             RoutineTemplate.has_no_materials_alternative.is_(True),
         )
     )
-    return db.scalar(query.limit(1)) is not None
+    if db.scalar(query_template.limit(1)) is not None:
+        return True
+
+    # 2. Consulta en rutinas activas de alumnos (StudentRoutine - US-14)
+    from backend.src.models.student_routine import StudentRoutine
+    active_routines = db.scalars(
+        select(StudentRoutine).where(
+            StudentRoutine.has_no_materials_alternative.is_(True),
+            StudentRoutine.status != "UNASSIGNED",
+        )
+    ).all()
+    for sr in active_routines:
+        for day in (sr.days or []):
+            for block in day.get("blocks", []):
+                for ex in block.get("exercises", []):
+                    if ex.get("exercise_id") == exercise_id:
+                        return True
+
+    # 3. Consulta en rutinas asignadas aprobadas (AssignedRoutine - US-13)
+    from backend.src.models.assigned_routine import (
+        AssignedRoutine,
+        AssignedRoutineBlock,
+        AssignedRoutineDay,
+        AssignedRoutineExercise,
+    )
+    query_assigned = (
+        select(AssignedRoutineExercise.id)
+        .join(AssignedRoutineBlock, AssignedRoutineExercise.block_id == AssignedRoutineBlock.id)
+        .join(AssignedRoutineDay, AssignedRoutineBlock.day_id == AssignedRoutineDay.id)
+        .join(AssignedRoutine, AssignedRoutineDay.routine_id == AssignedRoutine.id)
+        .where(
+            AssignedRoutineExercise.exercise_id == exercise_id,
+            AssignedRoutine.has_no_materials_alternative.is_(True),
+            AssignedRoutine.status == "APPROVED",
+        )
+    )
+    return db.scalar(query_assigned.limit(1)) is not None
 
 
 def update_exercise(db: Session, user: User, exercise_id: str, payload: ExerciseInput) -> Exercise:
@@ -70,7 +112,11 @@ def update_exercise(db: Session, user: User, exercise_id: str, payload: Exercise
             status.HTTP_409_CONFLICT,
             'El ejercicio pertenece a una rutina apta "Sin materiales": no se puede quitar la marca.',
         )
-    for field, value in payload.model_dump().items():
+    values = payload.model_dump()
+    video = parse_video_url(values["video_url"])
+    values["video_url"] = video[1] if video else None
+    values["video_platform"] = video[0] if video else "NONE"
+    for field, value in values.items():
         setattr(exercise, field, value)
     exercise.updated_at = utc_now()
     db.commit()

@@ -23,10 +23,37 @@ export function ExerciseCard({ exercise, busy, onEdit, onDelete }: ExerciseCardP
         <dl className="exercise-card__detail">
           <dt>Descripción</dt>
           <dd>{exercise.description}</dd>
+          {exercise.technical_cues && (
+            <>
+              <dt>Notas técnicas y de postura</dt>
+              <dd>{exercise.technical_cues}</dd>
+            </>
+          )}
+          {exercise.breathing_cues && (
+            <>
+              <dt>Claves de respiración</dt>
+              <dd>{exercise.breathing_cues}</dd>
+            </>
+          )}
           <dt>Elementos necesarios</dt>
           <dd>{exercise.equipment_needed}</dd>
           <dt>Alternativa "Sin materiales"</dt>
           <dd>{exercise.has_no_materials_alternative ? 'Sí' : 'No'}</dd>
+          {exercise.video_url && (
+            <>
+              <dt>Video demostrativo</dt>
+              <dd>
+                <iframe
+                  className="exercise-video"
+                  src={exercise.video_url}
+                  title={`Video demostrativo de ${exercise.name}`}
+                  loading="lazy"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              </dd>
+            </>
+          )}
         </dl>
       )}
       <div className="plan-card__actions">

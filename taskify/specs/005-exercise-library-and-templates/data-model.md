@@ -14,15 +14,17 @@ Ejercicio de la biblioteca personal de un entrenador.
 | `trainer_id` | UUID / String(36) | No | - | Clave foránea a `TrainerProfile.id`, propietario del ejercicio. |
 | `name` | String(150) | No | - | Nombre del ejercicio (ej. "Sentadilla búlgara"). |
 | `description` | Text | No | - | Descripción y metodología de ejecución. |
+| `technical_cues` | Text | Sí | `None` | Notas de postura, ejecución y seguridad cargadas por el entrenador, hasta 2000 caracteres (US-52). |
+| `breathing_cues` | Text | Sí | `None` | Claves de respiración durante el movimiento, hasta 2000 caracteres (US-52). |
 | `category` | Enum(`FUERZA`, `CARDIO`, `MOVILIDAD`, `FLEXIBILIDAD`, `EQUILIBRIO`) | No | - | Tipo de ejercicio. |
 | `target_muscle_group` | String(100) | No | - | Músculo principal trabajado (ej. "Cuádriceps", "Pectoral"). |
 | `equipment_needed` | String(150) | No | - | Materiales requeridos (ej. "Mancuernas", "Sin materiales / Peso corporal"). |
 | `has_no_materials_alternative` | Boolean | No | `False` | Indica que el ejercicio tiene alternativa "Sin materiales" (US-09). |
+| `video_url` | String(500) | Sí | `None` | URL validada de un video demostrativo de YouTube, Vimeo o Google Drive (US-12). |
+| `video_platform` | Enum(`YOUTUBE`, `VIMEO`, `GOOGLE_DRIVE`, `NONE`) | No | `NONE` | Plataforma del video asociado, o `NONE` cuando no hay video (US-12). |
 | `deleted_at` | DateTime (UTC) | Sí | `None` | Baja lógica: si tiene valor, el ejercicio no se lista ni se puede seleccionar. |
 | `created_at` | DateTime (UTC) | No | `utcnow()` | Fecha de creación. |
 | `updated_at` | DateTime (UTC) | No | `utcnow()` | Fecha de modificación. |
-
-**Pendiente de US-12 y US-52** (no se implementa en US-08): `video_url` String(500), `video_platform` Enum(`YOUTUBE`, `VIMEO`, `GOOGLE_DRIVE`, `NONE`) y `technical_cues` Text.
 
 ### 2. `RoutineTemplate` (Plantillas Genéricas, US-09)
 Plantillas predeterminadas configuradas por el entrenador para reutilizar con alumnos.

@@ -326,14 +326,14 @@ def test_concurrent_acceptances_do_not_exceed_last_quota_slot(client):
     ).json()
 
     with session_factory() as db:
-        trainer_user_id = db.scalar(select(User.id).where(User.email == "coach@example.com"))
+        trainer_user = db.scalar(select(User).where(User.email == "coach@example.com"))
+    assert trainer_user is not None
 
     def worker(target_request_id: str) -> int:
         with session_factory() as db:
-            user = db.get(User, trainer_user_id)
             try:
                 accept_training_request(
-                    db, user, target_request_id, TrainingRequestAcceptPayload(welcome_message="Hola")
+                    db, trainer_user, target_request_id, TrainingRequestAcceptPayload(welcome_message="Hola")
                 )
                 return status.HTTP_200_OK
             except DiscoveryError as exc:
