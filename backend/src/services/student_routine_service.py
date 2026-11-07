@@ -40,6 +40,20 @@ def _entries(days: list[dict]):
                 yield f"days.{di}.blocks.{bi}.exercises.{ei}.exercise_id", entry
 
 
+def _days_support_home_modality(db: Session, days: list[dict]) -> bool:
+    exercise_ids = {entry["exercise_id"] for _, entry in _entries(days)}
+    if not exercise_ids:
+        return True
+    exercises = {
+        ex.id: ex
+        for ex in db.scalars(select(Exercise).where(Exercise.id.in_(exercise_ids)))
+    }
+    return all(
+        (ex := exercises.get(entry["exercise_id"])) is not None and ex.has_no_materials_alternative
+        for _, entry in _entries(days)
+    )
+
+
 def _content_from_assigned_routine(assigned: AssignedRoutine) -> list[dict]:
     return [
         {
@@ -174,6 +188,8 @@ def sync_assigned_routine(
         )
     _seed(routine, assigned)
     routine.draft_version = 0
+    if relationship.routine_modality == "HOME" and not _days_support_home_modality(db, routine.days):
+        relationship.routine_modality = "GYM"
     db.add(routine)
     db.commit()
     db.refresh(routine)
@@ -389,6 +405,10 @@ def confirm_draft(db: Session, user: User, student_id: str) -> StudentRoutine:
     routine.draft_version += 1
     routine.status = "ACTIVE"
     routine.updated_at = now
+    if relationship.routine_modality == "HOME" and not all(
+        exercises[e["exercise_id"]].has_no_materials_alternative for _, e in _entries(routine.days)
+    ):
+        relationship.routine_modality = "GYM"
     db.commit()
     db.refresh(routine)
     return routine
@@ -409,6 +429,16 @@ def render(db: Session, routine: StudentRoutine, content: dict | None = None) ->
         ex.id: ex
         for ex in db.scalars(select(Exercise).where(Exercise.id.in_({e["exercise_id"] for _, e in _entries(src["days"])})))
     }
+    effective_modality = (relationship.routine_modality or "GYM") if relationship else "GYM"
+    if (
+        content is None
+        and effective_modality == "HOME"
+        and not all(exercises[e["exercise_id"]].has_no_materials_alternative for _, e in _entries(src["days"]))
+    ):
+        effective_modality = "GYM"
+        if relationship is not None:
+            relationship.routine_modality = "GYM"
+            db.commit()
     days = [
         {
             "id": f"{routine.id}-d{di}",
@@ -443,6 +473,7 @@ def render(db: Session, routine: StudentRoutine, content: dict | None = None) ->
         "duration_weeks": src["duration_weeks"],
         "intensity": src["intensity"],
         "has_no_materials_alternative": src["has_no_materials_alternative"],
+        "modality": effective_modality,
         "exercise_count": sum(len(b["exercises"]) for d in days for b in d["blocks"]),
         "days": days,
     }

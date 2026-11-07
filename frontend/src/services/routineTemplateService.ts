@@ -1,7 +1,15 @@
 import { api } from './api';
-import type { RoutineAssignmentStudent, RoutineTemplate, RoutineTemplateInput } from '../types/routineTemplate';
+import type {
+  RoutineAssignmentStudent,
+  RoutineModality,
+  RoutineTemplate,
+  RoutineTemplateInput,
+  WorkoutSetLog,
+  WorkoutSetLogInput,
+} from '../types/routineTemplate';
 
 const TEMPLATES_PATH = '/api/v1/routine-templates';
+const STUDENT_ASSIGNED_PATH = '/api/v1/students/me/routine-templates/assigned';
 
 export async function getRoutineTemplates(): Promise<RoutineTemplate[]> {
   const { data } = await api.get<RoutineTemplate[]>(TEMPLATES_PATH);
@@ -28,7 +36,25 @@ export async function getStudentRoutineTemplates(): Promise<RoutineTemplate[]> {
 }
 
 export async function getAssignedStudentRoutine(): Promise<RoutineTemplate | null> {
-  const { data } = await api.get<RoutineTemplate | null>('/api/v1/students/me/routine-templates/assigned');
+  const { data } = await api.get<RoutineTemplate | null>(STUDENT_ASSIGNED_PATH);
+  return data;
+}
+
+export async function updateAssignedRoutineModality(modality: RoutineModality): Promise<RoutineTemplate> {
+  const { data } = await api.put<RoutineTemplate>(`${STUDENT_ASSIGNED_PATH}/modality`, { modality });
+  return data;
+}
+
+export async function getAssignedRoutineWorkoutLogs(exerciseId?: string): Promise<WorkoutSetLog[]> {
+  const { data } = await api.get<WorkoutSetLog[]>(
+    `${STUDENT_ASSIGNED_PATH}/workout-logs`,
+    exerciseId ? { params: { exercise_id: exerciseId } } : undefined,
+  );
+  return data;
+}
+
+export async function createAssignedRoutineWorkoutLog(payload: WorkoutSetLogInput): Promise<WorkoutSetLog> {
+  const { data } = await api.post<WorkoutSetLog>(`${STUDENT_ASSIGNED_PATH}/workout-logs`, payload);
   return data;
 }
 
