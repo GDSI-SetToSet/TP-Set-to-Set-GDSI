@@ -30,6 +30,14 @@
 - Q: ¿Se conserva historial de versiones restaurable o solo un registro de cambios? → A: Solo la versión actual más un registro de cambios (autor, fecha, qué cambió); sin restauración.
 - Q: ¿Cómo informa el alumno su volumen semanal deseado? → A: Se lo comunica al entrenador, que lo registra.
 
+### Session 2026-11-07
+
+- Q: ¿Cómo determina el sistema que un ejercicio es "de riesgo" para la restricción de un alumno? → A: Cada ejercicio de la biblioteca lleva etiquetas de zonas de riesgo; las restricciones del perfil del alumno usan las mismas zonas y el sistema las cruza automáticamente.
+- Q: Cuando un ejercicio es de riesgo y no tiene variante segura cargada, ¿qué puede hacer el alumno con él? → A: Se bloquea el ejercicio original, se muestra un aviso de que no hay variante segura y el alumno puede saltearlo; el entrenador es notificado.
+- Q: Si el alumno tiene varias restricciones y un ejercicio de riesgo, ¿qué variante ve? → A: Una única variante configurada por el entrenador que cubra todas las zonas de riesgo del alumno; si ninguna las cubre todas, se trata como "sin variante segura".
+- Q: ¿Cómo se notifica al entrenador la falta de variante y qué pasa con consultas repetidas? → A: Una notificación in-app por combinación alumno + ejercicio; las consultas repetidas no generan otra mientras el caso siga pendiente, y se cierra cuando el entrenador carga la variante.
+- Q: ¿Qué pasa si cambian las restricciones del alumno o la variante mientras el alumno la ve? → A: La variante se resuelve en cada consulta con los datos vigentes; los cambios aplican de inmediato, incluso a sesiones ya iniciadas.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-13: generar rutina particular con IA] (Priority: P2, Estimación: 5 SP)
@@ -95,9 +103,9 @@ Como alumno con restricciones físicas o articulares, quiero ver variantes segur
 
 **Acceptance Scenarios**:
 
-1. Dado un alumno con restricciones físicas cargadas en su perfil, cuando consulta un ejercicio de riesgo para esa zona, entonces el sistema le muestra la variante segura configurada por el entrenador.
+1. Dado un alumno con restricciones físicas cargadas en su perfil, cuando consulta un ejercicio de riesgo para esa zona, entonces el sistema le muestra la variante segura configurada por el entrenador. La variante mostrada debe cubrir todas las zonas de riesgo del alumno para ese ejercicio; si ninguna variante las cubre todas, aplica el escenario 2.
 
-2. Dado un ejercicio sin variante segura cargada para una restricción del alumno, cuando el alumno lo consulta, entonces el sistema notifica al entrenador para que revise el caso.
+2. Dado un ejercicio sin variante segura cargada para una restricción del alumno, cuando el alumno lo consulta, entonces el sistema bloquea el ejercicio original, le informa que no hay variante segura disponible, le permite saltearlo y notifica al entrenador para que revise el caso. La notificación es in-app, única por combinación alumno + ejercicio mientras el caso esté pendiente, y se cierra cuando el entrenador carga la variante.
 
 3. Dado un alumno consultando una variante segura, cuando la visualiza, entonces el sistema muestra su video o explicación asociada
 
@@ -172,7 +180,7 @@ Como alumno, quiero alternar la modalidad de mi rutina entre versión de gimnasi
 
 - **FR-003e**: El sistema DEBE permitir al entrenador registrar el volumen semanal deseado que el alumno le comunica y usarlo para ajustar la intensidad de la rutina (US-14).
 
-- **FR-004**: El sistema DEBE presentar variantes seguras para alumnos con restricciones físicas o articulares cargadas en su perfil (US-53).
+- **FR-004**: El sistema DEBE presentar variantes seguras para alumnos con restricciones físicas o articulares cargadas en su perfil (US-53). Un ejercicio es "de riesgo" cuando comparte al menos una zona de riesgo (etiqueta del ejercicio en la biblioteca) con una restricción del perfil del alumno; el cruce es automático y usa un catálogo único de zonas para ejercicios y restricciones.
 
 - **FR-005**: El sistema DEBE permitir al alumno solicitar un reemplazo de ejercicio si un elemento o máquina no está disponible (US-54).
 
@@ -186,7 +194,7 @@ Como alumno, quiero alternar la modalidad de mi rutina entre versión de gimnasi
 
 - **AssignedRoutine**: Rutina formalmente aprobada y asignada al alumno por el entrenador, con vigencia y programación de sesiones.
 
-- **ExerciseSafeVariant**: Variante biomecánicamente segura de un ejercicio, asociada a restricciones físicas específicas del alumno.
+- **ExerciseSafeVariant**: Variante biomecánicamente segura de un ejercicio, asociada a restricciones físicas específicas del alumno. Se vincula a un ejercicio y a una o más zonas de riesgo del catálogo común; el ejercicio de la biblioteca porta etiquetas de zonas de riesgo.
 
 - **EquipmentAlternative**: Reemplazo de ejercicio para el mismo grupo muscular en caso de máquina ocupada o cambio de entorno (gimnasio vs casa).
 
@@ -213,6 +221,8 @@ Como alumno, quiero alternar la modalidad de mi rutina entre versión de gimnasi
 
 
 ## Assumptions
+
+- La variante segura (US-53) se resuelve en cada consulta con las restricciones y variantes vigentes; los cambios del entrenador aplican de inmediato, incluso a sesiones ya iniciadas.
 
 - El modelo de IA devuelve sugerencias estructuradas basadas en las plantillas y reglas de entrenamiento cargadas.
 

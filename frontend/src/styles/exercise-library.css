@@ -58,3 +58,23 @@
 .zone-checks p { margin: 0; color: var(--pf-muted); font-size: 14px; }
 .zone-checks__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 4px 12px; }
 .zone-checks__item { font-weight: 500; }
+
+/* US-53: variantes seguras */
+.safe-variant {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid;
+  border-radius: 10px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.safe-variant p { margin: 0; }
+.safe-variant--ok { border-color: #bfe0cc; background: #eef8f2; color: #1e6247; }
+.safe-variant--blocked { border-color: #efcaca; background: #fff4f3; color: #9a3939; }
+.safe-variant--blocked button { justify-self: start; }
+/* dentro de la lista de la rutina del alumno ocupa el ancho completo, debajo del ejercicio */
+.student-daily-routine .student-daily-routine__block li > .safe-variant { grid-column: 2; grid-row: auto; margin-top: 8px; }
+.safe-variants-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.safe-variants-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.safe-variants-hint { color: var(--pf-muted); font-size: 14px; }

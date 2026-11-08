@@ -15,6 +15,7 @@ from backend.src.models.routine_template import (
     RoutineTemplateExercise,
     RoutineTemplateExercisePrescription,
 )
+from backend.src.models.safe_variant import ExerciseSafeVariant, SafeVariantCase
 from backend.src.models.student_routine import RoutineChangeLog, StudentRoutine
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_plan import TrainingPlan
@@ -33,6 +34,7 @@ __all__ = [
     "AssignedRoutineDay",
     "AssignedRoutineExercise",
     "Exercise",
+    "ExerciseSafeVariant",
     "HealthQuestionnaire",
     "MedicalClearance",
     "Notification",
@@ -45,6 +47,7 @@ __all__ = [
     "RoutineTemplateDay",
     "RoutineTemplateExercise",
     "RoutineTemplateExercisePrescription",
+    "SafeVariantCase",
     "StudentProfile",
     "StudentRoutine",
     "TrainerProfile",

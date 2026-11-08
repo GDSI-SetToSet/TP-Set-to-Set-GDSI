@@ -367,6 +367,16 @@ def create_student_workout_log(
             [{"field": "exercise_id", "message": "El ejercicio no pertenece a tu rutina activa."}],
         )
 
+    # US-53: sin variante segura el ejercicio queda bloqueado también del lado del servidor
+    from backend.src.services.safe_variant_service import check_for_student
+
+    if check_for_student(db, relationship, exercise)[0] == "BLOCKED":
+        detail = (
+            f'No se puede registrar "{exercise.name}": no hay una variante segura para tus limitaciones. '
+            "Podés saltearlo; tu entrenador ya fue avisado."
+        )
+        raise RoutineTemplateError(VALIDATION_ERROR_STATUS, detail, [{"field": "exercise_id", "message": detail}])
+
     effective_modality = payload.modality or (relationship.routine_modality or "GYM")
     if effective_modality == "HOME" and not exercise.has_no_materials_alternative:
         detail = (

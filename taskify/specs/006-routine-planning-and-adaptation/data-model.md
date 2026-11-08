@@ -96,3 +96,23 @@ Reglas: solo el entrenador del vínculo ACTIVE edita; el alumno solo lee el cont
 ## Validaciones
 - Guardar borrador: valores numéricos válidos, ejercicio propio del entrenador y no dado de baja, **ningún ejercicio contraindicado** por zonas protegidas del alumno (bloqueo absoluto), `draft_version` coincidente.
 - Confirmar: todo lo anterior + alternativa "Sin materiales" en cada ejercicio agregado o reemplazado respecto de la versión vigente si la rutina es "Sin materiales"; rutina con al menos un ejercicio.
+
+# Data Model: US-53
+
+## ExerciseSafeVariant
+- `id`, `exercise_id` (FK `exercises`, ejercicio de riesgo), `variant_exercise_id` (FK `exercises`, ejercicio variante), `covered_zones` (lista de textos normalizados, no vacía), `created_at`, `updated_at` (UTC)
+- Ambos ejercicios pertenecen al mismo entrenador y no están dados de baja; `exercise_id` ≠ `variant_exercise_id`; `covered_zones` ⊆ `contraindicated_zones` del ejercicio de riesgo; la variante no puede tener contraindicada ninguna zona de `covered_zones`.
+- Único por (`exercise_id`, `variant_exercise_id`). Dar de baja un ejercicio que es variante la deja inactiva: no se resuelve más y se reabren los casos que cubría.
+
+## SafeVariantCase
+- `id`, `student_id` (FK `student_profiles`), `exercise_id` (FK `exercises`), `status` (`PENDING` | `RESOLVED`), `created_at`, `resolved_at` (nullable)
+- Único por (`student_id`, `exercise_id`). Sirve para emitir una sola `Notification` al entrenador por caso pendiente.
+
+## Resolución (no persistida)
+`conflicto = {zonas del ejercicio} ∩ {zonas protegidas del alumno}`
+- vacío → `SAFE`: se muestra el ejercicio original.
+- existe variante activa con `covered_zones ⊇ conflicto` → `VARIANT` (la más antigua).
+- en otro caso → `BLOCKED` (`can_skip: true`) y se abre/mantiene el caso `PENDING`.
+
+## Transiciones del caso
+`(nuevo)` → `PENDING` → (el entrenador crea/edita una variante que cubre el conflicto) → `RESOLVED` → (nueva consulta sin cobertura, p. ej. cambian las restricciones) → `PENDING` + nueva notificación.

@@ -13,6 +13,10 @@ from backend.src.api.v1.routine_templates import router as routine_templates_rou
 from backend.src.api.v1.routine_templates import (
     student_router as student_routine_templates_router,
 )
+from backend.src.api.v1.safe_variants import router as safe_variants_router
+from backend.src.api.v1.safe_variants import (
+    student_router as student_safe_variants_router,
+)
 from backend.src.api.v1.student_routines import router as student_routines_router
 from backend.src.api.v1.students import router as students_router
 from backend.src.api.v1.trainers import router as trainers_router
@@ -25,6 +29,7 @@ from backend.src.models import (  # noqa: F401
     AssignedRoutineDay,
     AssignedRoutineExercise,
     Exercise,
+    ExerciseSafeVariant,
     MedicalClearance,
     Notification,
     PasswordResetToken,
@@ -35,6 +40,7 @@ from backend.src.models import (  # noqa: F401
     RoutineTemplateDay,
     RoutineTemplateExercise,
     RoutineTemplateExercisePrescription,
+    SafeVariantCase,
     StudentProfile,
     StudentRoutine,
     TrainerProfile,
@@ -74,6 +80,8 @@ def create_app(create_tables: bool = True) -> FastAPI:
     app.include_router(student_routine_templates_router)
     app.include_router(assigned_routines_router)
     app.include_router(student_routines_router)
+    app.include_router(safe_variants_router)
+    app.include_router(student_safe_variants_router)
 
     @app.get("/health", tags=["health"])
     def health() -> dict[str, str]:
