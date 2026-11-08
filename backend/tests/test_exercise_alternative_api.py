@@ -1,5 +1,5 @@
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from test_routine_template_api import EXERCISES_PATH, create_exercise, exercise_payload
@@ -136,3 +136,20 @@ def test_alternatives_response_under_two_seconds(client):  # SC-003
     response = api.get(alts(squat), headers=student)
     assert response.status_code == 200 and len(response.json()["alternatives"]) == 151
     assert time.perf_counter() - start < 2
+
+
+def test_replacement_chosen_before_utc_midnight_still_valid_after(client):
+    api, sessions, _, student, _, squat, press = case(client)
+    log = {"exercise_id": press, "day_name": "Día 1", "set_number": 1, "reps_completed": "10", "weight_kg": 50}
+    api.put(REPLACE, headers=student, json=body(squat, press))
+
+    def age(days: int) -> None:
+        with sessions() as db:
+            row = db.scalar(select(ExerciseReplacementLog))
+            row.session_date = datetime.now(UTC).date() - timedelta(days=days)
+            db.commit()
+
+    age(1)  # elegido antes de la medianoche UTC
+    assert api.post(LOGS, headers=student, json=log).status_code == 201
+    age(2)
+    assert api.post(LOGS, headers=student, json=log).status_code == 422

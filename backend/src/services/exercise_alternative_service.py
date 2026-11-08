@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from fastapi import status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -107,13 +109,14 @@ def record_replacement(db: Session, user: User, payload: ReplacementInput) -> Ex
 
 
 def is_replacement_today(db: Session, student_id: str, routine_id: str, day_name: str, exercise_id: str) -> Exercise | None:
-    """Ejercicio elegido hoy como reemplazo (permite registrar series con el ejercicio realmente realizado)."""
+    """Ejercicio elegido hoy (o ayer UTC) como reemplazo (permite registrar series con el ejercicio realmente realizado)."""
+    today = utc_now().date()  # ayer UTC también vale: en Argentina el día UTC cambia a las 21:00
     found = db.scalar(
         select(ExerciseReplacementLog.id).where(
             ExerciseReplacementLog.student_id == student_id,
             ExerciseReplacementLog.routine_id == routine_id,
             ExerciseReplacementLog.day_name == day_name,
-            ExerciseReplacementLog.session_date == utc_now().date(),
+            ExerciseReplacementLog.session_date.in_([today, today - timedelta(days=1)]),
             ExerciseReplacementLog.replacement_exercise_id == exercise_id,
         )
     )
