@@ -492,15 +492,17 @@ def render(db: Session, routine: StudentRoutine, content: dict | None = None) ->
 
 
 def current_exercise_ids(db: Session, relationship: TrainingRelationship) -> set[str]:
-    """Ejercicios de la rutina vigente del alumno (nunca el borrador); cae a la plantilla asignada si no hay copia."""
+    """Ejercicios de la rutina vigente del alumno (nunca el borrador); cae a la rutina asignada si no hay copia."""
     routine = db.scalar(select(StudentRoutine).where(StudentRoutine.relationship_id == relationship.id))
     if routine is not None and routine.status != "UNASSIGNED":
         days = routine.days
     else:
-        template = db.get(RoutineTemplate, relationship.initial_routine_id) if relationship.initial_routine_id else None
-        if template is None or template.trainer_id != relationship.trainer_id:
+        source = _assignable_source(db, relationship.initial_routine_id)
+        if source is None or source.trainer_id != relationship.trainer_id:
             return set()
-        days = _content_from_template(template)
+        days = (
+            _content_from_assigned_routine(source) if isinstance(source, AssignedRoutine) else _content_from_template(source)
+        )
     return {e["exercise_id"] for _, e in _entries(days)}
 
 

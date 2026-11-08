@@ -174,6 +174,14 @@ def _track_case(db: Session, relationship: TrainingRelationship, exercise: Exerc
     )
 
 
+def check_for_student(db: Session, relationship: TrainingRelationship, exercise: Exercise) -> tuple[str, Exercise | None]:
+    """Resuelve el ejercicio para el alumno y, si no hay variante segura, abre/mantiene el caso y avisa al entrenador."""
+    result, variant = resolve_variant(db, exercise, student_zones(db, relationship.student_id))
+    _track_case(db, relationship, exercise, blocked=result == "BLOCKED")
+    db.commit()
+    return result, variant
+
+
 def resolve_for_student(db: Session, user: User, exercise_id: str) -> dict:
     from backend.src.services.student_routine_service import (
         current_exercise_ids,  # evita import circular
@@ -190,9 +198,7 @@ def resolve_for_student(db: Session, user: User, exercise_id: str) -> dict:
     exercise = db.get(Exercise, exercise_id)
     if exercise is None or exercise_id not in current_exercise_ids(db, relationship):
         raise ExerciseError(status.HTTP_404_NOT_FOUND, "Ejercicio no encontrado en tu rutina.")
-    result, variant = resolve_variant(db, exercise, student_zones(db, profile.id))
-    _track_case(db, relationship, exercise, blocked=result == "BLOCKED")
-    db.commit()
+    result, variant = check_for_student(db, relationship, exercise)
     if result == "VARIANT":
         return {
             "status": result,

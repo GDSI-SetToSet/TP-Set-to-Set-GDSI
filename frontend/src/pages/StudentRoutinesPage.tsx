@@ -37,6 +37,7 @@ export function StudentRoutinesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [skipped, setSkipped] = useState<string[]>([]);
+  const [blockedExerciseIds, setBlockedExerciseIds] = useState<string[]>([]);
 
   const [switchingModality, setSwitchingModality] = useState(false);
   const [modalityError, setModalityError] = useState('');
@@ -160,8 +161,9 @@ export function StudentRoutinesPage() {
           setNumber: String(nextSet),
         },
       }));
-    } catch {
-      setLogError('No pudimos guardar el registro de la serie. Intentá nuevamente.');
+    } catch (caught) {
+      const detail = isAxiosError(caught) ? caught.response?.data?.detail : undefined;
+      setLogError(typeof detail === 'string' ? detail : 'No pudimos guardar el registro de la serie. Intentá nuevamente.');
     } finally {
       setSavingExerciseId(null);
     }
@@ -292,7 +294,15 @@ export function StudentRoutinesPage() {
                               : ` · Equipamiento: ${item.exercise.equipment_needed}`}
                           </span>
                         </div>
-                        <SafeVariantNotice exerciseId={item.exercise.id} onSkip={() => setSkipped((current) => [...current, item.id])} />
+                        <SafeVariantNotice
+                          exerciseId={item.exercise.id}
+                          onSkip={() => setSkipped((current) => [...current, item.id])}
+                          onResolved={(status) => setBlockedExerciseIds((current) => {
+                            const isBlocked = current.includes(item.exercise.id);
+                            if (status === 'BLOCKED') return isBlocked ? current : [...current, item.exercise.id];
+                            return isBlocked ? current.filter((id) => id !== item.exercise.id) : current;
+                          })}
+                        />
                         <p>{item.sets} series · {item.reps} repeticiones</p>
                         <p>
                           {isHomeModality
@@ -345,7 +355,7 @@ export function StudentRoutinesPage() {
                           </div>
                         )}
 
-                        <div className="student-routine-exercise__logger">
+                        {!blockedExerciseIds.includes(item.exercise.id) && <div className="student-routine-exercise__logger">
                           <label>
                             Serie
                             <input
@@ -384,7 +394,7 @@ export function StudentRoutinesPage() {
                             <PlusCircle size={16} />
                             {savingExerciseId === item.id ? 'Guardando…' : 'Registrar serie'}
                           </button>
-                        </div>
+                        </div>}
                       </li>
                     );
                   })}

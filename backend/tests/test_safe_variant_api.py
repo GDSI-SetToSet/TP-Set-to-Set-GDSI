@@ -178,3 +178,36 @@ def test_us14_conflicts_offer_resolved_safe_variant(client):
     conflict = api.get(path(sid), headers=trainer).json()["conflicts"][0]
     assert conflict["safe_variant"] == {"exercise_id": safe, "name": "Prensa liviana"}
     assert "Prensa liviana" in conflict["message"]
+
+
+LOGS_PATH = "/api/v1/students/me/routine-templates/assigned/workout-logs"
+
+
+def log_set(api, student, exercise_id: str, set_number: int = 1):
+    return api.post(
+        LOGS_PATH,
+        headers=student,
+        json={"exercise_id": exercise_id, "day_name": "Día 1", "set_number": set_number, "reps_completed": "8", "weight_kg": 20},
+    )
+
+
+def test_cannot_log_sets_for_exercise_without_safe_variant(client):
+    api, sessions, trainer, student, _, squat, safe = risky_case(client)
+    blocked = log_set(api, student, squat)
+    assert blocked.status_code == 422 and "variante segura" in blocked.json()["detail"]
+    assert blocked.json()["errors"][0]["field"] == "exercise_id"
+    assert api.get(LOGS_PATH, headers=student).json() == []
+    with sessions() as db:  # el intento también avisa al entrenador (una sola vez)
+        assert len(db.scalars(select(Notification)).all()) == 1
+
+    # con una variante que cubre sus zonas el ejercicio deja de estar bloqueado
+    api.post(variants(squat), headers=trainer, json={"variant_exercise_id": safe, "covered_zones": ["Knee"]})
+    assert log_set(api, student, squat).status_code == 201
+
+
+def test_logging_exercise_without_risk_is_unaffected(client):
+    api, _, _, student, *_ = risky_case(client, student_zones=("Shoulder",))
+    squat = api.get("/api/v1/students/me/routine-templates/assigned", headers=student).json()["days"][0]["blocks"][0][
+        "exercises"
+    ][0]["exercise"]["id"]
+    assert log_set(api, student, squat).status_code == 201

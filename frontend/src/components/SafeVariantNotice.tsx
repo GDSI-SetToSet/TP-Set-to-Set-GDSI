@@ -6,14 +6,22 @@ import { getVideoEmbedUrl } from '../utils/videoUrl';
 interface Props {
   exerciseId: string;
   onSkip: () => void;
+  /** Avisa el resultado para que la pantalla pueda ocultar el registro de series si está bloqueado. */
+  onResolved?: (status: SafeVariantResolution['status']) => void;
 }
 
 /** US-53: muestra la variante segura del ejercicio, o avisa que no hay una y permite saltearlo. */
-export function SafeVariantNotice({ exerciseId, onSkip }: Props) {
+export function SafeVariantNotice({ exerciseId, onSkip, onResolved }: Props) {
   const [result, setResult] = useState<SafeVariantResolution | null>(null);
 
   useEffect(() => {
-    resolveSafeVariant(exerciseId).then(setResult).catch(() => setResult(null));
+    resolveSafeVariant(exerciseId)
+      .then((resolution) => {
+        setResult(resolution);
+        onResolved?.(resolution.status);
+      })
+      .catch(() => setResult(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exerciseId]);
 
   if (!result || result.status === 'SAFE') return null;
