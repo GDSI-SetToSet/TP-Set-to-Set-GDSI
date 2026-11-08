@@ -63,6 +63,19 @@ def test_excludes_risky_and_shows_variant(client):
         assert db.scalars(select(Notification)).all() == []
 
 
+def test_choosing_alternative_with_variant_records_the_variant(client):
+    api, sessions, trainer, student, sid, squat, press = case(client)
+    api.put(f"{EXERCISES_PATH}/{press}", headers=trainer, json=exercise_payload(name="Prensa", target_muscle_group="Piernas", equipment_needed="Máquina", contraindicated_zones=["Knee"]))
+    safe_ex = create_exercise(api, trainer, name="Puente", target_muscle_group="Abdominales")
+    api.post(variants(press), headers=trainer, json={"variant_exercise_id": safe_ex, "covered_zones": ["Knee"]})
+    protect(sessions, sid, "Knee")
+
+    assert api.put(REPLACE, headers=student, json=body(squat, press)).json()["replacement_exercise_id"] == safe_ex
+    log = {"day_name": "Día 1", "set_number": 1, "reps_completed": "10", "weight_kg": 0}
+    assert api.post(LOGS, headers=student, json={**log, "exercise_id": safe_ex}).status_code == 201
+    assert api.post(LOGS, headers=student, json={**log, "exercise_id": press}).status_code == 422  # no el de riesgo
+
+
 def test_empty_list_allows_skip_and_records_it(client):
     api, sessions, _, student, sid, squat, press = case(client)
     with sessions() as db:

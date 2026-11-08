@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { getAlternatives, saveReplacement } from '../services/exerciseAlternativeService';
 import type { AlternativesResponse, ExerciseAlternative } from '../types/exerciseAlternative';
 
@@ -16,34 +16,46 @@ export function ExerciseAlternativesPanel({ exerciseId, dayName, chosen, onChose
   const [result, setResult] = useState<AlternativesResponse | null>(null);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
 
   const toggle = async () => {
     if (open) return setOpen(false);
     setError('');
+    setBusy(true);
     try {
       setResult(await getAlternatives(exerciseId));
       setOpen(true);
     } catch {
       setError('No pudimos cargar las alternativas. Probá de nuevo.');
+    } finally {
+      setBusy(false);
     }
   };
 
   const save = async (alternative: ExerciseAlternative | null, skip = false) => {
     setError('');
+    setBusy(true);
     try {
       await saveReplacement({ day_name: dayName, original_exercise_id: exerciseId, replacement_exercise_id: alternative?.exercise_id ?? null });
-      onChosen(alternative);
+      // con variante segura, lo que el alumno hace (y registra) es la variante
+      onChosen(alternative?.variant ? { ...alternative, exercise_id: alternative.variant.exercise_id, name: alternative.variant.name, variant: null } : alternative);
       setOpen(false);
       if (skip) onSkip();
+      else trigger.current?.focus(); // el panel se cierra: devolver el foco al disparador
     } catch {
       setError('No pudimos registrar el reemplazo. Probá de nuevo.');
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
     <div className="exercise-alternatives">
-      {chosen && <p role="status"><strong>Hoy hacés: {chosen.name}</strong></p>}
-      <button className="plan-cancel" type="button" aria-expanded={open} onClick={toggle}>Sustituir ejercicio</button>
+      {chosen && <p role="status"><strong>Hoy hacés: {chosen.name}</strong> (solo en esta sesión)</p>}
+      <button ref={trigger} className="plan-cancel" type="button" aria-expanded={open} aria-busy={busy} disabled={busy} onClick={toggle}>
+        {busy && !open ? 'Cargando alternativas…' : 'Sustituir ejercicio'}
+      </button>
       {error && <p role="alert">{error}</p>}
       {open && result && (
         <div>
@@ -53,15 +65,16 @@ export function ExerciseAlternativesPanel({ exerciseId, dayName, chosen, onChose
             <ul>
               {result.alternatives.map((alt) => (
                 <li key={alt.exercise_id}>
-                  <button type="button" className="plan-cancel" onClick={() => save(alt)}>
-                    {alt.name} · {alt.equipment_needed}{alt.variant ? ` (variante segura: ${alt.variant.name})` : ''}
+                  <button type="button" className="plan-cancel" aria-pressed={chosen?.exercise_id === (alt.variant?.exercise_id ?? alt.exercise_id)} disabled={busy} onClick={() => save(alt)}>
+                    {alt.name} · {alt.equipment_needed}
+                    {alt.variant && <small> Se registra su variante segura: {alt.variant.name}</small>}
                   </button>
                 </li>
               ))}
             </ul>
           )}
-          {chosen && <button type="button" className="plan-cancel" onClick={() => save(null)}>Volver al ejercicio original</button>}
-          {result.can_skip && <button type="button" className="plan-cancel" onClick={() => save(null, true)}>Saltear ejercicio</button>}
+          {chosen && <button type="button" className="plan-cancel" disabled={busy} onClick={() => save(null)}>Volver al ejercicio original</button>}
+          {result.can_skip && <button type="button" className="plan-cancel" disabled={busy} onClick={() => save(null, true)}>Saltear ejercicio</button>}
         </div>
       )}
     </div>

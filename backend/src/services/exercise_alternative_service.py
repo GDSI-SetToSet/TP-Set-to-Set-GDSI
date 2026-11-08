@@ -75,13 +75,15 @@ def record_replacement(db: Session, user: User, payload: ReplacementInput) -> Ex
     relationship, routine_id, original = _context(db, user, payload.original_exercise_id)
     chosen = payload.replacement_exercise_id
     if chosen is not None:
-        valid = {a["exercise_id"] for a in _alternatives(db, relationship, original)}
+        valid = {a["exercise_id"]: a for a in _alternatives(db, relationship, original)}
         if chosen not in valid:
             raise ExerciseError(
                 422,
                 "Datos inválidos",
                 [{"field": "replacement_exercise_id", "message": "La alternativa no está disponible para este ejercicio."}],
             )
+        if valid[chosen]["variant"]:  # la alternativa es de riesgo para el alumno: se hace su variante segura
+            chosen = valid[chosen]["variant"]["exercise_id"]
     today = utc_now().date()
     log = db.scalar(
         select(ExerciseReplacementLog).where(

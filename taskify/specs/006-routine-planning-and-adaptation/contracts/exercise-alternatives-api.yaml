@@ -16,7 +16,7 @@ paths:
       summary: Elegir una alternativa o saltear un ejercicio en la sesión del día (sobrescribe la elección previa)
       requestBody:
         content: {application/json: {schema: {$ref: '#/components/schemas/ReplacementInput'}}}
-      description: routine_id se toma de la rutina vigente del alumno (el mismo valor que guarda WorkoutSetLog); no lo envía el cliente.
+      description: Si la alternativa elegida tiene variante segura para el alumno, se registra la variante (replacement_exercise_id de la respuesta). routine_id se toma de la rutina vigente del alumno (el mismo valor que guarda WorkoutSetLog); no lo envía el cliente.
       responses:
         "200": {description: Registrado; la rutina vigente no cambia, content: {application/json: {schema: {$ref: '#/components/schemas/ReplacementResponse'}}}}
         "403": {description: Sin vínculo activo}
