@@ -6,7 +6,7 @@ description: "Tareas de US-14 (edición de rutina) y US-53 (variantes seguras)"
 
 **Input**: `plan.md`, `spec.md` (User Story 2 = US-14), `data-model.md`, `research.md`, `contracts/student-routine-edit-api.yaml`, `contracts/safe-variants-api.yaml`
 
-**Alcance**: US-14 (Fases 1–4, completadas salvo T014) y US-53 (Fases 5–6). US-13, US-54 y US-55 quedan fuera (Principio VII, un PR por story).
+**Alcance**: US-14 (Fases 1–4) y US-53 (Fases 5–6). US-13, US-54 y US-55 quedan fuera (Principio VII, un PR por story).
 
 **Tests**: obligatorios (Principio VI, cobertura ≥ 90 %). Rutas relativas a la raíz del repo (`backend/`, `frontend/`).
 
@@ -49,7 +49,7 @@ description: "Tareas de US-14 (edición de rutina) y US-53 (variantes seguras)"
 ## Phase 4: Polish
 
 - [X] T013 [P] Correr `ruff check backend`, `pytest backend/tests --cov=backend/src --cov-fail-under=90` y `npm run build` en `frontend/`; corregir fallas.
-- [ ] T014 Recorrer manualmente `quickstart.md` y marcar `[x]` las tareas completadas.
+- [X] T014 Recorrer manualmente `quickstart.md` y marcar `[x]` las tareas completadas.
 
 ## Phase 5: User Story US-53 — Variantes seguras (P1)
 
@@ -80,7 +80,7 @@ description: "Tareas de US-14 (edición de rutina) y US-53 (variantes seguras)"
 ## Phase 6: Polish US-53
 
 - [X] T025 [P] Correr `ruff check backend`, `pytest backend/tests --cov=backend/src --cov-fail-under=90` y `npm run build` en `frontend/`; corregir fallas.
-- [ ] T026 Recorrer manualmente la sección US-53 de `quickstart.md` y marcar `[x]` las tareas completadas.
+- [X] T026 Recorrer manualmente la sección US-53 de `quickstart.md` y marcar `[x]` las tareas completadas.
 
 ## Dependencias
 

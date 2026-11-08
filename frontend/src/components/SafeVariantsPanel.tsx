@@ -56,11 +56,11 @@ export function SafeVariantsPanel({ exercise, library }: Props) {
       <legend>Variantes seguras</legend>
       <p>Ejercicio que ve el alumno con esas zonas protegidas en lugar de este. Tiene que cubrir todas sus zonas en conflicto.</p>
       {error && <p className="form-alert" role="alert">{error}</p>}
-      <ul>
+      <ul className="safe-variants-list">
         {variants.map((item) => (
           <li key={item.id}>
-            {item.variant_name} · {item.covered_zones.map(zoneLabel).join(', ')}{' '}
-            <button className="plan-cancel" type="button" onClick={() => handleRemove(item.id)}>Quitar</button>
+            <span>{item.variant_name} · {item.covered_zones.map(zoneLabel).join(', ')}</span>
+            <button className="plan-cancel" type="button" onClick={() => handleRemove(item.id)} aria-label={`Quitar variante ${item.variant_name}`}>Quitar</button>
           </li>
         ))}
         {variants.length === 0 && <li>Todavía no hay variantes seguras para este ejercicio.</li>}
@@ -83,7 +83,8 @@ export function SafeVariantsPanel({ exercise, library }: Props) {
           </label>
         ))}
       </div>
-      <button className="profile-save" type="button" onClick={handleAdd} disabled={!variantId || zones.length === 0}>Agregar variante</button>
+      <button className="profile-save" type="button" onClick={handleAdd} disabled={!variantId || zones.length === 0} aria-describedby="safe-variant-hint">Agregar variante</button>
+      <small id="safe-variant-hint" className="safe-variants-hint">Elegí el ejercicio variante y al menos una zona que cubre.</small>
     </fieldset>
   );
 }

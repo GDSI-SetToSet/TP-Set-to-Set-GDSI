@@ -19,8 +19,8 @@ export function SafeVariantNotice({ exerciseId, onSkip }: Props) {
   if (!result || result.status === 'SAFE') return null;
   if (result.status === 'BLOCKED') {
     return (
-      <div className="form-alert" role="alert">
-        <p>{result.message}</p>
+      <div className="safe-variant safe-variant--blocked" role="status">
+        <p><strong>Sin variante segura.</strong> {result.message}</p>
         {result.can_skip && <button className="plan-cancel" type="button" onClick={onSkip}>Saltear ejercicio</button>}
       </div>
     );
@@ -28,8 +28,8 @@ export function SafeVariantNotice({ exerciseId, onSkip }: Props) {
   const variant = result.variant!;
   const embed = variant.video_url ? getVideoEmbedUrl(variant.video_url) : null;
   return (
-    <div className="profile-success" role="status">
-      <strong>Variante segura para tus limitaciones: {variant.name}</strong>
+    <div className="safe-variant safe-variant--ok" role="status">
+      <p><strong>Variante segura para tus limitaciones: {variant.name}</strong></p>
       <p>{variant.description}</p>
       {embed && <iframe className="exercise-video" src={embed} title={`Video de ${variant.name}`} loading="lazy" allowFullScreen />}
     </div>
