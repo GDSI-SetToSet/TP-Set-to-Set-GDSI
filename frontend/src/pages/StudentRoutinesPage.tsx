@@ -3,6 +3,8 @@ import { ArrowLeft, Dumbbell, History, Home, PlusCircle, Video, X } from 'lucide
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { SafeVariantNotice } from '../components/SafeVariantNotice';
+import { ExerciseAlternativesPanel } from '../components/ExerciseAlternativesPanel';
+import type { ExerciseAlternative } from '../types/exerciseAlternative';
 import { ROUTES } from '../constants/routes';
 import {
   createAssignedRoutineWorkoutLog,
@@ -37,6 +39,8 @@ export function StudentRoutinesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [skipped, setSkipped] = useState<string[]>([]);
+  // US-54: reemplazos de la sesión en curso (id del ítem → alternativa); no modifican la rutina
+  const [replacements, setReplacements] = useState<Record<string, ExerciseAlternative>>({});
   const [blockedExerciseIds, setBlockedExerciseIds] = useState<string[]>([]);
 
   const [switchingModality, setSwitchingModality] = useState(false);
@@ -145,7 +149,7 @@ export function StudentRoutinesPage() {
     setSavingExerciseId(item.id);
     try {
       const created = await createAssignedRoutineWorkoutLog({
-        exercise_id: item.exercise.id,
+        exercise_id: replacements[item.id]?.exercise_id ?? item.exercise.id,
         day_name: selectedDay.name,
         set_number: parsedSet,
         reps_completed: draft.repsCompleted.trim(),
@@ -275,7 +279,7 @@ export function StudentRoutinesPage() {
                       <li key={item.id}>
                         <div className="student-routine-exercise__summary">
                           <div className="student-routine-exercise__title-row">
-                            <h4>{item.exercise.name}</h4>
+                            <h4>{replacements[item.id]?.name ?? item.exercise.name}</h4>
                             <span
                               className={`student-routine-exercise__modality-badge ${
                                 isHomeModality
@@ -302,6 +306,16 @@ export function StudentRoutinesPage() {
                             if (status === 'BLOCKED') return isBlocked ? current : [...current, item.exercise.id];
                             return isBlocked ? current.filter((id) => id !== item.exercise.id) : current;
                           })}
+                        />
+                        <ExerciseAlternativesPanel
+                          exerciseId={item.exercise.id}
+                          dayName={selectedDay?.name ?? ''}
+                          chosen={replacements[item.id] ?? null}
+                          onChosen={(alt) => setReplacements((current) => {
+                            const { [item.id]: _removed, ...rest } = current;
+                            return alt ? { ...rest, [item.id]: alt } : rest;
+                          })}
+                          onSkip={() => setSkipped((current) => [...current, item.id])}
                         />
                         <p>{item.sets} series · {item.reps} repeticiones</p>
                         <p>
@@ -355,7 +369,7 @@ export function StudentRoutinesPage() {
                           </div>
                         )}
 
-                        {!blockedExerciseIds.includes(item.exercise.id) && <div className="student-routine-exercise__logger">
+                        {(replacements[item.id] || !blockedExerciseIds.includes(item.exercise.id)) && <div className="student-routine-exercise__logger">
                           <label>
                             Serie
                             <input

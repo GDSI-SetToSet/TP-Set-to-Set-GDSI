@@ -182,17 +182,21 @@ def check_for_student(db: Session, relationship: TrainingRelationship, exercise:
     return result, variant
 
 
+def active_relationship(db: Session, student_id: str) -> TrainingRelationship | None:
+    return db.scalar(
+        select(TrainingRelationship)
+        .where(TrainingRelationship.student_id == student_id, TrainingRelationship.status == "ACTIVE")
+        .order_by(TrainingRelationship.start_date.desc())
+    )
+
+
 def resolve_for_student(db: Session, user: User, exercise_id: str) -> dict:
     from backend.src.services.student_routine_service import (
         current_exercise_ids,  # evita import circular
     )
 
     profile = get_student_profile(db, user)
-    relationship = db.scalar(
-        select(TrainingRelationship)
-        .where(TrainingRelationship.student_id == profile.id, TrainingRelationship.status == "ACTIVE")
-        .order_by(TrainingRelationship.start_date.desc())
-    )
+    relationship = active_relationship(db, profile.id)
     if relationship is None:
         raise ExerciseError(status.HTTP_403_FORBIDDEN, "No tenés un vínculo activo con un entrenador.")
     exercise = db.get(Exercise, exercise_id)

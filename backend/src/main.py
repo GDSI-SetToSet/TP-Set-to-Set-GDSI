@@ -8,6 +8,9 @@ from backend.src.api.errors import register_exception_handlers
 from backend.src.api.v1.assigned_routines import router as assigned_routines_router
 from backend.src.api.v1.auth import router as auth_router
 from backend.src.api.v1.discovery import router as discovery_router
+from backend.src.api.v1.exercise_alternatives import (
+    router as exercise_alternatives_router,
+)
 from backend.src.api.v1.exercises import router as exercises_router
 from backend.src.api.v1.routine_templates import router as routine_templates_router
 from backend.src.api.v1.routine_templates import (
@@ -29,6 +32,7 @@ from backend.src.models import (  # noqa: F401
     AssignedRoutineDay,
     AssignedRoutineExercise,
     Exercise,
+    ExerciseReplacementLog,
     ExerciseSafeVariant,
     MedicalClearance,
     Notification,
@@ -82,6 +86,7 @@ def create_app(create_tables: bool = True) -> FastAPI:
     app.include_router(student_routines_router)
     app.include_router(safe_variants_router)
     app.include_router(student_safe_variants_router)
+    app.include_router(exercise_alternatives_router)
 
     @app.get("/health", tags=["health"])
     def health() -> dict[str, str]:

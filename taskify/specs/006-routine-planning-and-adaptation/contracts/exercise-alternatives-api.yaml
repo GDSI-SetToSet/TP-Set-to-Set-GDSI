@@ -16,8 +16,9 @@ paths:
       summary: Elegir una alternativa o saltear un ejercicio en la sesión del día (sobrescribe la elección previa)
       requestBody:
         content: {application/json: {schema: {$ref: '#/components/schemas/ReplacementInput'}}}
+      description: routine_id se toma de la rutina vigente del alumno (el mismo valor que guarda WorkoutSetLog); no lo envía el cliente.
       responses:
-        "200": {description: Registrado; la rutina vigente no cambia}
+        "200": {description: Registrado; la rutina vigente no cambia, content: {application/json: {schema: {$ref: '#/components/schemas/ReplacementResponse'}}}}
         "403": {description: Sin vínculo activo}
         "404": {description: El ejercicio original no está en su rutina vigente}
         "422": {description: La alternativa no figura en la lista vigente (problem+json con errors[])}
@@ -34,11 +35,15 @@ components:
           description: Variante segura de la alternativa (US-53), si el alumno la necesita y existe.
           type: object
           properties: {exercise_id: {type: string}, name: {type: string}}
+    ReplacementResponse:
+      type: object
+      properties:
+        original_exercise_id: {type: string}
+        replacement_exercise_id: {type: string, nullable: true}
     ReplacementInput:
       type: object
-      required: [routine_id, day_name, original_exercise_id]
+      required: [day_name, original_exercise_id]
       properties:
-        routine_id: {type: string}
         day_name: {type: string}
         original_exercise_id: {type: string}
         replacement_exercise_id: {type: string, nullable: true, description: "Nulo = el alumno saltea el ejercicio"}

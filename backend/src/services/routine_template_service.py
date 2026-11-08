@@ -360,6 +360,12 @@ def create_student_workout_log(
     exercises_by_id = {ex.id: ex for _, _, _, _, ex in _iter_routine_exercises(routine_view)}
 
     exercise = exercises_by_id.get(payload.exercise_id)
+    if exercise is None:  # US-54: ejercicio elegido hoy como reemplazo
+        from backend.src.services.exercise_alternative_service import (
+            is_replacement_today,
+        )
+
+        exercise = is_replacement_today(db, relationship.student_id, routine_id, payload.day_name, payload.exercise_id)
     if exercise is None:
         raise RoutineTemplateError(
             VALIDATION_ERROR_STATUS,

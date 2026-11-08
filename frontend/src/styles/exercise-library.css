@@ -78,3 +78,7 @@
 .safe-variants-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
 .safe-variants-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .safe-variants-hint { color: var(--pf-muted); font-size: 14px; }
+
+.exercise-alternatives { margin: 8px 0; display: grid; gap: 8px; }
+.exercise-alternatives ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.exercise-alternatives button { min-height: 44px; min-width: 44px; }
