@@ -1,5 +1,5 @@
 ---
-description: "Task list for 006-routine-planning-and-adaptation (US-13, US-14 and US-53)"
+description: "Task list for 006-routine-planning-and-adaptation (US-13, US-14, US-53 and US-54)"
 ---
 
 # Tasks: Generación de Rutina Particular con IA (US-13)
@@ -99,7 +99,7 @@ description: "Task list for 006-routine-planning-and-adaptation (US-13, US-14 an
 
 **Input**: `plan.md`, `spec.md` (User Story 2 = US-14), `data-model.md`, `research.md`, `contracts/student-routine-edit-api.yaml`, `contracts/safe-variants-api.yaml`
 
-**Alcance**: US-14 (Fases 1–4) y US-53 (Fases 5–6). US-13, US-54 y US-55 quedan fuera (Principio VII, un PR por story).
+**Alcance**: US-14 (Fases 1–4), US-53 (Fases 5–6) y US-54 (Fases 7–8). US-13 y US-55 quedan fuera de este documento (Principio VII, un PR por story).
 
 **Tests**: obligatorios (Principio VI, cobertura ≥ 90 %). Rutas relativas a la raíz del repo (`backend/`, `frontend/`).
 
@@ -188,3 +188,39 @@ Todo es una sola story: entregar en un único PR hacia `develop`. Orden sugerido
 ## Estrategia US-53
 
 Un único PR hacia `develop`, separado del de US-14. Orden: modelos y schemas (T017–T018) → servicio con sus tests en rojo (T015–T016, T019) → API (T020) → integración con US-14 (T021) → frontend (T022–T024). MVP: backend completo hasta T021 verificado con tests; el frontend puede mergearse en el mismo PR.
+
+## Phase 7: User Story US-54 — Alternativa o reemplazo de ejercicio (P2)
+
+**Objetivo**: el alumno pide alternativas calculadas (mismo `target_muscle_group`, biblioteca del entrenador, sin zonas de riesgo propias), elige o saltea; el reemplazo vale solo para la sesión del día, se registra para el entrenador y no modifica la rutina.
+
+**Prueba independiente**: seguir los 8 escenarios de la sección US-54 de `quickstart.md`.
+
+**Prerrequisito**: US-14 y US-53 mergeadas en `develop` (se reutilizan `norm`, `find_conflicts` de `backend/src/services/student_routine_service.py` y la resolución de `backend/src/services/safe_variant_service.py`). No depende de la spec 007 (research D16).
+
+### Tests
+
+- [ ] T027 [P] [US54] Tests de servicio en `backend/tests/test_exercise_alternative_service.py`: alternativas = mismo `target_muscle_group`, mismo entrenador, `deleted_at` nulo, distintas del original, sin intersección entre `contraindicated_zones` y `ProtectedZone.body_area` normalizadas; independientes de la modalidad GYM/HOME; lista vacía → `can_skip: true`; sobrescritura: una sola fila por (`student_id`, `routine_id`, `day_name`, `session_date`, `original_exercise_id`) con la última elección; salto = `replacement_exercise_id` nulo; la `StudentRoutine` vigente no cambia.
+- [ ] T028 [P] [US54] Tests de API en `backend/tests/test_exercise_alternative_api.py` por escenario de aceptación 1–4 de US-54 (esc. 1 lista de alternativas, esc. 2 filtro por grupo y zonas de riesgo, esc. 3 elección registrada sin tocar la rutina y sin notificación, esc. 4 sin alternativas → salto registrado) más: ejercicio fuera de la rutina vigente → `404`; sin vínculo ACTIVE → `403`; alternativa fuera de la lista → `422` problem+json con `errors[]`; la respuesta no expone zonas protegidas.
+- [ ] T029 [P] [US54] Test de rendimiento (SC-003) en `backend/tests/test_exercise_alternative_api.py`: biblioteca de ~300 ejercicios, `GET .../alternatives` responde en < 2 s.
+
+### Implementación
+
+- [ ] T030 [P] [US54] Crear `backend/src/models/exercise_replacement_log.py` con `ExerciseReplacementLog`: `id` (String(36)), `student_id` FK `student_profiles`, `routine_id`, `day_name` (String(100)), `session_date` (fecha UTC), `original_exercise_id` FK `exercises`, `replacement_exercise_id` FK `exercises` nullable (nulo = salto), `updated_at` UTC; único por (`student_id`, `routine_id`, `day_name`, `session_date`, `original_exercise_id`); registrarlo en `backend/src/models/__init__.py` y en los imports de `backend/src/main.py`.
+- [ ] T031 [P] [US54] Crear `backend/src/schemas/exercise_alternative.py` según `contracts/exercise-alternatives-api.yaml`: `Alternative` (`exercise_id`, `name`, `equipment_needed`, `variant` nullable), respuesta con `alternatives[]` y `can_skip`, y `ReplacementInput` (`routine_id`, `day_name`, `original_exercise_id`, `replacement_exercise_id` nullable).
+- [ ] T032 [US54] Implementar `backend/src/services/exercise_alternative_service.py`: `list_alternatives` (valida vínculo ACTIVE y que el ejercicio esté en la rutina vigente; consulta única filtrada por `trainer_id` y `target_muscle_group`; excluye original y dados de baja; excluye zonas de riesgo reutilizando `norm`; completa `variant` con la resolución de US-53 si la alternativa lo requiere) y `record_replacement` (upsert; valida que la alternativa figure en la lista vigente; `session_date` = hoy UTC; no modifica `StudentRoutine`). Errores con la clase RFC 7807 existente.
+- [ ] T033 [US54] Implementar `backend/src/api/v1/exercise_alternatives.py` (`GET /students/me/exercises/{exerciseId}/alternatives`, `PUT /students/me/exercise-replacements`) reutilizando `deps.py` según el patrón de `backend/src/api/v1/safe_variants.py`, y registrar el router en `backend/src/main.py`.
+- [ ] T034 [P] [US54] Tipos y cliente HTTP en `frontend/src/types/exerciseAlternative.ts` y `frontend/src/services/exerciseAlternativeService.ts`.
+- [ ] T035 [US54] Interfaz del alumno en `frontend/src/pages/StudentRoutinesPage.tsx` (y componente `frontend/src/components/ExerciseAlternativesPanel.tsx`): botón "Sustituir" por ejercicio (≥ 44×44 px), lista de alternativas, elegir (reemplaza la elección previa), aviso y botón "Saltear" cuando la lista está vacía; las series se registran con el `exercise_id` elegido; estilos en `frontend/src/styles/`.
+
+**Checkpoint**: US-54 funcional y probable por sí sola.
+
+## Phase 8: Polish US-54
+
+- [ ] T036 [P] Correr `ruff check backend`, `pytest backend/tests --cov=backend/src --cov-fail-under=90` y `npm run build` en `frontend/`; corregir fallas.
+- [ ] T037 Recorrer manualmente la sección US-54 de `quickstart.md` y marcar `[x]` las tareas completadas.
+
+## Estrategia US-54
+
+Un único PR hacia `develop`, separado de US-14 y US-53. Orden: T030/T031 (paralelas) → T027–T029 (tests en rojo, paralelos) → T032 → T033 → T034 → T035 → T036–T037. MVP: backend completo hasta T033; la UI (T034–T035) cierra la story.
+
+**Decisión abierta (E2)**: si el original ya tiene variante segura (US-53), se muestra primero esa variante y las alternativas se piden aparte con "Sustituir"; confirmar al implementar T035.
