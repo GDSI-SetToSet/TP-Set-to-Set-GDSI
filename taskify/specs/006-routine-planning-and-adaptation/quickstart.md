@@ -110,3 +110,22 @@ ruff check backend && (cd frontend && npm run build)
 4. Quitar la zona protegida del alumno o la variante → la siguiente consulta refleja el cambio sin reiniciar la sesión.
 5. Alumno consulta un ejercicio que no está en su rutina → `404`; sin vínculo activo → `403`.
 6. En US-14, agregar un ejercicio contraindicado ofrece la variante resuelta en `safe_variant` (ya no `null`).
+
+# Quickstart: validar US-54
+
+**Prerequisitos**: entrenador con vínculo ACTIVE; alumno con rutina vigente que incluye un ejercicio de máquina (p. ej. "prensa", grupo "cuádriceps"); biblioteca con otro ejercicio del mismo grupo; ver [contrato](./contracts/exercise-alternatives-api.yaml) y [modelo](./data-model.md).
+
+```bash
+pytest backend/tests -k exercise_alternative --cov=backend/src --cov-fail-under=90
+ruff check backend && (cd frontend && npm run build)
+```
+
+**Escenarios manuales**:
+1. El alumno pulsa "sustituir" → ve solo ejercicios del mismo grupo muscular de la biblioteca de su entrenador (esc. 1 y 2).
+2. Alumno con zona protegida "knee": las alternativas con "knee" en `contraindicated_zones` no aparecen (esc. 2).
+3. Elegir una alternativa → `ExerciseReplacementLog` guardado; la rutina vigente no cambia; al día siguiente vuelve el original (esc. 3).
+4. Cambiar de alternativa varias veces → una sola fila, con la última (esc. 3).
+5. Cambiar la modalidad a Casa/Viaje → las mismas alternativas (esc. 3).
+6. Ejercicio sin ninguna alternativa → lista vacía, `can_skip: true`; saltear registra `replacement_exercise_id` nulo (esc. 4).
+7. Ejercicio fuera de su rutina → `404`; sin vínculo activo → `403`; alternativa fuera de la lista → `422`.
+8. Medir la consulta con una biblioteca de ~300 ejercicios: < 2 s (SC-003).

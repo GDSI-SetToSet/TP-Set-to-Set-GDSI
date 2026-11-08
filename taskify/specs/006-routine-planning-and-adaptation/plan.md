@@ -52,7 +52,8 @@ taskify/specs/006-routine-planning-and-adaptation/
 └── contracts/
     ├── routine-adaptation-api.yaml   # Contrato OpenAPI 3.0 para US-13
     ├── student-routine-edit-api.yaml # Contrato OpenAPI 3.0 para US-14
-    └── safe-variants-api.yaml        # Contrato OpenAPI 3.0 para US-53
+    ├── safe-variants-api.yaml        # Contrato OpenAPI 3.0 para US-53
+    └── exercise-alternatives-api.yaml # Contrato OpenAPI 3.0 para US-54
 ```
 
 ### Source Code (US-13)
@@ -91,7 +92,7 @@ frontend/
 
 **Branch**: `006-routine-planning-and-adaptation` | **Date**: 2026-11-07 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Spec 006, alcance de este plan: **US-14 (implementada) y US-53**. US-13, 54 y 55 quedan para iteraciones posteriores (Principio VII, un PR por story).
+**Input**: Spec 006, alcance de este plan: **US-14 (implementada), US-53 y US-54**. US-13 queda para una iteración posterior (Principio VII, un PR por story).
 
 ## Summary
 
@@ -151,6 +152,49 @@ frontend/src/                         # edición de rutina del alumno (US-14); v
 ```
 
 **Structure Decision**: Se reutiliza la estructura por capas existente (model / schema / service / router). Sin abstracciones nuevas.
+
+## Complexity Tracking
+
+Sin violaciones constitucionales a justificar.
+
+---
+
+# Plan US-54: Solicitud de alternativa o reemplazo de ejercicio
+
+**Branch**: `006-routine-planning-and-adaptation` | **Date**: 2026-11-08 | **Spec**: [spec.md](./spec.md) | **Contrato**: [exercise-alternatives-api.yaml](./contracts/exercise-alternatives-api.yaml)
+
+## Summary
+
+El alumno pide alternativas para un ejercicio de su rutina vigente. La lista **se calcula en cada consulta** (research D15): ejercicios del mismo entrenador, no dados de baja, distintos del original, con el mismo `target_muscle_group` y sin zonas de riesgo en común con las restricciones del alumno (cruce de US-53, D9). Si una alternativa tiene variante segura aplicable, se informa. Sin dependencia de la modalidad GYM/HOME. Elegir o saltear se registra en `ExerciseReplacementLog` (D16, una fila por ejercicio original, última elección); la rutina vigente nunca se modifica y las series se registran con el `exercise_id` realizado (`WorkoutSetLog`). Sin notificación al entrenador.
+
+Pendientes menores (no bloquean): volumen de referencia de SC-003 (< 2 s; se asume biblioteca de hasta unos cientos de ejercicios, una sola consulta filtrada por `trainer_id` y `target_muscle_group`) y qué ve el alumno si el original ya tiene variante segura (propuesta: se ofrece la variante de US-53 como primera opción y las alternativas se piden aparte).
+
+## Constitution Check
+
+| Principio | Estado | Justificación |
+|---|---|---|
+| I. Accesibilidad | PASSED | Botón "sustituir" y opciones ≥ 44×44 px; aviso legible cuando no hay alternativas. |
+| II. IA / Human-in-the-Loop | N/A | Sin IA; el reemplazo no altera la rutina aprobada. |
+| III. Privacidad de salud | PASSED | Filtro de zonas en backend; la respuesta no expone zonas protegidas, solo ejercicios válidos; vínculo ACTIVE y ejercicio de su rutina vigente (403/404). |
+| IV, V | N/A | — |
+| VI. Calidad en CI | PASSED | Tests por escenario 1–4, filtro de zonas, sobrescritura, SC-003; cobertura ≥ 90 %. |
+| VII. Entrega incremental | PASSED | Un PR para US-54, sobre US-14/US-53 (mergeadas). No depende de la spec 007 (D16). |
+
+Re-evaluación post-diseño: sin violaciones.
+
+## Source Code (US-54)
+
+```text
+backend/src/
+├── models/exercise_replacement_log.py      # ExerciseReplacementLog
+├── schemas/exercise_alternative.py
+├── services/exercise_alternative_service.py # cálculo de alternativas, registro/sobrescritura
+├── api/v1/exercise_alternatives.py         # /students/me/exercises/{id}/alternatives, /students/me/exercise-replacements
+backend/tests/test_exercise_alternative_{service,api}.py
+frontend/src/                               # botón "sustituir", lista de alternativas, salto
+```
+
+**Structure Decision**: misma estructura por capas; reutiliza el cruce de zonas de `safe_variant_service` y la normalización de US-14. Sin abstracciones nuevas.
 
 ## Complexity Tracking
 
