@@ -3,6 +3,7 @@ from sqlalchemy import select
 from backend.src.models.notification import Notification
 from backend.src.models.student_profile import StudentProfile
 from backend.src.models.training_relationship import TrainingRelationship
+from backend.src.models.user import User
 from backend.src.services.notification_service import create_notification
 
 TRAINER_PUBLISHED = {
@@ -137,11 +138,13 @@ def test_accept_request_emits_welcome_notification_with_default_fallback(client)
 
 
 def test_notification_service_create_and_query(client):
-    _, session_factory = client
+    api, session_factory = client
+    register_and_login(api, "notif_query@example.com", "STUDENT")
     with session_factory() as db:
+        user = db.scalar(select(User).where(User.email == "notif_query@example.com"))
         notif = create_notification(
             db=db,
-            recipient_id="fake-user-id",
+            recipient_id=user.id,
             type="GENERAL",
             title="Aviso",
             message="Mensaje de prueba",

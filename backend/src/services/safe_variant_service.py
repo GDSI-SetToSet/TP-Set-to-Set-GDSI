@@ -2,6 +2,7 @@ from fastapi import status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from backend.src.core.constants import canonical_zone_key
 from backend.src.models.exercise import Exercise
 from backend.src.models.protected_zone import ProtectedZone
 from backend.src.models.safe_variant import ExerciseSafeVariant, SafeVariantCase
@@ -20,7 +21,8 @@ NO_VARIANT_MESSAGE = "No hay una variante segura para este ejercicio. Podés sal
 
 
 def _norm(zones) -> set[str]:
-    return {z.strip().lower() for z in zones}
+    """Claves canónicas de zona (unifica sinónimos, igual que el bloqueo de US-14)."""
+    return {key for z in zones if (key := canonical_zone_key(z))}
 
 
 def student_zones(db: Session, student_id: str) -> set[str]:
@@ -50,9 +52,9 @@ def _zone_error(field: str, message: str) -> ExerciseError:
 
 
 def _validate(exercise: Exercise, variant: Exercise, zones: list[str]) -> None:
-    if not set(zones) <= _norm(exercise.contraindicated_zones):
+    if not _norm(zones) <= _norm(exercise.contraindicated_zones):
         raise _zone_error("covered_zones", "Las zonas deben ser contraindicaciones del ejercicio de riesgo.")
-    if set(zones) & _norm(variant.contraindicated_zones):
+    if _norm(zones) & _norm(variant.contraindicated_zones):
         raise _zone_error("variant_exercise_id", "La variante está contraindicada para esas zonas.")
 
 

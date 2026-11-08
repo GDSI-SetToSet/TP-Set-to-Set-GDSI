@@ -1,3 +1,9 @@
+from backend.src.models.assigned_routine import (
+    AssignedRoutine,
+    AssignedRoutineBlock,
+    AssignedRoutineDay,
+    AssignedRoutineExercise,
+)
 from backend.src.models.exercise import Exercise
 from backend.src.models.medical_clearance import MedicalClearance
 from backend.src.models.notification import Notification
@@ -16,12 +22,17 @@ from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.training_request import TrainingRequest
 from backend.src.models.user import PasswordResetToken, User, UserSession
+from backend.src.models.workout_log import WorkoutSetLog
 
 from .health_questionnaire import HealthQuestionnaire
 from .protected_zone import ProtectedZone
 from .student_profile import StudentProfile
 
 __all__ = [
+    "AssignedRoutine",
+    "AssignedRoutineBlock",
+    "AssignedRoutineDay",
+    "AssignedRoutineExercise",
     "Exercise",
     "ExerciseSafeVariant",
     "HealthQuestionnaire",
@@ -45,4 +56,5 @@ __all__ = [
     "TrainingRequest",
     "User",
     "UserSession",
+    "WorkoutSetLog",
 ]

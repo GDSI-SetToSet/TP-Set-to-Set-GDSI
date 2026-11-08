@@ -1,8 +1,8 @@
 ---
-description: "Task list for 005-exercise-library-and-templates (US-08, US-09 and US-12)"
+description: "Task list for 005-exercise-library-and-templates (US-08, US-09, US-12 and US-52)"
 ---
 
-# Tasks: Biblioteca de Ejercicios, Videos Demostrativos y Rutinas Genéricas (US-08, US-09 y US-12)
+# Tasks: Biblioteca de Ejercicios, Videos Demostrativos y Rutinas Genéricas (US-08, US-09, US-12 y US-52)
 
 **Input**: Design documents from `taskify/specs/005-exercise-library-and-templates/`
 
@@ -10,12 +10,12 @@ description: "Task list for 005-exercise-library-and-templates (US-08, US-09 and
 
 **Tests**: Obligatorios para el backend por Constitución, Principio VI (cobertura $\ge 90\%$). El frontend se valida mediante compilación TypeScript y build de producción (`npm run build`).
 
-**Organization**: Una rama y un PR hacia `develop` por historia (Principio VII). US-52 se agrega a este archivo cuando se planifique.
+**Organization**: Las tareas se agrupan por historia para conservar trazabilidad desde la especificación hasta las pruebas.
 
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Puede ejecutarse en paralelo (archivos independientes, sin dependencias previas no satisfechas).
-- **[Story]**: `US1` = US-08 (Biblioteca de ejercicios), `US2` = US-09 (Rutinas genéricas), `US3` = US-12 (Vincular video demostrativo).
+- **[Story]**: `US1` = US-08 (Biblioteca de ejercicios), `US2` = US-09 (Rutinas genéricas), `US3` = US-12 (Vincular video demostrativo), `US4` = US-52 (Notas técnicas y respiración).
 - Rutas relativas a la raíz del repositorio (`backend/`, `frontend/`, `taskify/`).
 
 ---
@@ -138,3 +138,18 @@ description: "Task list for 005-exercise-library-and-templates (US-08, US-09 and
 - [x] T028 [US3] Actualizar `backend/src/api/v1/exercises.py` para exponer en alta, detalle y edición el enlace normalizado, conservar el error RFC 7807 con motivo ante URLs inválidas y propagar `video_url` a las respuestas de ejercicios consumidas por alumnos.
 - [x] T029 [US3] Actualizar `frontend/src/types/exercise.ts` y `frontend/src/services/exerciseService.ts`, y modificar el formulario y detalle en `frontend/src/pages/ExerciseLibraryPage.tsx`, `frontend/src/components/ExerciseCard.tsx` y `frontend/src/components/RoutineTemplateDetail.tsx` para gestionar la URL, mostrar errores y previsualizar el video embebido; reflejar la versión actualizada o la ausencia del video en el detalle de rutinas del alumno.
 - [x] T030 [US3] Ejecutar las pruebas específicas de ejercicios, `ruff check backend` y `npm run build`; validar los cuatro escenarios de aceptación de US-12 y las reglas de URL de `taskify/specs/005-exercise-library-and-templates/research.md`.
+
+---
+
+## Phase 5: User Story 4 — US-52 Notas técnicas y claves de respiración (Priority: P2, 2 SP)
+
+**Goal**: Permitir al entrenador cargar indicaciones opcionales de postura y respiración, y mostrarlas al alumno dentro de su rutina sin renderizar secciones vacías.
+
+**Independent Test**: Crear y editar un ejercicio con ambas indicaciones, asignarlo a una rutina y comprobar que el alumno las recibe junto con la descripción y el video; al eliminarlas, la API devuelve `null` y la interfaz omite las secciones.
+
+- [x] T031 [P] [US4] Agregar pruebas de alta, normalización, límite, edición y eliminación de notas en `backend/tests/test_exercise_api.py`.
+- [x] T032 [US4] Agregar `technical_cues` y `breathing_cues` opcionales a modelo, schemas y contrato del ejercicio.
+- [x] T033 [P] [US4] Incorporar los campos opcionales al formulario y detalle del entrenador en `frontend/src/pages/ExerciseLibraryPage.tsx` y `frontend/src/components/ExerciseCard.tsx`.
+- [x] T034 [US4] Exponer las indicaciones dentro de la rutina asignada y mostrarlas condicionalmente en `frontend/src/pages/StudentRoutinesPage.tsx`.
+- [x] T035 [P] [US4] Actualizar `data-model.md`, `plan.md` y `contracts/exercise-library-api.yaml`.
+- [x] T036 [US4] Ejecutar pruebas backend con cobertura, Ruff, build frontend y `git diff --check`.

@@ -15,6 +15,7 @@ from backend.src.core.constants import (
     PASSWORD_RESET_REQUESTED_MESSAGE,
     PASSWORD_RESET_SUCCESS_MESSAGE,
 )
+from backend.src.core.rate_limiter import SimpleRateLimiter
 from backend.src.models.user import User, UserSession
 from backend.src.schemas.auth import (
     AuthTokenResponse,
@@ -36,6 +37,11 @@ from backend.src.services.auth_service import (
 from backend.src.services.email_service import EmailSender
 
 router = APIRouter(prefix=f"{API_V1_PREFIX}/auth", tags=["authentication"])
+forgot_password_limiter = SimpleRateLimiter(
+    max_requests=5,
+    window_seconds=60,
+    detail="Demasiadas solicitudes de recuperación de contraseña. Intentá nuevamente más tarde.",
+)
 
 
 def public_user(user: User) -> UserResponse:
@@ -75,6 +81,7 @@ def forgot_password(
     background_tasks: BackgroundTasks,
     email_sender: Annotated[EmailSender, Depends(get_email_sender)],
 ) -> MessageResponse:
+    forgot_password_limiter.check(str(payload.email).lower())
     reset_request = request_password_reset(db, str(payload.email))
     if reset_request is not None:
         email, link = reset_request

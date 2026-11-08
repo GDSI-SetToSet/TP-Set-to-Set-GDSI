@@ -4,6 +4,7 @@ import { ROUTES, homePath } from './constants/routes';
 import { useAuth } from './context/AuthContext';
 import { ExerciseLibraryPage } from './pages/ExerciseLibraryPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { GenerateAIRoutinePage } from './pages/GenerateAIRoutinePage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -54,6 +55,7 @@ export default function App() {
       <Route path={ROUTES.trainerPlans} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerPlansManagementPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerExercises} element={<ProtectedRoute role={USER_ROLES.trainer}><ExerciseLibraryPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerRoutines} element={<ProtectedRoute role={USER_ROLES.trainer}><RoutineTemplatesPage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerGenerateAIRoutine} element={<ProtectedRoute role={USER_ROLES.trainer}><GenerateAIRoutinePage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerStudents} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerStudentsPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerStudentRoutine} element={<ProtectedRoute role={USER_ROLES.trainer}><StudentRoutineEditPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerRequests} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerRequestsInboxPage /></ProtectedRoute>} />

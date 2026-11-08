@@ -9,6 +9,13 @@ export const ROUTINE_INTENSITIES = {
 
 export type RoutineIntensity = keyof typeof ROUTINE_INTENSITIES;
 
+export const ROUTINE_MODALITIES = {
+  GYM: 'Gimnasio',
+  HOME: 'Casa/Viaje',
+} as const;
+
+export type RoutineModality = keyof typeof ROUTINE_MODALITIES;
+
 export interface RoutineExerciseInput {
   exercise_id: string;
   sets: number;
@@ -19,7 +26,7 @@ export interface RoutineExerciseInput {
 
 export interface RoutineBlockInput {
   name: string;
-  estimated_duration_minutes: number;
+  estimated_duration_minutes: number | null;
   exercises: RoutineExerciseInput[];
 }
 
@@ -66,8 +73,33 @@ export interface RoutineTemplate {
   duration_weeks: number;
   intensity: RoutineIntensity;
   has_no_materials_alternative: boolean;
+  modality?: RoutineModality;
   exercise_count: number;
   days: RoutineDay[];
+}
+
+export interface WorkoutSetLogInput {
+  exercise_id: string;
+  day_name: string;
+  set_number: number;
+  reps_completed: string;
+  weight_kg: number | null;
+  modality?: RoutineModality;
+}
+
+export interface WorkoutSetLog {
+  id: string;
+  student_id: string;
+  relationship_id: string;
+  routine_id: string;
+  day_name: string;
+  exercise_id: string;
+  exercise_name: string;
+  modality: RoutineModality;
+  set_number: number;
+  reps_completed: string;
+  weight_kg: number | null;
+  recorded_at: string;
 }
 
 export interface RoutineAssignmentStudent {

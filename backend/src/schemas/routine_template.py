@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -8,10 +9,12 @@ from backend.src.schemas.exercise import ExerciseResponse, required_text
 from backend.src.schemas.trainer import REQUIRED_FIELD_MESSAGE
 
 ROUTINE_INTENSITIES = ("BAJA", "MEDIA", "ALTA", "EXIGENTE")
+ROUTINE_MODALITIES = ("GYM", "HOME")
 ROUTINE_NAME_MAX_LENGTH = 150
 SECTION_NAME_MAX_LENGTH = 100
 REPS_MAX_LENGTH = 50
 INVALID_INTENSITY_MESSAGE = "Elegí una intensidad válida"
+INVALID_MODALITY_MESSAGE = "Elegí una modalidad válida"
 
 
 def required_range(minimum: int, maximum: int) -> Callable[[int | None], int]:
@@ -46,6 +49,15 @@ def validate_intensity(value: str | None) -> str:
     if value not in ROUTINE_INTENSITIES:
         raise PydanticCustomError("intensity", INVALID_INTENSITY_MESSAGE)
     return value
+
+
+def validate_modality(value: str | None) -> str:
+    if value is None or not value.strip():
+        raise PydanticCustomError("required", REQUIRED_FIELD_MESSAGE)
+    normalized = value.strip().upper()
+    if normalized not in ROUTINE_MODALITIES:
+        raise PydanticCustomError("modality", INVALID_MODALITY_MESSAGE)
+    return normalized
 
 
 class RoutineExerciseInput(BaseModel):
@@ -129,8 +141,53 @@ class RoutineTemplateResponse(BaseModel):
     duration_weeks: int
     intensity: str
     has_no_materials_alternative: bool
+    modality: str = "GYM"
     exercise_count: int
     days: list[RoutineDayResponse]
+
+
+class RoutineModalityUpdate(BaseModel):
+    modality: str | None = Field(default=None, validate_default=True)
+
+    _modality = field_validator("modality")(validate_modality)
+
+
+class WorkoutSetLogInput(BaseModel):
+    exercise_id: str | None = Field(default=None, validate_default=True)
+    day_name: str | None = Field(default=None, validate_default=True)
+    set_number: int | None = Field(default=None, validate_default=True)
+    reps_completed: str | None = Field(default=None, validate_default=True)
+    weight_kg: float | None = Field(default=None, ge=0, le=9999.99)
+    modality: str | None = None
+
+    _exercise = field_validator("exercise_id")(required_text())
+    _day = field_validator("day_name")(required_text(SECTION_NAME_MAX_LENGTH))
+    _set = field_validator("set_number")(required_range(1, 20))
+    _reps = field_validator("reps_completed")(required_text(REPS_MAX_LENGTH))
+
+    @field_validator("modality")
+    @classmethod
+    def _check_optional_modality(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return validate_modality(value)
+
+
+class WorkoutSetLogResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    student_id: str
+    relationship_id: str
+    routine_id: str
+    day_name: str
+    exercise_id: str
+    exercise_name: str
+    modality: str
+    set_number: int
+    reps_completed: str
+    weight_kg: float | None = None
+    recorded_at: datetime
 
 
 class RoutineAssignmentUpdate(BaseModel):

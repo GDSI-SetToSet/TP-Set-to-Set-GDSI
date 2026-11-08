@@ -6,7 +6,7 @@
 
 ## Summary
 
-La biblioteca personal de ejercicios del entrenador (US-08) y las rutinas genéricas para alumnos con vínculo activo (US-09) están implementadas. La vinculación de videos demostrativos (US-12) está en progreso; las notas técnicas (US-52) se planifican para una iteración posterior.
+La biblioteca personal de ejercicios (US-08), las rutinas genéricas (US-09) y los videos demostrativos (US-12) están implementados. US-52 completa la ficha del ejercicio con notas técnicas y claves de respiración opcionales, administradas por el entrenador y visibles para el alumno dentro de la rutina asignada.
 
 ## Technical Context
 

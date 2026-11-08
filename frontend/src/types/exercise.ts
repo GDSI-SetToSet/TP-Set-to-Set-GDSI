@@ -12,6 +12,8 @@ export type VideoPlatform = 'YOUTUBE' | 'VIMEO' | 'GOOGLE_DRIVE' | 'NONE';
 export interface ExerciseInput {
   name: string;
   description: string;
+  technical_cues: string | null;
+  breathing_cues: string | null;
   category: ExerciseCategory;
   target_muscle_group: string;
   equipment_needed: string;

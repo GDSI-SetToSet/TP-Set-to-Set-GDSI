@@ -36,6 +36,10 @@ class RoutineTemplate(Base):
     def exercise_count(self) -> int:
         return sum(len(block.exercises) for day in self.days for block in day.blocks)
 
+    @property
+    def modality(self) -> str:
+        return getattr(self, "_modality", "GYM")
+
 
 class RoutineTemplateDay(Base):
     __tablename__ = "routine_template_days"

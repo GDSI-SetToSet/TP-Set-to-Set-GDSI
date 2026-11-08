@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.src.api.errors import register_exception_handlers
+from backend.src.api.v1.assigned_routines import router as assigned_routines_router
 from backend.src.api.v1.auth import router as auth_router
 from backend.src.api.v1.discovery import router as discovery_router
 from backend.src.api.v1.exercises import router as exercises_router
@@ -21,7 +22,12 @@ from backend.src.api.v1.students import router as students_router
 from backend.src.api.v1.trainers import router as trainers_router
 from backend.src.core.config import API_TITLE, API_VERSION, CORS_ALLOWED_ORIGINS
 from backend.src.core.database import Base, engine
+from backend.src.core.migrations import apply_migrations
 from backend.src.models import (  # noqa: F401
+    AssignedRoutine,
+    AssignedRoutineBlock,
+    AssignedRoutineDay,
+    AssignedRoutineExercise,
     Exercise,
     ExerciseSafeVariant,
     MedicalClearance,
@@ -43,6 +49,7 @@ from backend.src.models import (  # noqa: F401
     TrainingRequest,
     User,
     UserSession,
+    WorkoutSetLog,
 )
 
 
@@ -51,6 +58,7 @@ def create_app(create_tables: bool = True) -> FastAPI:
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         if create_tables:
             Base.metadata.create_all(bind=engine)
+            apply_migrations(engine)
         yield
 
     app = FastAPI(title=API_TITLE, version=API_VERSION, lifespan=lifespan)
@@ -70,6 +78,7 @@ def create_app(create_tables: bool = True) -> FastAPI:
     app.include_router(exercises_router)
     app.include_router(routine_templates_router)
     app.include_router(student_routine_templates_router)
+    app.include_router(assigned_routines_router)
     app.include_router(student_routines_router)
     app.include_router(safe_variants_router)
     app.include_router(student_safe_variants_router)

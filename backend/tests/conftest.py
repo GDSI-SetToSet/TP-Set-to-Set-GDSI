@@ -1,12 +1,16 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from backend.src.core.database import Base, get_db
 from backend.src.main import create_app
 from backend.src.models import (  # noqa: F401
+    AssignedRoutine,
+    AssignedRoutineBlock,
+    AssignedRoutineDay,
+    AssignedRoutineExercise,
     Exercise,
     MedicalClearance,
     Notification,
@@ -31,6 +35,13 @@ def client():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+
+    @event.listens_for(test_engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
     TestingSessionLocal = sessionmaker(bind=test_engine, autoflush=False, autocommit=False)
     Base.metadata.create_all(bind=test_engine)
     app = create_app(create_tables=False)
@@ -74,3 +85,14 @@ def student_token_headers(client, registered_user):
     token = response.json()["access_token"]
 
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiters():
+    from backend.src.api.v1.assigned_routines import ai_generate_limiter
+    from backend.src.api.v1.auth import forgot_password_limiter
+    forgot_password_limiter.reset()
+    ai_generate_limiter.reset()
+    yield
+    forgot_password_limiter.reset()
+    ai_generate_limiter.reset()
