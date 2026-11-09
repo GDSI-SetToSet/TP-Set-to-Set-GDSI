@@ -490,6 +490,15 @@ def create_student_workout_log(
 
     if payload.weight_kg is not None and payload.weight_kg > 0:
         current_weight = Decimal(str(payload.weight_kg))
+
+        # CONC-01: Serialización pesimista sobre el perfil del alumno (aggregate root)
+        # para coordinar la evaluación y evitar colisiones concurrentes en el primer PR
+        db.scalar(
+            select(StudentProfile.id)
+            .where(StudentProfile.id == relationship.student_id)
+            .with_for_update()
+        )
+
         existing_pr = db.scalar(
             select(PersonalRecord).where(
                 PersonalRecord.student_id == relationship.student_id,
@@ -641,12 +650,18 @@ def delete_student_workout_log(db: Session, user: User, log_id: str) -> None:
         or workout_session.routine_id != routine_id
     ):
         raise RoutineTemplateError(VALIDATION_ERROR_STATUS, "No se pueden modificar series de un entrenamiento finalizado.")
-    # US-59: Si la serie eliminada sostenía el récord vigente, recalcular o eliminar PR
+    # CONC-02: Bloqueo coordinado con create_student_workout_log para eliminación y recálculo
+    db.scalar(
+        select(StudentProfile.id)
+        .where(StudentProfile.id == relationship.student_id)
+        .with_for_update()
+    )
+
     pr = db.scalar(
         select(PersonalRecord).where(
             PersonalRecord.student_id == relationship.student_id,
             PersonalRecord.exercise_id == log_entry.exercise_id,
-        )
+        ).with_for_update()
     )
     if pr and pr.workout_set_log_id == log_entry.id:
         remaining_max = db.scalar(

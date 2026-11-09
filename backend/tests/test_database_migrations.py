@@ -327,3 +327,32 @@ def test_migration_alteration_specification_for_adaptation_notes():
     assert len(matching) == 1
     assert matching[0].target_length == 500
     assert matching[0].postgres_type == "VARCHAR(500)"
+
+
+def test_standalone_migrations_registers_all_models_including_personal_records():
+    """Escenario 12 (MIGR-01): Comprueba que el módulo de migraciones registre todas las entidades en Base.metadata."""
+    import backend.src.core.migrations  # noqa: F401
+    from backend.src.core.database import Base
+
+    assert "personal_records" in Base.metadata.tables
+    pr_table = Base.metadata.tables["personal_records"]
+    assert "student_id" in pr_table.c
+    assert "exercise_id" in pr_table.c
+    assert "weight_kg" in pr_table.c
+    assert "workout_set_log_id" in pr_table.c
+
+
+def test_apply_migrations_creates_personal_records_table_if_missing():
+    """Escenario 13 (MIGR-01): Comprueba que apply_migrations cree la tabla personal_records en una base existente."""
+    engine = make_legacy_engine()
+    create_legacy_database(engine)
+    inspector_before = inspect(engine)
+    assert "personal_records" not in inspector_before.get_table_names()
+
+    apply_migrations(engine)
+
+    inspector_after = inspect(engine)
+    assert "personal_records" in inspector_after.get_table_names()
+    pr_cols = {c["name"] for c in inspector_after.get_columns("personal_records")}
+    for col in ("id", "student_id", "exercise_id", "weight_kg", "reps_completed", "workout_set_log_id", "achieved_at"):
+        assert col in pr_cols

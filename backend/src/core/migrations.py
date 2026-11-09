@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import Engine, inspect, text
 
+import backend.src.models  # noqa: F401 - Asegura el registro de todas las entidades en Base.metadata
 from backend.src.core.database import Base, engine
 
 logger = logging.getLogger(__name__)
