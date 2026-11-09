@@ -53,6 +53,7 @@ from backend.src.models import (  # noqa: F401
     TrainingRequest,
     User,
     UserSession,
+    WorkoutSession,
     WorkoutSetLog,
 )
 

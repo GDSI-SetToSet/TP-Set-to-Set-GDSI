@@ -6,6 +6,7 @@ import type {
   RoutineTemplateInput,
   WorkoutSetLog,
   WorkoutSetLogInput,
+  WorkoutSession,
 } from '../types/routineTemplate';
 
 const TEMPLATES_PATH = '/api/v1/routine-templates';
@@ -45,6 +46,25 @@ export async function updateAssignedRoutineModality(modality: RoutineModality): 
   return data;
 }
 
+export async function startAssignedWorkoutSession(dayName: string): Promise<WorkoutSession> {
+  const { data } = await api.post<WorkoutSession>(`${STUDENT_ASSIGNED_PATH}/workout-sessions`, { day_name: dayName });
+  return data;
+}
+
+export async function finishAssignedWorkoutSession(sessionId: string): Promise<WorkoutSession> {
+  const { data } = await api.post<WorkoutSession>(`${STUDENT_ASSIGNED_PATH}/workout-sessions/${sessionId}/finish`);
+  return data;
+}
+
+export async function deleteAssignedRoutineWorkoutLog(logId: string): Promise<void> {
+  await api.delete(`${STUDENT_ASSIGNED_PATH}/workout-logs/${logId}`);
+}
+
+export async function getAssignedRoutineWorkoutSessions(): Promise<WorkoutSession[]> {
+  const { data } = await api.get<WorkoutSession[]>(`${STUDENT_ASSIGNED_PATH}/workout-sessions`);
+  return data;
+}
+
 export async function getAssignedRoutineWorkoutLogs(exerciseId?: string): Promise<WorkoutSetLog[]> {
   const { data } = await api.get<WorkoutSetLog[]>(
     `${STUDENT_ASSIGNED_PATH}/workout-logs`,
@@ -55,6 +75,11 @@ export async function getAssignedRoutineWorkoutLogs(exerciseId?: string): Promis
 
 export async function createAssignedRoutineWorkoutLog(payload: WorkoutSetLogInput): Promise<WorkoutSetLog> {
   const { data } = await api.post<WorkoutSetLog>(`${STUDENT_ASSIGNED_PATH}/workout-logs`, payload);
+  return data;
+}
+
+export async function getTrainerStudentWorkoutLogs(relationshipId: string): Promise<WorkoutSetLog[]> {
+  const { data } = await api.get<WorkoutSetLog[]>(`${TEMPLATES_PATH}/assignments/${relationshipId}/workout-logs`);
   return data;
 }
 

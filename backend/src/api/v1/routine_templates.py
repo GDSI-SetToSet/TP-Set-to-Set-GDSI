@@ -12,6 +12,8 @@ from backend.src.schemas.routine_template import (
     RoutineModalityUpdate,
     RoutineTemplateInput,
     RoutineTemplateResponse,
+    WorkoutSessionResponse,
+    WorkoutSessionStartInput,
     WorkoutSetLogInput,
     WorkoutSetLogResponse,
 )
@@ -20,7 +22,9 @@ from backend.src.services.routine_template_service import (
     assign_routine_to_student,
     create_student_workout_log,
     create_template,
+    delete_student_workout_log,
     delete_template,
+    finish_student_workout_session,
     get_assigned_student_template,
     get_own_template,
     get_student_template,
@@ -28,6 +32,9 @@ from backend.src.services.routine_template_service import (
     list_routine_assignments,
     list_student_templates,
     list_student_workout_logs,
+    list_student_workout_sessions,
+    list_trainer_student_workout_logs,
+    start_student_workout_session,
     update_student_routine_modality,
     update_template,
 )
@@ -64,6 +71,20 @@ def list_templates(user: CurrentUser, db: DbDep) -> list[RoutineTemplateResponse
 def add_template(payload: RoutineTemplateInput, user: CurrentUser, db: DbDep) -> RoutineTemplateResponse:
     try:
         return RoutineTemplateResponse.model_validate(create_template(db, user, payload))
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@router.get(
+    "/assignments/{relationship_id}/workout-logs",
+    response_model=list[WorkoutSetLogResponse],
+)
+def get_trainer_student_workout_logs(
+    relationship_id: str, user: CurrentUser, db: DbDep
+) -> list[WorkoutSetLogResponse]:
+    try:
+        logs = list_trainer_student_workout_logs(db, user, relationship_id)
+        return [WorkoutSetLogResponse.model_validate(item) for item in logs]
     except ServiceErrors as error:
         handle_error(error)
 
@@ -145,6 +166,50 @@ def change_assigned_routine_modality(
     try:
         updated = update_student_routine_modality(db, user, payload)
         return RoutineTemplateResponse.model_validate(updated)
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@student_router.post(
+    "/assigned/workout-sessions",
+    response_model=WorkoutSessionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def start_workout_session(
+    payload: WorkoutSessionStartInput, user: CurrentUser, db: DbDep
+) -> WorkoutSessionResponse:
+    try:
+        return WorkoutSessionResponse.model_validate(start_student_workout_session(db, user, payload))
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@student_router.post(
+    "/assigned/workout-sessions/{session_id}/finish",
+    response_model=WorkoutSessionResponse,
+)
+def finish_workout_session(
+    session_id: str, user: CurrentUser, db: DbDep
+) -> WorkoutSessionResponse:
+    try:
+        return WorkoutSessionResponse.model_validate(finish_student_workout_session(db, user, session_id))
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@student_router.delete("/assigned/workout-logs/{log_id}", status_code=status.HTTP_204_NO_CONTENT)
+def uncheck_assigned_routine_workout_log(log_id: str, user: CurrentUser, db: DbDep) -> None:
+    try:
+        delete_student_workout_log(db, user, log_id)
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@student_router.get("/assigned/workout-sessions", response_model=list[WorkoutSessionResponse])
+def get_assigned_routine_workout_sessions(user: CurrentUser, db: DbDep) -> list[WorkoutSessionResponse]:
+    try:
+        sessions = list_student_workout_sessions(db, user)
+        return [WorkoutSessionResponse.model_validate(item) for item in sessions]
     except ServiceErrors as error:
         handle_error(error)
 
