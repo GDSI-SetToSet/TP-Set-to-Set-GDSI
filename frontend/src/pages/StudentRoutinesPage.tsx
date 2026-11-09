@@ -711,6 +711,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                             {savingExerciseId === item.id ? 'Guardando…' : 'Marcar serie completada'}
                           </button>
                         </div>}
+                        </div>}
                       </li>
                     );
                   })}
