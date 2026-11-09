@@ -8,6 +8,7 @@ from backend.src.models.exercise import Exercise
 from backend.src.models.exercise_replacement_log import ExerciseReplacementLog
 from backend.src.models.medical_clearance import MedicalClearance
 from backend.src.models.notification import Notification
+from backend.src.models.personal_record import PersonalRecord
 from backend.src.models.routine_template import (
     RoutineTemplate,
     RoutineTemplateBlock,
@@ -41,6 +42,7 @@ __all__ = [
     "MedicalClearance",
     "Notification",
     "PasswordResetToken",
+    "PersonalRecord",
     "ProtectedZone",
     "RoutineChangeLog",
     "RoutineTemplate",

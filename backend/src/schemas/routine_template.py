@@ -211,6 +211,22 @@ class WorkoutSetLogResponse(BaseModel):
     duration_seconds: int | None = None
     session_id: str | None = None
     recorded_at: datetime
+    is_personal_record: bool = False
+    is_initial_pr: bool = False
+    pr_previous_weight_kg: float | None = None
+
+
+class PersonalRecordResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    student_id: str
+    exercise_id: str
+    exercise_name: str | None = None
+    weight_kg: float
+    reps_completed: str
+    workout_set_log_id: str
+    achieved_at: datetime
 
 
 class RoutineAssignmentUpdate(BaseModel):

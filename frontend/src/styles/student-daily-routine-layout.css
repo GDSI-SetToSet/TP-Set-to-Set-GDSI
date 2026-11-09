@@ -633,3 +633,151 @@
 .student-routine-exercise__checklist-copy > span { margin-top: 2px; color: var(--pf-body, #475569); font-size: 13px; }
 .student-routine-exercise__checklist-status { display: block; padding: 0 12px 8px 42px; color: var(--pf-muted, #64756c); font-size: 12px; }
 .student-routine-session-heading__undo-hint { margin-top: 8px !important; color: #785b18 !important; font-size: 13px; font-weight: 700; }
+
+
+/* US-59: Estilos para avisos y reconocimientos de Récord Personal (PR) */
+.student-routine-pr-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 16px 0 20px;
+  padding: 16px 20px;
+  border: 1px solid #f59e0b;
+  border-left: 6px solid #d97706;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.12);
+}
+
+.student-routine-pr-banner__content {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.student-routine-pr-banner__icon {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.student-routine-pr-banner__text strong {
+  display: block;
+  color: #92400e;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.student-routine-pr-banner__text p {
+  margin: 4px 0 0;
+  color: #78350f;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.student-routine-pr-banner__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(146, 64, 14, 0.1);
+  color: #92400e;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.student-routine-pr-banner__close:hover {
+  background: rgba(146, 64, 14, 0.2);
+}
+
+.student-routine-history__item-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.student-routine-exercise__pr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1px solid #f59e0b;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.workout-pr-modal .workout-pr-card {
+  border-color: #fde68a;
+}
+
+.workout-pr-icon {
+  background: #fef3c7 !important;
+  color: #d97706 !important;
+  font-size: 34px !important;
+}
+
+.workout-pr-badge-pill {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.workout-pr-exercise-name {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1e293b;
+  margin-bottom: 12px !important;
+}
+
+.workout-pr-stat-box {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12px;
+  margin: 8px 0 16px;
+  padding: 12px 24px;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  background: #fffbeb;
+}
+
+.workout-pr-stat-weight {
+  font-size: 28px;
+  font-weight: 900;
+  color: #92400e;
+}
+
+.workout-pr-stat-reps {
+  font-size: 15px;
+  font-weight: 700;
+  color: #78350f;
+}
+
+.workout-pr-comparison {
+  margin: 0 0 24px !important;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.workout-pr-dismiss-btn {
+  background: #d97706 !important;
+}
+
+.workout-pr-dismiss-btn:hover {
+  background: #b45309 !important;
+}
