@@ -95,7 +95,7 @@ class AssignedRoutineExercise(Base):
     sets: Mapped[int] = mapped_column(Integer, nullable=False)
     reps: Mapped[str] = mapped_column(String(50), nullable=False)
     rest_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
-    adaptation_notes: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    adaptation_notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
     target_weight_kg: Mapped[Decimal | None] = mapped_column(Numeric(7, 2), nullable=True)
 
     block: Mapped[AssignedRoutineBlock] = relationship(back_populates="exercises")

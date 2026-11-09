@@ -92,7 +92,7 @@ class AssignedRoutineExerciseUpdateInput(BaseModel):
     sets: int = Field(..., ge=1, le=20)
     reps: str = Field(..., min_length=1, max_length=50)
     rest_seconds: int = Field(default=60, ge=0, le=600)
-    adaptation_notes: str | None = Field(default=None, max_length=255)
+    adaptation_notes: str | None = Field(default=None, max_length=500)
     target_weight_kg: float | None = Field(default=None, ge=0, le=9999.99)
 
 

@@ -25,6 +25,14 @@ class ColumnMigration:
     postgres_default: str | None = None
 
 
+@dataclass(frozen=True)
+class ColumnTypeAlteration:
+    table: str
+    column: str
+    postgres_type: str
+    target_length: int
+
+
 # Definición explícita y versionada de columnas incorporadas en evoluciones de sprint.
 TARGET_COLUMNS: tuple[ColumnMigration, ...] = (
     ColumnMigration(
@@ -105,9 +113,19 @@ TARGET_COLUMNS: tuple[ColumnMigration, ...] = (
     ),
 )
 
+# Definición explícita de ampliaciones de longitud de columnas en bases de datos que imponen límites de caracteres (ej. PostgreSQL)
+TARGET_TYPE_ALTERATIONS: tuple[ColumnTypeAlteration, ...] = (
+    ColumnTypeAlteration(
+        table="assigned_routine_exercises",
+        column="adaptation_notes",
+        postgres_type="VARCHAR(500)",
+        target_length=500,
+    ),
+)
+
 
 def apply_migrations(target_engine: Engine | None = None) -> list[str]:
-    """Aplica de forma aditiva e idempotente las columnas faltantes en tablas existentes."""
+    """Aplica de forma aditiva e idempotente las columnas faltantes y ampliaciones de tipo en tablas existentes."""
     eng = target_engine or engine
     # 1. Asegurar la creación de tablas que aún no existan
     Base.metadata.create_all(bind=eng)
@@ -133,6 +151,22 @@ def apply_migrations(target_engine: Engine | None = None) -> list[str]:
                 applied.append(key)
                 logger.info("Migración aplicada: %s", key)
 
+        # 2. Ampliaciones de tipo de columna en bases de datos relacionales estrictas (p. ej. PostgreSQL)
+        if not is_sqlite:
+            for alt in TARGET_TYPE_ALTERATIONS:
+                if alt.table not in existing_tables:
+                    continue
+                cols = {c["name"]: c for c in inspector.get_columns(alt.table)}
+                if alt.column in cols:
+                    curr_col = cols[alt.column]
+                    curr_len = getattr(curr_col["type"], "length", None)
+                    if curr_len is not None and curr_len < alt.target_length:
+                        stmt = f"ALTER TABLE {alt.table} ALTER COLUMN {alt.column} TYPE {alt.postgres_type}"
+                        conn.execute(text(stmt))
+                        key = f"{alt.table}.{alt.column}:type_{alt.postgres_type.lower()}"
+                        applied.append(key)
+                        logger.info("Migración de tipo de columna aplicada: %s", key)
+
     return applied
 
 
@@ -142,7 +176,7 @@ if __name__ == "__main__":
     print("Ejecutando migraciones de esquema...")
     results = apply_migrations()
     if results:
-        print(f"Columnas agregadas ({len(results)}): {', '.join(results)}")
+        print(f"Columnas agregadas o actualizadas ({len(results)}): {', '.join(results)}")
     else:
         print("El esquema ya se encuentra completamente actualizado. No se requirieron cambios.")
     sys.exit(0)

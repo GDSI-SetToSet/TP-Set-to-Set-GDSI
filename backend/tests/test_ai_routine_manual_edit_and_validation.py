@@ -1905,3 +1905,188 @@ def test_seed_demo_exercises_dataset_variety_and_biomechanical_coverage():
     assert "BODYWEIGHT_NO_MATERIALS" in equip_types
     assert no_mat_count >= 12
 
+
+# ==============================================================================
+# 9. Tests para límites de longitud de adaptation_notes (HI-01: 500 caracteres)
+# ==============================================================================
+def test_adaptation_notes_boundary_lengths_persistence_and_manual_edit(client):
+    """Verifica límites de longitud de adaptation_notes (255, 256, 500, 501 caracteres),
+    persistencia en DB, edición manual vía API, rechazo de >500 y compatibilidad con notas previas (HI-01).
+    """
+    from pydantic import ValidationError
+
+    from backend.src.models.assigned_routine import AssignedRoutineExercise
+    from backend.src.schemas.assigned_routine import AssignedRoutineExerciseUpdateInput
+    from backend.src.services.ai_routine_adapter import ADAPTATION_NOTE_MAX_LENGTH
+
+    assert ADAPTATION_NOTE_MAX_LENGTH == 500
+
+    # 1. Nota de 255 caracteres (límite antiguo / compatibilidad)
+    note_255 = "A" * 255
+    inp_255 = AssignedRoutineExerciseUpdateInput(
+        exercise_id="ex-1", sets=3, reps="10", rest_seconds=60, adaptation_notes=note_255
+    )
+    assert inp_255.adaptation_notes == note_255
+    assert len(inp_255.adaptation_notes) == 255
+
+    # 2. Nota de 256 caracteres (antiguamente fallaba, ahora permitida)
+    note_256 = "B" * 256
+    inp_256 = AssignedRoutineExerciseUpdateInput(
+        exercise_id="ex-1", sets=3, reps="10", rest_seconds=60, adaptation_notes=note_256
+    )
+    assert inp_256.adaptation_notes == note_256
+    assert len(inp_256.adaptation_notes) == 256
+
+    # 3. Nota de 500 caracteres (nuevo límite máximo permitido)
+    note_500 = "C" * 500
+    inp_500 = AssignedRoutineExerciseUpdateInput(
+        exercise_id="ex-1", sets=3, reps="10", rest_seconds=60, adaptation_notes=note_500
+    )
+    assert inp_500.adaptation_notes == note_500
+    assert len(inp_500.adaptation_notes) == 500
+
+    # 4. Nota de 501 caracteres (debe ser rechazada por el schema)
+    note_501 = "D" * 501
+    with pytest.raises(ValidationError) as exc_info:
+        AssignedRoutineExerciseUpdateInput(
+            exercise_id="ex-1", sets=3, reps="10", rest_seconds=60, adaptation_notes=note_501
+        )
+    err_str = str(exc_info.value).lower()
+    assert "at most 500" in err_str or "max_length" in err_str or "string_too_long" in err_str
+
+    # 5. Persistencia directa en base de datos de notas y tipo de columna ORM
+    api, sessions = client
+    with sessions():
+        col_type = AssignedRoutineExercise.__table__.columns["adaptation_notes"].type
+        assert getattr(col_type, "length", None) == 500
+
+    # 6. Edición manual vía API con nota de 500 caracteres y rechazo de nota de 501 caracteres
+    trainer_headers = register_and_login(api, "coach_notes_500@example.com", "TRAINER")
+    register_and_login(api, "student_notes_500@example.com", "STUDENT")
+
+    _, student_id = setup_trainer_and_student_relationship(
+        sessions,
+        "coach_notes_500@example.com",
+        "student_notes_500@example.com",
+        protected_zones=[],
+        goals=["Hipertrofia"],
+    )
+
+    ex_id = create_exercise(api, trainer_headers, name="Press Pecho 500", target_muscle_group="Pecho")
+    template = create_template(api, trainer_headers, [ex_id])
+
+    gen_resp = api.post(
+        AI_GENERATE_PATH,
+        headers=trainer_headers,
+        json={"student_id": student_id, "template_id": template["id"]},
+    )
+    assert gen_resp.status_code == 201
+    routine_id = gen_resp.json()["id"]
+
+    # Edición manual con nota de 500 caracteres
+    edit_payload_500 = {
+        "name": "Rutina con Nota Extensa",
+        "duration_weeks": 4,
+        "intensity": "MEDIA",
+        "has_no_materials_alternative": False,
+        "days": [
+            {
+                "name": "Día 1",
+                "blocks": [
+                    {
+                        "name": "Bloque 1",
+                        "exercises": [
+                            {
+                                "exercise_id": ex_id,
+                                "sets": 4,
+                                "reps": "10-12",
+                                "rest_seconds": 60,
+                                "adaptation_notes": note_500,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+    put_resp = api.put(
+        f"/api/v1/routines/assigned/{routine_id}",
+        headers=trainer_headers,
+        json=edit_payload_500,
+    )
+    assert put_resp.status_code == 200
+    saved_note = put_resp.json()["days"][0]["blocks"][0]["exercises"][0]["adaptation_notes"]
+    assert saved_note == note_500
+    assert len(saved_note) == 500
+
+    # Edición manual con nota de 501 caracteres: debe retornar HTTP 422
+    edit_payload_501 = {
+        "name": "Rutina con Nota Excedida",
+        "duration_weeks": 4,
+        "intensity": "MEDIA",
+        "has_no_materials_alternative": False,
+        "days": [
+            {
+                "name": "Día 1",
+                "blocks": [
+                    {
+                        "name": "Bloque 1",
+                        "exercises": [
+                            {
+                                "exercise_id": ex_id,
+                                "sets": 4,
+                                "reps": "10-12",
+                                "rest_seconds": 60,
+                                "adaptation_notes": note_501,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+    put_resp_501 = api.put(
+        f"/api/v1/routines/assigned/{routine_id}",
+        headers=trainer_headers,
+        json=edit_payload_501,
+    )
+    assert put_resp_501.status_code == 422
+
+    # Compatibilidad con notas cortas existentes
+    edit_payload_compat = {
+        "name": "Rutina con Nota Corta Previa",
+        "duration_weeks": 4,
+        "intensity": "MEDIA",
+        "has_no_materials_alternative": False,
+        "days": [
+            {
+                "name": "Día 1",
+                "blocks": [
+                    {
+                        "name": "Bloque 1",
+                        "exercises": [
+                            {
+                                "exercise_id": ex_id,
+                                "sets": 4,
+                                "reps": "10-12",
+                                "rest_seconds": 60,
+                                "adaptation_notes": "Nota corta tradicional de 32 chars",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+    put_resp_compat = api.put(
+        f"/api/v1/routines/assigned/{routine_id}",
+        headers=trainer_headers,
+        json=edit_payload_compat,
+    )
+    assert put_resp_compat.status_code == 200
+    assert (
+        put_resp_compat.json()["days"][0]["blocks"][0]["exercises"][0]["adaptation_notes"]
+        == "Nota corta tradicional de 32 chars"
+    )
+
+

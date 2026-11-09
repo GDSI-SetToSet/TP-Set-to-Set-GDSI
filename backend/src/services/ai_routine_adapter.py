@@ -1356,7 +1356,7 @@ class HeuristicAIRoutineAdapter(AIRoutineAdapter):
                                 selected_exercise_id = replacement.id
                                 adaptation_note = (
                                     f"[REPLACE] Sustituido '{orig_ex.name}' por '{replacement.name}' para proteger {trigger_desc}."
-                                )
+                                )[:ADAPTATION_NOTE_MAX_LENGTH]
                                 modifications_log.append(adaptation_note)
                                 substitutions_trace.append(
                                     SubstitutionTraceEntry(
