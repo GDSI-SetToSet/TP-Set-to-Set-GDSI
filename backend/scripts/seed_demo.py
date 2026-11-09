@@ -514,7 +514,7 @@ REQUESTS_DEMO_DATA: list[dict[str, Any]] = [
 
 
 # ---------------------------------------------------------------------------
-# Ejercicios y Rutinas de Demostración
+# Ejercicios y Rutinas de Demostración (45 ejercicios variados en 3 bibliotecas)
 # ---------------------------------------------------------------------------
 def _exercise(
     name: str,
@@ -557,14 +557,33 @@ EXERCISES_DEMO_DATA: dict[str, list[dict[str, Any]]] = {
         _exercise("Peso Muerto", "FUERZA", "Cadena posterior", "Barra", "Levantamiento de la barra desde el piso.", "Espalda neutra y barra pegada al cuerpo.", ("Lower back",)),
         _exercise("Remo con Barra", "FUERZA", "Dorsales", "Barra", "Tirón horizontal con el torso inclinado.", "Llevar los codos hacia atrás sin balancear el torso."),
         _exercise("Plancha Abdominal", "FUERZA", "Core", "Ninguno", "Isométrico de zona media.", "Cadera alineada con hombros y talones.", no_materials=True),
+        _exercise("Prensa de Piernas 45°", "FUERZA", "Cuádriceps", "Máquina de prensa", "Empuje de tren inferior en prensa inclinada con respaldo lumbar.", "No bloquear las rodillas al final de la extensión y mantener sacro apoyado.", ("Knee",)),
+        _exercise("Sentadilla Búlgara con Mancuernas", "FUERZA", "Cuádriceps", "Mancuernas y banco", "Sentadilla unilateral con pie trasero elevado.", "Torso levemente inclinado y rodilla delantera estable.", ("Knee",), True),
+        _exercise("Hip Thrust con Barra", "FUERZA", "Glúteos", "Barra y banco", "Extensión de cadera con espalda alta apoyada en banco.", "Mentón recogido y extensión completa de cadera sin hiperextender zona lumbar."),
+        _exercise("Curl Femoral en Camilla", "FUERZA", "Isquiotibiales", "Máquina camilla femoral", "Flexión de rodilla aislada para isquiotibiales.", "Controlar la fase excéntrica sin despegar la pelvis de la camilla."),
+        _exercise("Press Inclinado con Mancuernas", "FUERZA", "Pectoral", "Mancuernas y banco", "Empuje de pectoral superior con mancuernas en agarre neutro a 45°.", "Bajar con codos a 45 grados del torso para cuidar el hombro."),
+        _exercise("Press Militar con Mancuernas", "FUERZA", "Hombros", "Mancuernas", "Empuje vertical sentado o de pie con mancuernas.", "Abdomen firme sin arquear la espalda baja.", ("Shoulder",)),
+        _exercise("Jalón al Pecho en Polea", "FUERZA", "Dorsales", "Polea alta", "Tracción vertical en máquina hacia la parte superior del pecho.", "Iniciar deprimiendo escápulas y llevar la barra hacia la clavícula."),
+        _exercise("Remo Unilateral con Mancuerna", "FUERZA", "Dorsales", "Mancuerna y banco", "Tracción horizontal a un brazo con apoyo en banco para descargar columna.", "Traccionar hacia la cadera manteniendo columna neutra."),
+        _exercise("Curl de Bíceps con Mancuernas", "FUERZA", "Brazos", "Mancuernas", "Flexión de codo alternada en supinación.", "Pegar los codos al torso evitando balanceos.", ("Elbow", "Wrist and hand")),
+        _exercise("Extensión de Tríceps en Polea", "FUERZA", "Brazos", "Polea alta", "Extensión de codos con soga en polea alta.", "Extender por completo separando la soga al final.", ("Elbow",)),
     ],
     "trainer_mariana": [
         _exercise("Sentadilla con Peso Corporal", "FUERZA", "Cuádriceps", "Ninguno", "Sentadilla libre sin carga externa.", "Bajar controlado y empujar con todo el pie.", ("Knee",), True),
-        _exercise("Remo con Banda Elástica", "FUERZA", "Dorsales", "Banda elástica", "Tirón horizontal con banda.", "Mantener los hombros lejos de las orejas."),
+        _exercise("Remo con Banda Elástica", "FUERZA", "Dorsales", "Banda elástica", "Tirón horizontal con banda.", "Mantener los hombros lejos de las orejas.", no_materials=True),
         _exercise("Flexiones de Brazos", "FUERZA", "Pectoral", "Ninguno", "Empuje horizontal con el peso del cuerpo.", "Cuerpo en bloque; apoyar rodillas si hace falta.", ("Shoulder",), True),
         _exercise("Caminata en Cinta", "CARDIO", "Sistema cardiovascular", "Cinta", "Trabajo aeróbico continuo.", "Ritmo que permita conversar.", no_materials=True),
         _exercise("Burpees Modificados", "CARDIO", "Cuerpo completo", "Ninguno", "Burpee sin salto ni flexión.", "Apoyar los pies de a uno para reducir el impacto.", no_materials=True),
         _exercise("Movilidad de Cadera", "MOVILIDAD", "Cadera", "Colchoneta", "Círculos de cadera en cuadrupedia.", "Movimiento lento y sin dolor.", no_materials=True),
+        _exercise("Puente de Glúteos en Suelo", "FUERZA", "Glúteos", "Colchoneta", "Extensión de cadera acostado boca arriba sin carga axial.", "Empujar desde los talones y sostener 2 segundos arriba.", no_materials=True),
+        _exercise("Estocadas Inversas Alternadas", "FUERZA", "Cuádriceps", "Ninguno", "Zancada hacia atrás controlada con peso corporal.", "Paso largo hacia atrás manteniendo tibia delantera vertical.", ("Knee",), True),
+        _exercise("Puente Isométrico de Isquiotibiales", "FUERZA", "Isquiotibiales", "Colchoneta", "Sostén isométrico de cadena posterior con talones apoyados lejos de glúteos.", "Mantener cadera elevada activando femorales y glúteos.", no_materials=True),
+        _exercise("Press de Pecho con Banda Elástica", "FUERZA", "Pectoral", "Banda elástica", "Empuje horizontal de pie o sentado con banda anclada.", "Empujar al frente controlando el retorno sin llevar codos detrás del torso.", no_materials=True),
+        _exercise("Elevaciones Laterales con Mancuernas", "FUERZA", "Hombros", "Mancuernas livianas", "Abducción de hombro en plano escapular.", "Subir hasta la línea de los hombros con codos semiflexionados.", ("Shoulder",)),
+        _exercise("Dead Bug Abdominal", "FUERZA", "Core", "Colchoneta", "Estabilidad lumbopélvica anti-extensión alternando brazos y piernas.", "Zona lumbar apoyada firme contra la colchoneta.", no_materials=True),
+        _exercise("Plancha Lateral", "EQUILIBRIO", "Core", "Colchoneta", "Isométrico de oblicuos y estabilidad lateral de tronco.", "Alinear tobillo, cadera y hombro sin dejar caer la pelvis.", ("Shoulder",), True),
+        _exercise("Bicicleta Fija sin Impacto", "CARDIO", "Sistema cardiovascular", "Bicicleta fija", "Pedaleo aeróbico continuo sin impacto articular.", "Ajustar altura del asiento para conservar leve flexión de rodilla."),
+        _exercise("Movilidad Torácica Gato-Camello", "MOVILIDAD", "Espalda", "Colchoneta", "Flexo-extensión segmentaria suave de columna en cuadrupedia.", "Coordinar el movimiento con inhalación y exhalación pausadas.", no_materials=True),
     ],
     "trainer_gonzalo": [
         _exercise("Sentadilla Frontal", "FUERZA", "Cuádriceps", "Barra y rack", "Sentadilla con la barra adelante.", "Codos altos y torso vertical.", ("Wrist and hand",)),
@@ -574,6 +593,14 @@ EXERCISES_DEMO_DATA: dict[str, list[dict[str, Any]]] = {
         _exercise("Remo Ergómetro", "CARDIO", "Cuerpo completo", "Remo ergómetro", "Intervalos en remo.", "Empujar con piernas y terminar con brazos."),
         _exercise("Sentadilla Goblet", "FUERZA", "Cuádriceps", "Kettlebell", "Sentadilla con la carga al pecho.", "Pecho arriba y codos adentro."),
         _exercise("Swing con Kettlebell", "FUERZA", "Cadena posterior", "Kettlebell", "Balanceo balístico desde la cadera.", "La potencia sale de la cadera, no de los brazos."),
+        _exercise("Dominadas Estrictas", "FUERZA", "Dorsales", "Barra de dominadas", "Tracción vertical superando el mentón sin kipping.", "Iniciar con depresión escapular y cuerpo en hollow.", ("Shoulder", "Elbow"), True),
+        _exercise("Press Militar con Barra", "FUERZA", "Hombros", "Barra y rack", "Empuje vertical estricto de pie desde clavículas.", "Glúteos y abdomen contraídos, barra cerca del rostro.", ("Shoulder", "Lower back", "Wrist and hand")),
+        _exercise("Fondos en Paralelas", "FUERZA", "Pectoral", "Barras paralelas", "Empuje vertical-inclinado con peso corporal en paralelas.", "Descender hasta 90 grados de flexión de codo.", ("Shoulder", "Elbow"), True),
+        _exercise("Subidas al Cajón (Step-Up)", "FUERZA", "Cuádriceps", "Cajón pliométrico", "Empuje unilateral de tren inferior subiendo al cajón sin carga en manos.", "Apoyar toda la planta del pie en el cajón y extender cadera arriba.", ("Knee",), True),
+        _exercise("Buenos Días con Banda", "FUERZA", "Cadena posterior", "Banda elástica", "Bisagra de cadera con banda elástica sin carga en muñecas ni barra.", "Llevar cadera atrás manteniendo espalda neutra."),
+        _exercise("Face Pull con Banda", "MOVILIDAD", "Hombros", "Banda elástica", "Tracción alta hacia el rostro con rotación externa de hombros.", "Separar las manos al final activando deltoides posterior y manguito rotador."),
+        _exercise("Press Pallof Antirrotación", "FUERZA", "Core", "Banda elástica", "Isométrico antirrotacional de zona media con banda lateral.", "Extender brazos al frente resistiendo el giro del tronco."),
+        _exercise("Saltos a la Soga Dobles", "CARDIO", "Sistema cardiovascular", "Soga de salto", "Acondicionamiento metabólico y coordinación con soga.", "Saltar sobre metatarso manteniendo codos pegados al cuerpo.", ("Ankle and foot", "Knee"), True),
     ],
 }
 

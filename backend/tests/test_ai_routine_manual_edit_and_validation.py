@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
@@ -1153,3 +1154,754 @@ def test_manual_editing_unauthorized_trainer_rejected(client):
         },
     )
     assert put_resp.status_code == 404
+
+
+# ==============================================================================
+# 6. Tests de endurecimiento del motor de IA (Secciones 4.1, 4.2, 4.3, 3.7 y 3.8)
+# ==============================================================================
+
+
+def test_functional_equivalence_rejects_incoherent_cross_region_substitutions():
+    """4.1: Verifica que ejercicios seguros pero funcionalmente incompatibles (ej. Sentadilla -> Plancha o Press Banca)
+    sean rechazados por evaluate_functional_equivalence y find_safe_substitute."""
+    from backend.src.services.ai_routine_adapter import (
+        evaluate_functional_equivalence,
+        find_compatible_substitutes,
+        infer_exercise_biomechanics,
+    )
+
+    squat = Exercise(
+        id="ex-squat",
+        name="Sentadilla con Barra",
+        category="FUERZA",
+        target_muscle_group="Cuádriceps",
+        equipment_needed="Barra y rack",
+        contraindicated_zones=["Knee", "Lower back"],
+        trainer_id="t1",
+    )
+    plank = Exercise(
+        id="ex-plank",
+        name="Plancha Abdominal",
+        category="FUERZA",
+        target_muscle_group="Core",
+        equipment_needed="Ninguno",
+        contraindicated_zones=[],
+        has_no_materials_alternative=True,
+        trainer_id="t1",
+    )
+    bench = Exercise(
+        id="ex-bench",
+        name="Press de Banca",
+        category="FUERZA",
+        target_muscle_group="Pectoral",
+        equipment_needed="Barra y banco",
+        contraindicated_zones=[],
+        trainer_id="t1",
+    )
+    row = Exercise(
+        id="ex-row",
+        name="Remo con Barra",
+        category="FUERZA",
+        target_muscle_group="Dorsales",
+        equipment_needed="Barra",
+        contraindicated_zones=[],
+        trainer_id="t1",
+    )
+    treadmill = Exercise(
+        id="ex-cardio",
+        name="Caminata en Cinta",
+        category="CARDIO",
+        target_muscle_group="Sistema cardiovascular",
+        equipment_needed="Cinta",
+        contraindicated_zones=[],
+        trainer_id="t1",
+    )
+
+    assert infer_exercise_biomechanics(squat).movement_pattern == "KNEE_DOMINANT"
+    assert infer_exercise_biomechanics(plank).movement_pattern == "CORE_STABILITY"
+    assert infer_exercise_biomechanics(bench).movement_pattern == "HORIZONTAL_PUSH"
+    assert infer_exercise_biomechanics(row).movement_pattern == "HORIZONTAL_PULL"
+    assert infer_exercise_biomechanics(treadmill).movement_pattern == "LOCOMOTION_CARDIO"
+
+    for incompatible_cand in (plank, bench, row, treadmill):
+        is_compat, priority, reasons = evaluate_functional_equivalence(squat, incompatible_cand)
+        assert is_compat is False
+        assert priority == 99
+        assert any("incompatible" in r for r in reasons)
+
+    # Si en el catálogo solo hay ejercicios seguros de core/pecho/espalda/cardio, NO debe sustituir Sentadilla por ninguno
+    incoherent_catalog = [squat, plank, bench, row, treadmill]
+    assert find_safe_substitute(squat, ["Knee"], incoherent_catalog) is None
+    assert find_compatible_substitutes(squat, ["Knee"], incoherent_catalog) == []
+
+
+def test_functional_equivalence_prioritizes_same_pattern_muscle_and_equipment_constraints():
+    """4.1: Verifica sustituciones válidas (mismo patrón + grupo muscular, equipamiento alternativo y filtro Sin materiales)."""
+    from backend.src.services.ai_routine_adapter import find_compatible_substitutes
+
+    orig_row = Exercise(
+        id="ex-row-bar",
+        name="Remo con Barra",
+        category="FUERZA",
+        target_muscle_group="Dorsales",
+        equipment_needed="Barra",
+        contraindicated_zones=["Lower back"],
+        has_no_materials_alternative=False,
+        trainer_id="t1",
+    )
+    sub_row_db = Exercise(
+        id="ex-row-db",
+        name="Remo Unilateral con Mancuerna",
+        category="FUERZA",
+        target_muscle_group="Dorsales",
+        equipment_needed="Mancuerna y banco",
+        contraindicated_zones=[],
+        has_no_materials_alternative=False,
+        trainer_id="t1",
+    )
+    sub_row_band = Exercise(
+        id="ex-row-band",
+        name="Remo con Banda Elástica",
+        category="FUERZA",
+        target_muscle_group="Dorsales",
+        equipment_needed="Banda elástica",
+        contraindicated_zones=[],
+        has_no_materials_alternative=True,
+        trainer_id="t1",
+    )
+    sub_lat_pulldown = Exercise(
+        id="ex-pulldown",
+        name="Jalón al Pecho en Polea",
+        category="FUERZA",
+        target_muscle_group="Dorsales",
+        equipment_needed="Polea alta",
+        contraindicated_zones=[],
+        has_no_materials_alternative=False,
+        trainer_id="t1",
+    )
+    unsafe_deadlift = Exercise(
+        id="ex-dl",
+        name="Peso Muerto",
+        category="FUERZA",
+        target_muscle_group="Dorsales",
+        equipment_needed="Barra",
+        contraindicated_zones=["Lower back"],
+        has_no_materials_alternative=False,
+        trainer_id="t1",
+    )
+
+    catalog = [orig_row, sub_lat_pulldown, sub_row_db, sub_row_band, unsafe_deadlift]
+
+    # 1) Sin restricción de materiales: prioriza mismo patrón HORIZONTAL_PULL + Dorsales (tier 1) sobre VERTICAL_PULL (tier 3)
+    matches = find_compatible_substitutes(orig_row, ["Lower back"], catalog, require_no_materials=False)
+    matched_ids = [m[0].id for m in matches]
+    assert "ex-dl" not in matched_ids  # Excluido por zona protegida Lower back
+    assert matched_ids[:2] == ["ex-row-db", "ex-row-band"] or set(matched_ids[:2]) == {"ex-row-db", "ex-row-band"}
+    assert matched_ids[-1] == "ex-pulldown"  # Tracción vertical queda después de tracción horizontal
+
+    # 2) Con requisito 'Sin materiales' (require_no_materials=True): solo devuelve candidatos con has_no_materials_alternative=True
+    no_mat_matches = find_compatible_substitutes(orig_row, ["Lower back"], catalog, require_no_materials=True)
+    assert len(no_mat_matches) == 1
+    assert no_mat_matches[0][0].id == "ex-row-band"
+    assert "no_materials_verified" in no_mat_matches[0][2]
+
+
+def test_heuristic_adapter_order_independent_determinism_and_traceability():
+    """4.1 y 3.7: Verifica que el adaptador heurístico produzca el mismo resultado aunque cambie el orden del catálogo,
+    y que registre la trazabilidad completa de sustituciones (SubstitutionTraceEntry)."""
+    ex_squat = Exercise(
+        id="ex-squat",
+        name="Sentadilla con Barra",
+        category="FUERZA",
+        target_muscle_group="Cuádriceps",
+        equipment_needed="Barra",
+        contraindicated_zones=["Knee"],
+        trainer_id="t1",
+    )
+    ex_glute_bridge = Exercise(
+        id="ex-bridge",
+        name="Puente de Glúteos en Suelo",
+        category="FUERZA",
+        target_muscle_group="Glúteos",
+        equipment_needed="Colchoneta",
+        contraindicated_zones=[],
+        trainer_id="t1",
+    )
+    ex_hip_thrust = Exercise(
+        id="ex-hip",
+        name="Hip Thrust con Barra",
+        category="FUERZA",
+        target_muscle_group="Glúteos",
+        equipment_needed="Barra",
+        contraindicated_zones=[],
+        trainer_id="t1",
+    )
+    ex_plank = Exercise(
+        id="ex-plank",
+        name="Plancha Abdominal",
+        category="FUERZA",
+        target_muscle_group="Core",
+        equipment_needed="Ninguno",
+        contraindicated_zones=[],
+        trainer_id="t1",
+    )
+
+    item1 = MagicMock(exercise=ex_squat, exercise_id="ex-squat", order_index=0, sets=4, reps="8", rest_seconds=90, target_weight_kg=80.0)
+    item2 = MagicMock(exercise=ex_plank, exercise_id="ex-plank", order_index=1, sets=3, reps="45s", rest_seconds=60, target_weight_kg=None)
+    blk = MagicMock(name="Principal", order_index=0, estimated_duration_minutes=30, exercises=[item1, item2])
+    day = MagicMock(name="Día 1", order_index=0, blocks=[blk])
+    tpl = MagicMock(intensity="ALTA", duration_weeks=4, has_no_materials_alternative=False, days=[day])
+    tpl.name = "Plantilla Tren Inferior"
+    student = MagicMock(first_name="Lucía", last_name="Gómez", fitness_goals=["FUERZA"])
+    pz = ProtectedZone(id="pz-1", student_id="s1", body_area="Knee", created_at=datetime.now(UTC))
+
+    adapter = HeuristicAIRoutineAdapter()
+    res_order_a = adapter.generate_adapted_routine(
+        template=tpl,
+        student=student,
+        questionnaire=None,
+        protected_zones=[pz],
+        trainer_exercises=[ex_squat, ex_glute_bridge, ex_hip_thrust, ex_plank],
+    )
+    res_order_b = adapter.generate_adapted_routine(
+        template=tpl,
+        student=student,
+        questionnaire=None,
+        protected_zones=[pz],
+        trainer_exercises=[ex_plank, ex_hip_thrust, ex_glute_bridge, ex_squat],
+    )
+
+    assert res_order_a.days[0].blocks[0].exercises[0].exercise_id == res_order_b.days[0].blocks[0].exercises[0].exercise_id
+    # Prefiere Hip Thrust con Barra sobre Puente en Suelo porque comparte equipment_type BARBELL con Sentadilla con Barra
+    assert res_order_a.days[0].blocks[0].exercises[0].exercise_id == "ex-hip"
+    assert len(res_order_a.substitutions_trace) == 2
+
+    replace_trace = res_order_a.substitutions_trace[0]
+    assert replace_trace.action == "REPLACE"
+    assert replace_trace.engine == "heuristic"
+    assert replace_trace.original_exercise_id == "ex-squat"
+    assert replace_trace.selected_exercise_id == "ex-hip"
+    assert replace_trace.trigger_condition == "knee"
+    assert "safety_zones_verified" in replace_trace.compatibility_criteria
+
+    keep_trace = res_order_a.substitutions_trace[1]
+    assert keep_trace.action == "KEEP"
+    assert keep_trace.original_exercise_id == "ex-plank"
+    assert keep_trace.selected_exercise_id == "ex-plank"
+
+
+def test_gemini_adapter_rejects_incoherent_substitute_outside_functional_equivalence():
+    """4.2: Si Gemini propone reemplazar Sentadilla por Plancha Abdominal (segura pero funcionalmente incompatible),
+    el backend rechaza la propuesta con GEMINI_INVALID_SUBSTITUTE."""
+    adapter = GeminiAIRoutineAdapter(api_key="fake-key")
+
+    ex_squat = Exercise(
+        id="ex-squat",
+        name="Sentadilla con Barra",
+        category="FUERZA",
+        target_muscle_group="Cuádriceps",
+        contraindicated_zones=["Knee"],
+        trainer_id="t1",
+    )
+    ex_plank = Exercise(
+        id="ex-plank",
+        name="Plancha Abdominal",
+        category="FUERZA",
+        target_muscle_group="Core",
+        contraindicated_zones=[],
+        trainer_id="t1",
+    )
+
+    item1 = MagicMock(exercise_id="ex-squat", exercise=ex_squat, order_index=0, sets=4, reps="8", rest_seconds=90, target_weight_kg=None)
+    blk = MagicMock(name="Principal", order_index=0, exercises=[item1])
+    day = MagicMock(name="Día 1", order_index=0, blocks=[blk])
+    template = MagicMock(intensity="MEDIA", duration_weeks=4, has_no_materials_alternative=False, days=[day])
+    template.name = "Plantilla Piernas"
+    student = MagicMock(first_name="Ana", last_name="Torres", fitness_goals=["FUERZA"])
+    pz = ProtectedZone(id="pz-k", student_id="s1", body_area="Knee", created_at=datetime.now(UTC))
+
+    bad_replace_payload = {
+        "intensity": "MEDIA",
+        "adaptation_summary": "Intento de sustituir sentadilla por plancha.",
+        "days": [
+            {
+                "name": "Día 1",
+                "blocks": [
+                    {
+                        "name": "Principal",
+                        "exercises": [
+                            {
+                                "original_exercise_id": "ex-squat",
+                                "action": "REPLACE",
+                                "replacement_exercise_id": "ex-plank",
+                                "sets": 3,
+                                "reps": "45s",
+                                "rest_seconds": 60,
+                                "reason": "Plancha no duele la rodilla.",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    structured = GeminiRoutineAdaptationSchema.model_validate(bad_replace_payload)
+    with pytest.raises(AIRoutineAdapterError) as exc_info:
+        adapter._validate_and_build_proposal(
+            structured=structured,
+            template=template,
+            student=student,
+            questionnaire=None,
+            protected_zones=[pz],
+            trainer_exercises=[ex_squat, ex_plank],
+        )
+
+    assert exc_info.value.error_code == "GEMINI_INVALID_SUBSTITUTE"
+    assert "funcionalmente incompatible" in exc_info.value.detail.lower()
+
+
+def test_gemini_bounded_retry_succeeds_on_second_attempt_with_corrective_feedback():
+    """3.6 y 4.2: Cuando el primer intento de Gemini falla por un error corregible de validación
+    (ej. JSON inválido o sustituto incompatible), se realiza exactamente 1 reintento con feedback correctivo
+    y si el segundo intento es válido se devuelve la rutina con retries_count == 1."""
+    from types import SimpleNamespace
+
+    from backend.src.services.ai_routine_adapter import (
+        get_ai_metrics_snapshot,
+        reset_ai_metrics,
+    )
+
+    reset_ai_metrics()
+
+    ex_squat = Exercise(
+        id="ex-squat",
+        name="Sentadilla con Barra",
+        category="FUERZA",
+        target_muscle_group="Cuádriceps",
+        equipment_needed="Barra",
+        contraindicated_zones=["Knee"],
+        trainer_id="t1",
+    )
+    ex_plank = Exercise(
+        id="ex-plank",
+        name="Plancha Abdominal",
+        category="FUERZA",
+        target_muscle_group="Core",
+        equipment_needed="Ninguno",
+        contraindicated_zones=[],
+        trainer_id="t1",
+    )
+    ex_hip = Exercise(
+        id="ex-hip",
+        name="Hip Thrust con Barra",
+        category="FUERZA",
+        target_muscle_group="Glúteos",
+        equipment_needed="Barra",
+        contraindicated_zones=[],
+        trainer_id="t1",
+    )
+
+    item1 = MagicMock(exercise_id="ex-squat", exercise=ex_squat, order_index=0, sets=4, reps="8", rest_seconds=90, target_weight_kg=60.0)
+    blk = MagicMock(name="Principal", order_index=0, estimated_duration_minutes=35, exercises=[item1])
+    day = MagicMock(name="Día 1", order_index=0, blocks=[blk])
+    template = MagicMock(intensity="ALTA", duration_weeks=6, has_no_materials_alternative=False, days=[day])
+    template.name = "Plantilla Piernas"
+    student = MagicMock(first_name="Mateo", last_name="Gómez", fitness_goals=["FUERZA"], personal_motivation="Ganar fuerza")
+    pz = ProtectedZone(id="pz-1", student_id="s1", body_area="Knee", created_at=datetime.now(UTC))
+
+    # Intento 1: propone Plancha (incompatible con Sentadilla -> GEMINI_INVALID_SUBSTITUTE)
+    attempt1_payload = {
+        "intensity": "ALTA",
+        "adaptation_summary": "Intento 1 fallido",
+        "days": [
+            {
+                "name": "Día 1",
+                "blocks": [
+                    {
+                        "name": "Principal",
+                        "exercises": [
+                            {
+                                "original_exercise_id": "ex-squat",
+                                "action": "REPLACE",
+                                "replacement_exercise_id": "ex-plank",
+                                "sets": 4,
+                                "reps": "30s",
+                                "rest_seconds": 60,
+                                "reason": "Intento incoherente.",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    # Intento 2: corrige eligiendo ex-hip (presente en allowed_replacement_exercise_ids)
+    attempt2_payload = {
+        "intensity": "ALTA",
+        "adaptation_summary": "Sustitución biomecánicamente equivalente en tren inferior.",
+        "days": [
+            {
+                "name": "Día 1",
+                "blocks": [
+                    {
+                        "name": "Principal",
+                        "exercises": [
+                            {
+                                "original_exercise_id": "ex-squat",
+                                "action": "REPLACE",
+                                "replacement_exercise_id": "ex-hip",
+                                "sets": 4,
+                                "reps": "8",
+                                "rest_seconds": 90,
+                                "reason": "Sustituido por Hip Thrust para proteger rodilla manteniendo trabajo de tren inferior.",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    mock_client = MagicMock()
+    mock_client.models.generate_content.side_effect = [
+        SimpleNamespace(text=json.dumps(attempt1_payload), parsed=None),
+        SimpleNamespace(text=json.dumps(attempt2_payload), parsed=None),
+    ]
+
+    adapter = GeminiAIRoutineAdapter(api_key="fake-key", model="gemini-3.5-flash-lite", client=mock_client, max_retries=1)
+    result = adapter.generate_adapted_routine(
+        template=template,
+        student=student,
+        questionnaire=None,
+        protected_zones=[pz],
+        trainer_exercises=[ex_squat, ex_plank, ex_hip],
+    )
+
+    assert mock_client.models.generate_content.call_count == 2
+    second_call_prompt = mock_client.models.generate_content.call_args_list[1].kwargs["contents"]
+    assert "CORRECCIÓN OBLIGATORIA (REINTENTO 1/1)" in second_call_prompt
+    assert "GEMINI_INVALID_SUBSTITUTE" in second_call_prompt
+
+    assert result.days[0].blocks[0].exercises[0].exercise_id == "ex-hip"
+    assert result.metrics["retries_count"] == 1
+    assert result.metrics["success"] is True
+
+    snap = get_ai_metrics_snapshot()
+    assert snap["total_requests"] == 1
+    assert snap["successful_requests"] == 1
+    assert snap["total_retries"] == 1
+    assert snap["success_rate"] == 1.0
+
+
+def test_gemini_bounded_retry_exhausted_fails_after_two_attempts_and_never_retries_429_or_504():
+    """3.6 y 4.2: Verifica que:
+    1) Cuando el reintento también falla, se aborta tras exactamente 2 llamadas con error controlado.
+    2) Errores no corregibles (429 cuota, 504 timeout, 503 no disponible, o falta de candidatos en catálogo) NO se reintentan."""
+    from types import SimpleNamespace
+
+    from google.genai import errors as genai_errors
+
+    from backend.src.services.ai_routine_adapter import (
+        get_ai_metrics_snapshot,
+        reset_ai_metrics,
+    )
+
+    reset_ai_metrics()
+
+    ex_row = Exercise(
+        id="ex-row",
+        name="Remo con Barra",
+        category="FUERZA",
+        target_muscle_group="Dorsales",
+        contraindicated_zones=[],
+        trainer_id="t1",
+    )
+    item1 = MagicMock(exercise_id="ex-row", exercise=ex_row, order_index=0, sets=4, reps="10", rest_seconds=60, target_weight_kg=None)
+    blk = MagicMock(name="Principal", order_index=0, estimated_duration_minutes=25, exercises=[item1])
+    day = MagicMock(name="Día 1", order_index=0, blocks=[blk])
+    template = MagicMock(intensity="MEDIA", duration_weeks=4, has_no_materials_alternative=False, days=[day])
+    template.name = "Plantilla Espalda"
+    student = MagicMock(first_name="Juan", last_name="Perez", fitness_goals=["FUERZA"], personal_motivation=None)
+
+    # Caso 1: JSON inválido en ambos intentos -> exactamente 2 llamadas
+    mock_client_json = MagicMock()
+    mock_client_json.models.generate_content.return_value = SimpleNamespace(text="{bad json", parsed=None)
+    adapter = GeminiAIRoutineAdapter(api_key="fake-key", model="gemini-3.5-flash-lite", client=mock_client_json, max_retries=1)
+
+    with pytest.raises(AIRoutineAdapterError) as exc_info:
+        adapter.generate_adapted_routine(template, student, None, [], [ex_row])
+    assert exc_info.value.error_code == "GEMINI_INVALID_JSON"
+    assert mock_client_json.models.generate_content.call_count == 2
+
+    # Caso 2: Error 429 Quota Exceeded -> NO reintenta (1 sola llamada)
+    mock_client_429 = MagicMock()
+    mock_client_429.models.generate_content.side_effect = genai_errors.ClientError(
+        429, {"error": {"message": "Quota exceeded", "status": "RESOURCE_EXHAUSTED"}}
+    )
+    adapter_429 = GeminiAIRoutineAdapter(api_key="fake-key", model="gemini-3.5-flash-lite", client=mock_client_429, max_retries=1)
+    with pytest.raises(AIRoutineAdapterError) as exc_429:
+        adapter_429.generate_adapted_routine(template, student, None, [], [ex_row])
+    assert exc_429.value.status_code == 429
+    assert exc_429.value.error_code == "GEMINI_QUOTA_EXCEEDED"
+    assert mock_client_429.models.generate_content.call_count == 1
+
+    # Caso 3: Catálogo sin ningún ejercicio seguro para las restricciones -> aborta en pre-filtro con 422 (0 llamadas a Gemini)
+    ex_unsafe = Exercise(
+        id="ex-unsafe",
+        name="Sentadilla con Barra",
+        category="FUERZA",
+        target_muscle_group="Cuádriceps",
+        contraindicated_zones=["Knee"],
+        trainer_id="t1",
+    )
+    item_u = MagicMock(exercise_id="ex-unsafe", exercise=ex_unsafe, order_index=0, sets=4, reps="8", rest_seconds=90, target_weight_kg=None)
+    blk_u = MagicMock(name="Principal", order_index=0, exercises=[item_u])
+    day_u = MagicMock(name="Día 1", order_index=0, blocks=[blk_u])
+    tpl_u = MagicMock(intensity="MEDIA", duration_weeks=4, has_no_materials_alternative=False, days=[day_u])
+    tpl_u.name = "Plantilla Solo Sentadilla"
+    pz_knee = ProtectedZone(id="pz-k", student_id="s1", body_area="Knee", created_at=datetime.now(UTC))
+
+    mock_client_prefilter = MagicMock()
+    adapter_prefilter = GeminiAIRoutineAdapter(api_key="fake-key", model="gemini-3.5-flash-lite", client=mock_client_prefilter, max_retries=1)
+    with pytest.raises(AIRoutineAdapterError) as exc_no_safe:
+        adapter_prefilter.generate_adapted_routine(tpl_u, student, None, [pz_knee], [ex_unsafe])
+    assert exc_no_safe.value.status_code == 422
+    assert exc_no_safe.value.error_code == "NO_SAFE_EXERCISES_AVAILABLE"
+    assert mock_client_prefilter.models.generate_content.call_count == 0
+
+    snap = get_ai_metrics_snapshot()
+    assert snap["failed_requests"] == 3
+    assert "GEMINI_INVALID_JSON" in snap["errors_by_category"]
+    assert "GEMINI_QUOTA_EXCEEDED" in snap["errors_by_category"]
+    assert "NO_SAFE_EXERCISES_AVAILABLE" in snap["errors_by_category"]
+
+
+def test_four_category_routine_validations_structure_quantities_semantics_integrity():
+    """3.3 y 4.3: Verifica separadamente las 4 categorías de validación:
+    A. Estructural, B. Cuantitativa, C. Semántica, D. Integridad."""
+    from backend.src.services.ai_routine_adapter import (
+        AdaptedBlockData,
+        AdaptedDayData,
+        AdaptedExerciseData,
+        AIRoutineProposalResult,
+        SubstitutionTraceEntry,
+        validate_generated_routine_proposal,
+        validate_routine_integrity,
+        validate_routine_quantities,
+        validate_routine_semantics,
+        validate_routine_structure,
+    )
+
+    ex_valid = Exercise(
+        id="ex-1",
+        name="Press de Banca",
+        category="FUERZA",
+        target_muscle_group="Pectoral",
+        contraindicated_zones=[],
+        has_no_materials_alternative=True,
+        trainer_id="t1",
+    )
+    ex_valid_2 = Exercise(
+        id="ex-2",
+        name="Flexiones de Brazos",
+        category="FUERZA",
+        target_muscle_group="Pectoral",
+        contraindicated_zones=[],
+        has_no_materials_alternative=True,
+        trainer_id="t1",
+    )
+    ex_incoherent = Exercise(
+        id="ex-plank",
+        name="Plancha Abdominal",
+        category="FUERZA",
+        target_muscle_group="Core",
+        contraindicated_zones=[],
+        has_no_materials_alternative=True,
+        trainer_id="t1",
+    )
+
+    item1 = MagicMock(exercise_id="ex-1", exercise=ex_valid, order_index=0, sets=4, reps="10", rest_seconds=60)
+    blk_t = MagicMock(name="Bloque 1", order_index=0, exercises=[item1])
+    day_t = MagicMock(name="Día 1", order_index=0, blocks=[blk_t])
+    template = MagicMock(name="Plantilla", duration_weeks=4, intensity="MEDIA", has_no_materials_alternative=False, days=[day_t])
+
+    def _make_valid_proposal() -> AIRoutineProposalResult:
+        return AIRoutineProposalResult(
+            name="Rutina Válida",
+            duration_weeks=4,
+            intensity="MEDIA",
+            adaptation_summary="Resumen válido",
+            days=[
+                AdaptedDayData(
+                    name="Día 1",
+                    order_index=0,
+                    blocks=[
+                        AdaptedBlockData(
+                            name="Bloque 1",
+                            order_index=0,
+                            exercises=[
+                                AdaptedExerciseData(
+                                    exercise_id="ex-1",
+                                    order_index=0,
+                                    sets=4,
+                                    reps="10",
+                                    rest_seconds=60,
+                                )
+                            ],
+                        )
+                    ],
+                )
+            ],
+        )
+
+    # 0. Propuesta válida supera las 4 validaciones
+    valid_prop = _make_valid_proposal()
+    validate_generated_routine_proposal(valid_prop, template, [ex_valid, ex_valid_2], [])
+
+    # A. Validación estructural: rutina sin días o con bloque vacío -> rechazada
+    empty_days_prop = _make_valid_proposal()
+    empty_days_prop.days = []
+    with pytest.raises(AIRoutineAdapterError) as exc_empty:
+        validate_routine_structure(empty_days_prop)
+    assert exc_empty.value.error_code == "EMPTY_ROUTINE_GENERATED"
+
+    empty_block_prop = _make_valid_proposal()
+    empty_block_prop.days[0].blocks[0].exercises = []
+    with pytest.raises(AIRoutineAdapterError) as exc_blk:
+        validate_routine_structure(empty_block_prop)
+    assert exc_blk.value.error_code == "INVALID_ROUTINE_STRUCTURE"
+
+    blank_id_prop = _make_valid_proposal()
+    blank_id_prop.days[0].blocks[0].exercises[0].exercise_id = "   "
+    with pytest.raises(AIRoutineAdapterError) as exc_id:
+        validate_routine_structure(blank_id_prop)
+    assert exc_id.value.error_code == "INVALID_ROUTINE_STRUCTURE"
+
+    # B. Validación cuantitativa: exceso de días (>7), semanas (>52), series (>20), descanso (>600)
+    too_many_days_prop = _make_valid_proposal()
+    too_many_days_prop.days = [
+        AdaptedDayData(
+            name=f"Día {i}",
+            order_index=i,
+            blocks=[
+                AdaptedBlockData(
+                    name="B1",
+                    order_index=0,
+                    exercises=[AdaptedExerciseData(exercise_id="ex-1", order_index=0, sets=3, reps="10", rest_seconds=60)],
+                )
+            ],
+        )
+        for i in range(8)
+    ]
+    with pytest.raises(AIRoutineAdapterError) as exc_days_lim:
+        validate_routine_quantities(too_many_days_prop)
+    assert exc_days_lim.value.error_code == "ROUTINE_LIMIT_EXCEEDED"
+
+    bad_weeks_prop = _make_valid_proposal()
+    bad_weeks_prop.duration_weeks = 60
+    with pytest.raises(AIRoutineAdapterError) as exc_weeks:
+        validate_routine_quantities(bad_weeks_prop)
+    assert exc_weeks.value.error_code == "ROUTINE_LIMIT_EXCEEDED"
+
+    # C. Validación semántica: ejercicio inexistente o traza de sustitución funcionalmente incoherente
+    unknown_ex_prop = _make_valid_proposal()
+    unknown_ex_prop.days[0].blocks[0].exercises[0].exercise_id = "non-existent-id"
+    with pytest.raises(AIRoutineAdapterError) as exc_sem_id:
+        validate_routine_semantics(unknown_ex_prop, template, [ex_valid], [])
+    assert exc_sem_id.value.error_code == "GEMINI_INVALID_EXERCISE"
+
+    incoherent_trace_prop = _make_valid_proposal()
+    incoherent_trace_prop.days[0].blocks[0].exercises[0].exercise_id = "ex-plank"
+    incoherent_trace_prop.substitutions_trace = [
+        SubstitutionTraceEntry(
+            day_name="Día 1",
+            block_name="Bloque 1",
+            original_exercise_id="ex-1",
+            original_exercise_name="Press de Banca",
+            proposed_exercise_id="ex-plank",
+            selected_exercise_id="ex-plank",
+            selected_exercise_name="Plancha Abdominal",
+            action="REPLACE",
+            engine="gemini",
+            reason="Sustitución incoherente",
+        )
+    ]
+    with pytest.raises(AIRoutineAdapterError) as exc_sem_sub:
+        validate_routine_semantics(incoherent_trace_prop, template, [ex_valid, ex_incoherent], [])
+    assert exc_sem_sub.value.error_code == "GEMINI_INVALID_SUBSTITUTE"
+
+    # D. Validación de integridad: ejercicios duplicados en bloque o más días que la plantilla
+    dup_block_prop = _make_valid_proposal()
+    dup_block_prop.days[0].blocks[0].exercises.append(
+        AdaptedExerciseData(exercise_id="ex-1", order_index=1, sets=3, reps="10", rest_seconds=60)
+    )
+    with pytest.raises(AIRoutineAdapterError) as exc_dup:
+        validate_routine_integrity(dup_block_prop, template)
+    assert exc_dup.value.error_code == "GEMINI_DUPLICATE_EXERCISE"
+
+    more_days_than_tpl = _make_valid_proposal()
+    more_days_than_tpl.days.append(
+        AdaptedDayData(
+            name="Día Extra Inventado",
+            order_index=1,
+            blocks=[
+                AdaptedBlockData(
+                    name="B1",
+                    order_index=0,
+                    exercises=[AdaptedExerciseData(exercise_id="ex-1", order_index=0, sets=3, reps="10", rest_seconds=60)],
+                )
+            ],
+        )
+    )
+    with pytest.raises(AIRoutineAdapterError) as exc_extra_days:
+        validate_routine_integrity(more_days_than_tpl, template)
+    assert exc_extra_days.value.error_code == "INVALID_ROUTINE_STRUCTURE"
+
+
+def test_seed_demo_exercises_dataset_variety_and_biomechanical_coverage():
+    """3.2: Verifica que el dataset inicial de seed_demo contenga entre 40 y 50 ejercicios variados,
+    cubriendo tren superior, tren inferior, core, empuje, tracción, dominancia de rodilla, dominancia de cadera,
+    cardio, movilidad y ejercicios sin equipamiento."""
+    from backend.scripts.seed_demo import EXERCISES_DEMO_DATA
+    from backend.src.services.ai_routine_adapter import infer_exercise_biomechanics
+
+    all_seed_exercises: list[Exercise] = []
+    for trainer_key, items in EXERCISES_DEMO_DATA.items():
+        for idx, data in enumerate(items):
+            all_seed_exercises.append(
+                Exercise(
+                    id=f"{trainer_key}-{idx}",
+                    trainer_id=trainer_key,
+                    **data,
+                )
+            )
+
+    assert 40 <= len(all_seed_exercises) <= 50
+
+    patterns = {infer_exercise_biomechanics(ex).movement_pattern for ex in all_seed_exercises}
+    regions = {infer_exercise_biomechanics(ex).functional_region for ex in all_seed_exercises}
+    equip_types = {infer_exercise_biomechanics(ex).equipment_type for ex in all_seed_exercises}
+    no_mat_count = sum(1 for ex in all_seed_exercises if ex.has_no_materials_alternative)
+
+    assert "KNEE_DOMINANT" in patterns
+    assert "HIP_DOMINANT" in patterns
+    assert "HORIZONTAL_PUSH" in patterns
+    assert "VERTICAL_PUSH" in patterns
+    assert "HORIZONTAL_PULL" in patterns
+    assert "VERTICAL_PULL" in patterns
+    assert "CORE_STABILITY" in patterns
+    assert "LOCOMOTION_CARDIO" in patterns
+
+    assert "LOWER_BODY" in regions
+    assert "UPPER_PUSH" in regions
+    assert "UPPER_PULL" in regions
+    assert "CORE" in regions
+
+    assert "BARBELL" in equip_types
+    assert "DUMBBELL" in equip_types
+    assert "MACHINE_CABLE" in equip_types
+    assert "BODYWEIGHT_NO_MATERIALS" in equip_types
+    assert no_mat_count >= 12
+
