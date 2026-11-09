@@ -34,6 +34,19 @@ interface SetLogDraft {
   weightKg: string;
 }
 
+interface RoutineWorkoutSummary {
+  key: string;
+  sessionId: string | null;
+  rpe?: number | null;
+  logs: WorkoutSetLog[];
+  day: string;
+  recordedAt: string;
+  totalDuration: number | null;
+  averageReps: number | null;
+  averageWeight: number | null;
+  averageDuration: number | null;
+}
+
 function getRpeShortLabel(val: number): string {
   switch (val) {
     case 1:
@@ -171,7 +184,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     const completedSessions = workoutSessions.filter((session) =>
       routine && session.routine_id === routine.id && session.finished_at,
     );
-    const summaries = completedSessions.map((session) => {
+    const summaries: RoutineWorkoutSummary[] = completedSessions.map((session) => {
       const logs = routineLogs.filter((log) => log.session_id === session.id);
       const average = (values: Array<number | null>) => {
         const valid = values.filter((value): value is number => value !== null && Number.isFinite(value));
@@ -212,8 +225,12 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
         const value = Number.parseFloat(log.reps_completed.replace(',', '.'));
         return Number.isFinite(value) ? value : null;
       });
+      const groupSessionId = logs.find((log) => Boolean(log.session_id))?.session_id ?? null;
+      const matchedSession = groupSessionId ? workoutSessions.find((s) => s.id === groupSessionId) : undefined;
       summaries.push({
         key,
+        sessionId: groupSessionId,
+        rpe: matchedSession?.rpe ?? null,
         logs,
         day: logs[0].day_name,
         recordedAt: logs.map((log) => log.recorded_at).sort()[0],
