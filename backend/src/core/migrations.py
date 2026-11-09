@@ -34,6 +34,13 @@ class ColumnTypeAlteration:
     target_length: int
 
 
+@dataclass(frozen=True)
+class CheckConstraintMigration:
+    table: str
+    name: str
+    expression: str
+
+
 # Definición explícita y versionada de columnas incorporadas en evoluciones de sprint.
 TARGET_COLUMNS: tuple[ColumnMigration, ...] = (
     ColumnMigration(
@@ -131,6 +138,15 @@ TARGET_TYPE_ALTERATIONS: tuple[ColumnTypeAlteration, ...] = (
     ),
 )
 
+# Definición explícita de restricciones CHECK para motores relacionales que admiten ALTER TABLE ADD CONSTRAINT (ej. PostgreSQL)
+TARGET_CHECK_CONSTRAINTS: tuple[CheckConstraintMigration, ...] = (
+    CheckConstraintMigration(
+        table="workout_sessions",
+        name="ck_workout_sessions_rpe_range",
+        expression="rpe IS NULL OR (rpe >= 1 AND rpe <= 10)",
+    ),
+)
+
 
 def apply_migrations(target_engine: Engine | None = None) -> list[str]:
     """Aplica de forma aditiva e idempotente las columnas faltantes y ampliaciones de tipo en tablas existentes."""
@@ -174,6 +190,19 @@ def apply_migrations(target_engine: Engine | None = None) -> list[str]:
                         key = f"{alt.table}.{alt.column}:type_{alt.postgres_type.lower()}"
                         applied.append(key)
                         logger.info("Migración de tipo de columna aplicada: %s", key)
+
+        # 3. Restricciones CHECK en bases de datos relacionales estrictas (p. ej. PostgreSQL)
+        if not is_sqlite:
+            for ck in TARGET_CHECK_CONSTRAINTS:
+                if ck.table not in existing_tables:
+                    continue
+                existing_cks = {c.get("name") for c in inspector.get_check_constraints(ck.table)}
+                if ck.name not in existing_cks:
+                    stmt = f"ALTER TABLE {ck.table} ADD CONSTRAINT {ck.name} CHECK ({ck.expression})"
+                    conn.execute(text(stmt))
+                    key = f"{ck.table}.{ck.name}:check_constraint"
+                    applied.append(key)
+                    logger.info("Restricción CHECK aplicada: %s", key)
 
     return applied
 

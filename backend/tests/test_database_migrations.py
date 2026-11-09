@@ -385,3 +385,27 @@ def test_apply_migrations_adds_rpe_column_to_workout_sessions():
     inspector_after = inspect(engine)
     cols_after = {c["name"] for c in inspector_after.get_columns("workout_sessions")}
     assert "rpe" in cols_after
+
+
+def test_check_constraint_migration_and_model_specification_for_workout_sessions_rpe():
+    """Escenario 15 (BAJ-01): Verifica la definición de ck_workout_sessions_rpe_range en modelo y migraciones."""
+    from backend.src.core.database import Base
+    from backend.src.core.migrations import TARGET_CHECK_CONSTRAINTS
+
+    # 1. Comprobar que TARGET_CHECK_CONSTRAINTS incluya la restricción para PostgreSQL / motores estrictos
+    ck_mig = next((ck for ck in TARGET_CHECK_CONSTRAINTS if ck.table == "workout_sessions" and ck.name == "ck_workout_sessions_rpe_range"), None)
+    assert ck_mig is not None
+    assert "rpe >= 1 AND rpe <= 10" in ck_mig.expression
+    assert "rpe IS NULL" in ck_mig.expression
+
+    # 2. Comprobar que el modelo Declarative Base.metadata registre la restricción CheckConstraint en workout_sessions
+    table = Base.metadata.tables["workout_sessions"]
+    ck_model = next((c for c in table.constraints if c.name == "ck_workout_sessions_rpe_range"), None)
+    assert ck_model is not None
+
+    # 3. Comprobar que en un motor fresco la restricción sea creada
+    engine = make_legacy_engine()
+    Base.metadata.create_all(engine)
+    inspector = inspect(engine)
+    db_cks = {c.get("name") for c in inspector.get_check_constraints("workout_sessions")}
+    assert "ck_workout_sessions_rpe_range" in db_cks

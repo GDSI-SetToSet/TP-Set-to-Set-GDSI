@@ -386,11 +386,14 @@ def finish_student_workout_session(
     db: Session, user: User, session_id: str, rpe: int | None = None
 ) -> WorkoutSession:
     profile = get_student_profile(db, user)
+    # MED-01: Bloqueo pesimista para serializar concurrencia y prevenir carreras
     session = db.scalar(
-        select(WorkoutSession).where(
+        select(WorkoutSession)
+        .where(
             WorkoutSession.id == session_id,
             WorkoutSession.student_id == profile.id,
         )
+        .with_for_update()
     )
     if session is None:
         raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No encontramos este entrenamiento.")
@@ -418,11 +421,14 @@ def update_student_workout_session_rpe(
     db: Session, user: User, session_id: str, rpe: int
 ) -> WorkoutSession:
     profile = get_student_profile(db, user)
+    # MED-01: Bloqueo pesimista para serializar concurrencia y prevenir carreras
     session = db.scalar(
-        select(WorkoutSession).where(
+        select(WorkoutSession)
+        .where(
             WorkoutSession.id == session_id,
             WorkoutSession.student_id == profile.id,
         )
+        .with_for_update()
     )
     if session is None:
         raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No encontramos este entrenamiento.")

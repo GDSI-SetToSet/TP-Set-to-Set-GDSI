@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import ClassVar
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.src.core.database import Base
@@ -11,6 +11,12 @@ from backend.src.models.user import new_id
 
 class WorkoutSession(Base):
     __tablename__ = "workout_sessions"
+    __table_args__ = (
+        CheckConstraint(
+            "rpe IS NULL OR (rpe >= 1 AND rpe <= 10)",
+            name="ck_workout_sessions_rpe_range",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     student_id: Mapped[str] = mapped_column(

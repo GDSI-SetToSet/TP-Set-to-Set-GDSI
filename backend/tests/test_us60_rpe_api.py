@@ -1,7 +1,9 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from backend.src.models.student_profile import StudentProfile
 from backend.src.models.training_plan import TrainingPlan
@@ -452,3 +454,117 @@ def test_compatibility_with_existing_historical_sessions(client):
     post_report = api.patch(f"{ASSIGNED_PATH}/workout-sessions/{hist_id}/rpe", headers=student, json={"rpe": 8})
     assert post_report.status_code == 200
     assert post_report.json()["rpe"] == 8
+
+
+def test_concurrency_race_divergent_reports_and_finish_simulation(client):
+    """16 (MED-01): Simulación de concurrencia y validación de protección ante reportes divergentes.
+
+    Verifica que una vez persistido un RPE en la sesión (coordinado vía with_for_update en PostgreSQL),
+    cualquier reporte divergente concurrente o posterior es estrictamente rechazado con 409 Conflict.
+    """
+    api, sessions = client
+    trainer = register_and_login(api, "trainer_conc@example.com", "TRAINER")
+    student = register_and_login(api, "student_conc@example.com", "STUDENT")
+    _, _, _ = setup_routine_and_assignment(api, sessions, trainer, "student_conc@example.com", "trainer_conc@example.com")
+
+    # Sesión 1: finalizada sin RPE inicial
+    s1 = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student, json={"day_name": "Día 1"}).json()
+    api.post(f"{ASSIGNED_PATH}/workout-sessions/{s1['id']}/finish", headers=student, json={})
+
+    # Simulación de carrera: Petición A reporta RPE=6
+    res_a = api.patch(f"{ASSIGNED_PATH}/workout-sessions/{s1['id']}/rpe", headers=student, json={"rpe": 6})
+    assert res_a.status_code == 200
+    assert res_a.json()["rpe"] == 6
+
+    # Petición B intenta concurrentemente/posteriormente registrar RPE=9
+    res_b = api.patch(f"{ASSIGNED_PATH}/workout-sessions/{s1['id']}/rpe", headers=student, json={"rpe": 9})
+    assert res_b.status_code == 409
+    assert "ya cuenta con un reporte de esfuerzo" in res_b.json()["detail"]
+
+    # Sesión 2: finalizada directamente con RPE=7
+    s2 = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student, json={"day_name": "Día 1"}).json()
+    finish_res = api.post(f"{ASSIGNED_PATH}/workout-sessions/{s2['id']}/finish", headers=student, json={"rpe": 7})
+    assert finish_res.status_code == 200
+    assert finish_res.json()["rpe"] == 7
+
+    # Intento concurrente/posterior de finalizarla o reportar con RPE divergente (ej. RPE=4) -> 409 Conflict
+    conflict_finish = api.post(f"{ASSIGNED_PATH}/workout-sessions/{s2['id']}/finish", headers=student, json={"rpe": 4})
+    assert conflict_finish.status_code == 409
+
+    conflict_patch = api.patch(f"{ASSIGNED_PATH}/workout-sessions/{s2['id']}/rpe", headers=student, json={"rpe": 4})
+    assert conflict_patch.status_code == 409
+
+
+def test_database_check_constraint_rejects_out_of_range_rpe(client):
+    """17 (BAJ-01): La restricción CHECK a nivel de base de datos rechaza valores de RPE fuera de 1..10."""
+    api, sessions = client
+    trainer = register_and_login(api, "trainer_chk@example.com", "TRAINER")
+    _ = register_and_login(api, "student_chk@example.com", "STUDENT")
+    _, rel_id, _ = setup_routine_and_assignment(api, sessions, trainer, "student_chk@example.com", "trainer_chk@example.com")
+
+    now = datetime.now(UTC).replace(tzinfo=None)
+    with sessions() as db:
+        st_user = db.scalar(select(User).where(User.email == "student_chk@example.com"))
+        student_id = st_user.student_profile.id
+
+        # Valores permitidos: None (sin calificar)
+        s_null = WorkoutSession(
+            student_id=student_id,
+            relationship_id=rel_id,
+            routine_id="test-routine-chk",
+            day_name="Día 1",
+            modality="GYM",
+            started_at=now,
+            finished_at=now,
+            rpe=None,
+        )
+        db.add(s_null)
+        db.commit()
+
+        # Valores permitidos: 1 a 10
+        s_ok = WorkoutSession(
+            student_id=student_id,
+            relationship_id=rel_id,
+            routine_id="test-routine-chk",
+            day_name="Día 1",
+            modality="GYM",
+            started_at=now,
+            finished_at=now,
+            rpe=10,
+        )
+        db.add(s_ok)
+        db.commit()
+
+        # Rechazo por CHECK constraint: rpe = 0
+        s_zero = WorkoutSession(
+            student_id=student_id,
+            relationship_id=rel_id,
+            routine_id="test-routine-chk",
+            day_name="Día 1",
+            modality="GYM",
+            started_at=now,
+            finished_at=now,
+            rpe=0,
+        )
+        db.add(s_zero)
+        with pytest.raises(IntegrityError) as exc_zero:
+            db.commit()
+        assert "ck_workout_sessions_rpe_range" in str(exc_zero.value)
+        db.rollback()
+
+        # Rechazo por CHECK constraint: rpe = 11
+        s_invalid_high = WorkoutSession(
+            student_id=student_id,
+            relationship_id=rel_id,
+            routine_id="test-routine-chk",
+            day_name="Día 1",
+            modality="GYM",
+            started_at=now,
+            finished_at=now,
+            rpe=11,
+        )
+        db.add(s_invalid_high)
+        with pytest.raises(IntegrityError) as exc_high:
+            db.commit()
+        assert "ck_workout_sessions_rpe_range" in str(exc_high.value)
+        db.rollback()
