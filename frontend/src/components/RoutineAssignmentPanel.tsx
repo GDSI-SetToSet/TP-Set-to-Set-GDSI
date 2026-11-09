@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
-import { assignRoutineToStudent, getRoutineAssignments } from '../services/routineTemplateService';
+import { assignRoutineToStudent, getRoutineAssignments, getTrainerStudentWorkoutLogs } from '../services/routineTemplateService';
 import type { TrainerAIRoutine } from '../types/assignedRoutine';
-import type { RoutineAssignmentStudent, RoutineTemplate } from '../types/routineTemplate';
+import type { RoutineAssignmentStudent, RoutineTemplate, WorkoutSetLog } from '../types/routineTemplate';
+import '../styles/routine-assignment-progress.css';
 
 interface RoutineAssignmentPanelProps {
   templates: RoutineTemplate[];
@@ -18,6 +19,10 @@ export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignm
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [openProgressFor, setOpenProgressFor] = useState<string | null>(null);
+  const [progressByRelationship, setProgressByRelationship] = useState<Record<string, WorkoutSetLog[]>>({});
+  const [progressLoadingFor, setProgressLoadingFor] = useState<string | null>(null);
+  const [progressErrorFor, setProgressErrorFor] = useState<string | null>(null);
 
   useEffect(() => {
     getRoutineAssignments()
@@ -30,6 +35,36 @@ export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignm
   }, []);
 
   const approvedAIRoutines = (studentId: string) => aiRoutines.filter((item) => item.student_id === studentId && item.status === 'APPROVED');
+
+  useEffect(() => {
+    if (!openProgressFor) return undefined;
+    let cancelled = false;
+    let inFlight = false;
+    const relationshipId = openProgressFor;
+    const refreshProgress = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      setProgressLoadingFor(relationshipId);
+      try {
+        const logs = await getTrainerStudentWorkoutLogs(relationshipId);
+        if (!cancelled) {
+          setProgressByRelationship((current) => ({ ...current, [relationshipId]: logs }));
+          setProgressErrorFor(null);
+        }
+      } catch {
+        if (!cancelled) setProgressErrorFor(relationshipId);
+      } finally {
+        inFlight = false;
+        if (!cancelled) setProgressLoadingFor(null);
+      }
+    };
+    void refreshProgress();
+    const interval = window.setInterval(() => void refreshProgress(), 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [openProgressFor]);
 
   // La rutina vigente puede ser una copia cuyo origen ya no existe: se muestra, pero no se reasigna.
   const isDetachedCopy = (student: RoutineAssignmentStudent) => Boolean(student.routine_template_id)
@@ -105,6 +140,37 @@ export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignm
                   Editar rutina
                 </Link>
               )}
+              {student.routine_template_id && <>
+                <button
+                  type="button"
+                  className="profile-save routine-assignment__progress-toggle"
+                  aria-expanded={openProgressFor === student.relationship_id}
+                  onClick={() => setOpenProgressFor((current) => current === student.relationship_id ? null : student.relationship_id)}
+                >
+                  {openProgressFor === student.relationship_id ? 'Ocultar progreso' : 'Ver progreso del alumno'}
+                </button>
+                {openProgressFor === student.relationship_id && <div className="routine-assignment__progress" aria-label={`Progreso de ${student.student_name}`}>
+                  <div className="routine-assignment__progress-heading">
+                    <strong>Series registradas</strong>
+                    <span>{progressLoadingFor === student.relationship_id ? 'Actualizando…' : 'Actualización automática'}</span>
+                  </div>
+                  {progressErrorFor === student.relationship_id ? (
+                    <p className="form-alert" role="alert">No pudimos cargar el progreso. Seguiremos intentando actualizarlo.</p>
+                  ) : (progressByRelationship[student.relationship_id] ?? []).length === 0 ? (
+                    <p className="plan-empty">Todavía no hay series registradas para esta rutina.</p>
+                  ) : (
+                    <ul>
+                      {(progressByRelationship[student.relationship_id] ?? []).slice(0, 12).map((log) => (
+                        <li key={log.id}>
+                          <strong>{log.exercise_name}</strong>
+                          <time dateTime={log.recorded_at}>{new Date(log.recorded_at).toLocaleDateString('es-AR')}</time>
+                          <span>{log.day_name} · Serie {log.set_number} · {log.reps_completed} reps · {log.weight_kg === null || log.weight_kg === 0 ? 'Peso corporal (0 kg)' : `${log.weight_kg} kg`}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>}
+              </>}
             </div>
           ))}
         </div>

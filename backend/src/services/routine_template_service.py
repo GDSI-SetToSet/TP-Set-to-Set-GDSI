@@ -18,10 +18,11 @@ from backend.src.models.student_routine import StudentRoutine
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.user import User
-from backend.src.models.workout_log import WorkoutSetLog
+from backend.src.models.workout_log import WorkoutSession, WorkoutSetLog
 from backend.src.schemas.routine_template import (
     RoutineModalityUpdate,
     RoutineTemplateInput,
+    WorkoutSessionStartInput,
     WorkoutSetLogInput,
 )
 from backend.src.services.student_service import (
@@ -352,6 +353,46 @@ def update_student_routine_modality(
     return routine_view
 
 
+def start_student_workout_session(
+    db: Session, user: User, payload: WorkoutSessionStartInput
+) -> WorkoutSession:
+    relationship, routine_view = _resolve_student_active_routine(db, user)
+    routine_id = routine_view.id if isinstance(routine_view, RoutineTemplate) else routine_view["id"]
+    valid_day_names = {day_name for _, day_name, _, _, _ in _iter_routine_exercises(routine_view)}
+    if payload.day_name not in valid_day_names:
+        raise RoutineTemplateError(VALIDATION_ERROR_STATUS, "El día no pertenece a tu rutina activa.")
+
+    session = WorkoutSession(
+        student_id=relationship.student_id,
+        relationship_id=relationship.id,
+        routine_id=routine_id,
+        day_name=payload.day_name,
+        modality=relationship.routine_modality or "GYM",
+        started_at=utc_now(),
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return session
+
+
+def finish_student_workout_session(db: Session, user: User, session_id: str) -> WorkoutSession:
+    profile = get_student_profile(db, user)
+    session = db.scalar(
+        select(WorkoutSession).where(
+            WorkoutSession.id == session_id,
+            WorkoutSession.student_id == profile.id,
+        )
+    )
+    if session is None:
+        raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No encontramos este entrenamiento.")
+    if session.finished_at is None:
+        session.finished_at = utc_now()
+        db.commit()
+        db.refresh(session)
+    return session
+
+
 def create_student_workout_log(
     db: Session, user: User, payload: WorkoutSetLogInput
 ) -> WorkoutSetLog:
@@ -377,7 +418,30 @@ def create_student_workout_log(
         )
         raise RoutineTemplateError(VALIDATION_ERROR_STATUS, detail, [{"field": "exercise_id", "message": detail}])
 
-    effective_modality = payload.modality or (relationship.routine_modality or "GYM")
+    workout_session = None
+    if payload.session_id:
+        workout_session = db.scalar(
+            select(WorkoutSession).where(
+                WorkoutSession.id == payload.session_id,
+                WorkoutSession.student_id == relationship.student_id,
+                WorkoutSession.relationship_id == relationship.id,
+            )
+        )
+        if (
+            workout_session is None
+            or workout_session.finished_at is not None
+            or workout_session.routine_id != routine_id
+            or workout_session.day_name != payload.day_name
+        ):
+            raise RoutineTemplateError(VALIDATION_ERROR_STATUS, "La sesión de entrenamiento no está activa o no corresponde a este día.")
+        if payload.weight_kg is None:
+            raise RoutineTemplateError(
+                VALIDATION_ERROR_STATUS,
+                "Indicá el peso usado. Para peso corporal, ingresá 0 kg.",
+                [{"field": "weight_kg", "message": "Este campo es obligatorio para registrar una serie."}],
+            )
+
+    effective_modality = workout_session.modality if workout_session else payload.modality or (relationship.routine_modality or "GYM")
     if effective_modality == "HOME" and not exercise.has_no_materials_alternative:
         detail = (
             f'No se puede registrar en modalidad Casa/Viaje porque "{exercise.name}" '
@@ -400,12 +464,59 @@ def create_student_workout_log(
         set_number=payload.set_number,
         reps_completed=payload.reps_completed,
         weight_kg=payload.weight_kg,
+        duration_seconds=payload.duration_seconds,
+        session_id=workout_session.id if workout_session else None,
         recorded_at=utc_now(),
     )
     db.add(log_entry)
     db.commit()
     db.refresh(log_entry)
     return log_entry
+
+
+def delete_student_workout_log(db: Session, user: User, log_id: str) -> None:
+    relationship, routine_view = _resolve_student_active_routine(db, user)
+    routine_id = routine_view.id if isinstance(routine_view, RoutineTemplate) else routine_view["id"]
+    log_entry = db.scalar(
+        select(WorkoutSetLog).where(
+            WorkoutSetLog.id == log_id,
+            WorkoutSetLog.student_id == relationship.student_id,
+            WorkoutSetLog.relationship_id == relationship.id,
+        )
+    )
+    if log_entry is None:
+        raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No encontramos la serie registrada.")
+    if log_entry.session_id is None:
+        raise RoutineTemplateError(VALIDATION_ERROR_STATUS, "Solo podés desmarcar series de un entrenamiento en curso.")
+    workout_session = db.scalar(
+        select(WorkoutSession).where(
+            WorkoutSession.id == log_entry.session_id,
+            WorkoutSession.student_id == relationship.student_id,
+            WorkoutSession.relationship_id == relationship.id,
+        )
+    )
+    if (
+        workout_session is None
+        or workout_session.finished_at is not None
+        or workout_session.routine_id != routine_id
+    ):
+        raise RoutineTemplateError(VALIDATION_ERROR_STATUS, "No se pueden modificar series de un entrenamiento finalizado.")
+    db.delete(log_entry)
+    db.commit()
+
+
+def list_student_workout_sessions(db: Session, user: User) -> list[WorkoutSession]:
+    profile = get_student_profile(db, user)
+    active_rel_ids = select(TrainingRelationship.id).where(
+        TrainingRelationship.student_id == profile.id,
+        TrainingRelationship.status == "ACTIVE",
+    )
+    query = select(WorkoutSession).where(
+        WorkoutSession.student_id == profile.id,
+        WorkoutSession.relationship_id.in_(active_rel_ids),
+        WorkoutSession.finished_at.is_not(None),
+    ).order_by(WorkoutSession.started_at.desc())
+    return list(db.scalars(query))
 
 
 def list_student_workout_logs(
@@ -423,6 +534,26 @@ def list_student_workout_logs(
     if exercise_id is not None:
         query = query.where(WorkoutSetLog.exercise_id == exercise_id)
     query = query.order_by(WorkoutSetLog.recorded_at.desc(), WorkoutSetLog.id.desc())
+    return list(db.scalars(query))
+
+
+def list_trainer_student_workout_logs(
+    db: Session, user: User, relationship_id: str
+) -> list[WorkoutSetLog]:
+    trainer = get_trainer_profile(db, user)
+    relationship = db.scalar(
+        select(TrainingRelationship).where(
+            TrainingRelationship.id == relationship_id,
+            TrainingRelationship.trainer_id == trainer.id,
+            TrainingRelationship.status == "ACTIVE",
+        )
+    )
+    if relationship is None:
+        raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No se encontró un vínculo activo con ese alumno.")
+    query = select(WorkoutSetLog).where(
+        WorkoutSetLog.relationship_id == relationship.id,
+        WorkoutSetLog.student_id == relationship.student_id,
+    ).order_by(WorkoutSetLog.recorded_at.desc(), WorkoutSetLog.id.desc())
     return list(db.scalars(query))
 
 

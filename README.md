@@ -2,6 +2,10 @@
 
 **Plataforma de gestión y seguimiento del entrenamiento físico**
 
+## Ruta de sesión de rutina
+
+Los alumnos acceden a una sesión activa mediante `/alumno/rutinas/sesion`.
+
 ## Descripción
 
 Set to Set es una plataforma que busca conectar a entrenadores personales con personas que desean entrenar, facilitando la planificación de rutinas, el seguimiento del progreso físico y la comunicación entre ambas partes.

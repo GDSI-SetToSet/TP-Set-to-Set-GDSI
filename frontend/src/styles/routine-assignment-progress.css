@@ -1,0 +1,34 @@
+.routine-assignment__progress-toggle { justify-self: start; }
+.routine-assignment__progress {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid #d5e4d8;
+  border-radius: 12px;
+  background: #f4f8f4;
+}
+.routine-assignment__progress-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.routine-assignment__progress-heading span { color: #537061; font-size: 12px; font-weight: 700; }
+.routine-assignment__progress ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.routine-assignment__progress li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 9px 11px;
+  border: 1px solid #e0e8e1;
+  border-radius: 9px;
+  background: #fff;
+  color: #33483c;
+  font-size: 13px;
+}
+.routine-assignment__progress li time { color: #607367; font-weight: 700; }
+.routine-assignment__progress li span { flex: 1 1 100%; }

@@ -89,6 +89,20 @@ TARGET_COLUMNS: tuple[ColumnMigration, ...] = (
         sqlite_default="'GYM'",
         postgres_default="'GYM'",
     ),
+    ColumnMigration(
+        table="workout_set_logs",
+        column="duration_seconds",
+        sqlite_type="INTEGER",
+        postgres_type="INTEGER",
+        nullable=True,
+    ),
+    ColumnMigration(
+        table="workout_set_logs",
+        column="session_id",
+        sqlite_type="VARCHAR(36)",
+        postgres_type="VARCHAR(36)",
+        nullable=True,
+    ),
 )
 
 

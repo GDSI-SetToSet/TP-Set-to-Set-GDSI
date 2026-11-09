@@ -78,12 +78,25 @@ export interface RoutineTemplate {
   days: RoutineDay[];
 }
 
+export interface WorkoutSession {
+  id: string;
+  student_id: string;
+  relationship_id: string;
+  routine_id: string;
+  day_name: string;
+  modality: RoutineModality;
+  started_at: string;
+  finished_at: string | null;
+}
+
 export interface WorkoutSetLogInput {
   exercise_id: string;
   day_name: string;
   set_number: number;
   reps_completed: string;
   weight_kg: number | null;
+  duration_seconds?: number;
+  session_id?: string;
   modality?: RoutineModality;
 }
 
@@ -99,6 +112,8 @@ export interface WorkoutSetLog {
   set_number: number;
   reps_completed: string;
   weight_kg: number | null;
+  duration_seconds: number | null;
+  session_id: string | null;
   recorded_at: string;
 }
 
