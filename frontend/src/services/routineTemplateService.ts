@@ -52,8 +52,14 @@ export async function startAssignedWorkoutSession(dayName: string): Promise<Work
   return data;
 }
 
-export async function finishAssignedWorkoutSession(sessionId: string): Promise<WorkoutSession> {
-  const { data } = await api.post<WorkoutSession>(`${STUDENT_ASSIGNED_PATH}/workout-sessions/${sessionId}/finish`);
+export async function finishAssignedWorkoutSession(sessionId: string, rpe?: number | null): Promise<WorkoutSession> {
+  const payload = rpe !== undefined && rpe !== null ? { rpe } : {};
+  const { data } = await api.post<WorkoutSession>(`${STUDENT_ASSIGNED_PATH}/workout-sessions/${sessionId}/finish`, payload);
+  return data;
+}
+
+export async function reportWorkoutSessionRpe(sessionId: string, rpe: number): Promise<WorkoutSession> {
+  const { data } = await api.patch<WorkoutSession>(`${STUDENT_ASSIGNED_PATH}/workout-sessions/${sessionId}/rpe`, { rpe });
   return data;
 }
 
@@ -81,6 +87,11 @@ export async function createAssignedRoutineWorkoutLog(payload: WorkoutSetLogInpu
 
 export async function getTrainerStudentWorkoutLogs(relationshipId: string): Promise<WorkoutSetLog[]> {
   const { data } = await api.get<WorkoutSetLog[]>(`${TEMPLATES_PATH}/assignments/${relationshipId}/workout-logs`);
+  return data;
+}
+
+export async function getTrainerStudentWorkoutSessions(relationshipId: string): Promise<WorkoutSession[]> {
+  const { data } = await api.get<WorkoutSession[]>(`${TEMPLATES_PATH}/assignments/${relationshipId}/workout-sessions`);
   return data;
 }
 

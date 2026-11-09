@@ -24,6 +24,7 @@ class WorkoutSession(Base):
     modality: Mapped[str] = mapped_column(String(16), nullable=False)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rpe: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class WorkoutSetLog(Base):

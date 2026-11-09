@@ -382,7 +382,9 @@ def start_student_workout_session(
     return session
 
 
-def finish_student_workout_session(db: Session, user: User, session_id: str) -> WorkoutSession:
+def finish_student_workout_session(
+    db: Session, user: User, session_id: str, rpe: int | None = None
+) -> WorkoutSession:
     profile = get_student_profile(db, user)
     session = db.scalar(
         select(WorkoutSession).where(
@@ -394,8 +396,51 @@ def finish_student_workout_session(db: Session, user: User, session_id: str) -> 
         raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No encontramos este entrenamiento.")
     if session.finished_at is None:
         session.finished_at = utc_now()
+        if rpe is not None:
+            session.rpe = rpe
         db.commit()
         db.refresh(session)
+    else:
+        if rpe is not None:
+            if session.rpe is None:
+                session.rpe = rpe
+                db.commit()
+                db.refresh(session)
+            elif session.rpe != rpe:
+                raise RoutineTemplateError(
+                    status.HTTP_409_CONFLICT,
+                    "Este entrenamiento ya cuenta con un reporte de esfuerzo percibido registrado.",
+                )
+    return session
+
+
+def update_student_workout_session_rpe(
+    db: Session, user: User, session_id: str, rpe: int
+) -> WorkoutSession:
+    profile = get_student_profile(db, user)
+    session = db.scalar(
+        select(WorkoutSession).where(
+            WorkoutSession.id == session_id,
+            WorkoutSession.student_id == profile.id,
+        )
+    )
+    if session is None:
+        raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No encontramos este entrenamiento.")
+    if session.finished_at is None:
+        raise RoutineTemplateError(
+            VALIDATION_ERROR_STATUS,
+            "Solo podés calificar el esfuerzo de un entrenamiento finalizado.",
+        )
+    if session.rpe is not None:
+        if session.rpe == rpe:
+            return session
+        raise RoutineTemplateError(
+            status.HTTP_409_CONFLICT,
+            "Este entrenamiento ya cuenta con un reporte de esfuerzo percibido registrado.",
+        )
+    session.rpe = rpe
+    db.commit()
+    db.refresh(session)
     return session
 
 
@@ -733,6 +778,31 @@ def list_trainer_student_workout_logs(
         WorkoutSetLog.relationship_id == relationship.id,
         WorkoutSetLog.student_id == relationship.student_id,
     ).order_by(WorkoutSetLog.recorded_at.desc(), WorkoutSetLog.id.desc())
+    return list(db.scalars(query))
+
+
+def list_trainer_student_workout_sessions(
+    db: Session, user: User, relationship_id: str
+) -> list[WorkoutSession]:
+    trainer = get_trainer_profile(db, user)
+    relationship = db.scalar(
+        select(TrainingRelationship).where(
+            TrainingRelationship.id == relationship_id,
+            TrainingRelationship.trainer_id == trainer.id,
+            TrainingRelationship.status == "ACTIVE",
+        )
+    )
+    if relationship is None:
+        raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No se encontró un vínculo activo con ese alumno.")
+    query = (
+        select(WorkoutSession)
+        .where(
+            WorkoutSession.relationship_id == relationship.id,
+            WorkoutSession.student_id == relationship.student_id,
+            WorkoutSession.finished_at.is_not(None),
+        )
+        .order_by(WorkoutSession.started_at.desc(), WorkoutSession.id.desc())
+    )
     return list(db.scalars(query))
 
 

@@ -112,6 +112,13 @@ TARGET_COLUMNS: tuple[ColumnMigration, ...] = (
         postgres_type="VARCHAR(36)",
         nullable=True,
     ),
+    ColumnMigration(
+        table="workout_sessions",
+        column="rpe",
+        sqlite_type="INTEGER",
+        postgres_type="INTEGER",
+        nullable=True,
+    ),
 )
 
 # Definición explícita de ampliaciones de longitud de columnas en bases de datos que imponen límites de caracteres (ej. PostgreSQL)

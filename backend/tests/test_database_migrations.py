@@ -356,3 +356,32 @@ def test_apply_migrations_creates_personal_records_table_if_missing():
     pr_cols = {c["name"] for c in inspector_after.get_columns("personal_records")}
     for col in ("id", "student_id", "exercise_id", "weight_kg", "reps_completed", "workout_set_log_id", "achieved_at"):
         assert col in pr_cols
+
+
+def test_apply_migrations_adds_rpe_column_to_workout_sessions():
+    """Escenario 14 (US-60): Comprueba que apply_migrations incorpore la columna rpe en workout_sessions si falta."""
+    engine = make_legacy_engine()
+    create_legacy_database(engine)
+    # Crear workout_sessions en versión previa sin columna rpe
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE workout_sessions (
+                id VARCHAR(36) PRIMARY KEY,
+                student_id VARCHAR(36) NOT NULL,
+                relationship_id VARCHAR(36) NOT NULL,
+                routine_id VARCHAR(36) NOT NULL,
+                day_name VARCHAR(100) NOT NULL,
+                modality VARCHAR(16) NOT NULL,
+                started_at DATETIME NOT NULL,
+                finished_at DATETIME
+            )
+        """))
+    inspector_before = inspect(engine)
+    cols_before = {c["name"] for c in inspector_before.get_columns("workout_sessions")}
+    assert "rpe" not in cols_before
+
+    apply_migrations(engine)
+
+    inspector_after = inspect(engine)
+    cols_after = {c["name"] for c in inspector_after.get_columns("workout_sessions")}
+    assert "rpe" in cols_after
