@@ -115,7 +115,8 @@ def link_student(sessions, trainer_email: str, student_email: str) -> str:
 
 
 def parse_api_datetime(value: str) -> datetime:
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    normalized = f"{value[:-1]}+00:00" if value.endswith("Z") else value
+    parsed = datetime.fromisoformat(normalized)
     return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed
 
 

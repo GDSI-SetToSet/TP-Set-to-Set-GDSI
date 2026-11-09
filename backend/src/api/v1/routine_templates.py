@@ -12,10 +12,10 @@ from backend.src.schemas.routine_template import (
     RoutineModalityUpdate,
     RoutineTemplateInput,
     RoutineTemplateResponse,
-    WorkoutSetLogInput,
-    WorkoutSetLogResponse,
     WorkoutSessionResponse,
     WorkoutSessionStartInput,
+    WorkoutSetLogInput,
+    WorkoutSetLogResponse,
 )
 from backend.src.services.routine_template_service import (
     RoutineTemplateError,
