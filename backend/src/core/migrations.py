@@ -148,6 +148,93 @@ TARGET_CHECK_CONSTRAINTS: tuple[CheckConstraintMigration, ...] = (
 )
 
 
+def _migrate_sqlite_workout_sessions_check_constraint(eng: Engine, inspector) -> list[str]:
+    """Aplica de forma segura y transaccional la restricción CHECK en workout_sessions para SQLite legacy."""
+    fresh_inspector = inspect(eng)
+    existing_tables = set(fresh_inspector.get_table_names())
+    if "workout_sessions" not in existing_tables:
+        return []
+
+    existing_cks = {c.get("name") for c in fresh_inspector.get_check_constraints("workout_sessions")}
+    if "ck_workout_sessions_rpe_range" in existing_cks:
+        return []
+
+    # 1. Validar que no existan valores de RPE fuera de rango antes de aplicar la restricción
+    cols = {c["name"] for c in fresh_inspector.get_columns("workout_sessions")}
+    if "rpe" in cols:
+        with eng.connect() as conn:
+            invalid_count = conn.execute(
+                text("SELECT COUNT(*) FROM workout_sessions WHERE rpe IS NOT NULL AND (rpe < 1 OR rpe > 10)")
+            ).scalar()
+            if invalid_count and invalid_count > 0:
+                raise ValueError(
+                    f"No se puede aplicar la restricción CHECK 'ck_workout_sessions_rpe_range' en 'workout_sessions': "
+                    f"se encontraron {invalid_count} registro(s) con valores de RPE fuera de rango (1 a 10)."
+                )
+
+    # 2. Reconstrucción segura de la tabla en SQLite preservando datos, índices y claves foráneas
+    existing_indexes = fresh_inspector.get_indexes("workout_sessions")
+    with eng.connect() as conn:
+        dbapi = conn.connection.dbapi_connection
+        if hasattr(dbapi, "execute"):
+            dbapi.execute("PRAGMA foreign_keys=OFF;")
+
+        try:
+            with conn.begin():
+                conn.execute(text("""
+                    CREATE TABLE _workout_sessions_new (
+                        id VARCHAR(36) PRIMARY KEY,
+                        student_id VARCHAR(36) NOT NULL,
+                        relationship_id VARCHAR(36) NOT NULL,
+                        routine_id VARCHAR(36) NOT NULL,
+                        day_name VARCHAR(100) NOT NULL,
+                        modality VARCHAR(16) NOT NULL,
+                        started_at DATETIME NOT NULL,
+                        finished_at DATETIME,
+                        rpe INTEGER,
+                        CONSTRAINT ck_workout_sessions_rpe_range CHECK (rpe IS NULL OR (rpe >= 1 AND rpe <= 10)),
+                        FOREIGN KEY(student_id) REFERENCES student_profiles (id) ON DELETE CASCADE,
+                        FOREIGN KEY(relationship_id) REFERENCES training_relationships (id) ON DELETE CASCADE
+                    )
+                """))
+                cols_target = [
+                    "id", "student_id", "relationship_id", "routine_id",
+                    "day_name", "modality", "started_at", "finished_at",
+                ]
+                if "rpe" in cols:
+                    cols_target.append("rpe")
+                cols_str = ", ".join(cols_target)
+                conn.execute(text(f"INSERT INTO _workout_sessions_new ({cols_str}) SELECT {cols_str} FROM workout_sessions"))
+                conn.execute(text("DROP TABLE workout_sessions"))
+                conn.execute(text("ALTER TABLE _workout_sessions_new RENAME TO workout_sessions"))
+
+                # Recrear índices preexistentes
+                created_idx_names = set()
+                for idx in existing_indexes:
+                    idx_name = idx.get("name")
+                    if idx_name:
+                        idx_cols = ", ".join(f'"{c}"' for c in idx["column_names"])
+                        unique_kw = "UNIQUE " if idx.get("unique") else ""
+                        conn.execute(text(f"CREATE {unique_kw}INDEX IF NOT EXISTS {idx_name} ON workout_sessions ({idx_cols})"))
+                        created_idx_names.add(idx_name)
+
+                # Asegurar índices estándar de la entidad
+                for std_idx, col_name in [
+                    ("ix_workout_sessions_student_id", "student_id"),
+                    ("ix_workout_sessions_relationship_id", "relationship_id"),
+                    ("ix_workout_sessions_routine_id", "routine_id"),
+                ]:
+                    if std_idx not in created_idx_names:
+                        conn.execute(text(f"CREATE INDEX IF NOT EXISTS {std_idx} ON workout_sessions ({col_name})"))
+        finally:
+            if hasattr(dbapi, "execute"):
+                dbapi.execute("PRAGMA foreign_keys=ON;")
+
+    key = "workout_sessions.ck_workout_sessions_rpe_range:sqlite_table_rebuild"
+    logger.info("Restricción CHECK aplicada vía reconstrucción de tabla en SQLite: %s", key)
+    return [key]
+
+
 def apply_migrations(target_engine: Engine | None = None) -> list[str]:
     """Aplica de forma aditiva e idempotente las columnas faltantes y ampliaciones de tipo en tablas existentes."""
     eng = target_engine or engine
@@ -203,6 +290,11 @@ def apply_migrations(target_engine: Engine | None = None) -> list[str]:
                     key = f"{ck.table}.{ck.name}:check_constraint"
                     applied.append(key)
                     logger.info("Restricción CHECK aplicada: %s", key)
+
+    # 4. Migración de restricciones CHECK en SQLite existente mediante reconstrucción segura de tabla
+    if is_sqlite:
+        sqlite_ck_applied = _migrate_sqlite_workout_sessions_check_constraint(eng, inspector)
+        applied.extend(sqlite_ck_applied)
 
     return applied
 
