@@ -13,7 +13,9 @@ from backend.src.schemas.routine_template import (
     RoutineModalityUpdate,
     RoutineTemplateInput,
     RoutineTemplateResponse,
+    WorkoutSessionFinishInput,
     WorkoutSessionResponse,
+    WorkoutSessionRpeInput,
     WorkoutSessionStartInput,
     WorkoutSetLogInput,
     WorkoutSetLogResponse,
@@ -36,8 +38,10 @@ from backend.src.services.routine_template_service import (
     list_student_workout_logs,
     list_student_workout_sessions,
     list_trainer_student_workout_logs,
+    list_trainer_student_workout_sessions,
     start_student_workout_session,
     update_student_routine_modality,
+    update_student_workout_session_rpe,
     update_template,
 )
 from backend.src.services.student_routine_service import (
@@ -87,6 +91,20 @@ def get_trainer_student_workout_logs(
     try:
         logs = list_trainer_student_workout_logs(db, user, relationship_id)
         return [WorkoutSetLogResponse.model_validate(item) for item in logs]
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@router.get(
+    "/assignments/{relationship_id}/workout-sessions",
+    response_model=list[WorkoutSessionResponse],
+)
+def get_trainer_student_workout_sessions(
+    relationship_id: str, user: CurrentUser, db: DbDep
+) -> list[WorkoutSessionResponse]:
+    try:
+        sessions = list_trainer_student_workout_sessions(db, user, relationship_id)
+        return [WorkoutSessionResponse.model_validate(item) for item in sessions]
     except ServiceErrors as error:
         handle_error(error)
 
@@ -191,10 +209,38 @@ def start_workout_session(
     response_model=WorkoutSessionResponse,
 )
 def finish_workout_session(
-    session_id: str, user: CurrentUser, db: DbDep
+    session_id: str,
+    user: CurrentUser,
+    db: DbDep,
+    payload: WorkoutSessionFinishInput | None = None,
 ) -> WorkoutSessionResponse:
     try:
-        return WorkoutSessionResponse.model_validate(finish_student_workout_session(db, user, session_id))
+        rpe = payload.rpe if payload else None
+        return WorkoutSessionResponse.model_validate(
+            finish_student_workout_session(db, user, session_id, rpe=rpe)
+        )
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@student_router.patch(
+    "/assigned/workout-sessions/{session_id}/rpe",
+    response_model=WorkoutSessionResponse,
+)
+@student_router.post(
+    "/assigned/workout-sessions/{session_id}/rpe",
+    response_model=WorkoutSessionResponse,
+)
+def report_workout_session_rpe(
+    session_id: str,
+    payload: WorkoutSessionRpeInput,
+    user: CurrentUser,
+    db: DbDep,
+) -> WorkoutSessionResponse:
+    try:
+        return WorkoutSessionResponse.model_validate(
+            update_student_workout_session_rpe(db, user, session_id, payload.rpe)
+        )
     except ServiceErrors as error:
         handle_error(error)
 

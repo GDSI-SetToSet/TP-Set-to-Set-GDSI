@@ -87,6 +87,7 @@ export interface WorkoutSession {
   modality: RoutineModality;
   started_at: string;
   finished_at: string | null;
+  rpe?: number | null;
 }
 
 export interface WorkoutSetLogInput {

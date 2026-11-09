@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
-import { assignRoutineToStudent, getRoutineAssignments, getTrainerStudentWorkoutLogs } from '../services/routineTemplateService';
+import { assignRoutineToStudent, getRoutineAssignments, getTrainerStudentWorkoutLogs, getTrainerStudentWorkoutSessions } from '../services/routineTemplateService';
 import type { TrainerAIRoutine } from '../types/assignedRoutine';
-import type { RoutineAssignmentStudent, RoutineTemplate, WorkoutSetLog } from '../types/routineTemplate';
+import type { RoutineAssignmentStudent, RoutineTemplate, WorkoutSession, WorkoutSetLog } from '../types/routineTemplate';
 import '../styles/routine-assignment-progress.css';
 
 interface RoutineAssignmentPanelProps {
@@ -21,6 +21,7 @@ export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignm
   const [warnings, setWarnings] = useState<string[]>([]);
   const [openProgressFor, setOpenProgressFor] = useState<string | null>(null);
   const [progressByRelationship, setProgressByRelationship] = useState<Record<string, WorkoutSetLog[]>>({});
+  const [sessionsByRelationship, setSessionsByRelationship] = useState<Record<string, WorkoutSession[]>>({});
   const [progressLoadingFor, setProgressLoadingFor] = useState<string | null>(null);
   const [progressErrorFor, setProgressErrorFor] = useState<string | null>(null);
 
@@ -46,9 +47,13 @@ export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignm
       inFlight = true;
       setProgressLoadingFor(relationshipId);
       try {
-        const logs = await getTrainerStudentWorkoutLogs(relationshipId);
+        const [logs, sessions] = await Promise.all([
+          getTrainerStudentWorkoutLogs(relationshipId),
+          getTrainerStudentWorkoutSessions(relationshipId).catch(() => []),
+        ]);
         if (!cancelled) {
           setProgressByRelationship((current) => ({ ...current, [relationshipId]: logs }));
+          setSessionsByRelationship((current) => ({ ...current, [relationshipId]: sessions }));
           setProgressErrorFor(null);
         }
       } catch {
@@ -151,8 +156,32 @@ export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignm
                 </button>
                 {openProgressFor === student.relationship_id && <div className="routine-assignment__progress" aria-label={`Progreso de ${student.student_name}`}>
                   <div className="routine-assignment__progress-heading">
-                    <strong>Series registradas</strong>
+                    <strong>Sesiones y Esfuerzo (RPE)</strong>
                     <span>{progressLoadingFor === student.relationship_id ? 'Actualizando…' : 'Actualización automática'}</span>
+                  </div>
+                  {(sessionsByRelationship[student.relationship_id] ?? []).length === 0 ? (
+                    <p className="plan-empty" style={{ margin: '0 0 16px' }}>Todavía no hay sesiones finalizadas.</p>
+                  ) : (
+                    <ul className="routine-assignment__sessions-list" style={{ margin: '0 0 16px' }}>
+                      {(sessionsByRelationship[student.relationship_id] ?? []).slice(0, 5).map((session) => (
+                        <li key={session.id} className="routine-assignment__session-item">
+                          <strong>{session.day_name}</strong>
+                          <time dateTime={session.started_at}>{new Date(session.started_at).toLocaleDateString('es-AR')}</time>
+                          {session.rpe !== null && session.rpe !== undefined ? (
+                            <span className="routine-assignment__rpe-badge routine-assignment__rpe-badge--reported">
+                              RPE: {session.rpe}/10
+                            </span>
+                          ) : (
+                            <span className="routine-assignment__rpe-badge routine-assignment__rpe-badge--unreported">
+                              Sin reporte de RPE
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="routine-assignment__progress-heading">
+                    <strong>Series registradas</strong>
                   </div>
                   {progressErrorFor === student.relationship_id ? (
                     <p className="form-alert" role="alert">No pudimos cargar el progreso. Seguiremos intentando actualizarlo.</p>

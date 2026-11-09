@@ -158,6 +158,14 @@ class WorkoutSessionStartInput(BaseModel):
     _day = field_validator("day_name")(required_text(SECTION_NAME_MAX_LENGTH))
 
 
+class WorkoutSessionFinishInput(BaseModel):
+    rpe: int | None = Field(default=None, ge=1, le=10, strict=True)
+
+
+class WorkoutSessionRpeInput(BaseModel):
+    rpe: int = Field(..., ge=1, le=10, strict=True)
+
+
 class WorkoutSessionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -169,6 +177,7 @@ class WorkoutSessionResponse(BaseModel):
     modality: str
     started_at: datetime
     finished_at: datetime | None = None
+    rpe: int | None = None
 
 
 class WorkoutSetLogInput(BaseModel):

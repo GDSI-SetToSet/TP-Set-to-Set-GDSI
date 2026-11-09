@@ -15,6 +15,7 @@ import {
   getAssignedStudentRoutine,
   startAssignedWorkoutSession,
   finishAssignedWorkoutSession,
+  reportWorkoutSessionRpe,
   updateAssignedRoutineModality,
 } from '../services/routineTemplateService';
 import type {
@@ -31,6 +32,41 @@ interface SetLogDraft {
   setNumber: string;
   repsCompleted: string;
   weightKg: string;
+}
+
+interface RoutineWorkoutSummary {
+  key: string;
+  sessionId: string | null;
+  rpe?: number | null;
+  logs: WorkoutSetLog[];
+  day: string;
+  recordedAt: string;
+  totalDuration: number | null;
+  averageReps: number | null;
+  averageWeight: number | null;
+  averageDuration: number | null;
+}
+
+function getRpeShortLabel(val: number): string {
+  switch (val) {
+    case 1:
+    case 2:
+      return 'Muy suave';
+    case 3:
+    case 4:
+      return 'Suave';
+    case 5:
+    case 6:
+      return 'Moderado';
+    case 7:
+    case 8:
+      return 'Duro';
+    case 9:
+    case 10:
+      return 'Máximo';
+    default:
+      return '';
+  }
 }
 
 interface ProblemDetailPayload {
@@ -91,6 +127,10 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const [prAlertBanner, setPrAlertBanner] = useState<PersonalRecordAlert | null>(null);
   const [startingWorkout, setStartingWorkout] = useState(false);
   const [finishingWorkout, setFinishingWorkout] = useState(false);
+  const [showFinishRpeModal, setShowFinishRpeModal] = useState(false);
+  const [selectedFinishRpe, setSelectedFinishRpe] = useState<number | null>(null);
+  const [pendingRpeValue, setPendingRpeValue] = useState<number>(0);
+  const [savingPendingRpe, setSavingPendingRpe] = useState(false);
   const [activeSet, setActiveSet] = useState<{ exerciseId: string; startedAt: number } | null>(null);
   const [finishedSet, setFinishedSet] = useState<{ exerciseId: string; durationSeconds: number } | null>(null);
   const [activeRest, setActiveRest] = useState<{ exerciseName: string; durationSeconds: number; key: string } | null>(null);
@@ -144,7 +184,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     const completedSessions = workoutSessions.filter((session) =>
       routine && session.routine_id === routine.id && session.finished_at,
     );
-    const summaries = completedSessions.map((session) => {
+    const summaries: RoutineWorkoutSummary[] = completedSessions.map((session) => {
       const logs = routineLogs.filter((log) => log.session_id === session.id);
       const average = (values: Array<number | null>) => {
         const valid = values.filter((value): value is number => value !== null && Number.isFinite(value));
@@ -158,6 +198,8 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       const finishedAt = Date.parse(session.finished_at ?? session.started_at);
       return {
         key: session.id,
+        sessionId: session.id,
+        rpe: session.rpe,
         logs,
         day: session.day_name,
         recordedAt: session.started_at,
@@ -183,8 +225,12 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
         const value = Number.parseFloat(log.reps_completed.replace(',', '.'));
         return Number.isFinite(value) ? value : null;
       });
+      const groupSessionId = logs.find((log) => Boolean(log.session_id))?.session_id ?? null;
+      const matchedSession = groupSessionId ? workoutSessions.find((s) => s.id === groupSessionId) : undefined;
       summaries.push({
         key,
+        sessionId: groupSessionId,
+        rpe: matchedSession?.rpe ?? null,
         logs,
         day: logs[0].day_name,
         recordedAt: logs.map((log) => log.recorded_at).sort()[0],
@@ -282,20 +328,38 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     }
   };
 
-  const handleFinishWorkout = async (automatic = false) => {
+  const handleFinishWorkout = async (automatic = false, rpe: number | null = null) => {
     if (!sessionId || activeSet || (!automatic && (finishedSet || savingExerciseId)) || finishingWorkout) return;
     setLogError('');
     setFinishingWorkout(true);
     try {
-      await finishAssignedWorkoutSession(sessionId);
+      await finishAssignedWorkoutSession(sessionId, rpe);
       window.localStorage.removeItem(`workout-started-at:${sessionId}`);
       setActiveRest(null);
       setAutoFinishPending(false);
+      setShowFinishRpeModal(false);
       navigate(ROUTES.studentRoutines + '?session=' + encodeURIComponent(sessionId) + (automatic ? '&completed=1' : ''));
     } catch {
       setLogError('No pudimos finalizar el entrenamiento. Intentá nuevamente.');
     } finally {
       setFinishingWorkout(false);
+    }
+  };
+
+  const handleSavePendingRpe = async (targetSessionId: string, rpeVal: number) => {
+    if (rpeVal < 1 || rpeVal > 10 || savingPendingRpe) return;
+    setSavingPendingRpe(true);
+    setLogError('');
+    try {
+      const updated = await reportWorkoutSessionRpe(targetSessionId, rpeVal);
+      setWorkoutSessions((current) =>
+        current.map((s) => (s.id === targetSessionId ? { ...s, rpe: updated.rpe } : s))
+      );
+      setPendingRpeValue(0);
+    } catch {
+      setLogError('No pudimos guardar el reporte de esfuerzo. Intentá nuevamente.');
+    } finally {
+      setSavingPendingRpe(false);
     }
   };
 
@@ -550,6 +614,48 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
               <p className="form-alert" role="alert">{logError}</p>
             )}
 
+            {(() => {
+              const pendingRpeSession = workoutSessions.find(
+                (s) => s.finished_at && (s.rpe === null || s.rpe === undefined) && s.id !== sessionId
+              );
+              if (!pendingRpeSession) return null;
+              return (
+                <aside className="student-routine-rpe-reminder" role="status" aria-live="polite">
+                  <div className="student-routine-rpe-reminder__content">
+                    <span className="student-routine-rpe-reminder__icon" aria-hidden="true">⏱️</span>
+                    <div className="student-routine-rpe-reminder__text">
+                      <strong>Reporte de esfuerzo pendiente (RPE)</strong>
+                      <p>
+                        Tu entrenamiento anterior de <strong>{pendingRpeSession.day_name}</strong> ({new Date(pendingRpeSession.started_at).toLocaleDateString('es-AR')}) quedó finalizado sin calificar.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="student-routine-rpe-reminder__actions">
+                    <select
+                      id={`rpe-select-${pendingRpeSession.id}`}
+                      aria-label="Calificación de esfuerzo RPE"
+                      value={pendingRpeValue}
+                      onChange={(e) => setPendingRpeValue(Number(e.target.value))}
+                      className="student-routine-rpe-reminder__select"
+                    >
+                      <option value={0}>Seleccionar RPE (1 a 10)</option>
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((val) => (
+                        <option key={val} value={val}>{val} - {getRpeShortLabel(val)}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={pendingRpeValue < 1 || pendingRpeValue > 10 || savingPendingRpe}
+                      className="student-routine-rpe-reminder__btn"
+                      onClick={() => void handleSavePendingRpe(pendingRpeSession.id, pendingRpeValue)}
+                    >
+                      {savingPendingRpe ? 'Guardando…' : 'Enviar reporte'}
+                    </button>
+                  </div>
+                </aside>
+              );
+            })()}
+
             {prAlertBanner && (
               <aside className="student-routine-pr-banner" role="status" aria-live="polite">
                 <div className="student-routine-pr-banner__content">
@@ -787,7 +893,18 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                   {routineWorkoutSummaries.map((workout) => (
                     <li key={workout.key} className="student-routine-history__item student-routine-history__item--workout">
                       <div className="student-routine-history__item-main">
-                        <strong>{workout.day}</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                          <strong>{workout.day}</strong>
+                          {workout.rpe !== null && workout.rpe !== undefined ? (
+                            <span className="student-routine-session__rpe-badge student-routine-session__rpe-badge--reported">
+                              RPE: {workout.rpe}/10
+                            </span>
+                          ) : (
+                            <span className="student-routine-session__rpe-badge student-routine-session__rpe-badge--unreported">
+                              Sin reporte de RPE
+                            </span>
+                          )}
+                        </div>
                         <time className="student-routine-history__date" dateTime={workout.recordedAt}>{new Date(workout.recordedAt).toLocaleDateString('es-AR')}</time>
                         <span className="student-routine-history__meta">{workout.logs.length} {workout.logs.length === 1 ? 'serie registrada' : 'series registradas'}</span>
                         <span className="student-routine-history__averages">
@@ -833,10 +950,59 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
             {sessionMode && <div className="student-routine-finish">
               <button type="button" className="student-routine-finish__button"
                 disabled={!sessionId || Boolean(activeSet || finishedSet || savingExerciseId || deletingLogId || finishingWorkout || autoFinishPending)}
-                onClick={() => void handleFinishWorkout(false)}>
+                onClick={() => setShowFinishRpeModal(true)}>
                 {finishingWorkout ? 'Finalizando…' : 'Finalizar rutina'}
               </button>
             </div>}
+
+            {showFinishRpeModal && (
+              <div className="workout-pr-overlay" role="dialog" aria-modal="true" aria-labelledby="rpe-finish-modal-title">
+                <div className="workout-pr-card workout-rpe-card">
+                  <span className="workout-pr-icon" aria-hidden="true">📊</span>
+                  <h3 id="rpe-finish-modal-title" className="workout-pr-exercise-name">
+                    ¿Cómo calificarías tu esfuerzo?
+                  </h3>
+                  <p className="workout-pr-comparison">
+                    Indicá tu nivel de esfuerzo percibido (RPE) en una escala del 1 al 10 para que tu entrenador pueda evaluar la intensidad.
+                  </p>
+
+                  <div className="workout-rpe-selector" role="radiogroup" aria-label="Escala de esfuerzo percibido de 1 a 10">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        role="radio"
+                        aria-checked={selectedFinishRpe === val}
+                        className={`workout-rpe-btn ${selectedFinishRpe === val ? 'workout-rpe-btn--active' : ''}`}
+                        onClick={() => setSelectedFinishRpe(val)}
+                      >
+                        <span className="workout-rpe-val">{val}</span>
+                        <span className="workout-rpe-desc">{getRpeShortLabel(val)}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="workout-rpe-actions">
+                    <button
+                      type="button"
+                      disabled={finishingWorkout || selectedFinishRpe === null}
+                      className="workout-pr-dismiss-btn"
+                      onClick={() => void handleFinishWorkout(false, selectedFinishRpe)}
+                    >
+                      {finishingWorkout ? 'Finalizando…' : 'Guardar y finalizar'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={finishingWorkout}
+                      className="workout-rpe-skip-btn"
+                      onClick={() => void handleFinishWorkout(false, null)}
+                    >
+                      Finalizar sin calificar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
         {prCelebration && (

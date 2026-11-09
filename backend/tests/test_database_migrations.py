@@ -6,6 +6,7 @@ la operatividad de los endpoints de la biblioteca y la idempotencia.
 
 from datetime import UTC, datetime
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, inspect, text
@@ -356,3 +357,214 @@ def test_apply_migrations_creates_personal_records_table_if_missing():
     pr_cols = {c["name"] for c in inspector_after.get_columns("personal_records")}
     for col in ("id", "student_id", "exercise_id", "weight_kg", "reps_completed", "workout_set_log_id", "achieved_at"):
         assert col in pr_cols
+
+
+def test_apply_migrations_adds_rpe_column_to_workout_sessions():
+    """Escenario 14 (US-60): Comprueba que apply_migrations incorpore la columna rpe en workout_sessions si falta."""
+    engine = make_legacy_engine()
+    create_legacy_database(engine)
+    # Crear workout_sessions en versión previa sin columna rpe
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE workout_sessions (
+                id VARCHAR(36) PRIMARY KEY,
+                student_id VARCHAR(36) NOT NULL,
+                relationship_id VARCHAR(36) NOT NULL,
+                routine_id VARCHAR(36) NOT NULL,
+                day_name VARCHAR(100) NOT NULL,
+                modality VARCHAR(16) NOT NULL,
+                started_at DATETIME NOT NULL,
+                finished_at DATETIME
+            )
+        """))
+    inspector_before = inspect(engine)
+    cols_before = {c["name"] for c in inspector_before.get_columns("workout_sessions")}
+    assert "rpe" not in cols_before
+
+    apply_migrations(engine)
+
+    inspector_after = inspect(engine)
+    cols_after = {c["name"] for c in inspector_after.get_columns("workout_sessions")}
+    assert "rpe" in cols_after
+
+
+def test_check_constraint_migration_and_model_specification_for_workout_sessions_rpe():
+    """Escenario 15 (BAJ-01): Verifica la definición de ck_workout_sessions_rpe_range en modelo y migraciones."""
+    from backend.src.core.database import Base
+    from backend.src.core.migrations import TARGET_CHECK_CONSTRAINTS
+
+    # 1. Comprobar que TARGET_CHECK_CONSTRAINTS incluya la restricción para PostgreSQL / motores estrictos
+    ck_mig = next((ck for ck in TARGET_CHECK_CONSTRAINTS if ck.table == "workout_sessions" and ck.name == "ck_workout_sessions_rpe_range"), None)
+    assert ck_mig is not None
+    assert "rpe >= 1 AND rpe <= 10" in ck_mig.expression
+    assert "rpe IS NULL" in ck_mig.expression
+
+    # 2. Comprobar que el modelo Declarative Base.metadata registre la restricción CheckConstraint en workout_sessions
+    table = Base.metadata.tables["workout_sessions"]
+    ck_model = next((c for c in table.constraints if c.name == "ck_workout_sessions_rpe_range"), None)
+    assert ck_model is not None
+
+    # 3. Comprobar que en un motor fresco la restricción sea creada
+    engine = make_legacy_engine()
+    Base.metadata.create_all(engine)
+    inspector = inspect(engine)
+    db_cks = {c.get("name") for c in inspector.get_check_constraints("workout_sessions")}
+    assert "ck_workout_sessions_rpe_range" in db_cks
+
+
+def test_sqlite_legacy_table_rebuild_migrates_check_constraint_and_preserves_structure_and_data():
+    """Escenarios A, B, C y D (BAJ-01 SQLite Legacy):
+    Verifica que una base SQLite preexistente con tabla workout_sessions antigua:
+    1. Reciba la restricción CHECK en su esquema real (Escenario A).
+    2. Aplique la integridad de rango directa: NULL, 1..10 permitidos; 0 y 11 rechazados (Escenario B).
+    3. Conserve todas las columnas, PK, FKs, índices y registros existentes (Escenario C).
+    4. Sea completamente idempotente ante ejecuciones sucesivas de apply_migrations (Escenario D).
+    """
+    engine = make_legacy_engine()
+
+    # 1. Sembrar estructura SQLite antigua con foreign keys y filas preexistentes
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE student_profiles (
+                id VARCHAR(36) PRIMARY KEY
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE training_relationships (
+                id VARCHAR(36) PRIMARY KEY
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE workout_sessions (
+                id VARCHAR(36) PRIMARY KEY,
+                student_id VARCHAR(36) NOT NULL,
+                relationship_id VARCHAR(36) NOT NULL,
+                routine_id VARCHAR(36) NOT NULL,
+                day_name VARCHAR(100) NOT NULL,
+                modality VARCHAR(16) NOT NULL,
+                started_at DATETIME NOT NULL,
+                finished_at DATETIME,
+                rpe INTEGER,
+                FOREIGN KEY(student_id) REFERENCES student_profiles (id) ON DELETE CASCADE,
+                FOREIGN KEY(relationship_id) REFERENCES training_relationships (id) ON DELETE CASCADE
+            )
+        """))
+        conn.execute(text("CREATE INDEX ix_custom_session_day ON workout_sessions (day_name)"))
+        conn.execute(text("""
+            CREATE TABLE workout_set_logs (
+                id VARCHAR(36) PRIMARY KEY,
+                session_id VARCHAR(36),
+                FOREIGN KEY (session_id) REFERENCES workout_sessions (id) ON DELETE SET NULL
+            )
+        """))
+        conn.execute(text("INSERT INTO student_profiles VALUES ('st1')"))
+        conn.execute(text("INSERT INTO training_relationships VALUES ('rel1')"))
+        conn.execute(text("INSERT INTO workout_sessions VALUES ('s1', 'st1', 'rel1', 'rou1', 'Día 1', 'GYM', '2026-01-01', '2026-01-01', NULL)"))
+        conn.execute(text("INSERT INTO workout_sessions VALUES ('s2', 'st1', 'rel1', 'rou1', 'Día 2', 'GYM', '2026-01-02', '2026-01-02', 5)"))
+        conn.execute(text("INSERT INTO workout_set_logs VALUES ('log1', 's1')"))
+
+    # Antes de la migración: la restricción CHECK no existe en workout_sessions
+    insp_before = inspect(engine)
+    assert "ck_workout_sessions_rpe_range" not in {c.get("name") for c in insp_before.get_check_constraints("workout_sessions")}
+
+    # Ejecutar la migración real
+    results = apply_migrations(engine)
+    assert any("sqlite_table_rebuild" in r for r in results)
+
+    # Escenario A y C: Comprobar que la restricción CHECK aparece en el esquema real y se preservan columnas/índices
+    insp_after = inspect(engine)
+    db_cks = insp_after.get_check_constraints("workout_sessions")
+    assert any(c.get("name") == "ck_workout_sessions_rpe_range" for c in db_cks)
+
+    cols = {c["name"] for c in insp_after.get_columns("workout_sessions")}
+    for expected_col in ("id", "student_id", "relationship_id", "routine_id", "day_name", "modality", "started_at", "finished_at", "rpe"):
+        assert expected_col in cols
+
+    indexes = {i["name"] for i in insp_after.get_indexes("workout_sessions")}
+    assert "ix_custom_session_day" in indexes
+    assert "ix_workout_sessions_student_id" in indexes
+    assert "ix_workout_sessions_relationship_id" in indexes
+    assert "ix_workout_sessions_routine_id" in indexes
+
+    # Comprobar que los registros se conservaron íntegros (incluyendo rpe=NULL histórico)
+    with engine.connect() as conn:
+        s1 = conn.execute(text("SELECT * FROM workout_sessions WHERE id = 's1'")).fetchone()
+        assert s1 is not None and s1[8] is None
+        s2 = conn.execute(text("SELECT * FROM workout_sessions WHERE id = 's2'")).fetchone()
+        assert s2 is not None and s2[8] == 5
+        log = conn.execute(text("SELECT * FROM workout_set_logs WHERE id = 'log1'")).fetchone()
+        assert log is not None and log[1] == "s1"
+
+    # Escenario B: Integridad directa a nivel motor
+    with engine.begin() as conn:
+        # rpe = NULL: permitido
+        conn.execute(text("INSERT INTO workout_sessions VALUES ('s_null', 'st1', 'rel1', 'rou1', 'D1', 'GYM', '2026-01-01', '2026-01-01', NULL)"))
+        # rpe = 1: permitido
+        conn.execute(text("INSERT INTO workout_sessions VALUES ('s_min', 'st1', 'rel1', 'rou1', 'D1', 'GYM', '2026-01-01', '2026-01-01', 1)"))
+        # rpe = 10: permitido
+        conn.execute(text("INSERT INTO workout_sessions VALUES ('s_max', 'st1', 'rel1', 'rou1', 'D1', 'GYM', '2026-01-01', '2026-01-01', 10)"))
+
+    with engine.connect() as conn:
+        # rpe = 0: rechazado por CHECK a nivel de motor relacional
+        with pytest.raises(Exception) as exc_0, engine.begin() as conn_sub:
+            conn_sub.execute(text("INSERT INTO workout_sessions VALUES ('s_bad0', 'st1', 'rel1', 'rou1', 'D1', 'GYM', '2026-01-01', '2026-01-01', 0)"))
+        assert "CHECK constraint failed" in str(exc_0.value) or "ck_workout_sessions_rpe_range" in str(exc_0.value)
+
+        # rpe = 11: rechazado por CHECK a nivel de motor relacional
+        with pytest.raises(Exception) as exc_11, engine.begin() as conn_sub:
+            conn_sub.execute(text("INSERT INTO workout_sessions VALUES ('s_bad11', 'st1', 'rel1', 'rou1', 'D1', 'GYM', '2026-01-01', '2026-01-01', 11)"))
+        assert "CHECK constraint failed" in str(exc_11.value) or "ck_workout_sessions_rpe_range" in str(exc_11.value)
+
+    # Escenario D: Idempotencia
+    results2 = apply_migrations(engine)
+    assert not any("sqlite_table_rebuild" in r for r in results2)
+    insp_idem = inspect(engine)
+    db_cks_idem = [c.get("name") for c in insp_idem.get_check_constraints("workout_sessions")]
+    assert db_cks_idem.count("ck_workout_sessions_rpe_range") == 1
+    with engine.connect() as conn:
+        count = conn.execute(text("SELECT COUNT(*) FROM workout_sessions")).scalar()
+        assert count == 5  # s1, s2, s_null, s_min, s_max
+
+
+def test_sqlite_legacy_table_migration_fails_safely_when_invalid_rpe_data_exists():
+    """Escenario E (BAJ-01 SQLite Legacy):
+    Si una base SQLite antigua contiene valores de RPE fuera de rango (1 a 10),
+    la migración falla de forma segura con ValueError, sin modificar ni destruir la tabla original.
+    """
+    engine = make_legacy_engine()
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE student_profiles (id VARCHAR(36) PRIMARY KEY)
+        """))
+        conn.execute(text("""
+            CREATE TABLE training_relationships (id VARCHAR(36) PRIMARY KEY)
+        """))
+        conn.execute(text("""
+            CREATE TABLE workout_sessions (
+                id VARCHAR(36) PRIMARY KEY,
+                student_id VARCHAR(36) NOT NULL,
+                relationship_id VARCHAR(36) NOT NULL,
+                routine_id VARCHAR(36) NOT NULL,
+                day_name VARCHAR(100) NOT NULL,
+                modality VARCHAR(16) NOT NULL,
+                started_at DATETIME NOT NULL,
+                finished_at DATETIME,
+                rpe INTEGER
+            )
+        """))
+        conn.execute(text("INSERT INTO student_profiles VALUES ('st1')"))
+        conn.execute(text("INSERT INTO training_relationships VALUES ('rel1')"))
+        conn.execute(text("INSERT INTO workout_sessions VALUES ('s_invalid', 'st1', 'rel1', 'rou1', 'D1', 'GYM', '2026-01-01', '2026-01-01', 99)"))
+
+    # La migración debe fallar de forma segura explicando el motivo
+    with pytest.raises(ValueError) as exc_info:
+        apply_migrations(engine)
+
+    assert "fuera de rango" in str(exc_info.value)
+    assert "ck_workout_sessions_rpe_range" in str(exc_info.value)
+
+    # Verificar que la tabla original y sus registros permanecen íntegros y sin alteración
+    with engine.connect() as conn:
+        row = conn.execute(text("SELECT * FROM workout_sessions WHERE id = 's_invalid'")).fetchone()
+        assert row is not None
+        assert row[8] == 99
