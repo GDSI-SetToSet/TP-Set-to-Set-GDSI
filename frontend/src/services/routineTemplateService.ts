@@ -6,6 +6,7 @@ import type {
   RoutineTemplateInput,
   WorkoutSetLog,
   WorkoutSetLogInput,
+  WorkoutSession,
 } from '../types/routineTemplate';
 
 const TEMPLATES_PATH = '/api/v1/routine-templates';
@@ -42,6 +43,21 @@ export async function getAssignedStudentRoutine(): Promise<RoutineTemplate | nul
 
 export async function updateAssignedRoutineModality(modality: RoutineModality): Promise<RoutineTemplate> {
   const { data } = await api.put<RoutineTemplate>(`${STUDENT_ASSIGNED_PATH}/modality`, { modality });
+  return data;
+}
+
+export async function startAssignedWorkoutSession(dayName: string): Promise<WorkoutSession> {
+  const { data } = await api.post<WorkoutSession>(`${STUDENT_ASSIGNED_PATH}/workout-sessions`, { day_name: dayName });
+  return data;
+}
+
+export async function finishAssignedWorkoutSession(sessionId: string): Promise<WorkoutSession> {
+  const { data } = await api.post<WorkoutSession>(`${STUDENT_ASSIGNED_PATH}/workout-sessions/${sessionId}/finish`);
+  return data;
+}
+
+export async function getAssignedRoutineWorkoutSessions(): Promise<WorkoutSession[]> {
+  const { data } = await api.get<WorkoutSession[]>(`${STUDENT_ASSIGNED_PATH}/workout-sessions`);
   return data;
 }
 

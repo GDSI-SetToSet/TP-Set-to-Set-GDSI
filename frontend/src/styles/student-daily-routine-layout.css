@@ -313,3 +313,248 @@
     padding: 12px;
   }
 }
+
+.student-routine-start, .student-routine-session-heading { margin: 18px 0 28px; }
+.student-routine-start {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+  padding: 18px 20px; border: 1px solid var(--pf-border, #dbe5dc);
+  border-radius: 14px; background: var(--pf-arch-bg, #f1f4ef);
+}
+.student-routine-start p, .student-routine-session-heading p { margin: 0; color: var(--pf-body, #475569); }
+.student-routine-start__button {
+  min-height: 48px; display: inline-flex; align-items: center; justify-content: center;
+  padding: 10px 22px; border-radius: 10px; background: var(--pf-accent, #397452);
+  color: #fff; font-weight: 800; text-decoration: none;
+}
+.student-routine-session-heading h2 { margin: 10px 0 4px; }
+.student-routine-session-heading__back { color: var(--pf-accent, #397452); font-weight: 700; }
+.student-routine-exercise__elapsed { margin: 8px 0; font-weight: 700; }
+
+/* US-56 follow-up: clear separation between routine overview and active workout. */
+.student-routine-start {
+  margin: 30px 0 8px;
+  padding: 22px 24px;
+}
+.student-routine-start__button {
+  min-width: 220px;
+  border: 0;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.student-routine-start__button:disabled {
+  opacity: .65;
+  cursor: wait;
+}
+.student-routine-exercise__session-actions {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  margin-top: 12px;
+}
+.student-routine-exercise__session-actions .student-routine-exercise__log-btn {
+  box-sizing: border-box;
+  width: auto;
+  min-width: 190px;
+  min-height: 48px;
+  white-space: nowrap;
+}
+.student-routine-session-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 18px 0 24px;
+  padding: 22px 24px;
+  border: 1px solid #c6ddcf;
+  border-left: 6px solid var(--pf-accent, #397452);
+  border-radius: 14px;
+  background: #edf6f0;
+}
+.student-routine-session-heading h2 { margin: 8px 0 4px; }
+.student-routine-session-heading__badge {
+  color: var(--pf-accent, #397452);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+.student-routine-finish__button {
+  min-width: 190px;
+  min-height: 48px;
+  padding: 10px 18px;
+  border: 1px solid #a73333;
+  border-radius: 10px;
+  background: #a73333;
+  color: white;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.student-routine-finish__button:disabled { opacity: .6; cursor: not-allowed; }
+.student-routine-finish__button:focus-visible,
+.student-routine-start__button:focus-visible,
+.student-routine-exercise__session-actions .student-routine-exercise__log-btn:focus-visible {
+  outline: 3px solid #f59e0b;
+  outline-offset: 3px;
+}
+.student-daily-routine--session { border-top: 7px solid var(--pf-accent, #397452); }
+.profile-shell--session .profile-header .profile-back { color: var(--pf-accent, #397452); }
+@media (max-width: 640px) {
+  .student-routine-session-heading { align-items: stretch; flex-direction: column; }
+  .student-routine-finish__button, .student-routine-start__button { width: 100%; }
+  .student-routine-exercise__session-actions .student-routine-exercise__log-btn { width: 100%; }
+}
+
+.student-routine-session-heading__elapsed {
+  display: inline-flex;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border: 1px solid #c6ddcf;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--pf-label, #2f5340);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+.student-routine-exercise__session-actions {
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.student-routine-exercise__elapsed-clock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 1px solid var(--pf-border, #cbd5e1);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--pf-label, #334155);
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+  font-weight: 900;
+}
+.student-routine-history__date {
+  display: block;
+  margin-top: 3px;
+  color: var(--pf-muted, #64756c);
+  font-size: 13px;
+  font-weight: 700;
+}
+.student-routine-finish {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid var(--pf-border, #dbe5dc);
+}
+.workout-celebration {
+  position: fixed;
+  z-index: 1100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 24px;
+  background: rgb(13 34 24 / 58%);
+}
+.workout-celebration__card {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 480px);
+  padding: 34px 30px;
+  border: 1px solid #d4e7da;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 24%);
+  text-align: center;
+}
+.workout-celebration__icon {
+  display: inline-grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  border-radius: 50%;
+  background: #e9f5ed;
+  color: var(--pf-accent, #397452);
+  font-size: 32px;
+}
+.workout-celebration__card h2 { margin: 14px 0 8px; color: #173c2c; }
+.workout-celebration__card p { margin: 0 0 22px; color: var(--pf-body, #475569); }
+.workout-celebration__card button {
+  min-height: 48px;
+  min-width: 150px;
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--pf-accent, #397452);
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.workout-confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.workout-confetti__piece {
+  position: absolute;
+  top: -20px;
+  width: 10px;
+  height: 18px;
+  border-radius: 2px;
+  animation: workout-confetti-fall 2.8s ease-in forwards;
+}
+.workout-confetti__piece--0 { background: #f4c542; }
+.workout-confetti__piece--1 { background: #49a078; }
+.workout-confetti__piece--2 { background: #ed6a5a; }
+.workout-confetti__piece--3 { background: #6c8ee5; }
+.workout-confetti__piece--4 { background: #cc79a7; }
+.workout-confetti__piece--5 { background: #f28e2b; }
+@keyframes workout-confetti-fall {
+  0% { transform: translateY(-5vh) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translateY(115vh) rotate(760deg); opacity: 0.9; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workout-confetti__piece { animation-duration: 0.01ms; }
+}
+@media (max-width: 640px) {
+  .student-routine-finish { justify-content: stretch; }
+  .student-routine-finish__button { width: 100%; }
+  .student-routine-exercise__session-actions .student-routine-exercise__log-btn {
+    width: auto;
+    flex: 1 1 160px;
+  }
+}
+
+/* Resumen e instancia activa tienen señales visuales distintas. */
+.profile-shell--overview { background: #f3f7f2; }
+.profile-shell--session { background: #eef4f8; }
+.student-daily-routine--overview { border-top: 8px solid #568264; }
+.student-daily-routine--session { border-top: 8px solid #2e6780; }
+.profile-shell--session .profile-heading > span {
+  display: inline-flex;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: #e5f0f6;
+  color: #285b72;
+}
+.profile-shell--session .student-routine-session-heading {
+  border-color: #c7dce7;
+  border-left-color: #2e6780;
+  background: #edf5f9;
+}
+.profile-shell--session .student-routine-session-heading__badge { color: #285b72; }
+.profile-shell--session .student-routine-session-heading__elapsed {
+  border-color: #c7dce7;
+  color: #285b72;
+}
+.student-routine-history--progress { margin-top: 28px; }
+.student-routine-history__item--workout { padding: 14px 16px; }
+.student-routine-history__averages { color: var(--pf-label, #2f5340); font-size: 13px; font-weight: 700; }

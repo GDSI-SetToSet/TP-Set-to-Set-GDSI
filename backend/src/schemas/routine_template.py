@@ -152,12 +152,33 @@ class RoutineModalityUpdate(BaseModel):
     _modality = field_validator("modality")(validate_modality)
 
 
+class WorkoutSessionStartInput(BaseModel):
+    day_name: str | None = Field(default=None, validate_default=True)
+
+    _day = field_validator("day_name")(required_text(SECTION_NAME_MAX_LENGTH))
+
+
+class WorkoutSessionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    student_id: str
+    relationship_id: str
+    routine_id: str
+    day_name: str
+    modality: str
+    started_at: datetime
+    finished_at: datetime | None = None
+
+
 class WorkoutSetLogInput(BaseModel):
     exercise_id: str | None = Field(default=None, validate_default=True)
     day_name: str | None = Field(default=None, validate_default=True)
     set_number: int | None = Field(default=None, validate_default=True)
     reps_completed: str | None = Field(default=None, validate_default=True)
     weight_kg: float | None = Field(default=None, ge=0, le=9999.99)
+    duration_seconds: int | None = Field(default=None, ge=0, le=7200)
+    session_id: str | None = None
     modality: str | None = None
 
     _exercise = field_validator("exercise_id")(required_text())
@@ -187,6 +208,8 @@ class WorkoutSetLogResponse(BaseModel):
     set_number: int
     reps_completed: str
     weight_kg: float | None = None
+    duration_seconds: int | None = None
+    session_id: str | None = None
     recorded_at: datetime
 
 

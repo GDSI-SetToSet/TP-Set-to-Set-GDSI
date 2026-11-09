@@ -1,0 +1,16 @@
+.rest-timer {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: 20px; margin: 20px 0; padding: 20px;
+  border: 2px solid var(--pf-accent, #397452); border-radius: 16px; background: #f0f7f2;
+}
+.rest-timer__eyebrow { color: var(--pf-accent, #397452); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.rest-timer h3 { margin: 4px 0; }
+.rest-timer__clock { display: block; font-size: clamp(2rem, 6vw, 3rem); font-variant-numeric: tabular-nums; }
+.rest-timer p { margin: 2px 0 0; }
+.rest-timer__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.rest-timer__actions button {
+  min-height: 44px; padding: 8px 14px; border: 1px solid var(--pf-accent, #397452);
+  border-radius: 9px; background: white; color: var(--pf-accent, #397452);
+  font: inherit; font-weight: 700; cursor: pointer;
+}
+.rest-timer__actions button:focus-visible { outline: 3px solid #f59e0b; outline-offset: 2px; }
