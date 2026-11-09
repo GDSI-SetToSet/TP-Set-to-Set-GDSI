@@ -115,6 +115,20 @@ export interface WorkoutSetLog {
   duration_seconds: number | null;
   session_id: string | null;
   recorded_at: string;
+  is_personal_record?: boolean;
+  is_initial_pr?: boolean;
+  pr_previous_weight_kg?: number | null;
+}
+
+export interface PersonalRecord {
+  id: string;
+  student_id: string;
+  exercise_id: string;
+  exercise_name?: string | null;
+  weight_kg: number;
+  reps_completed: string;
+  workout_set_log_id: string;
+  achieved_at: string;
 }
 
 export interface RoutineAssignmentStudent {

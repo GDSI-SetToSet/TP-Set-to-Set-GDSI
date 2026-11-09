@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import ClassVar
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -48,3 +49,8 @@ class WorkoutSetLog(Base):
         ForeignKey("workout_sessions.id", ondelete="SET NULL"), index=True, nullable=True
     )
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    # Atributos transitorios para respuesta de API al registrar una serie
+    is_personal_record: ClassVar[bool] = False
+    is_initial_pr: ClassVar[bool] = False
+    pr_previous_weight_kg: ClassVar[float | None] = None

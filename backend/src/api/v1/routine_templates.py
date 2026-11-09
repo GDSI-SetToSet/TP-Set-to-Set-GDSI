@@ -6,6 +6,7 @@ from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
 from backend.src.models.user import User
 from backend.src.schemas.routine_template import (
+    PersonalRecordResponse,
     RoutineAssignmentResponse,
     RoutineAssignmentStudentResponse,
     RoutineAssignmentUpdate,
@@ -30,6 +31,7 @@ from backend.src.services.routine_template_service import (
     get_student_template,
     list_own_templates,
     list_routine_assignments,
+    list_student_personal_records,
     list_student_templates,
     list_student_workout_logs,
     list_student_workout_sessions,
@@ -238,6 +240,19 @@ def record_assigned_routine_workout_log(
     try:
         created = create_student_workout_log(db, user, payload)
         return WorkoutSetLogResponse.model_validate(created)
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@student_router.get("/assigned/personal-records", response_model=list[PersonalRecordResponse])
+def get_assigned_routine_personal_records(
+    user: CurrentUser,
+    db: DbDep,
+    exercise_id: Annotated[str | None, Query()] = None,
+) -> list[PersonalRecordResponse]:
+    try:
+        records = list_student_personal_records(db, user, exercise_id=exercise_id)
+        return [PersonalRecordResponse.model_validate(item) for item in records]
     except ServiceErrors as error:
         handle_error(error)
 

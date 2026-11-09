@@ -7,6 +7,7 @@ import type {
   WorkoutSetLog,
   WorkoutSetLogInput,
   WorkoutSession,
+  PersonalRecord,
 } from '../types/routineTemplate';
 
 const TEMPLATES_PATH = '/api/v1/routine-templates';
@@ -95,4 +96,13 @@ export async function assignRoutineToStudent(relationshipId: string, routineTemp
     { routine_template_id: routineTemplateId },
   );
   return data.warnings ?? [];
+}
+
+
+export async function getAssignedRoutinePersonalRecords(exerciseId?: string): Promise<PersonalRecord[]> {
+  const { data } = await api.get<PersonalRecord[]>(
+    `${STUDENT_ASSIGNED_PATH}/personal-records`,
+    exerciseId ? { params: { exercise_id: exerciseId } } : undefined,
+  );
+  return data;
 }

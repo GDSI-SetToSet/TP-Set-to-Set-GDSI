@@ -1,5 +1,5 @@
 import { isAxiosError } from 'axios';
-import { ArrowLeft, CheckCircle2, Dumbbell, History, Home, Video, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Dumbbell, History, Home, Trophy, Video, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SafeVariantNotice } from '../components/SafeVariantNotice';
@@ -36,6 +36,14 @@ interface SetLogDraft {
 interface ProblemDetailPayload {
   detail?: string;
   errors?: Array<{ field?: string; message?: string }>;
+}
+
+interface PersonalRecordAlert {
+  exerciseName: string;
+  weightKg: number;
+  reps: string;
+  previousWeightKg: number | null;
+  isInitial: boolean;
 }
 
 function formatWorkoutDuration(totalSeconds: number): string {
@@ -79,6 +87,8 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const [savingExerciseId, setSavingExerciseId] = useState<string | null>(null);
   const [deletingLogId, setDeletingLogId] = useState<string | null>(null);
   const [logError, setLogError] = useState('');
+  const [prCelebration, setPrCelebration] = useState<PersonalRecordAlert | null>(null);
+  const [prAlertBanner, setPrAlertBanner] = useState<PersonalRecordAlert | null>(null);
   const [startingWorkout, setStartingWorkout] = useState(false);
   const [finishingWorkout, setFinishingWorkout] = useState(false);
   const [activeSet, setActiveSet] = useState<{ exerciseId: string; startedAt: number } | null>(null);
@@ -353,6 +363,17 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       });
       const updatedLogs = [created, ...workoutLogs];
       setWorkoutLogs(updatedLogs);
+      if (created.is_personal_record) {
+        const alertData: PersonalRecordAlert = {
+          exerciseName: created.exercise_name,
+          weightKg: created.weight_kg ?? parsedWeight ?? 0,
+          reps: created.reps_completed,
+          previousWeightKg: created.pr_previous_weight_kg ?? null,
+          isInitial: Boolean(created.is_initial_pr),
+        };
+        setPrCelebration(alertData);
+        setPrAlertBanner(alertData);
+      }
       setFinishedSet(null);
       const allRequiredSetsDone = Boolean(selectedDay) && selectedDay.blocks
         .flatMap((block) => block.exercises)
@@ -527,6 +548,30 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
 
             {logError && (
               <p className="form-alert" role="alert">{logError}</p>
+            )}
+
+            {prAlertBanner && (
+              <aside className="student-routine-pr-banner" role="status" aria-live="polite">
+                <div className="student-routine-pr-banner__content">
+                  <span className="student-routine-pr-banner__icon" aria-hidden="true">🏆</span>
+                  <div className="student-routine-pr-banner__text">
+                    <strong>{prAlertBanner.isInitial ? '¡Primer récord registrado!' : '¡Nuevo récord personal (PR)!'}</strong>
+                    <p>
+                      {prAlertBanner.isInitial
+                        ? `Estableciste tu marca inicial en ${prAlertBanner.exerciseName} con ${prAlertBanner.weightKg} kg (${prAlertBanner.reps} reps). ¡Tu entrenador ya fue notificado!`
+                        : `Superaste tu récord anterior en ${prAlertBanner.exerciseName}: lograste ${prAlertBanner.weightKg} kg (${prAlertBanner.reps} reps)${prAlertBanner.previousWeightKg !== null ? ` (superando tu marca previa de ${prAlertBanner.previousWeightKg} kg)` : ''}. ¡Tu entrenador ya fue avisado!`}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="student-routine-pr-banner__close"
+                  aria-label="Cerrar aviso de récord"
+                  onClick={() => setPrAlertBanner(null)}
+                >
+                  <X size={16} />
+                </button>
+              </aside>
             )}
 
             {selectedDay?.blocks.map((block) => (
@@ -772,7 +817,14 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                         <span className="student-routine-history__meta">{log.day_name} · Serie {log.set_number} · {log.reps_completed} reps · {log.weight_kg === null || log.weight_kg === 0 ? 'Peso corporal (0 kg)' : `${log.weight_kg} kg`}</span>
                         {log.duration_seconds !== null && <span className="student-routine-history__meta">Duración de la serie: {formatWorkoutDuration(log.duration_seconds)}</span>}
                       </div>
-                      <span className={`student-routine-exercise__modality-badge ${log.modality === 'HOME' ? 'student-routine-exercise__modality-badge--home' : 'student-routine-exercise__modality-badge--gym'}`}>{ROUTINE_MODALITIES[log.modality] ?? log.modality}</span>
+                      <div className="student-routine-history__item-badges">
+                        {log.is_personal_record && (
+                          <span className="student-routine-exercise__pr-badge" title="Récord Personal">
+                            🏆 PR
+                          </span>
+                        )}
+                        <span className={`student-routine-exercise__modality-badge ${log.modality === 'HOME' ? 'student-routine-exercise__modality-badge--home' : 'student-routine-exercise__modality-badge--gym'}`}>{ROUTINE_MODALITIES[log.modality] ?? log.modality}</span>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -786,6 +838,47 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
               </button>
             </div>}
           </>
+        )}
+        {prCelebration && (
+          <div className="workout-celebration workout-pr-modal" role="dialog" aria-modal="true" aria-labelledby="pr-celebration-title">
+            <div className="workout-confetti" aria-hidden="true">
+              {Array.from({ length: 28 }, (_, index) => (
+                <span
+                  key={index}
+                  className={`workout-confetti__piece workout-confetti__piece--${index % 6}`}
+                  style={{ left: `${(index * 37) % 100}%`, animationDelay: `${(index % 8) * 0.12}s` }}
+                />
+              ))}
+            </div>
+            <div className="workout-celebration__card workout-pr-card">
+              <span className="workout-celebration__icon workout-pr-icon" aria-hidden="true">🏆</span>
+              <span className="workout-pr-badge-pill">{prCelebration.isInitial ? 'Primer récord' : 'Nuevo récord personal'}</span>
+              <h2 id="pr-celebration-title">
+                {prCelebration.isInitial ? '¡Primer récord registrado!' : '¡Nuevo récord personal!'}
+              </h2>
+              <p className="workout-pr-exercise-name">{prCelebration.exerciseName}</p>
+              <div className="workout-pr-stat-box">
+                <span className="workout-pr-stat-weight">{prCelebration.weightKg} kg</span>
+                <span className="workout-pr-stat-reps">{prCelebration.reps} reps</span>
+              </div>
+              {prCelebration.previousWeightKg !== null ? (
+                <p className="workout-pr-comparison">
+                  Superaste tu récord anterior de <strong>{prCelebration.previousWeightKg} kg</strong>. ¡Tu entrenador ya fue notificado de tu progreso!
+                </p>
+              ) : (
+                <p className="workout-pr-comparison">
+                  ¡Excelente comienzo! Estableciste tu primera marca en este ejercicio. Tu entrenador ya fue notificado.
+                </p>
+              )}
+              <button
+                type="button"
+                className="workout-pr-dismiss-btn"
+                onClick={() => setPrCelebration(null)}
+              >
+                ¡Genial! Continuar
+              </button>
+            </div>
+          </div>
         )}
         {showCelebration && <div className="workout-celebration" role="dialog" aria-modal="true" aria-labelledby="workout-celebration-title">
           <div className="workout-confetti" aria-hidden="true">{Array.from({ length: 28 }, (_, index) => <span key={index} className={`workout-confetti__piece workout-confetti__piece--${index % 6}`} style={{ left: `${(index * 37) % 100}%`, animationDelay: `${(index % 8) * 0.12}s` }} />)}</div>

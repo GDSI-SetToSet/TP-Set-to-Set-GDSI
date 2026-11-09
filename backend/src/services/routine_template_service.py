@@ -1,3 +1,6 @@
+from decimal import Decimal
+from typing import Any
+
 from fastapi import status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -5,6 +8,8 @@ from sqlalchemy.orm import Session
 from backend.src.core.constants import VALIDATION_ERROR_MESSAGE
 from backend.src.models.assigned_routine import AssignedRoutine
 from backend.src.models.exercise import Exercise
+from backend.src.models.notification import Notification
+from backend.src.models.personal_record import PersonalRecord
 from backend.src.models.routine_template import (
     RoutineTemplate,
     RoutineTemplateBlock,
@@ -25,6 +30,7 @@ from backend.src.schemas.routine_template import (
     WorkoutSessionStartInput,
     WorkoutSetLogInput,
 )
+from backend.src.services.notification_service import create_notification
 from backend.src.services.student_service import (
     get_or_create_profile as get_student_profile,
 )
@@ -475,8 +481,145 @@ def create_student_workout_log(
         recorded_at=utc_now(),
     )
     db.add(log_entry)
+    db.flush()
+
+    # US-59: Detección y persistencia de nuevo récord personal (PR)
+    is_personal_record = False
+    is_initial_pr = False
+    pr_previous_weight_kg: float | None = None
+
+    if payload.weight_kg is not None and payload.weight_kg > 0:
+        current_weight = Decimal(str(payload.weight_kg))
+
+        # CONC-01: Serialización pesimista sobre el perfil del alumno (aggregate root)
+        # para coordinar la evaluación y evitar colisiones concurrentes en el primer PR
+        db.scalar(
+            select(StudentProfile.id)
+            .where(StudentProfile.id == relationship.student_id)
+            .with_for_update()
+        )
+
+        existing_pr = db.scalar(
+            select(PersonalRecord).where(
+                PersonalRecord.student_id == relationship.student_id,
+                PersonalRecord.exercise_id == exercise.id,
+            ).with_for_update()
+        )
+
+        if existing_pr is None:
+            # Comprobar si existían registros históricos previos de peso > 0
+            historical_max = db.scalar(
+                select(WorkoutSetLog).where(
+                    WorkoutSetLog.student_id == relationship.student_id,
+                    WorkoutSetLog.exercise_id == exercise.id,
+                    WorkoutSetLog.id != log_entry.id,
+                    WorkoutSetLog.weight_kg > 0,
+                ).order_by(WorkoutSetLog.weight_kg.desc(), WorkoutSetLog.recorded_at.desc())
+            )
+            if historical_max is not None:
+                if current_weight > historical_max.weight_kg:
+                    is_personal_record = True
+                    is_initial_pr = False
+                    pr_previous_weight_kg = float(historical_max.weight_kg)
+                    new_pr = PersonalRecord(
+                        student_id=relationship.student_id,
+                        exercise_id=exercise.id,
+                        weight_kg=log_entry.weight_kg,
+                        reps_completed=log_entry.reps_completed,
+                        workout_set_log_id=log_entry.id,
+                        achieved_at=log_entry.recorded_at,
+                    )
+                    db.add(new_pr)
+                else:
+                    sync_pr = PersonalRecord(
+                        student_id=relationship.student_id,
+                        exercise_id=exercise.id,
+                        weight_kg=historical_max.weight_kg,
+                        reps_completed=historical_max.reps_completed,
+                        workout_set_log_id=historical_max.id,
+                        achieved_at=historical_max.recorded_at,
+                    )
+                    db.add(sync_pr)
+            else:
+                is_personal_record = True
+                is_initial_pr = True
+                pr_previous_weight_kg = None
+                new_pr = PersonalRecord(
+                    student_id=relationship.student_id,
+                    exercise_id=exercise.id,
+                    weight_kg=log_entry.weight_kg,
+                    reps_completed=log_entry.reps_completed,
+                    workout_set_log_id=log_entry.id,
+                    achieved_at=log_entry.recorded_at,
+                )
+                db.add(new_pr)
+        else:
+            if current_weight > existing_pr.weight_kg:
+                is_personal_record = True
+                is_initial_pr = False
+                pr_previous_weight_kg = float(existing_pr.weight_kg)
+                existing_pr.weight_kg = log_entry.weight_kg
+                existing_pr.reps_completed = log_entry.reps_completed
+                existing_pr.workout_set_log_id = log_entry.id
+                existing_pr.achieved_at = log_entry.recorded_at
+
+        # US-59: Notificar al entrenador del vínculo activo si hubo nuevo PR
+        trainer_user_id = relationship.trainer.user_id if relationship.trainer else None
+        if not trainer_user_id:
+            trainer_profile = db.get(TrainerProfile, relationship.trainer_id)
+            if trainer_profile:
+                trainer_user_id = trainer_profile.user_id
+
+        if is_personal_record and trainer_user_id:
+            already_notified = db.scalar(
+                select(Notification.id).where(
+                    Notification.recipient_id == trainer_user_id,
+                    Notification.type == "PERSONAL_RECORD",
+                    Notification.related_entity_id == log_entry.id,
+                )
+            )
+            if not already_notified:
+                student = relationship.student
+                student_name = f"{student.first_name or ''} {student.last_name or ''}".strip()
+                if not student_name and student.user_id:
+                    st_user = db.get(User, student.user_id)
+                    if st_user and st_user.email:
+                        student_name = st_user.email
+                if not student_name:
+                    student_name = "Tu alumno"
+
+                curr_weight_str = f"{float(log_entry.weight_kg):.2f}".rstrip("0").rstrip(".")
+                title = f"¡Nuevo récord personal de {student_name}!"
+
+                if is_initial_pr:
+                    message = (
+                        f"{student_name} registró su primer récord en {exercise.name}: "
+                        f"{curr_weight_str} kg ({log_entry.reps_completed} reps)."
+                    )
+                else:
+                    prev_weight_str = f"{pr_previous_weight_kg:.2f}".rstrip("0").rstrip(".")
+                    message = (
+                        f"{student_name} superó su récord personal en {exercise.name}: "
+                        f"{curr_weight_str} kg ({log_entry.reps_completed} reps). "
+                        f"Récord anterior: {prev_weight_str} kg."
+                    )
+
+                create_notification(
+                    db,
+                    recipient_id=trainer_user_id,
+                    type="PERSONAL_RECORD",
+                    title=title,
+                    message=message,
+                    related_entity_type="PERSONAL_RECORD",
+                    related_entity_id=log_entry.id,
+                    commit=False,
+                )
+
     db.commit()
     db.refresh(log_entry)
+    log_entry.is_personal_record = is_personal_record
+    log_entry.is_initial_pr = is_initial_pr
+    log_entry.pr_previous_weight_kg = pr_previous_weight_kg
     return log_entry
 
 
@@ -507,6 +650,36 @@ def delete_student_workout_log(db: Session, user: User, log_id: str) -> None:
         or workout_session.routine_id != routine_id
     ):
         raise RoutineTemplateError(VALIDATION_ERROR_STATUS, "No se pueden modificar series de un entrenamiento finalizado.")
+    # CONC-02: Bloqueo coordinado con create_student_workout_log para eliminación y recálculo
+    db.scalar(
+        select(StudentProfile.id)
+        .where(StudentProfile.id == relationship.student_id)
+        .with_for_update()
+    )
+
+    pr = db.scalar(
+        select(PersonalRecord).where(
+            PersonalRecord.student_id == relationship.student_id,
+            PersonalRecord.exercise_id == log_entry.exercise_id,
+        ).with_for_update()
+    )
+    if pr and pr.workout_set_log_id == log_entry.id:
+        remaining_max = db.scalar(
+            select(WorkoutSetLog).where(
+                WorkoutSetLog.student_id == relationship.student_id,
+                WorkoutSetLog.exercise_id == log_entry.exercise_id,
+                WorkoutSetLog.id != log_entry.id,
+                WorkoutSetLog.weight_kg > 0,
+            ).order_by(WorkoutSetLog.weight_kg.desc(), WorkoutSetLog.recorded_at.desc())
+        )
+        if remaining_max is not None:
+            pr.weight_kg = remaining_max.weight_kg
+            pr.reps_completed = remaining_max.reps_completed
+            pr.workout_set_log_id = remaining_max.id
+            pr.achieved_at = remaining_max.recorded_at
+        else:
+            db.delete(pr)
+
     db.delete(log_entry)
     db.commit()
 
@@ -683,3 +856,33 @@ def assign_routine_to_student(
         relationship.routine_modality = "GYM"
     db.commit()
     return {"relationship_id": relationship.id, "routine_template_id": routine_template_id}
+
+
+def list_student_personal_records(
+    db: Session, user: User, exercise_id: str | None = None
+) -> list[dict[str, Any]]:
+    profile = get_student_profile(db, user)
+    query = (
+        select(PersonalRecord, Exercise.name)
+        .join(Exercise, Exercise.id == PersonalRecord.exercise_id)
+        .where(PersonalRecord.student_id == profile.id)
+    )
+    if exercise_id is not None:
+        query = query.where(PersonalRecord.exercise_id == exercise_id)
+    query = query.order_by(PersonalRecord.achieved_at.desc())
+
+    records = []
+    for pr, ex_name in db.execute(query).all():
+        records.append(
+            {
+                "id": pr.id,
+                "student_id": pr.student_id,
+                "exercise_id": pr.exercise_id,
+                "exercise_name": ex_name,
+                "weight_kg": float(pr.weight_kg),
+                "reps_completed": pr.reps_completed,
+                "workout_set_log_id": pr.workout_set_log_id,
+                "achieved_at": pr.achieved_at,
+            }
+        )
+    return records

@@ -15,6 +15,7 @@ from backend.src.models import (  # noqa: F401
     MedicalClearance,
     Notification,
     PasswordResetToken,
+    PersonalRecord,
     RoutineTemplate,
     RoutineTemplateBlock,
     RoutineTemplateDay,
