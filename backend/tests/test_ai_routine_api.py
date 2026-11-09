@@ -268,19 +268,34 @@ def test_incompatible_exercise_eliminated_when_no_alternative(client):
         protected_zones=["Rodilla izquierda"],
     )
 
-    # Solo 1 ejercicio en toda la biblioteca del entrenador: Sentadilla (afecta rodilla)
+    # 1) Si la plantilla solo tiene 1 ejercicio incompatible y no hay sustituto seguro,
+    #    no se devuelve una rutina vacía como exitosa (Sección 3.4: rechazo explícito 422).
     knee_ex = create_exercise(api, trainer, name="Sentadilla Profunda", target_muscle_group="Piernas")
-    template = create_template(api, trainer, [knee_ex], name="Plantilla Piernas")
+    empty_tpl = create_template(api, trainer, [knee_ex], name="Plantilla Solo Rodilla")
+    empty_resp = api.post(AI_GENERATE_PATH, headers=trainer, json={"student_id": student_id, "template_id": empty_tpl["id"]})
+    assert empty_resp.status_code == 422
+    assert empty_resp.json()["errors"][0]["code"] in ("NO_SAFE_EXERCISES_AVAILABLE", "NO_COMPATIBLE_SUBSTITUTES")
 
-    # Generar con IA
+    # 2) Si la plantilla incluye además un ejercicio seguro de otro grupo muscular y no hay sustituto
+    #    funcionalmente equivalente para Sentadilla, el ejercicio incompatible se elimina y se entrega
+    #    una rutina parcial válida con advertencia al entrenador.
+    safe_upper_ex = create_exercise(
+        api,
+        trainer,
+        name="Remo con Barra",
+        target_muscle_group="Espalda",
+        description="Tracción horizontal para dorsales",
+    )
+    template = create_template(api, trainer, [safe_upper_ex, knee_ex], name="Plantilla Piernas y Espalda")
+
     resp = api.post(AI_GENERATE_PATH, headers=trainer, json={"student_id": student_id, "template_id": template["id"]})
     assert resp.status_code == 201
     data = resp.json()
 
-    # Como no hay alternativa segura, el ejercicio fue eliminado
-    assert data["exercise_count"] == 0
+    assert data["exercise_count"] == 1
     assert "Eliminado" in data["adaptation_summary"]
     assert "Rodilla izquierda" in data["adaptation_summary"]
+    assert "Resultado parcial" in data["adaptation_summary"]
 
 
 def test_health_questionnaire_reduces_intensity_and_adjusts_rest(client):
@@ -1940,7 +1955,14 @@ def test_biomechanical_zone_conflict_detection_cross_language_and_aliases(client
     # Ejercicio contraindicado usando nombres canónicos en inglés
     ex_squat = create_exercise(api, trainer, name="Sentadilla Barra", contraindicated_zones=["Lower back"])
     ex_overhead = create_exercise(api, trainer, name="Press Hombro", contraindicated_zones=["Shoulder"])
-    create_exercise(api, trainer, name="Curl de Bíceps", contraindicated_zones=[])
+    create_exercise(
+        api,
+        trainer,
+        name="Press de Banca Plano",
+        target_muscle_group="Pecho",
+        description="Empuje horizontal",
+        contraindicated_zones=[],
+    )
 
     template = create_template(api, trainer, [ex_squat, ex_overhead])
 
@@ -1953,7 +1975,7 @@ def test_biomechanical_zone_conflict_detection_cross_language_and_aliases(client
     assert gen_resp.status_code == 201
     prop = gen_resp.json()
     assigned_exercises = [
-        e["exercise_id"]
+        e["exercise"]["id"]
         for d in prop["days"]
         for b in d["blocks"]
         for e in b["exercises"]

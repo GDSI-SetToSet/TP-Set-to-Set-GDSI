@@ -313,3 +313,17 @@ def test_fresh_database_initialization_includes_all_columns():
     ex_cols = {c["name"] for c in inspector.get_columns("exercises")}
     for required in ("technical_cues", "breathing_cues", "contraindicated_zones"):
         assert required in ex_cols
+
+
+def test_migration_alteration_specification_for_adaptation_notes():
+    """Escenario 11: Comprueba que TARGET_TYPE_ALTERATIONS incluya la ampliación a 500 chars para adaptation_notes."""
+    from backend.src.core.migrations import TARGET_TYPE_ALTERATIONS
+
+    matching = [
+        alt
+        for alt in TARGET_TYPE_ALTERATIONS
+        if alt.table == "assigned_routine_exercises" and alt.column == "adaptation_notes"
+    ]
+    assert len(matching) == 1
+    assert matching[0].target_length == 500
+    assert matching[0].postgres_type == "VARCHAR(500)"
