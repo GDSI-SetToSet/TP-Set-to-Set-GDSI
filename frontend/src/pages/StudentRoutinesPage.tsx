@@ -399,14 +399,16 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
         delete next[routineExercise.id];
         return next;
       });
-      const allRequiredSetsDone = Boolean(selectedDay) && selectedDay.blocks
-        .flatMap((block) => block.exercises)
-        .filter((exercise) => !skipped.includes(exercise.id))
-        .every((exercise) => updatedLogs.filter((item) =>
-          item.session_id === sessionId
-          && item.day_name === selectedDay.name
-          && item.exercise_id === exercise.exercise.id,
-        ).length >= exercise.sets);
+      const allRequiredSetsDone = selectedDay
+        ? selectedDay.blocks
+          .flatMap((block) => block.exercises)
+          .filter((exercise) => !skipped.includes(exercise.id))
+          .every((exercise) => updatedLogs.filter((item) =>
+            item.session_id === sessionId
+            && item.day_name === selectedDay.name
+            && item.exercise_id === exercise.exercise.id,
+          ).length >= exercise.sets)
+        : false;
       setAutoFinishPending(allRequiredSetsDone);
     } catch {
       setLogError('No pudimos desmarcar la serie. Intentá nuevamente.');
