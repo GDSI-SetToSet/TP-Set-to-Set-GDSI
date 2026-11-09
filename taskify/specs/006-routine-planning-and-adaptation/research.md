@@ -84,3 +84,9 @@
 **D13 — Alcance del acceso del alumno.** Decisión: el alumno solo consulta ejercicios presentes en su `StudentRoutine` vigente con vínculo ACTIVE; otro ejercicio → `404`. Evita exponer la biblioteca del entrenador.
 
 **D14 — Saltear el ejercicio.** Decisión: la respuesta `BLOCKED` indica `can_skip: true`; registrar el salto en la sesión corresponde a ejecución de entrenamiento (spec 007) y queda fuera. Integración con US-14: el campo `safe_variant` de la alerta pasa de `null` a la variante resuelta (cierra D4).
+
+# Research: US-54
+
+**D15 — Alternativas derivadas, no curadas.** Decisión: las alternativas se calculan por consulta: ejercicios del mismo entrenador, no dados de baja, distintos del original, con el mismo `target_muscle_group` y sin zonas de `contraindicated_zones` en común con las `ProtectedZone` del alumno (D9); si la alternativa tiene variante segura (D11) se muestra esa variante. Sin tabla nueva ni dependencia de la modalidad (`GYM`/`HOME`). Alternativa descartada: vínculo manual ejercicio→alternativa (más trabajo para el entrenador; ceiling: agregarlo, al estilo `ExerciseSafeVariant`, si piden curar la lista).
+
+**D16 — Registro propio del reemplazo.** Decisión: `ExerciseReplacementLog` (alumno, rutina, día, fecha UTC, ejercicio original, alternativa o salto), con una fila por ejercicio original que se sobrescribe. No depende de una entidad sesión (spec 007 no implementada; Principio VII) y sigue el criterio de D14. Se reconcilia con la sesión cuando 007 exista. La rutina vigente no se modifica; las series se registran con el `exercise_id` realmente realizado (`WorkoutSetLog`).

@@ -38,6 +38,14 @@
 - Q: ¿Cómo se notifica al entrenador la falta de variante y qué pasa con consultas repetidas? → A: Una notificación in-app por combinación alumno + ejercicio; las consultas repetidas no generan otra mientras el caso siga pendiente, y se cierra cuando el entrenador carga la variante.
 - Q: ¿Qué pasa si cambian las restricciones del alumno o la variante mientras el alumno la ve? → A: La variante se resuelve en cada consulta con los datos vigentes; los cambios aplican de inmediato, incluso a sesiones ya iniciadas.
 
+### Session 2026-11-08 (US-54)
+
+- Q: Cuando el alumno elige una alternativa para un ejercicio, ¿el reemplazo vale solo para la sesión en curso o cambia su rutina de forma permanente? → A: Solo la sesión en curso; la rutina asignada no cambia y el próximo entrenamiento vuelve al ejercicio original.
+- Q: Si el alumno tiene una restricción física, ¿las alternativas ofrecidas deben excluir ejercicios de riesgo para sus zonas protegidas? → A: Sí; solo se ofrecen alternativas sin zonas de riesgo en común con las restricciones del alumno (o su variante segura si el entrenador la cargó); si no queda ninguna, aplica el caso "sin alternativas".
+- Q: Cuando el alumno elige una alternativa, ¿se registra el pedido para el entrenador? → A: Sí; se registra para la sesión del día (alumno, rutina, día y fecha; ejercicio original y alternativa elegida), visible al revisarla (US-26), sin notificación.
+- Q: ¿Hay un límite de reemplazos del mismo ejercicio por sesión? → A: Sin límite; el alumno puede cambiar de alternativa las veces que quiera y queda registrada solo la última elegida.
+- Q: En modalidad "Casa/Viaje", ¿las alternativas deben ser ejercicios sin máquinas? → A: No; el alumno puede estar de viaje con acceso a un gimnasio, por lo que las alternativas se ofrecen igual que en la modalidad por defecto, independientemente de la modalidad activa.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-13: generar rutina particular con IA] (Priority: P2, Estimación: 5 SP)
@@ -122,11 +130,13 @@ Como alumno, quiero solicitar una alternativa para un ejercicio específico de m
 
 **Acceptance Scenarios**:
 
-1. Dado un alumno viendo su rutina, cuando presiona el botón de sustituir un ejercicio, entonces el sistema le muestra las alternativas cargadas.
+1. Dado un alumno viendo su rutina, cuando presiona el botón de sustituir un ejercicio, entonces el sistema le muestra las alternativas disponibles en la biblioteca de su entrenador.
 
-2. Dado un alumno solicitando una alternativa, cuando el sistema muestra sugerencias, entonces únicamente propone ejercicios que trabajen el mismo grupo muscular.
+2. Dado un alumno solicitando una alternativa, cuando el sistema muestra sugerencias, entonces únicamente propone ejercicios de la biblioteca del entrenador (no dados de baja y distintos del original) con el mismo grupo muscular objetivo y, si el alumno tiene restricciones físicas, excluye los ejercicios de riesgo para sus zonas (FR-004); si el entrenador cargó una variante segura de la alternativa, se muestra esa variante. Si no queda ninguna alternativa válida, aplica el escenario 4.
 
-3. Dado un ejercicio sin alternativas cargadas por el entrenador, cuando el alumno solicita un reemplazo, entonces puede saltear el ejercicio y el pedido queda registrado en la sesión para que el entrenador cargue una alternativa al revisarla (US-26).
+3. Dado un alumno que elige una alternativa, cuando la confirma, entonces el reemplazo aplica solo a la sesión en curso: la rutina asignada no se modifica, los registros de series quedan asociados al ejercicio realmente realizado y el próximo entrenamiento vuelve al ejercicio original. El reemplazo queda registrado para la sesión del día (alumno, rutina, día y fecha; ejercicio original y alternativa elegida) y es visible para el entrenador al revisarla (US-26), sin notificación. No hay límite de cambios por ejercicio y sesión: queda registrada solo la última alternativa elegida. Las alternativas ofrecidas no dependen de la modalidad activa (Gimnasio o Casa/Viaje).
+
+4. Dado un ejercicio sin ninguna alternativa disponible en la biblioteca del entrenador, cuando el alumno solicita un reemplazo, entonces puede saltear el ejercicio y el pedido queda registrado para la sesión del día para que el entrenador cargue una alternativa al revisarla (US-26).
 
 
 ---
@@ -156,7 +166,7 @@ Como alumno, quiero alternar la modalidad de mi rutina entre versión de gimnasi
 
 - ¿Qué ocurre si un ejercicio sugerido coincide con una zona a proteger declarada por el alumno? El sistema DEBE alertar al entrenador y presentar la variante segura correspondiente.
 
-- ¿Qué ocurre si el alumno está en el gimnasio y una máquina está ocupada? El alumno puede solicitar un reemplazo directo y el sistema le ofrece una alternativa para el mismo grupo muscular y patrón de movimiento.
+- ¿Qué ocurre si el alumno está en el gimnasio y una máquina está ocupada? El alumno puede solicitar un reemplazo directo y el sistema le ofrece una alternativa para el mismo grupo muscular.
 
 - ¿Cómo se maneja el cambio de entrenamiento de gimnasio a casa? El alumno activa la modalidad casa/viaje y la rutina adapta los ejercicios a peso corporal o mancuernas sin reiniciar la semana.
 
@@ -182,7 +192,7 @@ Como alumno, quiero alternar la modalidad de mi rutina entre versión de gimnasi
 
 - **FR-004**: El sistema DEBE presentar variantes seguras para alumnos con restricciones físicas o articulares cargadas en su perfil (US-53). Un ejercicio es "de riesgo" cuando comparte al menos una zona de riesgo (etiqueta del ejercicio en la biblioteca) con una restricción del perfil del alumno; el cruce es automático y usa un catálogo único de zonas para ejercicios y restricciones.
 
-- **FR-005**: El sistema DEBE permitir al alumno solicitar un reemplazo de ejercicio si un elemento o máquina no está disponible (US-54).
+- **FR-005**: El sistema DEBE permitir al alumno solicitar un reemplazo de ejercicio si un elemento o máquina no está disponible (US-54). El reemplazo aplica únicamente a la sesión en curso y no modifica la rutina asignada. Las alternativas ofrecidas a un alumno con restricciones físicas no pueden ser ejercicios de riesgo para sus zonas.
 
 - **FR-006**: El sistema DEBE permitir al alumno alternar la rutina entre versión gimnasio y versión casa/viaje manteniendo el plan semanal (US-55).
 
@@ -196,7 +206,9 @@ Como alumno, quiero alternar la modalidad de mi rutina entre versión de gimnasi
 
 - **ExerciseSafeVariant**: Variante biomecánicamente segura de un ejercicio, asociada a restricciones físicas específicas del alumno. Se vincula a un ejercicio y a una o más zonas de riesgo del catálogo común; el ejercicio de la biblioteca porta etiquetas de zonas de riesgo.
 
-- **EquipmentAlternative**: Reemplazo de ejercicio para el mismo grupo muscular en caso de máquina ocupada o cambio de entorno (gimnasio vs casa).
+- **EquipmentAlternative**: Vista calculada (no persistida) de los ejercicios de la biblioteca del entrenador que trabajan el mismo grupo muscular objetivo que el original y no son de riesgo para el alumno.
+
+- **ExerciseReplacementLog**: Registro por alumno, rutina, día y fecha de sesión del ejercicio original y de la alternativa elegida (o del salto); una sola entrada por ejercicio original, que conserva la última elección.
 
 
 

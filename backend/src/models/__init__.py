@@ -5,6 +5,7 @@ from backend.src.models.assigned_routine import (
     AssignedRoutineExercise,
 )
 from backend.src.models.exercise import Exercise
+from backend.src.models.exercise_replacement_log import ExerciseReplacementLog
 from backend.src.models.medical_clearance import MedicalClearance
 from backend.src.models.notification import Notification
 from backend.src.models.routine_template import (
@@ -34,6 +35,7 @@ __all__ = [
     "AssignedRoutineDay",
     "AssignedRoutineExercise",
     "Exercise",
+    "ExerciseReplacementLog",
     "ExerciseSafeVariant",
     "HealthQuestionnaire",
     "MedicalClearance",

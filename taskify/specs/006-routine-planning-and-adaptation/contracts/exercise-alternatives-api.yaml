@@ -1,0 +1,49 @@
+openapi: 3.0.3
+info: {title: Alternativa o reemplazo de ejercicio (US-54), version: 1.0.0}
+paths:
+  /api/v1/students/me/exercises/{exerciseId}/alternatives:
+    get:
+      summary: Alternativas calculadas para un ejercicio de la rutina vigente del alumno
+      description: Mismo target_muscle_group, biblioteca del entrenador, no dados de baja, distintos del original y sin zonas de riesgo del alumno. Independiente de la modalidad (GYM/HOME).
+      responses:
+        "200":
+          description: Lista posiblemente vacía (vacía → el alumno puede saltear)
+          content: {application/json: {schema: {type: object, properties: {alternatives: {type: array, items: {$ref: '#/components/schemas/Alternative'}}, can_skip: {type: boolean}}}}}
+        "403": {description: Sin vínculo activo}
+        "404": {description: El ejercicio no está en su rutina vigente}
+  /api/v1/students/me/exercise-replacements:
+    put:
+      summary: Elegir una alternativa o saltear un ejercicio en la sesión del día (sobrescribe la elección previa)
+      requestBody:
+        content: {application/json: {schema: {$ref: '#/components/schemas/ReplacementInput'}}}
+      description: Si la alternativa elegida tiene variante segura para el alumno, se registra la variante (replacement_exercise_id de la respuesta). routine_id se toma de la rutina vigente del alumno (el mismo valor que guarda WorkoutSetLog); no lo envía el cliente.
+      responses:
+        "200": {description: Registrado; la rutina vigente no cambia, content: {application/json: {schema: {$ref: '#/components/schemas/ReplacementResponse'}}}}
+        "403": {description: Sin vínculo activo}
+        "404": {description: El ejercicio original no está en su rutina vigente}
+        "422": {description: La alternativa no figura en la lista vigente (problem+json con errors[])}
+components:
+  schemas:
+    Alternative:
+      type: object
+      properties:
+        exercise_id: {type: string}
+        name: {type: string}
+        equipment_needed: {type: string}
+        variant:
+          nullable: true
+          description: Variante segura de la alternativa (US-53), si el alumno la necesita y existe.
+          type: object
+          properties: {exercise_id: {type: string}, name: {type: string}}
+    ReplacementResponse:
+      type: object
+      properties:
+        original_exercise_id: {type: string}
+        replacement_exercise_id: {type: string, nullable: true}
+    ReplacementInput:
+      type: object
+      required: [day_name, original_exercise_id]
+      properties:
+        day_name: {type: string}
+        original_exercise_id: {type: string}
+        replacement_exercise_id: {type: string, nullable: true, description: "Nulo = el alumno saltea el ejercicio"}

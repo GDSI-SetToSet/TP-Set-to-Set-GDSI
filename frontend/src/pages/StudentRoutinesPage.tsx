@@ -3,6 +3,8 @@ import { ArrowLeft, CheckCircle2, Dumbbell, History, Home, Video, X } from 'luci
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SafeVariantNotice } from '../components/SafeVariantNotice';
+import { ExerciseAlternativesPanel } from '../components/ExerciseAlternativesPanel';
+import type { ExerciseAlternative } from '../types/exerciseAlternative';
 import { RestTimer } from '../components/RestTimer';
 import { ROUTES } from '../constants/routes';
 import {
@@ -63,6 +65,8 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [skipped, setSkipped] = useState<string[]>([]);
+  // US-54: reemplazos de la sesión en curso (id del ítem → alternativa); no modifican la rutina
+  const [replacements, setReplacements] = useState<Record<string, ExerciseAlternative>>({});
   const [blockedExerciseIds, setBlockedExerciseIds] = useState<string[]>([]);
 
   const [switchingModality, setSwitchingModality] = useState(false);
@@ -338,7 +342,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     setSavingExerciseId(item.id);
     try {
       const created = await createAssignedRoutineWorkoutLog({
-        exercise_id: item.exercise.id,
+        exercise_id: replacements[item.id]?.exercise_id ?? item.exercise.id,
         day_name: selectedDay.name,
         set_number: parsedSet,
         reps_completed: draft.repsCompleted.trim(),
@@ -542,7 +546,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                       <li key={item.id}>
                         <div className="student-routine-exercise__summary">
                           <div className="student-routine-exercise__title-row">
-                            <h4>{item.exercise.name}</h4>
+                            <h4>{replacements[item.id]?.name ?? item.exercise.name}</h4>
                             <span
                               className={`student-routine-exercise__modality-badge ${
                                 isHomeModality
@@ -569,6 +573,16 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                             if (status === 'BLOCKED') return isBlocked ? current : [...current, item.exercise.id];
                             return isBlocked ? current.filter((id) => id !== item.exercise.id) : current;
                           })}
+                        />
+                        <ExerciseAlternativesPanel
+                          exerciseId={item.exercise.id}
+                          dayName={selectedDay?.name ?? ''}
+                          chosen={replacements[item.id] ?? null}
+                          onChosen={(alt) => setReplacements((current) => {
+                            const { [item.id]: _removed, ...rest } = current;
+                            return alt ? { ...rest, [item.id]: alt } : rest;
+                          })}
+                          onSkip={() => setSkipped((current) => [...current, item.id])}
                         />
                         <p>{item.sets} series · {item.reps} repeticiones</p>
                         <p>
@@ -622,6 +636,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                           </div>
                         )}
 
+                        {(replacements[item.id] || !blockedExerciseIds.includes(item.exercise.id)) && <div className="student-routine-exercise__logger">
                         {sessionMode && !blockedExerciseIds.includes(item.exercise.id) && !activeSet && !finishedSet && !activeRest && <div className="student-routine-exercise__session-actions"><button type="button" className="student-routine-exercise__log-btn" disabled={getRecordedSetCount(item) >= item.sets} onClick={() => handleStartSet(item)}>{getRecordedSetCount(item) >= item.sets ? 'Series completadas' : 'Iniciar serie'}</button></div>}
                         {sessionMode && activeSet?.exerciseId === item.id && <div className="student-routine-exercise__session-actions">
                           <span className="student-routine-exercise__elapsed-clock" role="timer" aria-label="Duración de la serie">{formatClock(activeSetSeconds)}</span>
@@ -695,6 +710,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                             <CheckCircle2 size={17} />
                             {savingExerciseId === item.id ? 'Guardando…' : 'Marcar serie completada'}
                           </button>
+                        </div>}
                         </div>}
                       </li>
                     );

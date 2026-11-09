@@ -116,3 +116,13 @@ Reglas: solo el entrenador del vínculo ACTIVE edita; el alumno solo lee el cont
 
 ## Transiciones del caso
 `(nuevo)` → `PENDING` → (el entrenador crea/edita una variante que cubre el conflicto) → `RESOLVED` → (nueva consulta sin cobertura, p. ej. cambian las restricciones) → `PENDING` + nueva notificación.
+
+# Data Model: US-54
+
+## ExerciseReplacementLog
+- `id`, `student_id` (FK `student_profiles`), `routine_id`, `day_name`, `session_date` (fecha UTC; las series se aceptan con reemplazos de hoy o de ayer UTC), `original_exercise_id` (FK `exercises`), `replacement_exercise_id` (FK `exercises`, nullable: nulo = el alumno salteó), `updated_at` (UTC)
+- Único por (`student_id`, `routine_id`, `day_name`, `session_date`, `original_exercise_id`): cada nueva elección o salto sobrescribe la anterior.
+- La alternativa debe estar en la lista calculada vigente; si tiene variante segura para el alumno, `replacement_exercise_id` guarda la variante; no modifica `StudentRoutine`.
+
+## Alternativas (no persistidas)
+`alternativas = ejercicios del mismo entrenador, no dados de baja, ≠ original, mismo target_muscle_group, sin zonas de riesgo en común con las zonas protegidas del alumno`. Vacío → el alumno puede saltear.

@@ -78,3 +78,14 @@
 .safe-variants-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
 .safe-variants-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .safe-variants-hint { color: var(--pf-muted); font-size: 14px; }
+
+.exercise-alternatives { margin: 8px 0; display: grid; gap: 8px; }
+.exercise-alternatives ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.exercise-alternatives button { min-height: 44px; min-width: 44px; }
+.exercise-alternatives { justify-items: start; }
+.exercise-alternatives li button { display: grid; justify-items: start; text-align: left; width: 100%; }
+.exercise-alternatives li button small { color: var(--pf-muted); font-size: 14px; }
+.exercise-alternatives button[aria-pressed="true"] { border-color: #1e6247; background: #eef8f2; color: #1e6247; }
+.exercise-alternatives button:disabled { opacity: .6; cursor: not-allowed; }
+.exercise-alternatives p { margin: 0; }
+.student-daily-routine .student-daily-routine__block li > .exercise-alternatives { grid-column: 2; grid-row: auto; margin-top: 8px; }
