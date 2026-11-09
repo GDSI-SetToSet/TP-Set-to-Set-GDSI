@@ -1,12 +1,13 @@
 import { isAxiosError } from 'axios';
-import { ArrowLeft, Dumbbell, History, Home, PlusCircle, Video, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ArrowLeft, CheckCircle2, Dumbbell, History, Home, Video, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SafeVariantNotice } from '../components/SafeVariantNotice';
 import { RestTimer } from '../components/RestTimer';
 import { ROUTES } from '../constants/routes';
 import {
   createAssignedRoutineWorkoutLog,
+  deleteAssignedRoutineWorkoutLog,
   getAssignedRoutineWorkoutLogs,
   getAssignedRoutineWorkoutSessions,
   getAssignedStudentRoutine,
@@ -72,6 +73,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const [workoutSessions, setWorkoutSessions] = useState<WorkoutSession[]>([]);
   const [logDrafts, setLogDrafts] = useState<Record<string, SetLogDraft>>({});
   const [savingExerciseId, setSavingExerciseId] = useState<string | null>(null);
+  const [deletingLogId, setDeletingLogId] = useState<string | null>(null);
   const [logError, setLogError] = useState('');
   const [startingWorkout, setStartingWorkout] = useState(false);
   const [finishingWorkout, setFinishingWorkout] = useState(false);
@@ -80,6 +82,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const [activeRest, setActiveRest] = useState<{ exerciseName: string; durationSeconds: number; key: string } | null>(null);
   const [clockNow, setClockNow] = useState(Date.now());
   const [autoFinishPending, setAutoFinishPending] = useState(false);
+  const autoFinishTimeout = useRef<number | null>(null);
 
   useEffect(() => {
     Promise.all([getAssignedStudentRoutine(), getAssignedRoutineWorkoutLogs().catch(() => []), getAssignedRoutineWorkoutSessions().catch(() => [])])
@@ -100,6 +103,10 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     const interval = window.setInterval(tick, 1000);
     return () => window.clearInterval(interval);
   }, [activeSet, sessionMode]);
+
+  useEffect(() => () => {
+    if (autoFinishTimeout.current !== null) window.clearTimeout(autoFinishTimeout.current);
+  }, []);
 
   useEffect(() => {
     if (!sessionMode || !sessionId || sessionStartedAtMs !== null) return;
@@ -181,15 +188,25 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const activeSetSeconds = activeSet ? Math.max(0, Math.floor((clockNow - activeSet.startedAt) / 1000)) : 0;
   const formatClock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
+  const getPreviousLog = (item: RoutineExercise) => workoutLogs
+    .filter((log) => log.exercise_id === item.exercise.id && log.session_id !== sessionId)
+    .sort((left, right) => right.recorded_at.localeCompare(left.recorded_at))[0];
+
   const getDraftForItem = (item: RoutineExercise): SetLogDraft => {
     const existing = logDrafts[item.id];
     if (existing) return existing;
-    const exerciseLogsCount = getRecordedSetCount(item);
-    const nextSet = Math.min(item.sets, exerciseLogsCount + 1);
-    const defaultWeight = isHomeModality ? '0' : item.target_weight_kg !== null ? String(item.target_weight_kg) : '';
+    const recordedSetNumbers = new Set(currentSessionLogs
+      .filter((log) => log.exercise_id === item.exercise.id && log.day_name === (selectedDay?.name ?? ''))
+      .map((log) => log.set_number));
+    let nextSet = 1;
+    while (nextSet <= item.sets && recordedSetNumbers.has(nextSet)) nextSet += 1;
+    const previousLog = getPreviousLog(item);
+    const defaultWeight = previousLog?.weight_kg !== null && previousLog?.weight_kg !== undefined
+      ? String(previousLog.weight_kg)
+      : isHomeModality ? '0' : item.target_weight_kg !== null ? String(item.target_weight_kg) : '';
     return {
       setNumber: String(nextSet),
-      repsCompleted: item.reps,
+      repsCompleted: previousLog?.reps_completed ?? item.reps,
       weightKg: defaultWeight,
     };
   };
@@ -268,6 +285,14 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     }
   };
 
+  const scheduleAutoFinish = () => {
+    if (autoFinishTimeout.current !== null) window.clearTimeout(autoFinishTimeout.current);
+    autoFinishTimeout.current = window.setTimeout(() => {
+      autoFinishTimeout.current = null;
+      void handleFinishWorkout(true);
+    }, 5000);
+  };
+
   const handleStartSet = (item: RoutineExercise) => {
     if (activeRest || activeSet || finishedSet || blockedExerciseIds.includes(item.exercise.id)) return;
     setActiveSet({ exerciseId: item.id, startedAt: Date.now() });
@@ -291,8 +316,18 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       setLogError('El número de serie debe estar entre 1 y 20.');
       return;
     }
+    if (sessionMode && currentSessionLogs.some((log) =>
+      log.exercise_id === item.exercise.id && log.day_name === selectedDay.name && log.set_number === parsedSet,
+    )) {
+      setLogError('Esa serie ya está marcada como completada.');
+      return;
+    }
     if (!draft.repsCompleted.trim()) {
       setLogError('Indicá las repeticiones o tiempo completado.');
+      return;
+    }
+    if (sessionMode && parsedWeight === null) {
+      setLogError('Indicá el peso usado. Si fue peso corporal, ingresá 0 kg.');
       return;
     }
     if (parsedWeight !== null && (Number.isNaN(parsedWeight) || parsedWeight < 0)) {
@@ -327,7 +362,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       if (item.rest_seconds > 0) {
         setActiveRest({ exerciseName: item.exercise.name, durationSeconds: item.rest_seconds, key: created.id });
       } else if (allRequiredSetsDone) {
-        await handleFinishWorkout(true);
+        scheduleAutoFinish();
       }
       const nextSet = Math.min(20, parsedSet + 1);
       setLogDrafts((prev) => ({
@@ -342,6 +377,42 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       setLogError(typeof detail === 'string' ? detail : 'No pudimos guardar el registro de la serie. Intentá nuevamente.');
     } finally {
       setSavingExerciseId(null);
+    }
+  };
+
+  const handleUncheckSet = async (log: WorkoutSetLog) => {
+    if (!sessionId || log.session_id !== sessionId || deletingLogId || finishingWorkout) return;
+    setLogError('');
+    if (autoFinishTimeout.current !== null) {
+      window.clearTimeout(autoFinishTimeout.current);
+      autoFinishTimeout.current = null;
+    }
+    setDeletingLogId(log.id);
+    try {
+      await deleteAssignedRoutineWorkoutLog(log.id);
+      const updatedLogs = workoutLogs.filter((item) => item.id !== log.id);
+      setWorkoutLogs(updatedLogs);
+      const routineExercise = selectedDay?.blocks.flatMap((block) => block.exercises)
+        .find((item) => item.exercise.id === log.exercise_id);
+      if (routineExercise) setLogDrafts((current) => {
+        const next = { ...current };
+        delete next[routineExercise.id];
+        return next;
+      });
+      const allRequiredSetsDone = Boolean(selectedDay) && selectedDay.blocks
+        .flatMap((block) => block.exercises)
+        .filter((exercise) => !skipped.includes(exercise.id))
+        .every((exercise) => updatedLogs.filter((item) =>
+          item.session_id === sessionId
+          && item.day_name === selectedDay.name
+          && item.exercise_id === exercise.exercise.id,
+        ).length >= exercise.sets);
+      setAutoFinishPending(allRequiredSetsDone);
+    } catch {
+      setLogError('No pudimos desmarcar la serie. Intentá nuevamente.');
+      if (autoFinishPending && !activeRest) scheduleAutoFinish();
+    } finally {
+      setDeletingLogId(null);
     }
   };
 
@@ -393,12 +464,13 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                 <span className="student-routine-session-heading__badge">SESIÓN ACTIVA</span>
                 <h2>{selectedDay?.name ?? 'Rutina'}</h2>
                 <p>Iniciá una serie, finalizala y registrá las repeticiones y la carga.</p>
+                {autoFinishPending && !activeRest && <p className="student-routine-session-heading__undo-hint" role="status">Completaste las series. El entrenamiento se cerrará automáticamente en unos segundos; desmarcá una serie si fue un error.</p>}
                 <span className="student-routine-session-heading__elapsed" role="timer" aria-label="Tiempo transcurrido del entrenamiento">Tiempo de entrenamiento: {formatClock(sessionStartedAtMs ? Math.max(0, Math.floor((clockNow - sessionStartedAtMs) / 1000)) : 0)}</span>
               </div>
             </div>}
             {sessionMode && activeRest && <RestTimer key={activeRest.key} exerciseName={activeRest.exerciseName} durationSeconds={activeRest.durationSeconds} onFinish={() => {
               setActiveRest(null);
-              if (autoFinishPending) void handleFinishWorkout(true);
+              if (autoFinishPending) scheduleAutoFinish();
             }} />}
 
             {!sessionMode && <div className="student-routine-modality" aria-label="Selector rápido de modalidad de rutina">
@@ -460,6 +532,10 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                 <ol>
                   {block.exercises.filter((item) => !skipped.includes(item.id)).map((item) => {
                     const draft = getDraftForItem(item);
+                    const previousLog = getPreviousLog(item);
+                    const itemSessionLogs = currentSessionLogs
+                      .filter((log) => log.exercise_id === item.exercise.id && log.day_name === selectedDay?.name)
+                      .sort((left, right) => left.set_number - right.set_number);
                     return (
                       <li key={item.id}>
                         <div className="student-routine-exercise__summary">
@@ -549,8 +625,36 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                           <span className="student-routine-exercise__elapsed-clock" role="timer" aria-label="Duración de la serie">{formatClock(activeSetSeconds)}</span>
                           <button type="button" className="student-routine-exercise__log-btn" onClick={() => handleFinishSet(item)}>Finalizar serie</button>
                         </div>}
+                        {sessionMode && <ul className="student-routine-exercise__checklist" aria-label={`Checklist de series de ${item.exercise.name}`}>
+                          {Array.from({ length: item.sets }, (_, index) => {
+                            const setNumber = index + 1;
+                            const log = itemSessionLogs.find((entry) => entry.set_number === setNumber);
+                            const checkboxId = `set-check-${item.id}-${setNumber}`;
+                            return <li key={setNumber} className={log ? 'student-routine-exercise__checklist-item--completed' : ''}>
+                              <label htmlFor={checkboxId}>
+                                <input
+                                  id={checkboxId}
+                                  type="checkbox"
+                                  checked={Boolean(log)}
+                                  disabled={!log || deletingLogId === log.id || finishingWorkout}
+                                  onChange={() => { if (log) void handleUncheckSet(log); }}
+                                  aria-label={log ? `Desmarcar serie ${setNumber} de ${item.exercise.name}` : `Serie ${setNumber} pendiente`}
+                                />
+                                <span className="student-routine-exercise__checklist-copy">
+                                  <strong>{log ? `Serie ${setNumber} completada` : `Serie ${setNumber}`}</strong>
+                                  <span>{log ? `${log.reps_completed} reps · ${log.weight_kg === null ? '—' : `${log.weight_kg} kg`}` : '— reps · — kg'}</span>
+                                </span>
+                              </label>
+                              {log && deletingLogId === log.id && <span className="student-routine-exercise__checklist-status">Actualizando…</span>}
+                            </li>;
+                          })}
+                        </ul>}
                         {sessionMode && finishedSet?.exerciseId === item.id && !blockedExerciseIds.includes(item.exercise.id) && <p className="student-routine-exercise__elapsed">Duración de la serie: {finishedSet.durationSeconds} s</p>}
                         {sessionMode && finishedSet?.exerciseId === item.id && !blockedExerciseIds.includes(item.exercise.id) && <div className="student-routine-exercise__logger">
+                          {previousLog && <p className="student-routine-exercise__previous-reference">
+                            Sesión anterior ({new Date(previousLog.recorded_at).toLocaleDateString('es-AR')}): {previousLog.reps_completed} reps · {previousLog.weight_kg === null ? 'sin peso registrado' : `${previousLog.weight_kg} kg`}
+                          </p>}
+                          <p className="student-routine-exercise__logger-hint">Completá repeticiones y peso para habilitar el registro. Para peso corporal, ingresá 0 kg.</p>
                           <label>
                             Serie
                             <input
@@ -558,7 +662,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                               min={1}
                               max={20}
                               value={draft.setNumber}
-                              onChange={(event) => updateDraftField(item, 'setNumber', event.target.value)}
+                              readOnly
                             />
                           </label>
                           <label>
@@ -582,12 +686,12 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                           </label>
                           <button
                             type="button"
-                            className="student-routine-exercise__log-btn"
-                            disabled={savingExerciseId === item.id}
+                            className="student-routine-exercise__log-btn student-routine-exercise__complete-set-btn"
+                            disabled={savingExerciseId === item.id || !draft.repsCompleted.trim() || !draft.weightKg.trim()}
                             onClick={() => handleRecordSet(item)}
                           >
-                            <PlusCircle size={16} />
-                            {savingExerciseId === item.id ? 'Guardando…' : 'Registrar serie'}
+                            <CheckCircle2 size={17} />
+                            {savingExerciseId === item.id ? 'Guardando…' : 'Marcar serie completada'}
                           </button>
                         </div>}
                       </li>
@@ -658,7 +762,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
             </section>}
             {sessionMode && <div className="student-routine-finish">
               <button type="button" className="student-routine-finish__button"
-                disabled={!sessionId || Boolean(activeSet || finishedSet || savingExerciseId || finishingWorkout || autoFinishPending)}
+                disabled={!sessionId || Boolean(activeSet || finishedSet || savingExerciseId || deletingLogId || finishingWorkout || autoFinishPending)}
                 onClick={() => void handleFinishWorkout(false)}>
                 {finishingWorkout ? 'Finalizando…' : 'Finalizar rutina'}
               </button>

@@ -558,3 +558,78 @@
 .student-routine-history--progress { margin-top: 28px; }
 .student-routine-history__item--workout { padding: 14px 16px; }
 .student-routine-history__averages { color: var(--pf-label, #2f5340); font-size: 13px; font-weight: 700; }
+
+.student-routine-exercise__previous-reference,
+.student-routine-exercise__logger-hint {
+  flex: 1 0 100%;
+  margin: 0;
+  color: var(--pf-body, #475569);
+  font-size: 13px;
+}
+.student-routine-exercise__previous-reference {
+  color: var(--pf-label, #2f5340);
+  font-weight: 800;
+}
+.student-routine-exercise__logger-hint { margin-bottom: 2px; }
+.student-routine-exercise__complete-set-btn:disabled { opacity: .5; cursor: not-allowed; }
+.student-routine-exercise__checklist {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.student-daily-routine .student-daily-routine__block li .student-routine-exercise__checklist > li {
+  display: block;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  gap: 0;
+  padding: 0 !important;
+  border: 1px solid #cfe0d3;
+  border-radius: 10px;
+  background: #fff;
+  counter-increment: none !important;
+}
+.student-daily-routine .student-daily-routine__block li .student-routine-exercise__checklist > li::before { content: none !important; }
+.student-daily-routine .student-daily-routine__block li .student-routine-exercise__checklist > li.student-routine-exercise__checklist-item--completed {
+  border-color: #a9cfb4;
+  background: #f3faf5;
+}
+.student-routine-exercise__checklist label {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.student-routine-exercise__checklist input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--pf-accent, #397452);
+}
+.student-routine-exercise__checklist input:disabled { opacity: 1; cursor: default; }
+.student-routine-exercise__checklist-copy {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+.student-routine-exercise__checklist-copy strong,
+.student-routine-exercise__checklist-copy > span { display: block; }
+.student-routine-exercise__checklist-copy strong { color: var(--pf-label, #2f5340); font-size: 14px; }
+.student-routine-exercise__checklist-copy > span { margin-top: 2px; color: var(--pf-body, #475569); font-size: 13px; }
+.student-routine-exercise__checklist-status { display: block; padding: 0 12px 8px 42px; color: var(--pf-muted, #64756c); font-size: 12px; }
+.student-routine-session-heading__undo-hint { margin-top: 8px !important; color: #785b18 !important; font-size: 13px; font-weight: 700; }

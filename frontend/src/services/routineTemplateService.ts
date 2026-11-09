@@ -56,6 +56,10 @@ export async function finishAssignedWorkoutSession(sessionId: string): Promise<W
   return data;
 }
 
+export async function deleteAssignedRoutineWorkoutLog(logId: string): Promise<void> {
+  await api.delete(`${STUDENT_ASSIGNED_PATH}/workout-logs/${logId}`);
+}
+
 export async function getAssignedRoutineWorkoutSessions(): Promise<WorkoutSession[]> {
   const { data } = await api.get<WorkoutSession[]>(`${STUDENT_ASSIGNED_PATH}/workout-sessions`);
   return data;
@@ -71,6 +75,11 @@ export async function getAssignedRoutineWorkoutLogs(exerciseId?: string): Promis
 
 export async function createAssignedRoutineWorkoutLog(payload: WorkoutSetLogInput): Promise<WorkoutSetLog> {
   const { data } = await api.post<WorkoutSetLog>(`${STUDENT_ASSIGNED_PATH}/workout-logs`, payload);
+  return data;
+}
+
+export async function getTrainerStudentWorkoutLogs(relationshipId: string): Promise<WorkoutSetLog[]> {
+  const { data } = await api.get<WorkoutSetLog[]>(`${TEMPLATES_PATH}/assignments/${relationshipId}/workout-logs`);
   return data;
 }
 

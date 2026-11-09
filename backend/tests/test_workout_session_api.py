@@ -27,7 +27,7 @@ def register_and_login(api, email: str, role: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
-def create_assigned_routine(api, sessions, trainer, student_email: str) -> str:
+def create_assigned_routine(api, sessions, trainer, student_email: str) -> tuple[str, str]:
     exercise_response = api.post(
         "/api/v1/exercises",
         headers=trainer,
@@ -78,7 +78,7 @@ def create_assigned_routine(api, sessions, trainer, student_email: str) -> str:
         json={"routine_template_id": routine_id},
     )
     assert assigned.status_code == 200
-    return exercise_id
+    return exercise_id, relationship_id
 
 
 def link_student(sessions, trainer_email: str, student_email: str) -> str:
@@ -123,7 +123,7 @@ def test_workout_session_records_start_finish_total_time_and_set_duration(client
     api, sessions = client
     trainer = register_and_login(api, "trainer@example.com", "TRAINER")
     student = register_and_login(api, "student@example.com", "STUDENT")
-    exercise_id = create_assigned_routine(api, sessions, trainer, "student@example.com")
+    exercise_id, relationship_id = create_assigned_routine(api, sessions, trainer, "student@example.com")
     sessions_path = f"{ASSIGNED_PATH}/workout-sessions"
     logs_path = f"{ASSIGNED_PATH}/workout-logs"
 
@@ -136,6 +136,31 @@ def test_workout_session_records_start_finish_total_time_and_set_duration(client
     assert started_session["finished_at"] is None
     assert parse_api_datetime(started_session["started_at"]) == clock["now"]
     assert api.get(sessions_path, headers=student).json() == []
+
+    missing_weight = api.post(
+        logs_path,
+        headers=student,
+        json={
+            "exercise_id": exercise_id,
+            "day_name": "Día 1",
+            "set_number": 1,
+            "reps_completed": "8",
+            "session_id": started_session["id"],
+        },
+    )
+    assert missing_weight.status_code == 422
+    missing_reps = api.post(
+        logs_path,
+        headers=student,
+        json={
+            "exercise_id": exercise_id,
+            "day_name": "Día 1",
+            "set_number": 1,
+            "weight_kg": 10,
+            "session_id": started_session["id"],
+        },
+    )
+    assert missing_reps.status_code == 422
 
     recorded = api.post(
         logs_path,
@@ -153,6 +178,17 @@ def test_workout_session_records_start_finish_total_time_and_set_duration(client
     assert recorded.status_code == 201
     assert recorded.json()["session_id"] == started_session["id"]
     assert recorded.json()["duration_seconds"] == 37
+    trainer_logs = api.get(
+        f"{TEMPLATES_PATH}/assignments/{relationship_id}/workout-logs",
+        headers=trainer,
+    )
+    assert trainer_logs.status_code == 200
+    assert [log["id"] for log in trainer_logs.json()] == [recorded.json()["id"]]
+    other_trainer = register_and_login(api, "other-trainer@example.com", "TRAINER")
+    assert api.get(
+        f"{TEMPLATES_PATH}/assignments/{relationship_id}/workout-logs",
+        headers=other_trainer,
+    ).status_code == 404
 
     wrong_day = api.post(
         logs_path,
@@ -187,6 +223,7 @@ def test_workout_session_records_start_finish_total_time_and_set_duration(client
         },
     )
     assert after_finish.status_code == 422
+    assert api.delete(f"{logs_path}/{recorded.json()['id']}", headers=student).status_code == 422
 
     listed = api.get(sessions_path, headers=student)
     assert listed.status_code == 200
@@ -208,22 +245,58 @@ def test_workout_sessions_are_independent_and_private_to_the_student(client):
     trainer = register_and_login(api, "trainer@example.com", "TRAINER")
     student = register_and_login(api, "student@example.com", "STUDENT")
     another_student = register_and_login(api, "another@example.com", "STUDENT")
-    create_assigned_routine(api, sessions, trainer, "student@example.com")
+    exercise_id, _ = create_assigned_routine(api, sessions, trainer, "student@example.com")
     sessions_path = f"{ASSIGNED_PATH}/workout-sessions"
+    logs_path = f"{ASSIGNED_PATH}/workout-logs"
 
     first = api.post(sessions_path, headers=student, json={"day_name": "Día 1"})
     assert first.status_code == 201
     first_id = first.json()["id"]
+    first_log = api.post(
+        logs_path,
+        headers=student,
+        json={
+            "exercise_id": exercise_id,
+            "day_name": "Día 1",
+            "set_number": 1,
+            "reps_completed": "8",
+            "weight_kg": 10,
+            "duration_seconds": 25,
+            "session_id": first_id,
+        },
+    )
+    assert first_log.status_code == 201
+    removed = api.delete(f"{logs_path}/{first_log.json()['id']}", headers=student)
+    assert removed.status_code == 204
+    assert api.get(logs_path, headers=student).json() == []
     assert api.post(f"{sessions_path}/{first_id}/finish", headers=student).status_code == 200
 
     second = api.post(sessions_path, headers=student, json={"day_name": "Día 1"})
     assert second.status_code == 201
     second_id = second.json()["id"]
     assert second_id != first_id
+    second_log = api.post(
+        logs_path,
+        headers=student,
+        json={
+            "exercise_id": exercise_id,
+            "day_name": "Día 1",
+            "set_number": 1,
+            "reps_completed": "9",
+            "weight_kg": 12,
+            "duration_seconds": 28,
+            "session_id": second_id,
+        },
+    )
+    assert second_log.status_code == 201
     assert api.post(f"{sessions_path}/{second_id}/finish", headers=student).status_code == 200
 
     listed = api.get(sessions_path, headers=student)
     assert listed.status_code == 200
     assert {item["id"] for item in listed.json()} == {first_id, second_id}
+    saved_logs = api.get(logs_path, headers=student).json()
+    assert len(saved_logs) == 1
+    assert saved_logs[0]["session_id"] == second_id
+    assert saved_logs[0]["set_number"] == 1
     assert api.get(sessions_path, headers=another_student).json() == []
     assert api.post(f"{sessions_path}/{first_id}/finish", headers=another_student).status_code == 404
