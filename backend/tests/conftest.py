@@ -11,6 +11,8 @@ from backend.src.models import (  # noqa: F401
     AssignedRoutineBlock,
     AssignedRoutineDay,
     AssignedRoutineExercise,
+    BodyMapPainReport,
+    BodyMapPainReportZone,
     Exercise,
     MedicalClearance,
     Notification,
