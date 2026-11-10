@@ -203,7 +203,8 @@ def _migrate_sqlite_workout_sessions_check_constraint(eng: Engine, inspector) ->
                 ]
                 if "rpe" in cols:
                     cols_target.append("rpe")
-                cols_str = ", ".join(cols_target)
+                cols_to_copy = [c for c in cols_target if c in cols]
+                cols_str = ", ".join(cols_to_copy)
                 conn.execute(text(f"INSERT INTO _workout_sessions_new ({cols_str}) SELECT {cols_str} FROM workout_sessions"))
                 conn.execute(text("DROP TABLE workout_sessions"))
                 conn.execute(text("ALTER TABLE _workout_sessions_new RENAME TO workout_sessions"))
@@ -232,6 +233,114 @@ def _migrate_sqlite_workout_sessions_check_constraint(eng: Engine, inspector) ->
 
     key = "workout_sessions.ck_workout_sessions_rpe_range:sqlite_table_rebuild"
     logger.info("Restricción CHECK aplicada vía reconstrucción de tabla en SQLite: %s", key)
+    return [key]
+
+
+def _migrate_sqlite_body_map_pain_reports_unique_constraint(eng: Engine, inspector) -> list[str]:
+    """Aplica de forma segura y transaccional la restricción de unicidad compuesta (student_id, idempotency_key)
+    en body_map_pain_reports para SQLite legacy, sustituyendo la unicidad global anterior."""
+    fresh_inspector = inspect(eng)
+    existing_tables = set(fresh_inspector.get_table_names())
+    if "body_map_pain_reports" not in existing_tables:
+        return []
+
+    # 1. Determinar si la tabla física requiere migración inspeccionando índices únicos
+    with eng.connect() as conn:
+        raw_indexes = conn.execute(text("PRAGMA index_list('body_map_pain_reports')")).fetchall()
+        has_legacy_single_unique = False
+        has_composite_unique = False
+        for idx in raw_indexes:
+            idx_name = idx[1]
+            is_unique = bool(idx[2])
+            if not is_unique:
+                continue
+            cols = [
+                row[2]
+                for row in conn.execute(text(f"PRAGMA index_info('{idx_name}')")).fetchall()
+            ]
+            if cols == ["idempotency_key"]:
+                has_legacy_single_unique = True
+            elif set(cols) == {"student_id", "idempotency_key"} and len(cols) == 2:
+                has_composite_unique = True
+
+    # Si ya posee la unicidad compuesta y no presenta la unicidad simple obsoleta, el esquema es óptimo
+    if has_composite_unique and not has_legacy_single_unique:
+        return []
+
+    # 2. Validar que no existan registros duplicados para el par (student_id, idempotency_key)
+    with eng.connect() as conn:
+        dup_count = conn.execute(text("""
+            SELECT COUNT(*) FROM (
+                SELECT student_id, idempotency_key
+                FROM body_map_pain_reports
+                WHERE idempotency_key IS NOT NULL
+                GROUP BY student_id, idempotency_key
+                HAVING COUNT(*) > 1
+            )
+        """)).scalar()
+        if dup_count and dup_count > 0:
+            raise ValueError(
+                f"No se puede aplicar la restricción UNIQUE 'uq_body_map_student_idempotency' en 'body_map_pain_reports': "
+                f"se encontraron {dup_count} par(es) (student_id, idempotency_key) duplicados."
+            )
+
+    # 3. Reconstrucción segura de la tabla en SQLite preservando datos, índices y claves foráneas
+    existing_cols = {c["name"] for c in fresh_inspector.get_columns("body_map_pain_reports")}
+    with eng.connect() as conn:
+        dbapi = conn.connection.dbapi_connection
+        if hasattr(dbapi, "execute"):
+            dbapi.execute("PRAGMA foreign_keys=OFF;")
+
+        try:
+            with conn.begin():
+                conn.execute(text("""
+                    CREATE TABLE _body_map_pain_reports_new (
+                        id VARCHAR(36) PRIMARY KEY,
+                        student_id VARCHAR(36) NOT NULL,
+                        relationship_id VARCHAR(36),
+                        session_id VARCHAR(36),
+                        exercise_id VARCHAR(36),
+                        context VARCHAR(32) NOT NULL,
+                        action_taken VARCHAR(32),
+                        idempotency_key VARCHAR(64),
+                        created_at DATETIME NOT NULL,
+                        CONSTRAINT uq_body_map_student_idempotency UNIQUE (student_id, idempotency_key),
+                        FOREIGN KEY(student_id) REFERENCES student_profiles (id) ON DELETE CASCADE,
+                        FOREIGN KEY(relationship_id) REFERENCES training_relationships (id) ON DELETE SET NULL,
+                        FOREIGN KEY(session_id) REFERENCES workout_sessions (id) ON DELETE SET NULL,
+                        FOREIGN KEY(exercise_id) REFERENCES exercises (id) ON DELETE SET NULL
+                    )
+                """))
+                cols_target = [
+                    "id", "student_id", "relationship_id", "session_id",
+                    "exercise_id", "context", "action_taken", "idempotency_key", "created_at"
+                ]
+                cols_to_copy = [c for c in cols_target if c in existing_cols]
+                cols_str = ", ".join(cols_to_copy)
+                conn.execute(text(
+                    f"INSERT INTO _body_map_pain_reports_new ({cols_str}) "
+                    f"SELECT {cols_str} FROM body_map_pain_reports"
+                ))
+                conn.execute(text("DROP TABLE body_map_pain_reports"))
+                conn.execute(text("ALTER TABLE _body_map_pain_reports_new RENAME TO body_map_pain_reports"))
+
+                # Crear índices estándar (con idempotency_key NO único)
+                std_indexes = [
+                    ("ix_body_map_pain_reports_student_id", "student_id"),
+                    ("ix_body_map_pain_reports_relationship_id", "relationship_id"),
+                    ("ix_body_map_pain_reports_session_id", "session_id"),
+                    ("ix_body_map_pain_reports_exercise_id", "exercise_id"),
+                    ("ix_body_map_pain_reports_idempotency_key", "idempotency_key"),
+                    ("ix_body_map_pain_reports_created_at", "created_at"),
+                ]
+                for idx_name, col_name in std_indexes:
+                    conn.execute(text(f"CREATE INDEX IF NOT EXISTS {idx_name} ON body_map_pain_reports ({col_name})"))
+        finally:
+            if hasattr(dbapi, "execute"):
+                dbapi.execute("PRAGMA foreign_keys=ON;")
+
+    key = "body_map_pain_reports.uq_body_map_student_idempotency:sqlite_table_rebuild"
+    logger.info("Restricción UNIQUE compuesta aplicada vía reconstrucción de tabla en SQLite: %s", key)
     return [key]
 
 
@@ -291,10 +400,56 @@ def apply_migrations(target_engine: Engine | None = None) -> list[str]:
                     applied.append(key)
                     logger.info("Restricción CHECK aplicada: %s", key)
 
-    # 4. Migración de restricciones CHECK en SQLite existente mediante reconstrucción segura de tabla
+        # 4. Restricción de unicidad compuesta en body_map_pain_reports (PostgreSQL)
+        if not is_sqlite and "body_map_pain_reports" in existing_tables:
+            unique_constraints = inspector.get_unique_constraints("body_map_pain_reports")
+            for uq in unique_constraints:
+                uq_cols = uq.get("column_names") or []
+                uq_name = uq.get("name")
+                if uq_cols == ["idempotency_key"] and uq_name:
+                    conn.execute(text(f'ALTER TABLE body_map_pain_reports DROP CONSTRAINT IF EXISTS "{uq_name}"'))
+                    key = f"body_map_pain_reports.{uq_name}:drop_legacy_unique"
+                    applied.append(key)
+                    logger.info("Restricción UNIQUE heredada eliminada: %s", key)
+
+            indexes = inspector.get_indexes("body_map_pain_reports")
+            for idx in indexes:
+                idx_cols = idx.get("column_names") or []
+                idx_name = idx.get("name")
+                if idx.get("unique") and idx_cols == ["idempotency_key"] and idx_name:
+                    conn.execute(text(f'DROP INDEX IF EXISTS "{idx_name}"'))
+                    key = f"body_map_pain_reports.{idx_name}:drop_legacy_unique_index"
+                    applied.append(key)
+                    logger.info("Índice UNIQUE heredado eliminado: %s", key)
+
+            existing_uq_names = {u.get("name") for u in inspector.get_unique_constraints("body_map_pain_reports")}
+            if "uq_body_map_student_idempotency" not in existing_uq_names:
+                conn.execute(
+                    text(
+                        "ALTER TABLE body_map_pain_reports "
+                        "ADD CONSTRAINT uq_body_map_student_idempotency "
+                        "UNIQUE (student_id, idempotency_key)"
+                    )
+                )
+                key = "body_map_pain_reports.uq_body_map_student_idempotency:unique_constraint"
+                applied.append(key)
+                logger.info("Restricción UNIQUE compuesta aplicada: %s", key)
+
+            existing_idx_names = {i.get("name") for i in inspector.get_indexes("body_map_pain_reports")}
+            if "ix_body_map_pain_reports_idempotency_key" not in existing_idx_names:
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_body_map_pain_reports_idempotency_key "
+                        "ON body_map_pain_reports (idempotency_key)"
+                    )
+                )
+
+    # 5. Migración de restricciones CHECK y UNIQUE en SQLite existente mediante reconstrucción segura de tabla
     if is_sqlite:
         sqlite_ck_applied = _migrate_sqlite_workout_sessions_check_constraint(eng, inspector)
         applied.extend(sqlite_ck_applied)
+        sqlite_uq_applied = _migrate_sqlite_body_map_pain_reports_unique_constraint(eng, inspector)
+        applied.extend(sqlite_uq_applied)
 
     return applied
 
