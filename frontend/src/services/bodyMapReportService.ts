@@ -48,13 +48,28 @@ export async function getStudentZoneHistory(params?: {
 
 export async function getTrainerStudentBodyMapReports(
   studentId: string,
-  params?: { zone?: string; intensity?: string }
+  params?: { zone?: string; intensity?: string; limit?: number; offset?: number }
 ): Promise<BodyMapReportResponse[]> {
   const { data } = await api.get<BodyMapReportResponse[]>(
     `/api/v1/trainers/me/students/${studentId}/body-map-reports`,
     { params }
   );
   return data;
+}
+
+export async function getAllTrainerStudentBodyMapReports(
+  studentId: string,
+): Promise<BodyMapReportResponse[]> {
+  const reports: BodyMapReportResponse[] = [];
+  const pageSize = 200;
+  let offset = 0;
+
+  while (true) {
+    const page = await getTrainerStudentBodyMapReports(studentId, { limit: pageSize, offset });
+    reports.push(...page);
+    if (page.length < pageSize) return reports;
+    offset += page.length;
+  }
 }
 
 export async function getTrainerStudentZoneHistory(

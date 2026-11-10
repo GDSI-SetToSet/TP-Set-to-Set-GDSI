@@ -4,9 +4,9 @@ import { ChevronDown, Pencil } from 'lucide-react';
 import { ROUTES } from '../constants/routes';
 import { EffortFeedbackForm } from './EffortFeedbackForm';
 import { assignRoutineToStudent, getRoutineAssignments, getTrainerStudentWorkoutLogs, getTrainerStudentWorkoutSessions } from '../services/routineTemplateService';
-import { getTrainerStudentZoneHistory } from '../services/bodyMapReportService';
+import { getAllTrainerStudentBodyMapReports, getTrainerStudentZoneHistory } from '../services/bodyMapReportService';
 import type { TrainerAIRoutine } from '../types/assignedRoutine';
-import type { BodyMapZoneHistoryItem } from '../types/bodyMapReport';
+import type { BodyMapReportResponse, BodyMapZoneHistoryItem } from '../types/bodyMapReport';
 import type { RoutineAssignmentStudent, RoutineTemplate, WorkoutSession, WorkoutSetLog } from '../types/routineTemplate';
 import '../styles/routine-assignment-progress.css';
 import '../styles/body-map.css';
@@ -51,6 +51,8 @@ export function RoutineAssignmentPanel({
   const [students, setStudents] = useState<RoutineAssignmentStudent[]>([]);
   const [selectedRoutines, setSelectedRoutines] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [attentionLoaded, setAttentionLoaded] = useState(false);
+  const [attentionError, setAttentionError] = useState('');
   const [savingId, setSavingId] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -58,8 +60,10 @@ export function RoutineAssignmentPanel({
   const [openProgressFor, setOpenProgressFor] = useState<string | null>(null);
   const [progressByRelationship, setProgressByRelationship] = useState<Record<string, WorkoutSetLog[]>>({});
   const [sessionsByRelationship, setSessionsByRelationship] = useState<Record<string, WorkoutSession[]>>({});
+  const [reportsByStudent, setReportsByStudent] = useState<Record<string, BodyMapReportResponse[]>>({});
   const [zoneReportsByStudent, setZoneReportsByStudent] = useState<Record<string, BodyMapZoneHistoryItem[]>>({});
   const [expandedSessionDetails, setExpandedSessionDetails] = useState<Record<string, boolean>>({});
+  const [highlightedSessionId, setHighlightedSessionId] = useState<string | null>(null);
   const [progressLoadingFor, setProgressLoadingFor] = useState<string | null>(null);
   const [progressErrorFor, setProgressErrorFor] = useState<string | null>(null);
   const openedFromNotification = useRef(false);
@@ -75,6 +79,46 @@ export function RoutineAssignmentPanel({
   }, []);
 
   useEffect(() => {
+    if (loading) return undefined;
+    let cancelled = false;
+    setAttentionLoaded(false);
+    setAttentionError('');
+
+    Promise.all(students.map(async (student) => {
+      const [sessionsResult, reportsResult] = await Promise.allSettled([
+        getTrainerStudentWorkoutSessions(student.relationship_id),
+        getAllTrainerStudentBodyMapReports(student.student_id),
+      ]);
+      return { student, sessionsResult, reportsResult };
+    })).then((results) => {
+      if (cancelled) return;
+      const nextSessions: Record<string, WorkoutSession[]> = {};
+      const nextReports: Record<string, BodyMapReportResponse[]> = {};
+      let failed = false;
+      results.forEach(({ student, sessionsResult, reportsResult }) => {
+        if (sessionsResult.status === 'fulfilled') {
+          nextSessions[student.relationship_id] = sessionsResult.value;
+        } else {
+          failed = true;
+        }
+        if (reportsResult.status === 'fulfilled') {
+          nextReports[student.student_id] = reportsResult.value;
+        } else {
+          failed = true;
+        }
+      });
+      setSessionsByRelationship((current) => ({ ...current, ...nextSessions }));
+      setReportsByStudent(nextReports);
+      setAttentionLoaded(true);
+      if (failed) setAttentionError('No pudimos actualizar todos los indicadores de atención.');
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, students]);
+
+  useEffect(() => {
     if (!initialStudentId || loading || openedFromNotification.current) return;
     const student = students.find((item) => item.student_id === initialStudentId);
     openedFromNotification.current = true;
@@ -82,8 +126,18 @@ export function RoutineAssignmentPanel({
     setOpenProgressFor(student.relationship_id);
     if (initialSessionId) {
       setExpandedSessionDetails((current) => ({ ...current, [initialSessionId]: true }));
+      setHighlightedSessionId(initialSessionId);
     }
   }, [initialStudentId, initialSessionId, loading, students]);
+
+  useEffect(() => {
+    if (!highlightedSessionId || !openProgressFor) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(`routine-session-${highlightedSessionId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [highlightedSessionId, openProgressFor, sessionsByRelationship]);
 
   const approvedAIRoutines = (studentId: string) => aiRoutines.filter((item) => item.student_id === studentId && item.status === 'APPROVED');
 
@@ -152,6 +206,37 @@ export function RoutineAssignmentPanel({
     }
   }
 
+  function focusStudentEvent(student: RoutineAssignmentStudent, sessionId?: string | null) {
+    setOpenProgressFor(student.relationship_id);
+    if (!sessionId) {
+      setHighlightedSessionId(null);
+      return;
+    }
+    setHighlightedSessionId(sessionId);
+    setExpandedSessionDetails((current) => ({ ...current, [sessionId]: true }));
+  }
+
+  function reportsWithDiscomfort(studentId: string): BodyMapReportResponse[] {
+    return (reportsByStudent[studentId] ?? []).filter((report) =>
+      report.zones.some((zone) => zone.intensity === 'PAIN' || zone.intensity === 'DISCOMFORT'),
+    );
+  }
+
+  function pendingFeedbackSessions(relationshipId: string): WorkoutSession[] {
+    return (sessionsByRelationship[relationshipId] ?? []).filter((session) =>
+      session.rpe !== null && session.rpe !== undefined && !session.effort_feedback,
+    );
+  }
+
+  function visibleSessionsFor(relationshipId: string): WorkoutSession[] {
+    const sessions = sessionsByRelationship[relationshipId] ?? [];
+    const recentSessions = sessions.slice(0, 5);
+    const focusedSession = sessions.find((session) => session.id === highlightedSessionId);
+    return focusedSession && !recentSessions.some((session) => session.id === focusedSession.id)
+      ? [...recentSessions, focusedSession]
+      : recentSessions;
+  }
+
   return (
     <section className="routine-assignment">
       <div className="profile-heading">
@@ -170,7 +255,34 @@ export function RoutineAssignmentPanel({
         <div className="routine-assignment__list">
           {students.map((student) => (
             <div className="routine-assignment__row" key={student.relationship_id}>
-              <strong>{student.student_name}</strong>
+              <div className="routine-assignment__student">
+                <strong>{student.student_name}</strong>
+                {attentionLoaded && reportsWithDiscomfort(student.student_id).length > 0 && (
+                  <button
+                    type="button"
+                    className="routine-assignment__attention routine-assignment__attention--report"
+                    title="Indicador informativo: no hay un estado de revisión persistido para estos reportes."
+                    onClick={() => focusStudentEvent(
+                      student,
+                      reportsWithDiscomfort(student.student_id)[0]?.session_id,
+                    )}
+                  >
+                    Molestias reportadas
+                  </button>
+                )}
+                {attentionLoaded && pendingFeedbackSessions(student.relationship_id).length > 0 && (
+                  <button
+                    type="button"
+                    className="routine-assignment__attention routine-assignment__attention--feedback"
+                    onClick={() => focusStudentEvent(
+                      student,
+                      pendingFeedbackSessions(student.relationship_id)[0]?.id,
+                    )}
+                  >
+                    Devolución pendiente
+                  </button>
+                )}
+              </div>
               <label htmlFor={`routine-${student.relationship_id}`}>Rutina
                 <select
                   id={`routine-${student.relationship_id}`}
@@ -208,7 +320,10 @@ export function RoutineAssignmentPanel({
                     type="button"
                     className="profile-save routine-assignment__progress-toggle"
                     aria-expanded={openProgressFor === student.relationship_id}
-                    onClick={() => setOpenProgressFor((current) => current === student.relationship_id ? null : student.relationship_id)}
+                    onClick={() => {
+                      setHighlightedSessionId(null);
+                      setOpenProgressFor((current) => current === student.relationship_id ? null : student.relationship_id);
+                    }}
                   >
                     {openProgressFor === student.relationship_id ? 'Ocultar progreso' : 'Ver progreso del alumno'}
                     <ChevronDown size={16} aria-hidden="true" />
@@ -224,7 +339,7 @@ export function RoutineAssignmentPanel({
                   <p className="plan-empty routine-assignment__empty">Todavía no hay sesiones finalizadas.</p>
                 ) : (
                   <ul className="routine-assignment__sessions-list">
-                    {(sessionsByRelationship[student.relationship_id] ?? []).slice(0, 5).map((session) => {
+                    {visibleSessionsFor(student.relationship_id).map((session) => {
                       const sessions = sessionsByRelationship[student.relationship_id] ?? [];
                       const sessionLogs = (progressByRelationship[student.relationship_id] ?? [])
                         .filter((log) => log.session_id === session.id)
@@ -237,7 +352,11 @@ export function RoutineAssignmentPanel({
                       const detailExpanded = Boolean(expandedSessionDetails[session.id]);
 
                       return (
-                        <li key={session.id} className="routine-assignment__session-item">
+                        <li
+                          key={session.id}
+                          id={`routine-session-${session.id}`}
+                          className={`routine-assignment__session-item${session.id === highlightedSessionId ? ' routine-assignment__session-item--highlighted' : ''}`}
+                        >
                             <div className="routine-assignment__session-summary">
                               <strong>{session.day_name}</strong>
                               <time dateTime={session.started_at}>{new Date(session.started_at).toLocaleDateString('es-AR')}</time>
@@ -309,7 +428,7 @@ export function RoutineAssignmentPanel({
                             )}
                           </li>
                         );
-                      })}
+                    })}
                     </ul>
                   )}
                   {progressErrorFor === student.relationship_id ? (
@@ -321,6 +440,7 @@ export function RoutineAssignmentPanel({
         </div>
       )}
       {error && students.length > 0 && <p className="form-alert" role="alert">{error}</p>}
+      {attentionError && <p className="form-alert" role="alert">{attentionError}</p>}
       {message && <p className="profile-success" role="status">{message}</p>}
       {warnings.length > 0 && (
         <div className="rt-alert" role="alert">

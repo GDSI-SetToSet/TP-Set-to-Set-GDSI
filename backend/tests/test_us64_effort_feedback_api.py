@@ -233,3 +233,44 @@ def test_sessions_include_effort_feedback_for_trainer_and_student(client):
         by_id = {item["id"]: item for item in listing}
         assert by_id[with_feedback]["effort_feedback"]["comment"] == "Bien"
         assert by_id[without_feedback]["effort_feedback"] is None
+
+
+def test_trainer_session_attention_state_clears_after_feedback_is_saved(client):
+    api, sessions = client
+    trainer, student, rel_id, _ = setup_pair(api, sessions, "attention")
+    pending_session = finished_session(api, student, rpe=8)
+    no_rpe_session = finished_session(api, student, rpe=None)
+
+    before = api.get(
+        f"{TEMPLATES_PATH}/assignments/{rel_id}/workout-sessions",
+        headers=trainer,
+    )
+    assert before.status_code == 200
+    before_by_id = {item["id"]: item for item in before.json()}
+    pending = [
+        item for item in before.json()
+        if item["rpe"] is not None and item["effort_feedback"] is None
+    ]
+    assert len(pending) == 1
+    assert pending[0]["id"] == pending_session
+    assert before_by_id[no_rpe_session]["rpe"] is None
+
+    saved = api.put(
+        feedback_url(rel_id, pending_session),
+        headers=trainer,
+        json={"category": "ADEQUATE"},
+    )
+    assert saved.status_code == 200
+
+    after = api.get(
+        f"{TEMPLATES_PATH}/assignments/{rel_id}/workout-sessions",
+        headers=trainer,
+    )
+    assert after.status_code == 200
+    after_by_id = {item["id"]: item for item in after.json()}
+    pending_after = [
+        item for item in after.json()
+        if item["rpe"] is not None and item["effort_feedback"] is None
+    ]
+    assert pending_after == []
+    assert after_by_id[pending_session]["effort_feedback"]["category"] == "ADEQUATE"

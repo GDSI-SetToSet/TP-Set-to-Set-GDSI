@@ -516,6 +516,59 @@ def test_reject_query_by_unauthorized_trainer(client):
     assert "No tenés una relación activa autorizada" in res.json()["detail"]
 
 
+def test_trainer_attention_report_count_uses_reports_not_zones(client):
+    api, sessions = client
+    trainer = register_and_login(api, "entrenador_attention@example.com", "TRAINER")
+    student = register_and_login(api, "alumno_attention@example.com", "STUDENT")
+    data = setup_test_environment(sessions, "alumno_attention@example.com", "entrenador_attention@example.com")
+    reports_url = f"{TRAINER_STUDENTS_PATH}/{data['student_profile_id']}/body-map-reports"
+
+    empty = api.get(reports_url, headers=trainer)
+    assert empty.status_code == 200
+    assert empty.json() == []
+
+    normal = api.post(
+        REPORTS_PATH,
+        headers=student,
+        json={"context": "POST_SESSION", "zones": [{"zone": "Hip", "intensity": "NORMAL"}]},
+    )
+    assert normal.status_code == 201
+    normal_only = api.get(reports_url, headers=trainer)
+    assert normal_only.status_code == 200
+    assert [
+        report for report in normal_only.json()
+        if any(zone["intensity"] in {"PAIN", "DISCOMFORT"} for zone in report["zones"])
+    ] == []
+
+    discomfort = api.post(
+        REPORTS_PATH,
+        headers=student,
+        json={
+            "context": "POST_SESSION",
+            "zones": [
+                {"zone": "Shoulder", "intensity": "PAIN"},
+                {"zone": "Knee", "intensity": "DISCOMFORT"},
+            ],
+        },
+    )
+    another_discomfort = api.post(
+        REPORTS_PATH,
+        headers=student,
+        json={"context": "POST_SESSION", "zones": [{"zone": "Ankle and foot", "intensity": "DISCOMFORT"}]},
+    )
+    assert discomfort.status_code == 201
+    assert another_discomfort.status_code == 201
+
+    reports = api.get(reports_url, headers=trainer)
+    assert reports.status_code == 200
+    reports_with_discomfort = [
+        report for report in reports.json()
+        if any(zone["intensity"] in {"PAIN", "DISCOMFORT"} for zone in report["zones"])
+    ]
+    assert len(reports_with_discomfort) == 2
+    assert any(len(report["zones"]) == 2 for report in reports_with_discomfort)
+
+
 def test_notification_alert_generated_on_pain_classification(client):
     """11. Generación de alerta (US-29 / notification) ante reporte con 'PAIN'."""
     api, sessions = client
