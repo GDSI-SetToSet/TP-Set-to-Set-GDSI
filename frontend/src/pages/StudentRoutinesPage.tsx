@@ -2,6 +2,7 @@ import { isAxiosError } from 'axios';
 import { ArrowLeft, CheckCircle2, Dumbbell, History, Home, Trophy, Video, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { EffortFeedbackList } from '../components/EffortFeedbackList';
 import { SafeVariantNotice } from '../components/SafeVariantNotice';
 import { ExerciseAlternativesPanel } from '../components/ExerciseAlternativesPanel';
 import type { ExerciseAlternative } from '../types/exerciseAlternative';
@@ -10,15 +11,18 @@ import { ROUTES } from '../constants/routes';
 import {
   createAssignedRoutineWorkoutLog,
   deleteAssignedRoutineWorkoutLog,
+  getAssignedEffortFeedback,
   getAssignedRoutineWorkoutLogs,
   getAssignedRoutineWorkoutSessions,
   getAssignedStudentRoutine,
   startAssignedWorkoutSession,
   finishAssignedWorkoutSession,
+  markEffortFeedbackSeen,
   reportWorkoutSessionRpe,
   updateAssignedRoutineModality,
 } from '../services/routineTemplateService';
 import type {
+  EffortFeedback,
   RoutineExercise,
   RoutineModality,
   RoutineTemplate,
@@ -136,6 +140,9 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const [activeRest, setActiveRest] = useState<{ exerciseName: string; durationSeconds: number; key: string } | null>(null);
   const [clockNow, setClockNow] = useState(Date.now());
   const [autoFinishPending, setAutoFinishPending] = useState(false);
+  const [effortFeedback, setEffortFeedback] = useState<EffortFeedback[]>([]);
+  const [unseenFeedback, setUnseenFeedback] = useState<EffortFeedback[]>([]);
+  const [effortFeedbackError, setEffortFeedbackError] = useState(false);
   const autoFinishTimeout = useRef<number | null>(null);
 
   useEffect(() => {
@@ -149,6 +156,29 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       .catch(() => setError('No pudimos cargar tu rutina. Intentá nuevamente.'))
       .finally(() => setLoading(false));
   }, [requestedDayId]);
+
+  // US-64: devoluciones del entrenador. Al abrir una sesión se muestran las no vistas y se marcan como vistas.
+  useEffect(() => {
+    let cancelled = false;
+    getAssignedEffortFeedback()
+      .then((items) => {
+        if (cancelled) return;
+        setEffortFeedback(items);
+        setEffortFeedbackError(false);
+        if (!sessionMode) return;
+        const unseen = items.filter((item) => !item.seen_at);
+        setUnseenFeedback(unseen);
+        unseen.forEach((item) => {
+          markEffortFeedbackSeen(item.id)
+            .then((updated) => {
+              if (!cancelled) setEffortFeedback((current) => current.map((entry) => entry.id === updated.id ? updated : entry));
+            })
+            .catch(() => undefined);
+        });
+      })
+      .catch(() => { if (!cancelled) setEffortFeedbackError(true); });
+    return () => { cancelled = true; };
+  }, [sessionMode]);
 
   useEffect(() => {
     if (!activeSet && !sessionMode) return undefined;
@@ -559,6 +589,10 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                 <span className="student-routine-session-heading__elapsed" role="timer" aria-label="Tiempo transcurrido del entrenamiento">Tiempo de entrenamiento: {formatClock(sessionStartedAtMs ? Math.max(0, Math.floor((clockNow - sessionStartedAtMs) / 1000)) : 0)}</span>
               </div>
             </div>}
+            {sessionMode && unseenFeedback.length > 0 && <section className="effort-feedback-notice" aria-labelledby="effort-feedback-notice-title">
+              <h2 id="effort-feedback-notice-title">{unseenFeedback.length === 1 ? 'Tu entrenador te dejó una devolución' : 'Tu entrenador te dejó devoluciones'}</h2>
+              <EffortFeedbackList items={unseenFeedback} />
+            </section>}
             {sessionMode && activeRest && <RestTimer key={activeRest.key} exerciseName={activeRest.exerciseName} durationSeconds={activeRest.durationSeconds} onFinish={() => {
               setActiveRest(null);
               if (autoFinishPending) scheduleAutoFinish();
@@ -915,6 +949,16 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                   ))}
                 </ul>
               )}
+            </section>}
+            {!sessionMode && <section className="effort-feedback-history" aria-labelledby="effort-feedback-history-heading">
+              <h2 id="effort-feedback-history-heading">Devoluciones de tu entrenador</h2>
+              {effortFeedbackError
+                ? <p className="form-alert" role="alert">No pudimos cargar las devoluciones de tu entrenador. Intentá nuevamente más tarde.</p>
+                : <EffortFeedbackList
+                    items={effortFeedback}
+                    highlightUnseen
+                    emptyMessage="Todavía no recibiste devoluciones de tu entrenador. Cuando revise el esfuerzo que reportás al terminar cada sesión, las vas a ver acá."
+                  />}
             </section>}
             {sessionMode && sessionId && <section className="student-routine-history student-routine-history--current" aria-labelledby="current-workout-history-heading">
               <header className="student-routine-history__header">

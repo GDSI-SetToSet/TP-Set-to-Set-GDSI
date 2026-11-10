@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
+import { EffortFeedbackForm } from './EffortFeedbackForm';
 import { assignRoutineToStudent, getRoutineAssignments, getTrainerStudentWorkoutLogs, getTrainerStudentWorkoutSessions } from '../services/routineTemplateService';
 import type { TrainerAIRoutine } from '../types/assignedRoutine';
 import type { RoutineAssignmentStudent, RoutineTemplate, WorkoutSession, WorkoutSetLog } from '../types/routineTemplate';
@@ -175,6 +176,19 @@ export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignm
                             <span className="routine-assignment__rpe-badge routine-assignment__rpe-badge--unreported">
                               Sin reporte de RPE
                             </span>
+                          )}
+                          {session.rpe !== null && session.rpe !== undefined && (
+                            <EffortFeedbackForm
+                              key={`${session.id}:${session.effort_feedback?.updated_at ?? ''}`}
+                              relationshipId={student.relationship_id}
+                              session={session}
+                              onSaved={(feedback) => setSessionsByRelationship((current) => ({
+                                ...current,
+                                [student.relationship_id]: (current[student.relationship_id] ?? []).map((item) => (
+                                  item.id === session.id ? { ...item, effort_feedback: feedback } : item
+                                )),
+                              }))}
+                            />
                           )}
                         </li>
                       ))}

@@ -1,5 +1,7 @@
 import { api } from './api';
 import type {
+  EffortFeedback,
+  EffortFeedbackInput,
   RoutineAssignmentStudent,
   RoutineModality,
   RoutineTemplate,
@@ -60,6 +62,21 @@ export async function finishAssignedWorkoutSession(sessionId: string, rpe?: numb
 
 export async function reportWorkoutSessionRpe(sessionId: string, rpe: number): Promise<WorkoutSession> {
   const { data } = await api.patch<WorkoutSession>(`${STUDENT_ASSIGNED_PATH}/workout-sessions/${sessionId}/rpe`, { rpe });
+  return data;
+}
+
+export async function saveSessionEffortFeedback(relationshipId: string, sessionId: string, payload: EffortFeedbackInput): Promise<EffortFeedback> {
+  const { data } = await api.put<EffortFeedback>(`${TEMPLATES_PATH}/assignments/${relationshipId}/workout-sessions/${sessionId}/effort-feedback`, payload);
+  return data;
+}
+
+export async function getAssignedEffortFeedback(): Promise<EffortFeedback[]> {
+  const { data } = await api.get<EffortFeedback[]>(`${STUDENT_ASSIGNED_PATH}/effort-feedback`);
+  return data;
+}
+
+export async function markEffortFeedbackSeen(feedbackId: string): Promise<EffortFeedback> {
+  const { data } = await api.post<EffortFeedback>(`${STUDENT_ASSIGNED_PATH}/effort-feedback/${feedbackId}/seen`);
   return data;
 }
 

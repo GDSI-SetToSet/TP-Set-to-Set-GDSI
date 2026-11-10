@@ -166,6 +166,53 @@ class WorkoutSessionRpeInput(BaseModel):
     rpe: int = Field(..., ge=1, le=10, strict=True)
 
 
+EFFORT_FEEDBACK_CATEGORIES = ("MORE_EFFORT", "ADEQUATE", "LESS_INTENSITY")
+EFFORT_FEEDBACK_COMMENT_MAX_LENGTH = 500
+INVALID_EFFORT_CATEGORY_MESSAGE = "Elegí una devolución válida"
+
+
+def validate_effort_category(value: str | None) -> str:
+    if value is None or not value.strip():
+        raise PydanticCustomError("required", REQUIRED_FIELD_MESSAGE)
+    if value not in EFFORT_FEEDBACK_CATEGORIES:
+        raise PydanticCustomError("effort_category", INVALID_EFFORT_CATEGORY_MESSAGE)
+    return value
+
+
+def optional_comment(value: str | None) -> str | None:
+    if value is None or not value.strip():
+        return None
+    text = value.strip()
+    if len(text) > EFFORT_FEEDBACK_COMMENT_MAX_LENGTH:
+        raise PydanticCustomError(
+            "too_long",
+            "Este campo admite hasta {max_length} caracteres",
+            {"max_length": EFFORT_FEEDBACK_COMMENT_MAX_LENGTH},
+        )
+    return text
+
+
+class EffortFeedbackInput(BaseModel):
+    category: str | None = Field(default=None, validate_default=True)
+    comment: str | None = None
+
+    _category = field_validator("category")(validate_effort_category)
+    _comment = field_validator("comment")(optional_comment)
+
+
+class EffortFeedbackResponse(BaseModel):
+    id: str
+    session_id: str
+    day_name: str
+    session_started_at: datetime
+    rpe: int | None = None
+    category: str
+    comment: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    seen_at: datetime | None = None
+
+
 class WorkoutSessionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -178,6 +225,7 @@ class WorkoutSessionResponse(BaseModel):
     started_at: datetime
     finished_at: datetime | None = None
     rpe: int | None = None
+    effort_feedback: EffortFeedbackResponse | None = None
 
 
 class WorkoutSetLogInput(BaseModel):

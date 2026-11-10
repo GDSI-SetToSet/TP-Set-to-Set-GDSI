@@ -6,6 +6,8 @@ from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
 from backend.src.models.user import User
 from backend.src.schemas.routine_template import (
+    EffortFeedbackInput,
+    EffortFeedbackResponse,
     PersonalRecordResponse,
     RoutineAssignmentResponse,
     RoutineAssignmentStudentResponse,
@@ -19,6 +21,13 @@ from backend.src.schemas.routine_template import (
     WorkoutSessionStartInput,
     WorkoutSetLogInput,
     WorkoutSetLogResponse,
+)
+from backend.src.services.effort_feedback_service import (
+    feedback_by_session,
+    list_student_effort_feedback,
+    mark_effort_feedback_seen,
+    serialize_feedback,
+    upsert_effort_feedback,
 )
 from backend.src.services.routine_template_service import (
     RoutineTemplateError,
@@ -56,6 +65,18 @@ router = APIRouter(prefix=f"{API_V1_PREFIX}/routine-templates", tags=["routine-t
 student_router = APIRouter(prefix=f"{API_V1_PREFIX}/students/me/routine-templates", tags=["routine-templates"])
 CurrentUser = Annotated[User, Depends(get_current_user)]
 ServiceErrors = (RoutineTemplateError, TrainerProfileError, StudentProfileError)
+
+
+def sessions_with_feedback(db, sessions) -> list[WorkoutSessionResponse]:
+    """US-64: adjunta a cada sesión la devolución del entrenador, si existe."""
+    feedback = feedback_by_session(db, [session.id for session in sessions])
+    responses = []
+    for session in sessions:
+        response = WorkoutSessionResponse.model_validate(session)
+        if session.id in feedback:
+            response.effort_feedback = EffortFeedbackResponse(**serialize_feedback(feedback[session.id], session))
+        responses.append(response)
+    return responses
 
 
 def handle_error(error: RoutineTemplateError | TrainerProfileError | StudentProfileError) -> None:
@@ -104,7 +125,24 @@ def get_trainer_student_workout_sessions(
 ) -> list[WorkoutSessionResponse]:
     try:
         sessions = list_trainer_student_workout_sessions(db, user, relationship_id)
-        return [WorkoutSessionResponse.model_validate(item) for item in sessions]
+        return sessions_with_feedback(db, sessions)
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@router.put(
+    "/assignments/{relationship_id}/workout-sessions/{session_id}/effort-feedback",
+    response_model=EffortFeedbackResponse,
+)
+def save_session_effort_feedback(
+    relationship_id: str,
+    session_id: str,
+    payload: EffortFeedbackInput,
+    user: CurrentUser,
+    db: DbDep,
+) -> EffortFeedbackResponse:
+    try:
+        return EffortFeedbackResponse(**upsert_effort_feedback(db, user, relationship_id, session_id, payload))
     except ServiceErrors as error:
         handle_error(error)
 
@@ -257,7 +295,26 @@ def uncheck_assigned_routine_workout_log(log_id: str, user: CurrentUser, db: DbD
 def get_assigned_routine_workout_sessions(user: CurrentUser, db: DbDep) -> list[WorkoutSessionResponse]:
     try:
         sessions = list_student_workout_sessions(db, user)
-        return [WorkoutSessionResponse.model_validate(item) for item in sessions]
+        return sessions_with_feedback(db, sessions)
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@student_router.get("/assigned/effort-feedback", response_model=list[EffortFeedbackResponse])
+def get_assigned_effort_feedback(user: CurrentUser, db: DbDep) -> list[EffortFeedbackResponse]:
+    try:
+        return [EffortFeedbackResponse(**item) for item in list_student_effort_feedback(db, user)]
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@student_router.post(
+    "/assigned/effort-feedback/{feedback_id}/seen",
+    response_model=EffortFeedbackResponse,
+)
+def mark_assigned_effort_feedback_seen(feedback_id: str, user: CurrentUser, db: DbDep) -> EffortFeedbackResponse:
+    try:
+        return EffortFeedbackResponse(**mark_effort_feedback_seen(db, user, feedback_id))
     except ServiceErrors as error:
         handle_error(error)
 
