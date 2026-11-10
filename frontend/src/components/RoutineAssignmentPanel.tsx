@@ -197,11 +197,11 @@ export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignm
                   ) : (
                     <ul className="routine-assignment__sessions-list" style={{ margin: '0 0 16px' }}>
                       {(zoneReportsByStudent[student.student_id] ?? []).slice(0, 6).map((item) => (
-                        <li key={item.zone_id} className="routine-assignment__session-item">
+                        <li key={item.id} className="routine-assignment__session-item">
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                            <strong>{item.zone_name}</strong>
-                            <span className={`body-map-history-badge body-map-history-badge--${item.classification.toLowerCase()}`}>
-                              {item.classification === 'PAIN' ? 'Dolor' : item.classification === 'DISCOMFORT' ? 'Molestia' : 'Carga normal'}
+                            <strong>{item.zone_display || item.zone}</strong>
+                            <span className={`body-map-history-badge body-map-history-badge--${item.intensity.toLowerCase()}`}>
+                              {item.intensity === 'PAIN' ? 'Dolor' : item.intensity === 'DISCOMFORT' ? 'Molestia' : 'Carga normal'}
                             </span>
                           </div>
                           <time dateTime={item.created_at}>{new Date(item.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</time>

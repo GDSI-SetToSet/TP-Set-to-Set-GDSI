@@ -2,7 +2,7 @@
 
 **Feature Branch**: `feature/061-us61-body-map-pain-report`
 **Spec**: [spec.md](./spec.md)
-**Plan**: [plan.md](./plan.md)
+**Plan**: [plan-us61.md](./plan-us61.md)
 **Contract**: [contracts/body-map-pain-reports-api.yaml](./contracts/body-map-pain-reports-api.yaml)
 
 ---

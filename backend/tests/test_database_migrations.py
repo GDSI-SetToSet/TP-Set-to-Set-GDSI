@@ -583,6 +583,8 @@ def test_standalone_migrations_registers_body_map_pain_report_models():
     assert "context" in report_table.c
     assert "action_taken" in report_table.c
     assert "idempotency_key" in report_table.c
+    constraint_names = {c.name for c in report_table.constraints}
+    assert "uq_body_map_student_idempotency" in constraint_names
 
     zone_table = Base.metadata.tables["body_map_pain_report_zones"]
     assert "report_id" in zone_table.c

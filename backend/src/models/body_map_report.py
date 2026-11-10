@@ -9,6 +9,13 @@ from backend.src.models.user import new_id
 
 class BodyMapPainReport(Base):
     __tablename__ = "body_map_pain_reports"
+    __table_args__ = (
+        UniqueConstraint(
+            "student_id",
+            "idempotency_key",
+            name="uq_body_map_student_idempotency",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     student_id: Mapped[str] = mapped_column(
@@ -25,7 +32,7 @@ class BodyMapPainReport(Base):
     )
     context: Mapped[str] = mapped_column(String(32), nullable=False)  # POST_SESSION, IN_EXERCISE
     action_taken: Mapped[str | None] = mapped_column(String(32), nullable=True)  # NONE, VARIANT_OFFERED, etc.
-    idempotency_key: Mapped[str | None] = mapped_column(String(64), unique=True, index=True, nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
 
     student: Mapped["StudentProfile"] = relationship()  # noqa: F821

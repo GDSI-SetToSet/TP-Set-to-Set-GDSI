@@ -3,15 +3,20 @@ from typing import Any
 
 from fastapi import status
 from sqlalchemy import desc, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE, canonical_zone_key
+from backend.src.models.assigned_routine import (
+    AssignedRoutineBlock,
+    AssignedRoutineDay,
+    AssignedRoutineExercise,
+)
 from backend.src.models.body_map_report import BodyMapPainReport, BodyMapPainReportZone
 from backend.src.models.exercise import Exercise
-from backend.src.models.student_profile import StudentProfile
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.user import User
-from backend.src.models.workout_log import WorkoutSession
+from backend.src.models.workout_log import WorkoutSession, WorkoutSetLog
 from backend.src.schemas.body_map_report import (
     ZONE_DISPLAY_NAMES,
     BodyMapReportCreate,
@@ -46,7 +51,7 @@ def utc_now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
 
 
-def _require_student(user: User) -> StudentProfile:
+def _require_student(user: User) -> None:
     if user.role != STUDENT_ROLE:
         raise BodyMapReportError(
             status.HTTP_403_FORBIDDEN,
@@ -153,13 +158,25 @@ def _build_report_response(
     )
 
 
+def _is_equivalent_payload(existing: BodyMapPainReport, payload: BodyMapReportCreate) -> bool:
+    if existing.context != payload.context:
+        return False
+    if (existing.session_id or None) != (payload.session_id or None):
+        return False
+    if (existing.exercise_id or None) != (payload.exercise_id or None):
+        return False
+    existing_zones = sorted((z.zone, z.intensity) for z in existing.zones)
+    payload_zones = sorted((z.zone, z.intensity) for z in payload.zones)
+    return existing_zones == payload_zones
+
+
 def create_body_map_report(
     db: Session, user: User, payload: BodyMapReportCreate
 ) -> BodyMapReportResponse:
     _require_student(user)
     profile = get_student_profile(db, user)
 
-    # 1. Deduplicación por idempotency_key
+    # 1. Deduplicación por idempotency_key (H03)
     if payload.idempotency_key:
         existing = db.scalar(
             select(BodyMapPainReport)
@@ -170,6 +187,11 @@ def create_body_map_report(
             .options(selectinload(BodyMapPainReport.zones), selectinload(BodyMapPainReport.exercise))
         )
         if existing:
+            if not _is_equivalent_payload(existing, payload):
+                raise BodyMapReportError(
+                    status.HTTP_409_CONFLICT,
+                    "La clave de idempotencia ya fue utilizada con un contenido de reporte diferente.",
+                )
             safe_var = None
             if existing.exercise:
                 safe_var = _evaluate_safe_variant_for_report(
@@ -177,7 +199,25 @@ def create_body_map_report(
                 )
             return _build_report_response(existing, safe_variant=safe_var)
 
-    # 2. Validación de coherencia en sesión y ejercicio
+    # 2. Validación de coherencia y pertenencia de contexto, sesión y ejercicio (H04)
+    if payload.context == "POST_SESSION" and payload.exercise_id is not None:
+        raise BodyMapReportError(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Un reporte al finalizar la sesión (POST_SESSION) es general y no debe incluir un identificador de ejercicio.",
+        )
+
+    if payload.context == "IN_EXERCISE":
+        if not payload.exercise_id:
+            raise BodyMapReportError(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "Para un reporte durante el ejercicio se debe especificar el identificador del ejercicio.",
+            )
+        if not payload.session_id:
+            raise BodyMapReportError(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "Para un reporte durante el ejercicio se debe especificar la sesión de entrenamiento activa.",
+            )
+
     session = None
     if payload.session_id:
         session = db.scalar(
@@ -201,11 +241,34 @@ def create_body_map_report(
                 "El ejercicio indicado no fue encontrado en el sistema.",
             )
 
-    if payload.context == "IN_EXERCISE" and not payload.exercise_id:
-        raise BodyMapReportError(
-            422,
-            "Para un reporte durante el ejercicio se debe especificar el identificador del ejercicio.",
-        )
+    # Validación de pertenencia del ejercicio a la sesión asignada o ejecutada (H04)
+    if payload.context == "IN_EXERCISE" and session and exercise:
+        is_in_routine_day = db.scalar(
+            select(AssignedRoutineExercise.id)
+            .join(AssignedRoutineBlock, AssignedRoutineExercise.block_id == AssignedRoutineBlock.id)
+            .join(AssignedRoutineDay, AssignedRoutineBlock.day_id == AssignedRoutineDay.id)
+            .where(
+                AssignedRoutineDay.routine_id == session.routine_id,
+                AssignedRoutineDay.name == session.day_name,
+                AssignedRoutineExercise.exercise_id == payload.exercise_id,
+            )
+            .limit(1)
+        ) is not None
+
+        is_in_session_logs = db.scalar(
+            select(WorkoutSetLog.id)
+            .where(
+                WorkoutSetLog.session_id == session.id,
+                WorkoutSetLog.exercise_id == payload.exercise_id,
+            )
+            .limit(1)
+        ) is not None
+
+        if not (is_in_routine_day or is_in_session_logs):
+            raise BodyMapReportError(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                f'El ejercicio "{exercise.name}" no forma parte del entrenamiento programado ni ejecutado en esta sesión.',
+            )
 
     # 3. Deduplicación natural ante reintentos accidentales (mismo alumno, sesión, ejercicio, contexto en ventana de 10 seg)
     now = utc_now()
@@ -222,10 +285,8 @@ def create_body_map_report(
         .options(selectinload(BodyMapPainReport.zones), selectinload(BodyMapPainReport.exercise))
     ).all()
 
-    payload_zone_tuples = sorted((z.zone, z.intensity) for z in payload.zones)
     for cand in recent_candidates:
-        cand_zone_tuples = sorted((z.zone, z.intensity) for z in cand.zones)
-        if cand_zone_tuples == payload_zone_tuples:
+        if _is_equivalent_payload(cand, payload):
             safe_var = None
             if exercise:
                 safe_var = _evaluate_safe_variant_for_report(db, profile.id, exercise, payload.zones)
@@ -242,65 +303,92 @@ def create_body_map_report(
         if not payload.action_taken and safe_variant_eval.status == "VARIANT":
             payload.action_taken = "VARIANT_OFFERED"
 
-    # 6. Crear reporte y zonas
-    report = BodyMapPainReport(
-        student_id=profile.id,
-        relationship_id=relationship_id,
-        session_id=payload.session_id,
-        exercise_id=payload.exercise_id,
-        context=payload.context,
-        action_taken=payload.action_taken or "NONE",
-        idempotency_key=payload.idempotency_key,
-        created_at=now,
-    )
-    db.add(report)
-    db.flush()
+    # 6. Crear reporte y zonas con protección de concurrencia e idempotencia (H03)
+    try:
+        with db.begin_nested():
+            report = BodyMapPainReport(
+                student_id=profile.id,
+                relationship_id=relationship_id,
+                session_id=payload.session_id,
+                exercise_id=payload.exercise_id,
+                context=payload.context,
+                action_taken=payload.action_taken or "NONE",
+                idempotency_key=payload.idempotency_key,
+                created_at=now,
+            )
+            db.add(report)
+            db.flush()
 
-    for zone_input in payload.zones:
-        zone_record = BodyMapPainReportZone(
-            report_id=report.id,
-            zone=zone_input.zone,
-            intensity=zone_input.intensity,
-            created_at=now,
-        )
-        db.add(zone_record)
-        report.zones.append(zone_record)
+            for zone_input in payload.zones:
+                zone_record = BodyMapPainReportZone(
+                    report_id=report.id,
+                    zone=zone_input.zone,
+                    intensity=zone_input.intensity,
+                    created_at=now,
+                )
+                db.add(zone_record)
+                report.zones.append(zone_record)
 
-    # 7. Disparo de alerta al entrenador ante dolor (PAIN)
-    pain_zones = [z.zone for z in payload.zones if z.intensity == "PAIN"]
-    if pain_zones and relationship and relationship.trainer:
-        trainer_user_id = relationship.trainer.user_id
-        student_name = (
-            f"{profile.first_name or ''} {profile.last_name or ''}".strip() or user.email
-        )
-        pain_displays = [ZONE_DISPLAY_NAMES.get(z, z) for z in pain_zones]
-        pain_str = ", ".join(pain_displays)
+            # 7. Disparo de alerta al entrenador ante dolor (PAIN)
+            pain_zones = [z.zone for z in payload.zones if z.intensity == "PAIN"]
+            if pain_zones and relationship and relationship.trainer:
+                trainer_user_id = relationship.trainer.user_id
+                student_name = (
+                    f"{profile.first_name or ''} {profile.last_name or ''}".strip() or user.email
+                )
+                pain_displays = [ZONE_DISPLAY_NAMES.get(z, z) for z in pain_zones]
+                pain_str = ", ".join(pain_displays)
 
-        context_details = []
-        if exercise:
-            context_details.append(f'en el ejercicio "{exercise.name}"')
-        if session:
-            context_details.append(f'durante "{session.day_name}"')
-        elif payload.context == "POST_SESSION":
-            context_details.append("al finalizar la sesión")
+                context_details = []
+                if exercise:
+                    context_details.append(f'en el ejercicio "{exercise.name}"')
+                if session:
+                    context_details.append(f'durante "{session.day_name}"')
+                elif payload.context == "POST_SESSION":
+                    context_details.append("al finalizar la sesión")
 
-        detail_text = f" ({' '.join(context_details)})" if context_details else ""
-        notification_title = "Alerta de dolor reportado"
-        notification_message = (
-            f"{student_name} reportó dolor en: {pain_str}{detail_text}. "
-            "Revisá el estado del alumno y considerá ajustar el plan."
-        )
+                detail_text = f" ({' '.join(context_details)})" if context_details else ""
+                notification_title = "Alerta de dolor reportado"
+                notification_message = (
+                    f"{student_name} reportó dolor en: {pain_str}{detail_text}. "
+                    "Revisá el estado del alumno y considerá ajustar el plan."
+                )
 
-        create_notification(
-            db,
-            recipient_id=trainer_user_id,
-            type="PAIN_ALERT",
-            title=notification_title,
-            message=notification_message,
-            related_entity_type="BODY_MAP_PAIN_REPORT",
-            related_entity_id=report.id,
-            commit=False,
-        )
+                create_notification(
+                    db,
+                    recipient_id=trainer_user_id,
+                    type="PAIN_ALERT",
+                    title=notification_title,
+                    message=notification_message,
+                    related_entity_type="BODY_MAP_PAIN_REPORT",
+                    related_entity_id=report.id,
+                    commit=False,
+                )
+            db.flush()
+    except IntegrityError:
+        # Recuperar en caso de conflicto por concurrencia bajo la misma clave de idempotencia
+        if payload.idempotency_key:
+            existing = db.scalar(
+                select(BodyMapPainReport)
+                .where(
+                    BodyMapPainReport.idempotency_key == payload.idempotency_key,
+                    BodyMapPainReport.student_id == profile.id,
+                )
+                .options(selectinload(BodyMapPainReport.zones), selectinload(BodyMapPainReport.exercise))
+            )
+            if existing:
+                if not _is_equivalent_payload(existing, payload):
+                    raise BodyMapReportError(
+                        status.HTTP_409_CONFLICT,
+                        "La clave de idempotencia ya fue utilizada con un contenido de reporte diferente.",
+                    )
+                safe_var = None
+                if existing.exercise:
+                    safe_var = _evaluate_safe_variant_for_report(
+                        db, profile.id, existing.exercise, payload.zones
+                    )
+                return _build_report_response(existing, safe_variant=safe_var)
+        raise
 
     db.commit()
     db.refresh(report)

@@ -981,12 +981,12 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                   ) : (
                     <ul className="student-routine-history__list">
                       {zoneHistory.map((item) => (
-                        <li key={item.zone_id} className="student-routine-history__item">
+                        <li key={item.id} className="student-routine-history__item">
                           <div className="student-routine-history__item-main">
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                              <strong>{item.zone_name}</strong>
-                              <span className={`body-map-history-badge body-map-history-badge--${item.classification.toLowerCase()}`}>
-                                {item.classification === 'PAIN' ? 'Dolor' : item.classification === 'DISCOMFORT' ? 'Molestia' : 'Carga normal'}
+                              <strong>{item.zone_display || item.zone}</strong>
+                              <span className={`body-map-history-badge body-map-history-badge--${item.intensity.toLowerCase()}`}>
+                                {item.intensity === 'PAIN' ? 'Dolor' : item.intensity === 'DISCOMFORT' ? 'Molestia' : 'Carga normal'}
                               </span>
                             </div>
                             <time className="student-routine-history__date" dateTime={item.created_at}>
@@ -1052,7 +1052,8 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
               <InExercisePainReportModal
                 exerciseId={painReportExercise.id}
                 exerciseName={painReportExercise.name}
-                sessionId={sessionId ?? undefined}
+                sessionId={sessionId}
+                isOpen={Boolean(painReportExercise)}
                 onClose={() => setPainReportExercise(null)}
                 onAcceptVariant={(variantExercise) => {
                   const targetExercise = selectedDay?.blocks
