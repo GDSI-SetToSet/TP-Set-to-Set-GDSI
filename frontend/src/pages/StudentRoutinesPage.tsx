@@ -8,6 +8,7 @@ import '../styles/body-map.css';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SafeVariantNotice } from '../components/SafeVariantNotice';
+import { SessionSummaryDialog } from '../components/SessionSummaryDialog';
 import { ExerciseAlternativesPanel } from '../components/ExerciseAlternativesPanel';
 import { saveReplacement } from '../services/exerciseAlternativeService';
 import type { ExerciseAlternative } from '../types/exerciseAlternative';
@@ -362,7 +363,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       setActiveRest(null);
       setAutoFinishPending(false);
       setShowFinishRpeModal(false);
-      navigate(ROUTES.studentRoutines + '?session=' + encodeURIComponent(sessionId) + (automatic ? '&completed=1' : ''));
+      navigate(ROUTES.studentRoutines + '?session=' + encodeURIComponent(sessionId) + '&completed=1');
     } catch {
       setLogError('No pudimos finalizar el entrenamiento. Intentá nuevamente.');
     } finally {
@@ -1201,15 +1202,10 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
             </div>
           </div>
         )}
-        {showCelebration && <div className="workout-celebration" role="dialog" aria-modal="true" aria-labelledby="workout-celebration-title">
-          <div className="workout-confetti" aria-hidden="true">{Array.from({ length: 28 }, (_, index) => <span key={index} className={`workout-confetti__piece workout-confetti__piece--${index % 6}`} style={{ left: `${(index * 37) % 100}%`, animationDelay: `${(index % 8) * 0.12}s` }} />)}</div>
-          <div className="workout-celebration__card">
-            <span className="workout-celebration__icon" aria-hidden="true">✦</span>
-            <h2 id="workout-celebration-title">¡Felicitaciones!</h2>
-            <p>Terminaste el entrenamiento del día. Momento de descansar.</p>
-            <button type="button" onClick={() => navigate(ROUTES.studentRoutines + (sessionId ? '?session=' + encodeURIComponent(sessionId) : ''), { replace: true })}>Continuar</button>
-          </div>
-        </div>}
+        {showCelebration && sessionId && <SessionSummaryDialog
+          sessionId={sessionId}
+          onClose={() => navigate(ROUTES.studentRoutines + '?session=' + encodeURIComponent(sessionId), { replace: true })}
+        />}
       </section>
     </main>
   );

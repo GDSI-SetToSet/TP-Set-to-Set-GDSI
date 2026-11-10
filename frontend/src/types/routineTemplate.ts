@@ -90,6 +90,34 @@ export interface WorkoutSession {
   rpe?: number | null;
 }
 
+export interface SessionPersonalRecord {
+  exercise_id: string;
+  exercise_name: string;
+  weight_kg: number;
+  reps_completed: string;
+  previous_weight_kg: number | null;
+}
+
+export interface SessionHistoryComparison {
+  previous_sessions_count: number;
+  average_tonnage_kg: number | null;
+  tonnage_delta_percent: number | null;
+}
+
+export interface WorkoutSessionSummary {
+  session_id: string;
+  day_name: string;
+  started_at: string;
+  finished_at: string;
+  duration_seconds: number;
+  rpe: number | null;
+  total_tonnage_kg: number;
+  completed_sets: number;
+  programmed_sets: number | null;
+  personal_records: SessionPersonalRecord[];
+  history: SessionHistoryComparison;
+}
+
 export interface WorkoutSetLogInput {
   exercise_id: string;
   day_name: string;

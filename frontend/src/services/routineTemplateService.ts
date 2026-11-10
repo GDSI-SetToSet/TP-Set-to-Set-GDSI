@@ -7,6 +7,7 @@ import type {
   WorkoutSetLog,
   WorkoutSetLogInput,
   WorkoutSession,
+  WorkoutSessionSummary,
   PersonalRecord,
 } from '../types/routineTemplate';
 
@@ -60,6 +61,11 @@ export async function finishAssignedWorkoutSession(sessionId: string, rpe?: numb
 
 export async function reportWorkoutSessionRpe(sessionId: string, rpe: number): Promise<WorkoutSession> {
   const { data } = await api.patch<WorkoutSession>(`${STUDENT_ASSIGNED_PATH}/workout-sessions/${sessionId}/rpe`, { rpe });
+  return data;
+}
+
+export async function getWorkoutSessionSummary(sessionId: string): Promise<WorkoutSessionSummary> {
+  const { data } = await api.get<WorkoutSessionSummary>(`${STUDENT_ASSIGNED_PATH}/workout-sessions/${sessionId}/summary`);
   return data;
 }
 

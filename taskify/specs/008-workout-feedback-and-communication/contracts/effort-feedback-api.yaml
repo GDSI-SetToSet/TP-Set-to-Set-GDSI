@@ -1,0 +1,54 @@
+openapi: 3.0.3
+info:
+  title: Set to Set - Devolución sobre el esfuerzo (US-64)
+  version: 1.0.0
+paths:
+  /api/v1/routine-templates/assignments/{relationship_id}/workout-sessions/{session_id}/effort-feedback:
+    put:
+      summary: El entrenador crea o reemplaza la devolución de una sesión con RPE
+      parameters:
+        - { in: path, name: relationship_id, required: true, schema: { type: string } }
+        - { in: path, name: session_id, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EffortFeedbackInput" }
+      responses:
+        "200": { description: Devolución guardada, content: { application/json: { schema: { $ref: "#/components/schemas/EffortFeedback" } } } }
+        "404": { description: Vínculo activo o sesión inexistente (problem+json) }
+        "422": { description: Sesión sin RPE / no finalizada o campos inválidos (problem+json con errors[]) }
+  /api/v1/students/me/routine-templates/assigned/effort-feedback:
+    get:
+      summary: Historial de devoluciones del alumno (más reciente primero)
+      responses:
+        "200": { description: Lista (puede ser vacía), content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/EffortFeedback" } } } } }
+  /api/v1/students/me/routine-templates/assigned/effort-feedback/{feedback_id}/seen:
+    post:
+      summary: Marca la devolución como vista (idempotente)
+      parameters:
+        - { in: path, name: feedback_id, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Devolución con seen_at, content: { application/json: { schema: { $ref: "#/components/schemas/EffortFeedback" } } } }
+        "404": { description: Devolución inexistente o de otro alumno (problem+json) }
+components:
+  schemas:
+    EffortFeedbackInput:
+      type: object
+      required: [category]
+      properties:
+        category: { type: string, enum: [MORE_EFFORT, ADEQUATE, LESS_INTENSITY] }
+        comment: { type: string, maxLength: 500, nullable: true }
+    EffortFeedback:
+      type: object
+      properties:
+        id: { type: string }
+        session_id: { type: string }
+        day_name: { type: string }
+        session_started_at: { type: string, format: date-time }
+        rpe: { type: integer }
+        category: { type: string, enum: [MORE_EFFORT, ADEQUATE, LESS_INTENSITY] }
+        comment: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        seen_at: { type: string, format: date-time, nullable: true }
