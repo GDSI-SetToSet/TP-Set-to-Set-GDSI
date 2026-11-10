@@ -1,0 +1,797 @@
+/* ==========================================================================
+   US-61 — Reporte de molestias o dolor en mapa corporal
+   Estilos accesibles (WCAG 2.1 AA, touch targets >= 44x44px)
+   ========================================================================== */
+
+.body-map-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 12px;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.body-map-selector__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  padding-bottom: 12px;
+}
+
+.body-map-selector__title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--color-text-main, #1e293b);
+}
+
+.body-map-selector__subtitle {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+.body-map-selector__view-tabs {
+  display: flex;
+  gap: 6px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.body-map-selector__tab {
+  border: none;
+  background: transparent;
+  color: #475569;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  min-height: 44px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.body-map-selector__tab--active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.body-map-selector__main {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .body-map-selector__main {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Silueta anatómica */
+.body-map-canvas-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.body-map-silhouette-wrapper {
+  position: relative;
+  width: 190px;
+  height: 360px;
+}
+
+.body-map-silhouette {
+  width: 100%;
+  height: 100%;
+}
+
+.body-map-svg-outline {
+  fill: #e2e8f0;
+  stroke: #cbd5e1;
+  stroke-width: 2;
+}
+
+.body-map-svg-limb {
+  stroke: #e2e8f0;
+}
+
+/* Hotspots sobre la silueta */
+.body-map-hotspots {
+  position: absolute;
+  inset: 0;
+}
+
+.body-map-hotspot {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px 6px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 2px solid #94a3b8;
+  border-radius: 22px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  transform: translate(-50%, -50%);
+  transition: all 0.2s ease;
+  z-index: 2;
+}
+
+.body-map-hotspot:hover,
+.body-map-hotspot:focus-visible {
+  border-color: #0284c7;
+  transform: translate(-50%, -50%) scale(1.08);
+  outline: none;
+}
+
+/* Posiciones de hotspots */
+.body-map-hotspot--neck { top: 16%; left: 50%; }
+.body-map-hotspot--shoulder { top: 23%; left: 16%; }
+.body-map-hotspot--upper-back { top: 28%; left: 50%; }
+.body-map-hotspot--lower-back { top: 40%; left: 50%; }
+.body-map-hotspot--elbow { top: 37%; left: 86%; }
+.body-map-hotspot--wrist-and-hand { top: 53%; left: 88%; }
+.body-map-hotspot--hip { top: 48%; left: 50%; }
+.body-map-hotspot--knee { top: 72%; left: 40%; }
+.body-map-hotspot--ankle-and-foot { top: 92%; left: 40%; }
+
+/* Estados de selección en hotspot */
+.body-map-hotspot--selected.body-map-intensity--normal {
+  background: #ecfdf5;
+  border-color: #059669;
+  color: #065f46;
+}
+
+.body-map-hotspot--selected.body-map-intensity--discomfort {
+  background: #fffbeb;
+  border-color: #d97706;
+  color: #92400e;
+}
+
+.body-map-hotspot--selected.body-map-intensity--pain {
+  background: #fef2f2;
+  border-color: #dc2626;
+  color: #991b1b;
+}
+
+/* Panel de controles y botones de zona */
+.body-map-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.body-map-controls__label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.body-map-zone-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.body-map-zone-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.body-map-zone-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.body-map-zone-btn--selected.body-map-intensity--normal {
+  background: #ecfdf5;
+  border-color: #059669;
+  color: #065f46;
+}
+
+.body-map-zone-btn--selected.body-map-intensity--discomfort {
+  background: #fffbeb;
+  border-color: #d97706;
+  color: #92400e;
+}
+
+.body-map-zone-btn--selected.body-map-intensity--pain {
+  background: #fef2f2;
+  border-color: #dc2626;
+  color: #991b1b;
+}
+
+.body-map-zone-btn__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* Selector flotante de intensidad */
+.body-map-intensity-picker {
+  background: #ffffff;
+  border: 2px solid #3b82f6;
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.body-map-intensity-picker__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 0.9375rem;
+  color: #0f172a;
+}
+
+.body-map-intensity-picker__close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  min-height: 36px;
+  min-width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+.body-map-intensity-picker__close:hover {
+  background: #f1f5f9;
+}
+
+.body-map-intensity-picker__options {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.body-map-intensity-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.body-map-intensity-btn__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+}
+
+.body-map-intensity-btn__text strong {
+  display: block;
+  font-size: 0.875rem;
+  color: #0f172a;
+}
+
+.body-map-intensity-btn__text span {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.body-map-intensity-btn--normal.body-map-intensity-btn--active {
+  background: #ecfdf5;
+  border-color: #059669;
+}
+
+.body-map-intensity-btn--discomfort.body-map-intensity-btn--active {
+  background: #fffbeb;
+  border-color: #d97706;
+}
+
+.body-map-intensity-btn--pain.body-map-intensity-btn--active {
+  background: #fef2f2;
+  border-color: #dc2626;
+}
+
+/* Resumen de chips */
+.body-map-summary {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.body-map-summary__title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 0.875rem;
+  color: #334155;
+}
+
+.body-map-summary__clear-btn {
+  background: transparent;
+  border: none;
+  color: #dc2626;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 4px;
+}
+
+.body-map-summary__empty {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #64748b;
+  font-style: italic;
+}
+
+.body-map-summary__chips {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.body-map-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  border: 1px solid transparent;
+}
+
+.body-map-chip.body-map-intensity--normal {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #14532d;
+}
+
+.body-map-chip.body-map-intensity--discomfort {
+  background: #fef3c7;
+  border-color: #fde68a;
+  color: #78350f;
+}
+
+.body-map-chip.body-map-intensity--pain {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #7f1d1d;
+  font-weight: 700;
+}
+
+.body-map-chip__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+}
+
+.body-map-chip__edit,
+.body-map-chip__remove {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: inherit;
+  opacity: 0.8;
+}
+
+.body-map-chip__edit:hover,
+.body-map-chip__remove:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* Modales */
+.body-map-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+  padding: 16px;
+}
+
+.body-map-modal-card {
+  background: #ffffff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 680px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+}
+
+.body-map-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.body-map-modal-header__title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.body-map-modal-header__icon {
+  color: #dc2626;
+}
+
+.body-map-modal-header h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  color: #0f172a;
+}
+
+.body-map-modal-header__exercise {
+  margin: 2px 0 0;
+  font-size: 0.8125rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.body-map-modal-close {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 6px;
+  min-height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+.body-map-modal-close:hover {
+  background: #f1f5f9;
+}
+
+.body-map-modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.body-map-modal-intro {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.body-map-alert-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+}
+
+.body-map-alert-box--pain {
+  background: #fef2f2;
+  border: 1px solid #f87171;
+  color: #991b1b;
+}
+
+.body-map-modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.body-map-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.body-map-btn--primary {
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+}
+
+.body-map-btn--primary:hover:not(:disabled) {
+  background: #0369a1;
+}
+
+.body-map-btn--primary:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+.body-map-btn--secondary {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.body-map-btn--secondary:hover {
+  background: #e2e8f0;
+}
+
+.body-map-btn--variant {
+  background: #059669;
+  color: #ffffff;
+  border: none;
+}
+
+.body-map-btn--variant:hover {
+  background: #047857;
+}
+
+.body-map-btn--skip {
+  background: #d97706;
+  color: #ffffff;
+  border: none;
+}
+
+.body-map-btn--skip:hover {
+  background: #b45309;
+}
+
+/* Cajas de resolución US-53 */
+.body-map-variant-box {
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.body-map-variant-box__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.body-map-variant-box__icon {
+  color: #059669;
+}
+
+.body-map-variant-box__header h4 {
+  margin: 2px 0 0;
+  font-size: 1.125rem;
+  color: #065f46;
+}
+
+.body-map-variant-box__desc {
+  margin: 6px 0 12px;
+  font-size: 0.875rem;
+  color: #047857;
+}
+
+.body-map-variant-box__video {
+  margin: 12px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.body-map-variant-box__video iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.body-map-variant-box__notice {
+  font-size: 0.8125rem;
+  color: #065f46;
+  margin-bottom: 12px;
+}
+
+.body-map-blocked-box {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.body-map-blocked-box__icon {
+  color: #d97706;
+}
+
+.body-map-safe-box {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.body-map-safe-box__icon {
+  color: #16a34a;
+}
+
+.body-map-result-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.body-map-result-badge--success {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+/* Badges en listas de historial */
+.body-map-history-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.body-map-history-badge--normal {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.body-map-history-badge--discomfort {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.body-map-history-badge--pain {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* Botón de reporte de dolor en la tarjeta de ejercicio */
+.student-routine-exercise__report-pain-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid #fca5a5;
+  background: #fff5f5;
+  color: #dc2626;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 8px;
+}
+
+.student-routine-exercise__report-pain-btn:hover {
+  background: #fee2e2;
+  border-color: #f87171;
+}
+
+/* Tabs de historial y secciones adicionales */
+.student-routine-history__tabs {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.student-routine-history__tab-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 40px;
+  transition: all 0.2s ease;
+}
+
+.student-routine-history__tab-btn:hover {
+  background: #e2e8f0;
+}
+
+.student-routine-history__tab-btn--active {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+}
+
+.workout-finish-bodymap-section {
+  margin-top: 20px;
+  margin-bottom: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+  text-align: left;
+}
+
+.workout-finish-bodymap-section h4 {
+  margin: 0 0 4px;
+  font-size: 0.9375rem;
+  color: #1e293b;
+}
+
+.workout-finish-bodymap-desc {
+  margin: 0 0 12px;
+  font-size: 0.8125rem;
+  color: #64748b;
+}
+

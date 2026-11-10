@@ -3,9 +3,12 @@ import { Link } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { EffortFeedbackForm } from './EffortFeedbackForm';
 import { assignRoutineToStudent, getRoutineAssignments, getTrainerStudentWorkoutLogs, getTrainerStudentWorkoutSessions } from '../services/routineTemplateService';
+import { getTrainerStudentZoneHistory } from '../services/bodyMapReportService';
 import type { TrainerAIRoutine } from '../types/assignedRoutine';
+import type { BodyMapZoneHistoryItem } from '../types/bodyMapReport';
 import type { RoutineAssignmentStudent, RoutineTemplate, WorkoutSession, WorkoutSetLog } from '../types/routineTemplate';
 import '../styles/routine-assignment-progress.css';
+import '../styles/body-map.css';
 
 interface RoutineAssignmentPanelProps {
   templates: RoutineTemplate[];
@@ -23,6 +26,7 @@ export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignm
   const [openProgressFor, setOpenProgressFor] = useState<string | null>(null);
   const [progressByRelationship, setProgressByRelationship] = useState<Record<string, WorkoutSetLog[]>>({});
   const [sessionsByRelationship, setSessionsByRelationship] = useState<Record<string, WorkoutSession[]>>({});
+  const [zoneReportsByStudent, setZoneReportsByStudent] = useState<Record<string, BodyMapZoneHistoryItem[]>>({});
   const [progressLoadingFor, setProgressLoadingFor] = useState<string | null>(null);
   const [progressErrorFor, setProgressErrorFor] = useState<string | null>(null);
 
@@ -48,13 +52,18 @@ export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignm
       inFlight = true;
       setProgressLoadingFor(relationshipId);
       try {
-        const [logs, sessions] = await Promise.all([
+        const studentObj = students.find((s) => s.relationship_id === relationshipId);
+        const [logs, sessions, zoneReports] = await Promise.all([
           getTrainerStudentWorkoutLogs(relationshipId),
           getTrainerStudentWorkoutSessions(relationshipId).catch(() => []),
+          studentObj ? getTrainerStudentZoneHistory(studentObj.student_id).catch(() => []) : Promise.resolve([]),
         ]);
         if (!cancelled) {
           setProgressByRelationship((current) => ({ ...current, [relationshipId]: logs }));
           setSessionsByRelationship((current) => ({ ...current, [relationshipId]: sessions }));
+          if (studentObj) {
+            setZoneReportsByStudent((current) => ({ ...current, [studentObj.student_id]: zoneReports }));
+          }
           setProgressErrorFor(null);
         }
       } catch {
@@ -194,6 +203,32 @@ export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignm
                       ))}
                     </ul>
                   )}
+                  <div className="routine-assignment__progress-heading">
+                    <strong>Reportes en mapa corporal (Molestias y dolor)</strong>
+                  </div>
+                  {(zoneReportsByStudent[student.student_id] ?? []).length === 0 ? (
+                    <p className="plan-empty" style={{ margin: '0 0 16px' }}>El alumno no registra molestias ni dolor en el mapa corporal.</p>
+                  ) : (
+                    <ul className="routine-assignment__sessions-list" style={{ margin: '0 0 16px' }}>
+                      {(zoneReportsByStudent[student.student_id] ?? []).slice(0, 6).map((item) => (
+                        <li key={item.id} className="routine-assignment__session-item">
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                            <strong>{item.zone_display || item.zone}</strong>
+                            <span className={`body-map-history-badge body-map-history-badge--${item.intensity.toLowerCase()}`}>
+                              {item.intensity === 'PAIN' ? 'Dolor' : item.intensity === 'DISCOMFORT' ? 'Molestia' : 'Carga normal'}
+                            </span>
+                          </div>
+                          <time dateTime={item.created_at}>{new Date(item.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</time>
+                          <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+                            {item.context === 'IN_EXERCISE' ? 'Durante ejercicio' : 'Fin de sesión'}
+                            {item.exercise_name ? ` · ${item.exercise_name}` : ''}
+                            {item.action_taken === 'VARIANT_ACCEPTED' ? ' · Variante aceptada' : item.action_taken === 'EXERCISE_SKIPPED' ? ' · Ejercicio salteado' : ''}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
                   <div className="routine-assignment__progress-heading">
                     <strong>Series registradas</strong>
                   </div>

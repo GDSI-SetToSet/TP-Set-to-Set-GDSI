@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.src.api.errors import register_exception_handlers
 from backend.src.api.v1.assigned_routines import router as assigned_routines_router
 from backend.src.api.v1.auth import router as auth_router
+from backend.src.api.v1.body_map_reports import router as body_map_reports_router
 from backend.src.api.v1.discovery import router as discovery_router
 from backend.src.api.v1.exercise_alternatives import (
     router as exercise_alternatives_router,
@@ -31,6 +32,8 @@ from backend.src.models import (  # noqa: F401
     AssignedRoutineBlock,
     AssignedRoutineDay,
     AssignedRoutineExercise,
+    BodyMapPainReport,
+    BodyMapPainReportZone,
     EffortFeedback,
     Exercise,
     ExerciseReplacementLog,
@@ -90,6 +93,7 @@ def create_app(create_tables: bool = True) -> FastAPI:
     app.include_router(safe_variants_router)
     app.include_router(student_safe_variants_router)
     app.include_router(exercise_alternatives_router)
+    app.include_router(body_map_reports_router)
 
     @app.get("/health", tags=["health"])
     def health() -> dict[str, str]:

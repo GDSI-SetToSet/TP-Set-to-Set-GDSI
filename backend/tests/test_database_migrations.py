@@ -568,3 +568,393 @@ def test_sqlite_legacy_table_migration_fails_safely_when_invalid_rpe_data_exists
         row = conn.execute(text("SELECT * FROM workout_sessions WHERE id = 's_invalid'")).fetchone()
         assert row is not None
         assert row[8] == 99
+
+
+def test_standalone_migrations_registers_body_map_pain_report_models():
+    """Escenario US-61: Comprueba que las tablas de reporte de mapa corporal estén registradas en Base.metadata."""
+    from backend.src.core.database import Base
+
+    assert "body_map_pain_reports" in Base.metadata.tables
+    assert "body_map_pain_report_zones" in Base.metadata.tables
+    report_table = Base.metadata.tables["body_map_pain_reports"]
+    assert "student_id" in report_table.c
+    assert "session_id" in report_table.c
+    assert "exercise_id" in report_table.c
+    assert "context" in report_table.c
+    assert "action_taken" in report_table.c
+    assert "idempotency_key" in report_table.c
+    constraint_names = {c.name for c in report_table.constraints}
+    assert "uq_body_map_student_idempotency" in constraint_names
+
+    zone_table = Base.metadata.tables["body_map_pain_report_zones"]
+    assert "report_id" in zone_table.c
+    assert "zone" in zone_table.c
+    assert "intensity" in zone_table.c
+
+
+def test_apply_migrations_creates_body_map_pain_report_tables_if_missing():
+    """Escenario US-61: Comprueba que apply_migrations cree las tablas de mapas de dolor en una base existente."""
+    engine = make_legacy_engine()
+    create_legacy_database(engine)
+    inspector_before = inspect(engine)
+    assert "body_map_pain_reports" not in inspector_before.get_table_names()
+    assert "body_map_pain_report_zones" not in inspector_before.get_table_names()
+
+    apply_migrations(engine)
+
+    inspector_after = inspect(engine)
+    assert "body_map_pain_reports" in inspector_after.get_table_names()
+    assert "body_map_pain_report_zones" in inspector_after.get_table_names()
+
+    report_cols = {c["name"] for c in inspector_after.get_columns("body_map_pain_reports")}
+    for col in (
+        "id",
+        "student_id",
+        "relationship_id",
+        "session_id",
+        "exercise_id",
+        "context",
+        "action_taken",
+        "idempotency_key",
+        "created_at",
+    ):
+        assert col in report_cols
+
+    zone_cols = {c["name"] for c in inspector_after.get_columns("body_map_pain_report_zones")}
+    for col in ("id", "report_id", "zone", "intensity", "created_at"):
+        assert col in zone_cols
+
+
+def test_sqlite_legacy_body_map_pain_reports_migrates_to_composite_unique_and_preserves_data():
+    """H03 / Migración US-61:
+    Verifica que en una base SQLite preexistente con la restricción antigua (unicidad global de idempotency_key):
+    1. Se elimine la unicidad global anterior.
+    2. Se aplique la unicidad compuesta (student_id, idempotency_key).
+    3. Dos alumnos distintos puedan utilizar la misma clave de idempotencia.
+    4. Un mismo alumno no pueda duplicar la misma clave para reportes distintos.
+    5. Los registros y zonas históricas se preserven intactos.
+    6. Múltiples registros con idempotency_key = NULL sigan permitidos.
+    7. La migración sea idempotente ante ejecuciones repetidas.
+    """
+    engine = make_legacy_engine()
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE student_profiles (id VARCHAR(36) PRIMARY KEY)"))
+        conn.execute(text("CREATE TABLE training_relationships (id VARCHAR(36) PRIMARY KEY)"))
+        conn.execute(text("CREATE TABLE workout_sessions (id VARCHAR(36) PRIMARY KEY)"))
+        conn.execute(text("CREATE TABLE exercises (id VARCHAR(36) PRIMARY KEY)"))
+
+        # Tabla body_map_pain_reports con el esquema heredado (idempotency_key con unicidad global)
+        conn.execute(text("""
+            CREATE TABLE body_map_pain_reports (
+                id VARCHAR(36) PRIMARY KEY,
+                student_id VARCHAR(36) NOT NULL,
+                relationship_id VARCHAR(36),
+                session_id VARCHAR(36),
+                exercise_id VARCHAR(36),
+                context VARCHAR(32) NOT NULL,
+                action_taken VARCHAR(32),
+                idempotency_key VARCHAR(64) UNIQUE,
+                created_at DATETIME NOT NULL,
+                FOREIGN KEY(student_id) REFERENCES student_profiles (id) ON DELETE CASCADE,
+                FOREIGN KEY(relationship_id) REFERENCES training_relationships (id) ON DELETE SET NULL,
+                FOREIGN KEY(session_id) REFERENCES workout_sessions (id) ON DELETE SET NULL,
+                FOREIGN KEY(exercise_id) REFERENCES exercises (id) ON DELETE SET NULL
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE body_map_pain_report_zones (
+                id VARCHAR(36) PRIMARY KEY,
+                report_id VARCHAR(36) NOT NULL,
+                zone VARCHAR(50) NOT NULL,
+                intensity VARCHAR(20) NOT NULL,
+                created_at DATETIME NOT NULL,
+                FOREIGN KEY(report_id) REFERENCES body_map_pain_reports (id) ON DELETE CASCADE
+            )
+        """))
+
+        # Sembrar datos base y registros históricos
+        conn.execute(text("INSERT INTO student_profiles VALUES ('student-A')"))
+        conn.execute(text("INSERT INTO student_profiles VALUES ('student-B')"))
+
+        # Reporte 1: Alumno A con clave fija
+        conn.execute(text("""
+            INSERT INTO body_map_pain_reports VALUES
+            ('rep-1', 'student-A', NULL, NULL, NULL, 'POST_SESSION', 'NONE', 'shared-idem-key-1', '2026-01-01 10:00:00')
+        """))
+        conn.execute(text("""
+            INSERT INTO body_map_pain_report_zones VALUES
+            ('zone-1', 'rep-1', 'Lower back', 'PAIN', '2026-01-01 10:00:00')
+        """))
+
+        # Reporte 2: Alumno A con clave NULL
+        conn.execute(text("""
+            INSERT INTO body_map_pain_reports VALUES
+            ('rep-2', 'student-A', NULL, NULL, NULL, 'IN_EXERCISE', 'NONE', NULL, '2026-01-01 11:00:00')
+        """))
+        conn.execute(text("""
+            INSERT INTO body_map_pain_report_zones VALUES
+            ('zone-2', 'rep-2', 'Shoulder', 'DISCOMFORT', '2026-01-01 11:00:00')
+        """))
+
+        # Reporte 3: Alumno B con clave NULL
+        conn.execute(text("""
+            INSERT INTO body_map_pain_reports VALUES
+            ('rep-3', 'student-B', NULL, NULL, NULL, 'POST_SESSION', 'NONE', NULL, '2026-01-01 12:00:00')
+        """))
+
+    # Validación previa a la migración: el esquema heredado rechaza que Alumno B use 'shared-idem-key-1'
+    with pytest.raises(Exception) as exc_legacy, engine.begin() as conn_sub:
+        conn_sub.execute(text("""
+            INSERT INTO body_map_pain_reports VALUES
+            ('rep-fail', 'student-B', NULL, NULL, NULL, 'POST_SESSION', 'NONE', 'shared-idem-key-1', '2026-01-01 13:00:00')
+        """))
+    assert "UNIQUE constraint failed" in str(exc_legacy.value)
+
+    # Ejecutar la migración
+    results = apply_migrations(engine)
+    assert any("body_map_pain_reports.uq_body_map_student_idempotency:sqlite_table_rebuild" in r for r in results)
+
+    # 1. Preservación íntegra de registros y zonas preexistentes
+    with engine.connect() as conn:
+        reports = conn.execute(text("SELECT id, student_id, idempotency_key FROM body_map_pain_reports ORDER BY id")).fetchall()
+        assert len(reports) == 3
+        assert reports[0] == ("rep-1", "student-A", "shared-idem-key-1")
+        assert reports[1] == ("rep-2", "student-A", None)
+        assert reports[2] == ("rep-3", "student-B", None)
+
+        zones = conn.execute(text("SELECT id, report_id, zone, intensity FROM body_map_pain_report_zones ORDER BY id")).fetchall()
+        assert len(zones) == 2
+        assert zones[0] == ("zone-1", "rep-1", "Lower back", "PAIN")
+        assert zones[1] == ("zone-2", "rep-2", "Shoulder", "DISCOMFORT")
+
+    # 2. Dos alumnos distintos PUEDEN utilizar la misma clave de idempotencia
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO body_map_pain_reports VALUES
+            ('rep-4', 'student-B', NULL, NULL, NULL, 'POST_SESSION', 'NONE', 'shared-idem-key-1', '2026-01-01 14:00:00')
+        """))
+
+    with engine.connect() as conn:
+        r4 = conn.execute(text("SELECT id, student_id, idempotency_key FROM body_map_pain_reports WHERE id = 'rep-4'")).fetchone()
+        assert r4 == ("rep-4", "student-B", "shared-idem-key-1")
+
+    # 3. El mismo alumno NO PUEDE duplicar la misma clave para reportes distintos
+    with pytest.raises(Exception) as exc_same_student, engine.begin() as conn_sub:
+        conn_sub.execute(text("""
+            INSERT INTO body_map_pain_reports VALUES
+            ('rep-dup', 'student-A', NULL, NULL, NULL, 'POST_SESSION', 'NONE', 'shared-idem-key-1', '2026-01-01 15:00:00')
+        """))
+    assert "UNIQUE constraint failed" in str(exc_same_student.value) or "uq_body_map_student_idempotency" in str(exc_same_student.value)
+
+    # 4. Múltiples registros con idempotency_key = NULL siguen siendo válidos
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO body_map_pain_reports VALUES
+            ('rep-5', 'student-A', NULL, NULL, NULL, 'POST_SESSION', 'NONE', NULL, '2026-01-01 16:00:00')
+        """))
+        conn.execute(text("""
+            INSERT INTO body_map_pain_reports VALUES
+            ('rep-6', 'student-B', NULL, NULL, NULL, 'POST_SESSION', 'NONE', NULL, '2026-01-01 17:00:00')
+        """))
+
+    with engine.connect() as conn:
+        total = conn.execute(text("SELECT COUNT(*) FROM body_map_pain_reports")).scalar()
+        assert total == 6  # rep-1, rep-2, rep-3, rep-4, rep-5, rep-6
+
+    # 5. Idempotencia: re-ejecutar apply_migrations no altera datos ni produce errores
+    results_second_run = apply_migrations(engine)
+    assert not any("body_map_pain_reports" in r for r in results_second_run)
+    with engine.connect() as conn:
+        total_after = conn.execute(text("SELECT COUNT(*) FROM body_map_pain_reports")).scalar()
+        assert total_after == 6
+
+
+def test_sqlite_legacy_body_map_pain_reports_fails_safely_when_duplicate_composite_keys_exist():
+    """H03 / Migración US-61:
+    Si una base de datos contiene registros que violan la nueva unicidad compuesta (mismo alumno y misma clave no nula),
+    la migración debe fallar de forma segura con ValueError, sin destruir ni alterar la tabla original.
+    """
+    engine = make_legacy_engine()
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE student_profiles (id VARCHAR(36) PRIMARY KEY)"))
+        conn.execute(text("""
+            CREATE TABLE body_map_pain_reports (
+                id VARCHAR(36) PRIMARY KEY,
+                student_id VARCHAR(36) NOT NULL,
+                relationship_id VARCHAR(36),
+                session_id VARCHAR(36),
+                exercise_id VARCHAR(36),
+                context VARCHAR(32) NOT NULL,
+                action_taken VARCHAR(32),
+                idempotency_key VARCHAR(64),
+                created_at DATETIME NOT NULL
+            )
+        """))
+        conn.execute(text("INSERT INTO student_profiles VALUES ('student-dup')"))
+        # Insertar dos reportes del mismo alumno con la misma clave (posible si no había índice único antes)
+        conn.execute(text("""
+            INSERT INTO body_map_pain_reports VALUES
+            ('r1', 'student-dup', NULL, NULL, NULL, 'POST_SESSION', 'NONE', 'dup-key', '2026-01-01 10:00:00')
+        """))
+        conn.execute(text("""
+            INSERT INTO body_map_pain_reports VALUES
+            ('r2', 'student-dup', NULL, NULL, NULL, 'POST_SESSION', 'NONE', 'dup-key', '2026-01-01 11:00:00')
+        """))
+
+    with pytest.raises(ValueError) as exc_info:
+        apply_migrations(engine)
+
+    assert "duplicados" in str(exc_info.value)
+    assert "uq_body_map_student_idempotency" in str(exc_info.value)
+
+    # Verificar que los datos originales siguen intactos
+    with engine.connect() as conn:
+        rows = conn.execute(text("SELECT id FROM body_map_pain_reports")).fetchall()
+        assert len(rows) == 2
+
+
+
+def test_sqlite_migration_preserves_foreign_key_integrity_and_passes_fk_check():
+    """H03 / US-61: Comprueba que la migración conserve estrictamente la integridad referencial en SQLite:
+    1. PRAGMA foreign_key_check devuelve 0 violaciones antes de la migración.
+    2. apply_migrations() ejecuta la reconstrucción de tabla desactivando temporalmente FKs fuera de transacción.
+    3. PRAGMA foreign_key_check devuelve 0 violaciones después de la migración.
+    4. Las restricciones de clave foránea permanecen activas (rechazan inserciones con IDs inexistentes).
+    5. Las eliminaciones en cascada de la tabla padre (body_map_pain_reports) eliminan sus zonas hijas.
+    6. Ante cualquier excepción en la transacción, PRAGMA foreign_keys=ON se restaura en el bloque finally.
+    """
+    engine = make_legacy_engine()
+
+    # Habilitar claves foráneas en la conexión DBAPI
+    with engine.connect() as conn:
+        dbapi = conn.connection.dbapi_connection
+        if hasattr(dbapi, "execute"):
+            dbapi.execute("PRAGMA foreign_keys=ON;")
+
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE student_profiles (id VARCHAR(36) PRIMARY KEY)"))
+        conn.execute(text("CREATE TABLE training_relationships (id VARCHAR(36) PRIMARY KEY)"))
+        conn.execute(text("""
+            CREATE TABLE workout_sessions (
+                id VARCHAR(36) PRIMARY KEY,
+                student_id VARCHAR(36) NOT NULL,
+                relationship_id VARCHAR(36) NOT NULL,
+                routine_id VARCHAR(36) NOT NULL,
+                day_name VARCHAR(100) NOT NULL,
+                modality VARCHAR(16) NOT NULL,
+                started_at DATETIME NOT NULL,
+                finished_at DATETIME,
+                rpe INTEGER
+            )
+        """))
+        conn.execute(text("CREATE TABLE exercises (id VARCHAR(36) PRIMARY KEY)"))
+
+        # Tabla body_map_pain_reports en versión legacy
+        conn.execute(text("""
+            CREATE TABLE body_map_pain_reports (
+                id VARCHAR(36) PRIMARY KEY,
+                student_id VARCHAR(36) NOT NULL,
+                relationship_id VARCHAR(36),
+                session_id VARCHAR(36),
+                exercise_id VARCHAR(36),
+                context VARCHAR(32) NOT NULL,
+                action_taken VARCHAR(32),
+                idempotency_key VARCHAR(64) UNIQUE,
+                created_at DATETIME NOT NULL,
+                FOREIGN KEY(student_id) REFERENCES student_profiles (id) ON DELETE CASCADE,
+                FOREIGN KEY(relationship_id) REFERENCES training_relationships (id) ON DELETE SET NULL,
+                FOREIGN KEY(session_id) REFERENCES workout_sessions (id) ON DELETE SET NULL,
+                FOREIGN KEY(exercise_id) REFERENCES exercises (id) ON DELETE SET NULL
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE body_map_pain_report_zones (
+                id VARCHAR(36) PRIMARY KEY,
+                report_id VARCHAR(36) NOT NULL,
+                zone VARCHAR(50) NOT NULL,
+                intensity VARCHAR(20) NOT NULL,
+                created_at DATETIME NOT NULL,
+                FOREIGN KEY(report_id) REFERENCES body_map_pain_reports (id) ON DELETE CASCADE
+            )
+        """))
+
+        # Poblar datos referenciales
+        conn.execute(text("INSERT INTO student_profiles VALUES ('student-fk-1')"))
+        conn.execute(text("INSERT INTO training_relationships VALUES ('rel-fk-1')"))
+        conn.execute(text("INSERT INTO exercises VALUES ('ex-fk-1')"))
+        conn.execute(text("""
+            INSERT INTO workout_sessions VALUES
+            ('sess-fk-1', 'student-fk-1', 'rel-fk-1', 'rou-1', 'D1', 'GYM', '2026-01-01', NULL, 8)
+        """))
+
+        # Insertar reporte con relaciones válidas y 2 zonas
+        conn.execute(text("""
+            INSERT INTO body_map_pain_reports VALUES
+            ('rep-fk-1', 'student-fk-1', 'rel-fk-1', 'sess-fk-1', 'ex-fk-1', 'IN_EXERCISE', 'NONE', 'key-fk-1', '2026-01-01 10:00:00')
+        """))
+        conn.execute(text("""
+            INSERT INTO body_map_pain_report_zones VALUES
+            ('zone-fk-1', 'rep-fk-1', 'Shoulder', 'PAIN', '2026-01-01 10:00:00')
+        """))
+        conn.execute(text("""
+            INSERT INTO body_map_pain_report_zones VALUES
+            ('zone-fk-2', 'rep-fk-1', 'Knee', 'DISCOMFORT', '2026-01-01 10:00:00')
+        """))
+
+    # 1. foreign_key_check antes de la migración devuelve cero violaciones
+    with engine.connect() as conn:
+        violations_before = conn.execute(text("PRAGMA foreign_key_check;")).fetchall()
+        assert len(violations_before) == 0
+
+    # 2. Ejecutar la migración
+    results = apply_migrations(engine)
+    assert any("body_map_pain_reports.uq_body_map_student_idempotency:sqlite_table_rebuild" in r for r in results)
+
+    # 3. foreign_key_check después de la migración devuelve exactamente cero violaciones
+    with engine.connect() as conn:
+        violations_after = conn.execute(text("PRAGMA foreign_key_check;")).fetchall()
+        assert len(violations_after) == 0
+
+        # Verificación explícita sobre las dos tablas del módulo
+        table_fk_reports = conn.execute(text("PRAGMA foreign_key_check('body_map_pain_reports');")).fetchall()
+        assert len(table_fk_reports) == 0
+        table_fk_zones = conn.execute(text("PRAGMA foreign_key_check('body_map_pain_report_zones');")).fetchall()
+        assert len(table_fk_zones) == 0
+
+        # 4. Comprobar que los registros y sus relaciones foráneas persisten íntegros
+        row = conn.execute(text("""
+            SELECT r.id, r.student_id, r.relationship_id, r.session_id, r.exercise_id, COUNT(z.id)
+            FROM body_map_pain_reports r
+            JOIN body_map_pain_report_zones z ON z.report_id = r.id
+            WHERE r.id = 'rep-fk-1'
+            GROUP BY r.id
+        """)).fetchone()
+        assert row == ("rep-fk-1", "student-fk-1", "rel-fk-1", "sess-fk-1", "ex-fk-1", 2)
+
+    # 5. Comprobar que las claves foráneas continúan activas y bloquean datos inválidos
+    with engine.connect() as conn:
+        dbapi = conn.connection.dbapi_connection
+        if hasattr(dbapi, "execute"):
+            dbapi.execute("PRAGMA foreign_keys=ON;")
+
+        with pytest.raises(Exception) as exc_invalid_student, engine.begin() as conn_sub:
+            conn_sub.execute(text("""
+                INSERT INTO body_map_pain_reports VALUES
+                ('rep-bad', 'non-existent-student', NULL, NULL, NULL, 'POST_SESSION', 'NONE', 'k-bad', '2026-01-01')
+            """))
+        assert "FOREIGN KEY constraint failed" in str(exc_invalid_student.value)
+
+        with pytest.raises(Exception) as exc_invalid_report, engine.begin() as conn_sub:
+            conn_sub.execute(text("""
+                INSERT INTO body_map_pain_report_zones VALUES
+                ('zone-bad', 'non-existent-report', 'Hip', 'PAIN', '2026-01-01')
+            """))
+        assert "FOREIGN KEY constraint failed" in str(exc_invalid_report.value)
+
+    # 6. Comprobar ON DELETE CASCADE en la tabla hija tras la migración
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM body_map_pain_reports WHERE id = 'rep-fk-1'"))
+
+    with engine.connect() as conn:
+        remaining_zones = conn.execute(text("SELECT COUNT(*) FROM body_map_pain_report_zones WHERE report_id = 'rep-fk-1'")).scalar()
+        assert remaining_zones == 0
