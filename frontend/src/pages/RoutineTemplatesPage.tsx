@@ -343,17 +343,15 @@ export function RoutineTemplatesPage() {
 
       <section className="profile-card routine-templates-page">
         <div className="profile-heading routine-template-intro">
-          <span>RUTINAS GENÉRICAS</span>
+          <span>RUTINAS DEL ENTRENADOR</span>
           <h1>Tus rutinas</h1>
           <p>Creá y organizá las rutinas que después podés asignar a tus alumnos.</p>
-          <div style={{ marginTop: '14px' }}>
-            <Link to={ROUTES.trainerGenerateAIRoutine} state={{ from: 'routines' }} className="profile-cta" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#4f46e5' }}>
-              <Sparkles size={16} /> Generar rutina particular con IA para un alumno
-            </Link>
-          </div>
         </div>
-        <div className="routine-template-actions">
-          <button className="profile-save" type="button" onClick={formVisible ? resetForm : startCreating} disabled={saving}>
+        <div className="routine-template-toolbar">
+          <Link to={ROUTES.trainerGenerateAIRoutine} state={{ from: 'routines' }} className="routine-template-ai-link">
+            <Sparkles size={16} /> Generar rutina con IA
+          </Link>
+          <button className="profile-save routine-template-create" type="button" onClick={formVisible ? resetForm : startCreating} disabled={saving}>
             {formVisible ? 'Cerrar formulario' : <><Plus size={18} /> Crear rutina</>}
           </button>
         </div>

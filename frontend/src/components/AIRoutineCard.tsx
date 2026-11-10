@@ -36,17 +36,17 @@ export function AIRoutineCard({ routine, busy = false, onApprove, onReassign, on
         </>
       )}
       <div className="plan-card__actions">
-        <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open}>
+        <button className="routine-card__action" type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open}>
           {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />} {open ? 'Ocultar' : 'Ver detalle'}
         </button>
         {onEdit && (
-          <button type="button" onClick={() => onEdit(routine)} disabled={busy}>
+          <button className="routine-card__action" type="button" onClick={() => onEdit(routine)} disabled={busy}>
             <Pencil size={16} /> Editar
           </button>
         )}
-        {isPending && <button type="button" onClick={() => onApprove(routine)} disabled={busy}><CheckCircle2 size={16} /> Aprobar y asignar</button>}
-        {!isPending && !routine.is_assigned && <button type="button" onClick={() => onReassign(routine)} disabled={busy}><RotateCcw size={16} /> Volver a asignar</button>}
-        <button type="button" onClick={() => onDelete(routine)} disabled={busy}><Trash2 size={16} /> Eliminar</button>
+        {isPending && <button className="routine-card__action routine-card__action--primary" type="button" onClick={() => onApprove(routine)} disabled={busy}><CheckCircle2 size={16} /> Aprobar y asignar</button>}
+        {!isPending && !routine.is_assigned && <button className="routine-card__action routine-card__action--primary" type="button" onClick={() => onReassign(routine)} disabled={busy}><RotateCcw size={16} /> Volver a asignar</button>}
+        <button className="routine-card__action routine-card__action--danger" type="button" onClick={() => onDelete(routine)} disabled={busy}><Trash2 size={16} /> Eliminar</button>
       </div>
     </article>
   );
