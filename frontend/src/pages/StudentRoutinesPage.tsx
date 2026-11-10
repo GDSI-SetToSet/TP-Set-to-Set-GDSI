@@ -777,29 +777,57 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                             return isBlocked ? current.filter((id) => id !== item.exercise.id) : current;
                           })}
                         />
-                        <ExerciseAlternativesPanel
-                          exerciseId={item.exercise.id}
-                          dayName={selectedDay?.name ?? ''}
-                          chosen={replacements[item.id] ?? null}
-                          onChosen={(alt) => setReplacements((current) => {
-                            const { [item.id]: _removed, ...rest } = current;
-                            return alt ? { ...rest, [item.id]: alt } : rest;
-                          })}
-                          onSkip={() => setSkipped((current) => [...current, item.id])}
-                        />
-                        {sessionMode && (
-                          <button
-                            type="button"
-                            className="student-routine-exercise__report-pain-btn"
-                            onClick={() => setPainReportExercise({
-                              id: replacements[item.id]?.exercise_id ?? item.exercise.id,
-                              name: replacements[item.id]?.name ?? item.exercise.name,
+                        <div className="student-routine-exercise__quick-actions" role="group" aria-label="Acciones del ejercicio">
+                          <ExerciseAlternativesPanel
+                            exerciseId={item.exercise.id}
+                            dayName={selectedDay?.name ?? ''}
+                            chosen={replacements[item.id] ?? null}
+                            onChosen={(alt) => setReplacements((current) => {
+                              const { [item.id]: _removed, ...rest } = current;
+                              return alt ? { ...rest, [item.id]: alt } : rest;
                             })}
-                          >
-                            <AlertTriangle size={15} />
-                            Reportar molestia o dolor
-                          </button>
-                        )}
+                            onSkip={() => setSkipped((current) => [...current, item.id])}
+                          />
+                          {sessionMode && (
+                            <button
+                              type="button"
+                              className="student-routine-exercise__report-pain-btn"
+                              onClick={() => setPainReportExercise({
+                                id: replacements[item.id]?.exercise_id ?? item.exercise.id,
+                                name: replacements[item.id]?.name ?? item.exercise.name,
+                              })}
+                            >
+                              <AlertTriangle size={15} />
+                              Reportar molestia o dolor
+                            </button>
+                          )}
+                          {sessionMode && item.exercise.video_url && (
+                            <div className="student-routine-exercise__media">
+                              <button
+                                className="student-routine-exercise__video-toggle"
+                                type="button"
+                                aria-expanded={openVideoExerciseId === item.id}
+                                aria-controls={`exercise-video-${item.id}`}
+                                onClick={() => setOpenVideoExerciseId((current) => current === item.id ? null : item.id)}
+                              >
+                                {openVideoExerciseId === item.id ? <X size={16} /> : <Video size={16} />}
+                                {openVideoExerciseId === item.id ? 'Ocultar video' : 'Ver video técnico'}
+                              </button>
+                              {openVideoExerciseId === item.id && (
+                                <iframe
+                                  id={`exercise-video-${item.id}`}
+                                  className="exercise-video"
+                                  src={item.exercise.video_url}
+                                  title={`Video técnico de ${item.exercise.name}`}
+                                  loading="lazy"
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                  allowFullScreen
+                                  referrerPolicy="strict-origin-when-cross-origin"
+                                />
+                              )}
+                            </div>
+                          )}
+                        </div>
                         <p>{item.sets} series · {item.reps} repeticiones</p>
                         <p>
                           {isHomeModality
@@ -825,33 +853,6 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                             )}
                           </dl>
                         )}
-                        {sessionMode && item.exercise.video_url && (
-                          <div className="student-routine-exercise__media">
-                            <button
-                              className="student-routine-exercise__video-toggle"
-                              type="button"
-                              aria-expanded={openVideoExerciseId === item.id}
-                              aria-controls={`exercise-video-${item.id}`}
-                              onClick={() => setOpenVideoExerciseId((current) => current === item.id ? null : item.id)}
-                            >
-                              {openVideoExerciseId === item.id ? <X size={18} /> : <Video size={18} />}
-                              {openVideoExerciseId === item.id ? 'Ocultar video' : 'Ver video técnico'}
-                            </button>
-                            {openVideoExerciseId === item.id && (
-                              <iframe
-                                id={`exercise-video-${item.id}`}
-                                className="exercise-video"
-                                src={item.exercise.video_url}
-                                title={`Video técnico de ${item.exercise.name}`}
-                                loading="lazy"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                allowFullScreen
-                                referrerPolicy="strict-origin-when-cross-origin"
-                              />
-                            )}
-                          </div>
-                        )}
-
                         {(replacements[item.id] || !blockedExerciseIds.includes(item.exercise.id)) && <div className="student-routine-exercise__logger">
                         {sessionMode && !blockedExerciseIds.includes(item.exercise.id) && !activeSet && !finishedSet && !activeRest && <div className="student-routine-exercise__session-actions"><button type="button" className="student-routine-exercise__log-btn" disabled={getRecordedSetCount(item) >= item.sets} onClick={() => handleStartSet(item)}>{getRecordedSetCount(item) >= item.sets ? 'Series completadas' : 'Iniciar serie'}</button></div>}
                         {sessionMode && activeSet?.exerciseId === item.id && <div className="student-routine-exercise__session-actions">

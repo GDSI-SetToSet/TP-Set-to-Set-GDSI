@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ChevronDown, Pencil } from 'lucide-react';
 import { ROUTES } from '../constants/routes';
 import { EffortFeedbackForm } from './EffortFeedbackForm';
 import { assignRoutineToStudent, getRoutineAssignments, getTrainerStudentWorkoutLogs, getTrainerStudentWorkoutSessions } from '../services/routineTemplateService';
@@ -9,6 +10,30 @@ import type { BodyMapZoneHistoryItem } from '../types/bodyMapReport';
 import type { RoutineAssignmentStudent, RoutineTemplate, WorkoutSession, WorkoutSetLog } from '../types/routineTemplate';
 import '../styles/routine-assignment-progress.css';
 import '../styles/body-map.css';
+
+function localDateKey(value: string): string {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+function reportsForSession(
+  session: WorkoutSession,
+  sessions: WorkoutSession[],
+  reports: BodyMapZoneHistoryItem[],
+): BodyMapZoneHistoryItem[] {
+  return reports.filter((report) => {
+    if (report.session_id) return report.session_id === session.id;
+    if (!report.session_day_name || report.session_day_name !== session.day_name) return false;
+    if (localDateKey(report.created_at) !== localDateKey(session.started_at)) return false;
+
+    const matchingSessions = sessions
+      .filter((candidate) => candidate.day_name === report.session_day_name
+        && localDateKey(candidate.started_at) === localDateKey(report.created_at))
+      .sort((left, right) => Math.abs(Date.parse(left.started_at) - Date.parse(report.created_at))
+        - Math.abs(Date.parse(right.started_at) - Date.parse(report.created_at)));
+    return matchingSessions[0]?.id === session.id;
+  });
+}
 
 interface RoutineAssignmentPanelProps {
   templates: RoutineTemplate[];
@@ -27,6 +52,7 @@ export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignm
   const [progressByRelationship, setProgressByRelationship] = useState<Record<string, WorkoutSetLog[]>>({});
   const [sessionsByRelationship, setSessionsByRelationship] = useState<Record<string, WorkoutSession[]>>({});
   const [zoneReportsByStudent, setZoneReportsByStudent] = useState<Record<string, BodyMapZoneHistoryItem[]>>({});
+  const [expandedSessionDetails, setExpandedSessionDetails] = useState<Record<string, boolean>>({});
   const [progressLoadingFor, setProgressLoadingFor] = useState<string | null>(null);
   const [progressErrorFor, setProgressErrorFor] = useState<string | null>(null);
 
@@ -150,103 +176,125 @@ export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignm
               >
                 {savingId === student.relationship_id ? 'Guardando…' : 'Guardar asignación'}
               </button>
-              {student.routine_template_id && (
-                <Link className="profile-save" to={ROUTES.trainerStudentRoutine.replace(':studentId', student.student_id)}>
-                  Editar rutina
-                </Link>
-              )}
               {student.routine_template_id && <>
-                <button
-                  type="button"
-                  className="profile-save routine-assignment__progress-toggle"
-                  aria-expanded={openProgressFor === student.relationship_id}
-                  onClick={() => setOpenProgressFor((current) => current === student.relationship_id ? null : student.relationship_id)}
-                >
-                  {openProgressFor === student.relationship_id ? 'Ocultar progreso' : 'Ver progreso del alumno'}
-                </button>
+                <div className="routine-assignment__actions">
+                  <span className="routine-assignment__actions-label">Acciones del alumno</span>
+                  <div className="routine-assignment__actions-buttons">
+                    <Link className="profile-save routine-assignment__action-link" to={ROUTES.trainerStudentRoutine.replace(':studentId', student.student_id)}>
+                      <Pencil size={15} aria-hidden="true" />
+                      Editar rutina
+                    </Link>
+                    <button
+                      type="button"
+                      className="profile-save routine-assignment__progress-toggle"
+                      aria-expanded={openProgressFor === student.relationship_id}
+                      onClick={() => setOpenProgressFor((current) => current === student.relationship_id ? null : student.relationship_id)}
+                    >
+                      {openProgressFor === student.relationship_id ? 'Ocultar progreso' : 'Ver progreso del alumno'}
+                      <ChevronDown size={16} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
                 {openProgressFor === student.relationship_id && <div className="routine-assignment__progress" aria-label={`Progreso de ${student.student_name}`}>
                   <div className="routine-assignment__progress-heading">
                     <strong>Sesiones y Esfuerzo (RPE)</strong>
                     <span>{progressLoadingFor === student.relationship_id ? 'Actualizando…' : 'Actualización automática'}</span>
                   </div>
                   {(sessionsByRelationship[student.relationship_id] ?? []).length === 0 ? (
-                    <p className="plan-empty" style={{ margin: '0 0 16px' }}>Todavía no hay sesiones finalizadas.</p>
+                    <p className="plan-empty routine-assignment__empty">Todavía no hay sesiones finalizadas.</p>
                   ) : (
-                    <ul className="routine-assignment__sessions-list" style={{ margin: '0 0 16px' }}>
-                      {(sessionsByRelationship[student.relationship_id] ?? []).slice(0, 5).map((session) => (
-                        <li key={session.id} className="routine-assignment__session-item">
-                          <strong>{session.day_name}</strong>
-                          <time dateTime={session.started_at}>{new Date(session.started_at).toLocaleDateString('es-AR')}</time>
-                          {session.rpe !== null && session.rpe !== undefined ? (
-                            <span className="routine-assignment__rpe-badge routine-assignment__rpe-badge--reported">
-                              RPE: {session.rpe}/10
-                            </span>
-                          ) : (
-                            <span className="routine-assignment__rpe-badge routine-assignment__rpe-badge--unreported">
-                              Sin reporte de RPE
-                            </span>
-                          )}
-                          {session.rpe !== null && session.rpe !== undefined && (
-                            <EffortFeedbackForm
-                              key={`${session.id}:${session.effort_feedback?.updated_at ?? ''}`}
-                              relationshipId={student.relationship_id}
-                              session={session}
-                              onSaved={(feedback) => setSessionsByRelationship((current) => ({
-                                ...current,
-                                [student.relationship_id]: (current[student.relationship_id] ?? []).map((item) => (
-                                  item.id === session.id ? { ...item, effort_feedback: feedback } : item
-                                )),
-                              }))}
-                            />
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <div className="routine-assignment__progress-heading">
-                    <strong>Reportes en mapa corporal (Molestias y dolor)</strong>
-                  </div>
-                  {(zoneReportsByStudent[student.student_id] ?? []).length === 0 ? (
-                    <p className="plan-empty" style={{ margin: '0 0 16px' }}>El alumno no registra molestias ni dolor en el mapa corporal.</p>
-                  ) : (
-                    <ul className="routine-assignment__sessions-list" style={{ margin: '0 0 16px' }}>
-                      {(zoneReportsByStudent[student.student_id] ?? []).slice(0, 6).map((item) => (
-                        <li key={item.id} className="routine-assignment__session-item">
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                            <strong>{item.zone_display || item.zone}</strong>
-                            <span className={`body-map-history-badge body-map-history-badge--${item.intensity.toLowerCase()}`}>
-                              {item.intensity === 'PAIN' ? 'Dolor' : item.intensity === 'DISCOMFORT' ? 'Molestia' : 'Carga normal'}
-                            </span>
-                          </div>
-                          <time dateTime={item.created_at}>{new Date(item.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</time>
-                          <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
-                            {item.context === 'IN_EXERCISE' ? 'Durante ejercicio' : 'Fin de sesión'}
-                            {item.exercise_name ? ` · ${item.exercise_name}` : ''}
-                            {item.action_taken === 'VARIANT_ACCEPTED' ? ' · Variante aceptada' : item.action_taken === 'EXERCISE_SKIPPED' ? ' · Ejercicio salteado' : ''}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                    <ul className="routine-assignment__sessions-list">
+                      {(sessionsByRelationship[student.relationship_id] ?? []).slice(0, 5).map((session) => {
+                        const sessions = sessionsByRelationship[student.relationship_id] ?? [];
+                        const sessionLogs = (progressByRelationship[student.relationship_id] ?? [])
+                          .filter((log) => log.session_id === session.id)
+                          .sort((left, right) => left.recorded_at.localeCompare(right.recorded_at));
+                        const sessionReports = reportsForSession(
+                          session,
+                          sessions,
+                          zoneReportsByStudent[student.student_id] ?? [],
+                        );
+                        const detailExpanded = Boolean(expandedSessionDetails[session.id]);
 
-                  <div className="routine-assignment__progress-heading">
-                    <strong>Series registradas</strong>
-                  </div>
+                        return (
+                          <li key={session.id} className="routine-assignment__session-item">
+                            <div className="routine-assignment__session-summary">
+                              <strong>{session.day_name}</strong>
+                              <time dateTime={session.started_at}>{new Date(session.started_at).toLocaleDateString('es-AR')}</time>
+                              {session.rpe !== null && session.rpe !== undefined ? (
+                                <span className="routine-assignment__rpe-badge routine-assignment__rpe-badge--reported">
+                                  Esfuerzo: {session.rpe}/10
+                                </span>
+                              ) : (
+                                <span className="routine-assignment__rpe-badge routine-assignment__rpe-badge--unreported">
+                                  Sin calificación
+                                </span>
+                              )}
+                            </div>
+                            {session.rpe !== null && session.rpe !== undefined && (
+                              <EffortFeedbackForm
+                                key={`${session.id}:${session.effort_feedback?.updated_at ?? ''}`}
+                                relationshipId={student.relationship_id}
+                                session={session}
+                                onSaved={(feedback) => setSessionsByRelationship((current) => ({
+                                  ...current,
+                                  [student.relationship_id]: (current[student.relationship_id] ?? []).map((item) => (
+                                    item.id === session.id ? { ...item, effort_feedback: feedback } : item
+                                  )),
+                                }))}
+                              />
+                            )}
+                            {sessionReports.length > 0 && (
+                              <div className="routine-assignment__session-reports" aria-label="Reportes de molestias de este entrenamiento">
+                                {sessionReports.map((report) => (
+                                  <div className="routine-assignment__session-report" key={report.id}>
+                                    <strong>{report.zone_display || report.zone}</strong>
+                                    <span className={`body-map-history-badge body-map-history-badge--${report.intensity.toLowerCase()}`}>
+                                      {report.intensity === 'PAIN' ? 'Dolor' : report.intensity === 'DISCOMFORT' ? 'Molestia' : 'Carga normal'}
+                                    </span>
+                                    <time dateTime={report.created_at}>{new Date(report.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</time>
+                                    <span className="routine-assignment__session-report-exercise">
+                                      {report.context === 'IN_EXERCISE' ? 'Durante ejercicio' : 'Fin del entrenamiento'}
+                                      {report.exercise_name ? ` · ${report.exercise_name}` : ''}
+                                      {report.action_taken === 'VARIANT_ACCEPTED' ? ' · Variante aceptada' : report.action_taken === 'EXERCISE_SKIPPED' ? ' · Ejercicio salteado' : ''}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              className="routine-assignment__detail-toggle"
+                              aria-expanded={detailExpanded}
+                              aria-controls={`session-set-details-${session.id}`}
+                              onClick={() => setExpandedSessionDetails((current) => ({ ...current, [session.id]: !current[session.id] }))}
+                            >
+                              {detailExpanded ? 'Ocultar detalle del entrenamiento' : 'Mostrar detalle del entrenamiento'}
+                              <ChevronDown size={16} aria-hidden="true" />
+                            </button>
+                            {detailExpanded && (
+                              <ul id={`session-set-details-${session.id}`} className="routine-assignment__set-list">
+                                {sessionLogs.length === 0 ? (
+                                  <li className="routine-assignment__set-empty">No hay series registradas en este entrenamiento.</li>
+                                ) : sessionLogs.map((log) => (
+                                  <li key={log.id} className="routine-assignment__set-item">
+                                    <strong>{log.exercise_name}</strong>
+                                    <span>Serie {log.set_number}</span>
+                                    <span>{log.reps_completed} reps</span>
+                                    <span>{log.weight_kg === null || log.weight_kg === 0 ? 'Peso corporal' : `${log.weight_kg} kg`}</span>
+                                    {log.duration_seconds !== null && <span>{log.duration_seconds} s</span>}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                   {progressErrorFor === student.relationship_id ? (
                     <p className="form-alert" role="alert">No pudimos cargar el progreso. Seguiremos intentando actualizarlo.</p>
-                  ) : (progressByRelationship[student.relationship_id] ?? []).length === 0 ? (
-                    <p className="plan-empty">Todavía no hay series registradas para esta rutina.</p>
-                  ) : (
-                    <ul>
-                      {(progressByRelationship[student.relationship_id] ?? []).slice(0, 12).map((log) => (
-                        <li key={log.id}>
-                          <strong>{log.exercise_name}</strong>
-                          <time dateTime={log.recorded_at}>{new Date(log.recorded_at).toLocaleDateString('es-AR')}</time>
-                          <span>{log.day_name} · Serie {log.set_number} · {log.reps_completed} reps · {log.weight_kg === null || log.weight_kg === 0 ? 'Peso corporal (0 kg)' : `${log.weight_kg} kg`}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  ) : null}
                 </div>}
               </>}
             </div>
