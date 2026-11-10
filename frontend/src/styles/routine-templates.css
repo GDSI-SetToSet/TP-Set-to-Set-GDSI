@@ -86,6 +86,21 @@
 }
 
 .student-daily-routine { display: grid; gap: 18px; }
+.student-daily-routine__heading-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+.student-daily-routine__heading-row > .profile-heading { flex: 1; min-width: 0; }
+.student-daily-routine__heading-row .student-routine-start__button {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  min-height: 44px;
+  margin-bottom: 4px;
+  padding: 8px 16px;
+}
 .student-daily-routine__summary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(220px, 320px) auto;
@@ -120,6 +135,8 @@
   .routine-actions > * { width: 100%; justify-content: center; }
   .student-daily-routine__summary { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
   .student-daily-routine__summary > strong { white-space: normal; }
+  .student-daily-routine__heading-row { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .student-daily-routine__heading-row .student-routine-start__button { margin-bottom: 0; }
   .student-daily-routine__block > header { align-items: flex-start; flex-direction: column; }
   .routine-assignment__row { grid-template-columns: minmax(0, 1fr); }
   .routine-assignment__row > strong { padding-bottom: 0; }

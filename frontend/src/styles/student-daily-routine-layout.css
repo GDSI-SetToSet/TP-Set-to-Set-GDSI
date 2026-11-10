@@ -266,6 +266,28 @@
   margin: 0;
   font-size: 16px;
 }
+.student-routine-history__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--pf-border, #cbd5e1);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--pf-label, #2f5340);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.student-routine-history__toggle:hover { background: var(--pf-arch-bg, #f8fafc); }
+.student-routine-history__toggle:focus-visible { outline: 3px solid #f59e0b; outline-offset: 2px; }
+.student-routine-history__toggle svg { transition: transform 180ms ease; }
+.student-routine-history__toggle[aria-expanded='true'] svg { transform: rotate(180deg); }
+.student-routine-history__content { margin-top: 12px; }
+.student-routine-history__content .student-routine-history__tabs { flex-wrap: wrap; margin: 0 0 12px; }
 .student-routine-history__subtitle {
   margin: 6px 0 12px;
   font-size: 13px;
@@ -403,7 +425,7 @@
 .profile-shell--session .profile-header .profile-back { color: var(--pf-accent, #397452); }
 @media (max-width: 640px) {
   .student-routine-session-heading { align-items: stretch; flex-direction: column; }
-  .student-routine-finish__button, .student-routine-start__button { width: 100%; }
+  .student-routine-finish__button { width: 100%; }
   .student-routine-exercise__session-actions .student-routine-exercise__log-btn { width: 100%; }
 }
 

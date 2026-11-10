@@ -1,9 +1,8 @@
 import { isAxiosError } from 'axios';
-import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, Dumbbell, History, Home, Trophy, Video, X } from 'lucide-react';
-import { BodyMapSelector } from '../components/BodyMapSelector';
+import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown, Dumbbell, History, Home, Trophy, Video, X } from 'lucide-react';
 import { InExercisePainReportModal } from '../components/InExercisePainReportModal';
-import { createBodyMapReport, getStudentZoneHistory } from '../services/bodyMapReportService';
-import type { BodyMapZoneHistoryItem, ReportZoneInput } from '../types/bodyMapReport';
+import { getStudentZoneHistory } from '../services/bodyMapReportService';
+import type { BodyMapZoneHistoryItem } from '../types/bodyMapReport';
 import '../styles/body-map.css';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -138,12 +137,10 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const [prAlertBanner, setPrAlertBanner] = useState<PersonalRecordAlert | null>(null);
   const [startingWorkout, setStartingWorkout] = useState(false);
   const [finishingWorkout, setFinishingWorkout] = useState(false);
-  const [showFinishRpeModal, setShowFinishRpeModal] = useState(false);
-  const [selectedFinishRpe, setSelectedFinishRpe] = useState<number | null>(null);
-  const [finishBodyMapZones, setFinishBodyMapZones] = useState<ReportZoneInput[]>([]);
   const [painReportExercise, setPainReportExercise] = useState<{ id: string; name: string } | null>(null);
   const [zoneHistory, setZoneHistory] = useState<BodyMapZoneHistoryItem[]>([]);
   const [historyTab, setHistoryTab] = useState<'workouts' | 'bodymap'>('workouts');
+  const [historyExpanded, setHistoryExpanded] = useState(false);
   const [pendingRpeValue, setPendingRpeValue] = useState<number>(0);
   const [savingPendingRpe, setSavingPendingRpe] = useState(false);
   const [activeSet, setActiveSet] = useState<{ exerciseId: string; startedAt: number } | null>(null);
@@ -375,24 +372,15 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     }
   };
 
-  const handleFinishWorkout = async (automatic = false, rpe: number | null = null) => {
+  const handleFinishWorkout = async (automatic = false) => {
     if (!sessionId || activeSet || (!automatic && (finishedSet || savingExerciseId)) || finishingWorkout) return;
     setLogError('');
     setFinishingWorkout(true);
     try {
-      if (finishBodyMapZones.length > 0) {
-        await createBodyMapReport({
-          context: 'POST_SESSION',
-          session_id: sessionId,
-          zones: finishBodyMapZones,
-        }).catch(() => null);
-        setFinishBodyMapZones([]);
-      }
-      await finishAssignedWorkoutSession(sessionId, rpe);
+      await finishAssignedWorkoutSession(sessionId, null);
       window.localStorage.removeItem(`workout-started-at:${sessionId}`);
       setActiveRest(null);
       setAutoFinishPending(false);
-      setShowFinishRpeModal(false);
       navigate(ROUTES.studentRoutines + '?session=' + encodeURIComponent(sessionId) + '&completed=1');
     } catch {
       setLogError('No pudimos finalizar el entrenamiento. Intentá nuevamente.');
@@ -569,10 +557,15 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       </header>
 
       <section className={`profile-card student-daily-routine ${sessionMode ? 'student-daily-routine--session' : 'student-daily-routine--overview'}`}>
-        <div className="profile-heading">
-          <span>{sessionMode ? 'ENTRENAMIENTO EN CURSO' : 'RESUMEN DE TU PLAN'}</span>
-          <h1>{sessionMode ? 'Tu entrenamiento' : 'Rutina del día'}</h1>
-          <p>{sessionMode ? 'Registrá cada serie y seguí el descanso indicado por tu entrenador.' : 'Consultá los ejercicios y tiempos de la rutina que te asignó tu entrenador.'}</p>
+        <div className="student-daily-routine__heading-row">
+          <div className="profile-heading">
+            <span>{sessionMode ? 'ENTRENAMIENTO EN CURSO' : 'RESUMEN DE TU PLAN'}</span>
+            <h1>{sessionMode ? 'Tu entrenamiento' : 'Rutina del día'}</h1>
+            <p>{sessionMode ? 'Registrá cada serie y seguí el descanso indicado por tu entrenador.' : 'Consultá los ejercicios y tiempos de la rutina que te asignó tu entrenador.'}</p>
+          </div>
+          {!sessionMode && routine && <button type="button" className="student-routine-start__button" disabled={startingWorkout || !selectedDay} onClick={handleBeginWorkout}>
+            {startingWorkout ? 'Iniciando…' : 'Comenzar rutina'}
+          </button>}
         </div>
 
         {error ? (
@@ -942,19 +935,24 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
               </section>
             ))}
 
-            {!sessionMode && <div className="student-routine-start">
-              <p>Revisá los ejercicios de este día y comenzá cuando estés listo.</p>
-              <button type="button" className="student-routine-start__button" disabled={startingWorkout || !selectedDay} onClick={handleBeginWorkout}>
-                {startingWorkout ? 'Iniciando…' : 'Comenzar rutina'}
-              </button>
-            </div>}
-
             {!sessionMode && <section className="student-routine-history student-routine-history--progress" aria-labelledby="workout-history-heading">
               <header className="student-routine-history__header">
                 <div className="student-routine-history__title">
                   <History size={20} />
                   <h3 id="workout-history-heading">Tu progreso con esta rutina</h3>
                 </div>
+                <button
+                  type="button"
+                  className="student-routine-history__toggle"
+                  aria-expanded={historyExpanded}
+                  aria-controls="routine-progress-content"
+                  onClick={() => setHistoryExpanded((expanded) => !expanded)}
+                >
+                  {historyExpanded ? 'Ocultar progreso' : 'Mostrar progreso'}
+                  <ChevronDown size={18} aria-hidden="true" />
+                </button>
+              </header>
+              <div id="routine-progress-content" className="student-routine-history__content" hidden={!historyExpanded}>
                 <div className="student-routine-history__tabs" role="tablist">
                   <button
                     type="button"
@@ -975,7 +973,6 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                     Historial de zonas ({zoneHistory.length})
                   </button>
                 </div>
-              </header>
               {historyTab === 'workouts' ? (
                 <>
                   <p className="student-routine-history__subtitle">Resumen de tus entrenamientos anteriores, con promedios de las series registradas.</p>
@@ -1044,6 +1041,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                   )}
                 </>
               )}
+              </div>
             </section>}
             {!sessionMode && <section className="effort-feedback-history" aria-labelledby="effort-feedback-history-heading">
               <h2 id="effort-feedback-history-heading">Devoluciones de tu entrenador</h2>
@@ -1089,7 +1087,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
             {sessionMode && <div className="student-routine-finish">
               <button type="button" className="student-routine-finish__button"
                 disabled={!sessionId || Boolean(activeSet || finishedSet || savingExerciseId || deletingLogId || finishingWorkout || autoFinishPending)}
-                onClick={() => setShowFinishRpeModal(true)}>
+                onClick={() => void handleFinishWorkout()}>
                 {finishingWorkout ? 'Finalizando…' : 'Finalizar rutina'}
               </button>
             </div>}
@@ -1144,65 +1142,6 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
               />
             )}
 
-            {showFinishRpeModal && (
-              <div className="workout-pr-overlay" role="dialog" aria-modal="true" aria-labelledby="rpe-finish-modal-title">
-                <div className="workout-pr-card workout-rpe-card">
-                  <span className="workout-pr-icon" aria-hidden="true">📊</span>
-                  <h3 id="rpe-finish-modal-title" className="workout-pr-exercise-name">
-                    ¿Cómo calificarías tu esfuerzo?
-                  </h3>
-                  <p className="workout-pr-comparison">
-                    Indicá tu nivel de esfuerzo percibido (RPE) en una escala del 1 al 10 para que tu entrenador pueda evaluar la intensidad.
-                  </p>
-
-                  <div className="workout-finish-bodymap-section">
-                    <h4>Mapa corporal de sensaciones (opcional)</h4>
-                    <p className="workout-finish-bodymap-desc">
-                      Marcá las zonas donde sientas carga normal, molestia o dolor al finalizar tu entrenamiento.
-                    </p>
-                    <BodyMapSelector
-                      selectedZones={finishBodyMapZones}
-                      onChange={setFinishBodyMapZones}
-                    />
-                  </div>
-
-                  <div className="workout-rpe-selector" role="radiogroup" aria-label="Escala de esfuerzo percibido de 1 a 10">
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((val) => (
-                      <button
-                        key={val}
-                        type="button"
-                        role="radio"
-                        aria-checked={selectedFinishRpe === val}
-                        className={`workout-rpe-btn ${selectedFinishRpe === val ? 'workout-rpe-btn--active' : ''}`}
-                        onClick={() => setSelectedFinishRpe(val)}
-                      >
-                        <span className="workout-rpe-val">{val}</span>
-                        <span className="workout-rpe-desc">{getRpeShortLabel(val)}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="workout-rpe-actions">
-                    <button
-                      type="button"
-                      disabled={finishingWorkout || selectedFinishRpe === null}
-                      className="workout-pr-dismiss-btn"
-                      onClick={() => void handleFinishWorkout(false, selectedFinishRpe)}
-                    >
-                      {finishingWorkout ? 'Finalizando…' : 'Guardar y finalizar'}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={finishingWorkout}
-                      className="workout-rpe-skip-btn"
-                      onClick={() => void handleFinishWorkout(false, null)}
-                    >
-                      Finalizar sin calificar
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </>
         )}
         {prCelebration && (
