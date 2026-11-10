@@ -339,6 +339,16 @@ def _migrate_sqlite_body_map_pain_reports_unique_constraint(eng: Engine, inspect
             if hasattr(dbapi, "execute"):
                 dbapi.execute("PRAGMA foreign_keys=ON;")
 
+    # 4. Validar integridad referencial post-reconstrucción
+    with eng.connect() as conn:
+        fk_violations = conn.execute(text("PRAGMA foreign_key_check('body_map_pain_reports');")).fetchall()
+        if "body_map_pain_report_zones" in existing_tables:
+            fk_violations.extend(conn.execute(text("PRAGMA foreign_key_check('body_map_pain_report_zones');")).fetchall())
+        if fk_violations:
+            raise ValueError(
+                f"Violación de clave foránea detectada tras reconstrucción de 'body_map_pain_reports': {fk_violations}"
+            )
+
     key = "body_map_pain_reports.uq_body_map_student_idempotency:sqlite_table_rebuild"
     logger.info("Restricción UNIQUE compuesta aplicada vía reconstrucción de tabla en SQLite: %s", key)
     return [key]
