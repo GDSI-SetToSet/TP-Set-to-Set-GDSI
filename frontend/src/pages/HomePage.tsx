@@ -134,10 +134,25 @@ export function HomePage() {
     }
   }
 
-  function handleNotificationClick(notification: NotificationItem) {
+  async function handleNotificationClick(notification: NotificationItem) {
     if (user?.role === USER_ROLES.student) {
       navigate(notification.type === 'EFFORT_FEEDBACK' ? ROUTES.studentRoutines : ROUTES.studentActivePlans);
     } else if (user?.role === USER_ROLES.trainer) {
+      if (notification.type === 'PROTECTED_ZONES_UPDATED' && notification.related_student_id) {
+        const studentId = notification.related_student_id;
+        try {
+          const assignments = await getRoutineAssignments();
+          const student = assignments.find((item) => item.student_id === studentId);
+          if (student?.routine_template_id) {
+            navigate(ROUTES.trainerStudentRoutine.replace(':studentId', encodeURIComponent(studentId)));
+            return;
+          }
+          navigate(`${ROUTES.trainerStudents}?studentId=${encodeURIComponent(studentId)}&routineStatus=missing`);
+        } catch {
+          navigate(`${ROUTES.trainerStudents}?studentId=${encodeURIComponent(studentId)}&routineStatus=unavailable`);
+        }
+        return;
+      }
       navigate(trainerNotificationPath(notification));
     }
   }

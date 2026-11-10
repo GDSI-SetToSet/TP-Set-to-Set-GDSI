@@ -42,7 +42,11 @@ export function trainerNotificationPath(notification: Pick<
   NotificationItem,
   'type' | 'related_student_id' | 'related_session_id'
 >): string {
-  if (notification.type !== 'PAIN_ALERT' && notification.type !== 'PERSONAL_RECORD') {
+  if (
+    notification.type !== 'PAIN_ALERT'
+    && notification.type !== 'PERSONAL_RECORD'
+    && notification.type !== 'PROTECTED_ZONES_UPDATED'
+  ) {
     return ROUTES.trainerRequests;
   }
 

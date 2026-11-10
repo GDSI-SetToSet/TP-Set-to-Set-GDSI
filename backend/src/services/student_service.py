@@ -23,6 +23,7 @@ from backend.src.models.user import User
 from backend.src.schemas.protected_zone import ProtectedZonesUpdate
 from backend.src.schemas.student import StudentProfileUpdate
 from backend.src.schemas.student_health import HealthQuestionnaireInput
+from backend.src.services.notification_service import create_notification
 
 
 class StudentProfileError(Exception):
@@ -100,6 +101,12 @@ def replace_own_protected_zones(
     db: Session, user: User, payload: ProtectedZonesUpdate
 ) -> list[ProtectedZone]:
     profile = get_or_create_profile(db, user)
+    existing_zones = list(profile.protected_zones)
+    existing_keys = [zone.body_area.casefold() for zone in existing_zones]
+    requested_keys = [zone.casefold() for zone in payload.zones]
+    if len(existing_keys) == len(requested_keys) and set(existing_keys) == set(requested_keys):
+        return existing_zones
+
     now = utc_now()
     profile.protected_zones.clear()
     db.flush()
@@ -107,6 +114,35 @@ def replace_own_protected_zones(
         ProtectedZone(body_area=body_area, created_at=now) for body_area in payload.zones
     ]
     profile.updated_at = now
+
+    active_trainers = db.scalars(
+        select(TrainerProfile)
+        .join(TrainingRelationship, TrainingRelationship.trainer_id == TrainerProfile.id)
+        .where(
+            TrainingRelationship.student_id == profile.id,
+            TrainingRelationship.status == "ACTIVE",
+        )
+        .distinct()
+    ).all()
+    student_name = " ".join(
+        part for part in (profile.first_name, profile.last_name) if part
+    ).strip() or "Tu alumno"
+    for trainer in active_trainers:
+        create_notification(
+            db,
+            recipient_id=trainer.user_id,
+            type="PROTECTED_ZONES_UPDATED",
+            title="Zonas a proteger actualizadas",
+            message=(
+                f"{student_name} actualizó sus zonas a proteger. "
+                "Revisá si es necesario adaptar algún ejercicio de su rutina a sus nuevas limitaciones."
+            ),
+            related_entity_type="PROTECTED_ZONES",
+            related_entity_id=profile.id,
+            related_student_id=profile.id,
+            commit=False,
+        )
+
     db.commit()
     db.refresh(profile)
     return list(profile.protected_zones)
