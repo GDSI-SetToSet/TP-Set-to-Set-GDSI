@@ -1,5 +1,6 @@
 import { USER_ROLES } from './auth';
 import type { UserRole } from '../types/auth';
+import type { NotificationItem } from '../types/discovery';
 
 export const ROUTES = {
   root: '/',
@@ -35,4 +36,23 @@ export const ROUTES = {
 
 export function homePath(role: UserRole): string {
   return role === USER_ROLES.trainer ? ROUTES.trainerHome : ROUTES.studentHome;
+}
+
+export function trainerNotificationPath(notification: Pick<
+  NotificationItem,
+  'type' | 'related_student_id' | 'related_session_id'
+>): string {
+  if (notification.type !== 'PAIN_ALERT' && notification.type !== 'PERSONAL_RECORD') {
+    return ROUTES.trainerRequests;
+  }
+
+  if (!notification.related_student_id) {
+    return ROUTES.trainerStudents;
+  }
+
+  const params = new URLSearchParams({ studentId: notification.related_student_id });
+  if (notification.related_session_id) {
+    params.set('sessionId', notification.related_session_id);
+  }
+  return `${ROUTES.trainerStudents}?${params.toString()}`;
 }

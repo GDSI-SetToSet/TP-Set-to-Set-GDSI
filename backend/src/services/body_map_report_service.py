@@ -362,6 +362,8 @@ def create_body_map_report(
                     message=notification_message,
                     related_entity_type="BODY_MAP_PAIN_REPORT",
                     related_entity_id=report.id,
+                    related_student_id=report.student_id,
+                    related_session_id=report.session_id,
                     commit=False,
                 )
             db.flush()

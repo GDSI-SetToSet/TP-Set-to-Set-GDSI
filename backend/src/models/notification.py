@@ -19,6 +19,8 @@ class Notification(Base):
     message: Mapped[str] = mapped_column(Text, nullable=False)
     related_entity_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     related_entity_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    related_student_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    related_session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, index=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

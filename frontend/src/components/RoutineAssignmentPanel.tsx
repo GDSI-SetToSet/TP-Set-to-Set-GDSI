@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, Pencil } from 'lucide-react';
 import { ROUTES } from '../constants/routes';
@@ -38,9 +38,16 @@ function reportsForSession(
 interface RoutineAssignmentPanelProps {
   templates: RoutineTemplate[];
   aiRoutines: TrainerAIRoutine[];
+  initialStudentId?: string;
+  initialSessionId?: string;
 }
 
-export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignmentPanelProps) {
+export function RoutineAssignmentPanel({
+  templates,
+  aiRoutines,
+  initialStudentId,
+  initialSessionId,
+}: RoutineAssignmentPanelProps) {
   const [students, setStudents] = useState<RoutineAssignmentStudent[]>([]);
   const [selectedRoutines, setSelectedRoutines] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -55,6 +62,7 @@ export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignm
   const [expandedSessionDetails, setExpandedSessionDetails] = useState<Record<string, boolean>>({});
   const [progressLoadingFor, setProgressLoadingFor] = useState<string | null>(null);
   const [progressErrorFor, setProgressErrorFor] = useState<string | null>(null);
+  const openedFromNotification = useRef(false);
 
   useEffect(() => {
     getRoutineAssignments()
@@ -65,6 +73,17 @@ export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignm
       .catch(() => setError('No pudimos cargar tus alumnos activos. Intentá nuevamente.'))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!initialStudentId || loading || openedFromNotification.current) return;
+    const student = students.find((item) => item.student_id === initialStudentId);
+    openedFromNotification.current = true;
+    if (!student) return;
+    setOpenProgressFor(student.relationship_id);
+    if (initialSessionId) {
+      setExpandedSessionDetails((current) => ({ ...current, [initialSessionId]: true }));
+    }
+  }, [initialStudentId, initialSessionId, loading, students]);
 
   const approvedAIRoutines = (studentId: string) => aiRoutines.filter((item) => item.student_id === studentId && item.status === 'APPROVED');
 
@@ -176,48 +195,49 @@ export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignm
               >
                 {savingId === student.relationship_id ? 'Guardando…' : 'Guardar asignación'}
               </button>
-              {student.routine_template_id && <>
-                <div className="routine-assignment__actions">
-                  <span className="routine-assignment__actions-label">Acciones del alumno</span>
-                  <div className="routine-assignment__actions-buttons">
+              <div className="routine-assignment__actions">
+                <span className="routine-assignment__actions-label">Acciones del alumno</span>
+                <div className="routine-assignment__actions-buttons">
+                  {student.routine_template_id && (
                     <Link className="profile-save routine-assignment__action-link" to={ROUTES.trainerStudentRoutine.replace(':studentId', student.student_id)}>
                       <Pencil size={15} aria-hidden="true" />
                       Editar rutina
                     </Link>
-                    <button
-                      type="button"
-                      className="profile-save routine-assignment__progress-toggle"
-                      aria-expanded={openProgressFor === student.relationship_id}
-                      onClick={() => setOpenProgressFor((current) => current === student.relationship_id ? null : student.relationship_id)}
-                    >
-                      {openProgressFor === student.relationship_id ? 'Ocultar progreso' : 'Ver progreso del alumno'}
-                      <ChevronDown size={16} aria-hidden="true" />
-                    </button>
-                  </div>
+                  )}
+                  <button
+                    type="button"
+                    className="profile-save routine-assignment__progress-toggle"
+                    aria-expanded={openProgressFor === student.relationship_id}
+                    onClick={() => setOpenProgressFor((current) => current === student.relationship_id ? null : student.relationship_id)}
+                  >
+                    {openProgressFor === student.relationship_id ? 'Ocultar progreso' : 'Ver progreso del alumno'}
+                    <ChevronDown size={16} aria-hidden="true" />
+                  </button>
                 </div>
-                {openProgressFor === student.relationship_id && <div className="routine-assignment__progress" aria-label={`Progreso de ${student.student_name}`}>
-                  <div className="routine-assignment__progress-heading">
-                    <strong>Sesiones y Esfuerzo (RPE)</strong>
-                    <span>{progressLoadingFor === student.relationship_id ? 'Actualizando…' : 'Actualización automática'}</span>
-                  </div>
-                  {(sessionsByRelationship[student.relationship_id] ?? []).length === 0 ? (
-                    <p className="plan-empty routine-assignment__empty">Todavía no hay sesiones finalizadas.</p>
-                  ) : (
-                    <ul className="routine-assignment__sessions-list">
-                      {(sessionsByRelationship[student.relationship_id] ?? []).slice(0, 5).map((session) => {
-                        const sessions = sessionsByRelationship[student.relationship_id] ?? [];
-                        const sessionLogs = (progressByRelationship[student.relationship_id] ?? [])
-                          .filter((log) => log.session_id === session.id)
-                          .sort((left, right) => left.recorded_at.localeCompare(right.recorded_at));
-                        const sessionReports = reportsForSession(
-                          session,
-                          sessions,
-                          zoneReportsByStudent[student.student_id] ?? [],
-                        );
-                        const detailExpanded = Boolean(expandedSessionDetails[session.id]);
+              </div>
+              {openProgressFor === student.relationship_id && <div className="routine-assignment__progress" aria-label={`Progreso de ${student.student_name}`}>
+                <div className="routine-assignment__progress-heading">
+                  <strong>Sesiones y Esfuerzo (RPE)</strong>
+                  <span>{progressLoadingFor === student.relationship_id ? 'Actualizando…' : 'Actualización automática'}</span>
+                </div>
+                {(sessionsByRelationship[student.relationship_id] ?? []).length === 0 ? (
+                  <p className="plan-empty routine-assignment__empty">Todavía no hay sesiones finalizadas.</p>
+                ) : (
+                  <ul className="routine-assignment__sessions-list">
+                    {(sessionsByRelationship[student.relationship_id] ?? []).slice(0, 5).map((session) => {
+                      const sessions = sessionsByRelationship[student.relationship_id] ?? [];
+                      const sessionLogs = (progressByRelationship[student.relationship_id] ?? [])
+                        .filter((log) => log.session_id === session.id)
+                        .sort((left, right) => left.recorded_at.localeCompare(right.recorded_at));
+                      const sessionReports = reportsForSession(
+                        session,
+                        sessions,
+                        zoneReportsByStudent[student.student_id] ?? [],
+                      );
+                      const detailExpanded = Boolean(expandedSessionDetails[session.id]);
 
-                        return (
-                          <li key={session.id} className="routine-assignment__session-item">
+                      return (
+                        <li key={session.id} className="routine-assignment__session-item">
                             <div className="routine-assignment__session-summary">
                               <strong>{session.day_name}</strong>
                               <time dateTime={session.started_at}>{new Date(session.started_at).toLocaleDateString('es-AR')}</time>
@@ -295,8 +315,7 @@ export function RoutineAssignmentPanel({ templates, aiRoutines }: RoutineAssignm
                   {progressErrorFor === student.relationship_id ? (
                     <p className="form-alert" role="alert">No pudimos cargar el progreso. Seguiremos intentando actualizarlo.</p>
                   ) : null}
-                </div>}
-              </>}
+              </div>}
             </div>
           ))}
         </div>

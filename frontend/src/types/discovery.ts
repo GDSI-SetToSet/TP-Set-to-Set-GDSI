@@ -156,6 +156,8 @@ export interface NotificationItem {
   message: string;
   related_entity_type?: string | null;
   related_entity_id?: string | null;
+  related_student_id?: string | null;
+  related_session_id?: string | null;
   is_read: boolean;
   created_at: string;
   read_at?: string | null;

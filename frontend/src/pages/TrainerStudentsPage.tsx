@@ -1,6 +1,6 @@
 import { ArrowLeft } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { RoutineAssignmentPanel } from '../components/RoutineAssignmentPanel';
 import { ROUTES } from '../constants/routes';
 import { getTrainerAIRoutines } from '../services/assignedRoutineService';
@@ -9,6 +9,7 @@ import type { TrainerAIRoutine } from '../types/assignedRoutine';
 import type { RoutineTemplate } from '../types/routineTemplate';
 
 export function TrainerStudentsPage() {
+  const [searchParams] = useSearchParams();
   const [templates, setTemplates] = useState<RoutineTemplate[]>([]);
   const [aiRoutines, setAIRoutines] = useState<TrainerAIRoutine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,7 +40,14 @@ export function TrainerStudentsPage() {
           <p>Consultá tus vínculos activos y asigná a cada alumno la rutina que va a ver en “Rutina del día”.</p>
         </div>
         {error && <p className="form-alert" role="alert">{error}</p>}
-        {!error && <RoutineAssignmentPanel templates={templates} aiRoutines={aiRoutines} />}
+        {!error && (
+          <RoutineAssignmentPanel
+            templates={templates}
+            aiRoutines={aiRoutines}
+            initialStudentId={searchParams.get('studentId') ?? undefined}
+            initialSessionId={searchParams.get('sessionId') ?? undefined}
+          />
+        )}
       </section>
     </main>
   );

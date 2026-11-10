@@ -144,6 +144,8 @@ def test_trainer_notifications_rbac_isolation_and_no_db_mutation_on_denied(clien
             "NEW_REQUEST",
             "¡Nueva solicitud de entrenamiento!",
             "El alumno solicitó unirse a tu plan.",
+            related_entity_type="TrainingRequest",
+            related_entity_id="request-id",
             commit=True,
         )
         notif_id = notif.id
@@ -181,6 +183,7 @@ def test_trainer_notifications_rbac_isolation_and_no_db_mutation_on_denied(clien
     assert t1_list.json()["total"] == 1
     assert t1_list.json()["unread_count"] == 1
     assert t1_list.json()["items"][0]["type"] == "NEW_REQUEST"
+    assert t1_list.json()["items"][0]["related_entity_id"] == "request-id"
 
     t1_patch = api.patch(
         f"/api/v1/trainers/me/notifications/{notif_id}/read", headers=auth(trainer1_token)
@@ -188,6 +191,43 @@ def test_trainer_notifications_rbac_isolation_and_no_db_mutation_on_denied(clien
     assert t1_patch.status_code == 200
     assert t1_patch.json()["is_read"] is True
     assert t1_patch.json()["read_at"] is not None
+    assert t1_patch.json()["related_entity_id"] == "request-id"
+
+
+def test_trainer_notification_navigation_metadata_is_returned_when_marked_read(client):
+    api, session_factory = client
+    trainer_token = register_and_login(api, "trainer_navigation@example.com", "TRAINER")
+
+    with session_factory() as db:
+        trainer = db.query(User).filter_by(email="trainer_navigation@example.com").first()
+        notification = create_notification(
+            db,
+            trainer.id,
+            "PAIN_ALERT",
+            "Dolor reportado",
+            "Mensaje",
+            related_entity_type="BODY_MAP_PAIN_REPORT",
+            related_entity_id="report-1",
+            related_student_id="student-1",
+            related_session_id="session-1",
+            commit=True,
+        )
+        notification_id = notification.id
+
+    response = api.get("/api/v1/trainers/me/notifications", headers=auth(trainer_token))
+    assert response.status_code == 200
+    item = response.json()["items"][0]
+    assert item["related_student_id"] == "student-1"
+    assert item["related_session_id"] == "session-1"
+
+    marked_read = api.patch(
+        f"/api/v1/trainers/me/notifications/{notification_id}/read",
+        headers=auth(trainer_token),
+    )
+    assert marked_read.status_code == 200
+    assert marked_read.json()["is_read"] is True
+    assert marked_read.json()["related_student_id"] == "student-1"
+    assert marked_read.json()["related_session_id"] == "session-1"
 
 
 def test_unauthenticated_notifications(client):

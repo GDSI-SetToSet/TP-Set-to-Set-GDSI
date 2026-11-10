@@ -19,7 +19,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { USER_ROLES } from '../constants/auth';
 import { useAuth } from '../context/AuthContext';
-import { homePath, ROUTES } from '../constants/routes';
+import { homePath, ROUTES, trainerNotificationPath } from '../constants/routes';
 import { getActivePlans, getTrainerRequests } from '../services/discoveryService';
 import { getRoutineAssignments } from '../services/routineTemplateService';
 import type { ActivePlansResponse, NotificationItem } from '../types/discovery';
@@ -138,7 +138,7 @@ export function HomePage() {
     if (user?.role === USER_ROLES.student) {
       navigate(notification.type === 'EFFORT_FEEDBACK' ? ROUTES.studentRoutines : ROUTES.studentActivePlans);
     } else if (user?.role === USER_ROLES.trainer) {
-      navigate(ROUTES.trainerRequests);
+      navigate(trainerNotificationPath(notification));
     }
   }
 

@@ -134,6 +134,49 @@ def create_legacy_database(engine):
         """))
 
 
+def test_migration_adds_notification_navigation_metadata_without_losing_existing_rows():
+    engine = make_legacy_engine()
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE notifications (
+                id VARCHAR(36) PRIMARY KEY,
+                recipient_id VARCHAR(36) NOT NULL,
+                type VARCHAR(50) NOT NULL,
+                title VARCHAR(150) NOT NULL,
+                message TEXT NOT NULL,
+                related_entity_type VARCHAR(50),
+                related_entity_id VARCHAR(36),
+                is_read BOOLEAN NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL,
+                read_at DATETIME
+            )
+        """))
+        conn.execute(text("""
+            INSERT INTO notifications (
+                id, recipient_id, type, title, message, related_entity_type,
+                related_entity_id, is_read, created_at
+            ) VALUES (
+                'notification-legacy', 'trainer-1', 'PAIN_ALERT', 'Dolor',
+                'Mensaje', 'BODY_MAP_PAIN_REPORT', 'report-1', 0, '2026-01-01'
+            )
+        """))
+
+    applied = apply_migrations(engine)
+
+    assert "notifications.related_student_id" in applied
+    assert "notifications.related_session_id" in applied
+    columns = {column["name"] for column in inspect(engine).get_columns("notifications")}
+    assert "related_student_id" in columns
+    assert "related_session_id" in columns
+    with engine.connect() as conn:
+        stored = conn.execute(text("""
+            SELECT related_entity_id, related_student_id, related_session_id
+            FROM notifications WHERE id = 'notification-legacy'
+        """)).one()
+    assert stored == ("report-1", None, None)
+    engine.dispose()
+
+
 def test_migration_upgrades_legacy_schema_preserves_data_and_enables_api():
     """Escenarios 1 a 8: Migración de esquema antiguo, preservación de datos, API GET/POST e idempotencia."""
     engine = make_legacy_engine()

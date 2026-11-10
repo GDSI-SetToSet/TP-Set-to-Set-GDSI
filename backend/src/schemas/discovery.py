@@ -180,6 +180,8 @@ class NotificationItem(BaseModel):
     message: str
     related_entity_type: str | None = None
     related_entity_id: str | None = None
+    related_student_id: str | None = None
+    related_session_id: str | None = None
     is_read: bool = False
     created_at: datetime
     read_at: datetime | None = None

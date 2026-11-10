@@ -19,6 +19,7 @@ El proyecto propone centralizar en un mismo lugar las herramientas necesarias pa
 - Franco Agustín Finocchi Martín 110715 ffinocchi@fi.uba.ar
 - Bruno Pezman 110457 bpezman@fi.uba.ar
 - Axel Zielonka 110310 azielonka@fi.uba.ar
+- Delfina Videla 111620 dpvidela@fi.uba.ar
 
 ## Metodología de desarrollo
 

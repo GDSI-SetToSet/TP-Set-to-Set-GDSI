@@ -663,6 +663,8 @@ def create_student_workout_log(
                     message=message,
                     related_entity_type="PERSONAL_RECORD",
                     related_entity_id=log_entry.id,
+                    related_student_id=log_entry.student_id,
+                    related_session_id=log_entry.session_id,
                     commit=False,
                 )
 
