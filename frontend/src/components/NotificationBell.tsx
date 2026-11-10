@@ -90,6 +90,8 @@ export function NotificationBell({ onNotificationClick }: NotificationBellProps)
       onNotificationClick(notif);
     } else if (user?.role === USER_ROLES.trainer) {
       navigate(ROUTES.trainerRequests);
+    } else if (user?.role === USER_ROLES.student) {
+      navigate(notif.type === 'EFFORT_FEEDBACK' ? ROUTES.studentRoutines : ROUTES.studentActivePlans);
     }
   }
 

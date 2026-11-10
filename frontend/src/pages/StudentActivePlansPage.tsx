@@ -29,8 +29,8 @@ export function StudentActivePlansPage() {
     void loadActivePlans();
   }, [loadActivePlans]);
 
-  function handleNotificationClick(_notification: NotificationItem) {
-    navigate(ROUTES.studentActivePlans);
+  function handleNotificationClick(notification: NotificationItem) {
+    navigate(notification.type === 'EFFORT_FEEDBACK' ? ROUTES.studentRoutines : ROUTES.studentActivePlans);
   }
 
   return (

@@ -134,9 +134,9 @@ export function HomePage() {
     }
   }
 
-  function handleNotificationClick(_notification: NotificationItem) {
+  function handleNotificationClick(notification: NotificationItem) {
     if (user?.role === USER_ROLES.student) {
-      navigate(ROUTES.studentActivePlans);
+      navigate(notification.type === 'EFFORT_FEEDBACK' ? ROUTES.studentRoutines : ROUTES.studentActivePlans);
     } else if (user?.role === USER_ROLES.trainer) {
       navigate(ROUTES.trainerRequests);
     }

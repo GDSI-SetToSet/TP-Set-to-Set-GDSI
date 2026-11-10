@@ -113,7 +113,8 @@
 .student-daily-routine .student-daily-routine__block li > .student-routine-exercise__summary,
 .student-daily-routine .student-daily-routine__block li > p,
 .student-daily-routine .student-daily-routine__block li > dl,
-.student-daily-routine .student-daily-routine__block li > .student-routine-exercise__logger {
+.student-daily-routine .student-daily-routine__block li > .student-routine-exercise__logger,
+.student-daily-routine .student-daily-routine__block li > .student-routine-exercise__report-pain-btn {
   grid-column: 2;
   min-width: 0;
 }
@@ -316,9 +317,8 @@
 
 .student-routine-start, .student-routine-session-heading { margin: 18px 0 28px; }
 .student-routine-start {
-  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
-  padding: 18px 20px; border: 1px solid var(--pf-border, #dbe5dc);
-  border-radius: 14px; background: var(--pf-arch-bg, #f1f4ef);
+  display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 16px;
+  margin: 12px 0 20px; padding: 0; border: 0; border-radius: 0; background: transparent;
 }
 .student-routine-start p, .student-routine-session-heading p { margin: 0; color: var(--pf-body, #475569); }
 .student-routine-start__button {
@@ -332,8 +332,8 @@
 
 /* US-56 follow-up: clear separation between routine overview and active workout. */
 .student-routine-start {
-  margin: 30px 0 8px;
-  padding: 22px 24px;
+  margin: 12px 0 20px;
+  padding: 0;
 }
 .student-routine-start__button {
   min-width: 220px;
