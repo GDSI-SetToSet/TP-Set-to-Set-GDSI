@@ -568,3 +568,56 @@ def test_sqlite_legacy_table_migration_fails_safely_when_invalid_rpe_data_exists
         row = conn.execute(text("SELECT * FROM workout_sessions WHERE id = 's_invalid'")).fetchone()
         assert row is not None
         assert row[8] == 99
+
+
+def test_standalone_migrations_registers_body_map_pain_report_models():
+    """Escenario US-61: Comprueba que las tablas de reporte de mapa corporal estén registradas en Base.metadata."""
+    from backend.src.core.database import Base
+
+    assert "body_map_pain_reports" in Base.metadata.tables
+    assert "body_map_pain_report_zones" in Base.metadata.tables
+    report_table = Base.metadata.tables["body_map_pain_reports"]
+    assert "student_id" in report_table.c
+    assert "session_id" in report_table.c
+    assert "exercise_id" in report_table.c
+    assert "context" in report_table.c
+    assert "action_taken" in report_table.c
+    assert "idempotency_key" in report_table.c
+
+    zone_table = Base.metadata.tables["body_map_pain_report_zones"]
+    assert "report_id" in zone_table.c
+    assert "zone" in zone_table.c
+    assert "intensity" in zone_table.c
+
+
+def test_apply_migrations_creates_body_map_pain_report_tables_if_missing():
+    """Escenario US-61: Comprueba que apply_migrations cree las tablas de mapas de dolor en una base existente."""
+    engine = make_legacy_engine()
+    create_legacy_database(engine)
+    inspector_before = inspect(engine)
+    assert "body_map_pain_reports" not in inspector_before.get_table_names()
+    assert "body_map_pain_report_zones" not in inspector_before.get_table_names()
+
+    apply_migrations(engine)
+
+    inspector_after = inspect(engine)
+    assert "body_map_pain_reports" in inspector_after.get_table_names()
+    assert "body_map_pain_report_zones" in inspector_after.get_table_names()
+
+    report_cols = {c["name"] for c in inspector_after.get_columns("body_map_pain_reports")}
+    for col in (
+        "id",
+        "student_id",
+        "relationship_id",
+        "session_id",
+        "exercise_id",
+        "context",
+        "action_taken",
+        "idempotency_key",
+        "created_at",
+    ):
+        assert col in report_cols
+
+    zone_cols = {c["name"] for c in inspector_after.get_columns("body_map_pain_report_zones")}
+    for col in ("id", "report_id", "zone", "intensity", "created_at"):
+        assert col in zone_cols

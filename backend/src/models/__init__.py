@@ -4,6 +4,10 @@ from backend.src.models.assigned_routine import (
     AssignedRoutineDay,
     AssignedRoutineExercise,
 )
+from backend.src.models.body_map_report import (
+    BodyMapPainReport,
+    BodyMapPainReportZone,
+)
 from backend.src.models.exercise import Exercise
 from backend.src.models.exercise_replacement_log import ExerciseReplacementLog
 from backend.src.models.medical_clearance import MedicalClearance
@@ -35,6 +39,8 @@ __all__ = [
     "AssignedRoutineBlock",
     "AssignedRoutineDay",
     "AssignedRoutineExercise",
+    "BodyMapPainReport",
+    "BodyMapPainReportZone",
     "Exercise",
     "ExerciseReplacementLog",
     "ExerciseSafeVariant",

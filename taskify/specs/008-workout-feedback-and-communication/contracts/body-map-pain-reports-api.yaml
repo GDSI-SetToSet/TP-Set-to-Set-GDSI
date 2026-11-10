@@ -1,0 +1,357 @@
+openapi: 3.0.3
+info:
+  title: Reportes de Dolor y Molestias en Mapa Corporal (US-61)
+  version: 1.0.0
+paths:
+  /api/v1/body-map-reports:
+    post:
+      summary: Registrar reporte de sensaciones/dolor en mapa corporal
+      description: Permite al alumno autenticado marcar una o más zonas corporales con sensaciones de carga normal, molestia o dolor, ya sea durante un ejercicio o al finalizar la sesión. Si reporta dolor durante un ejercicio, busca variantes seguras mediante US-53. Si reporta dolor, dispara alerta al entrenador mediante US-29 / notificaciones.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BodyMapReportCreate'
+      responses:
+        '201':
+          description: Reporte registrado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BodyMapReportResponse'
+        '400':
+          description: Datos inválidos o incoherencia en sesión/ejercicio
+        '401':
+          description: No autenticado
+        '403':
+          description: No autorizado (solo alumnos pueden crear reportes)
+        '404':
+          description: Sesión o ejercicio no encontrado
+        '422':
+          description: Error de validación en zonas o intensidades
+
+  /api/v1/body-map-reports/{reportId}/action:
+    patch:
+      summary: Actualizar la acción tomada tras el reporte (variante aceptada o ejercicio salteado)
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action_taken]
+              properties:
+                action_taken:
+                  type: string
+                  enum: [NONE, VARIANT_OFFERED, VARIANT_ACCEPTED, EXERCISE_SKIPPED]
+      responses:
+        '200':
+          description: Acción actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BodyMapReportResponse'
+        '403':
+          description: Reporte ajeno
+        '404':
+          description: Reporte no encontrado
+
+  /api/v1/students/me/body-map-reports:
+    get:
+      summary: Consultar historial de reportes del alumno autenticado
+      parameters:
+        - name: zone
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: intensity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [NORMAL, DISCOMFORT, PAIN]
+        - name: session_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Historial de reportes del alumno
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BodyMapReportResponse'
+
+  /api/v1/students/me/body-map-reports/by-zone:
+    get:
+      summary: Consultar historial de sensaciones desagregado por zona corporal
+      parameters:
+        - name: zone
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: intensity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [NORMAL, DISCOMFORT, PAIN]
+      responses:
+        '200':
+          description: Lista histórica desagregada por zona
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BodyMapZoneHistoryItem'
+
+  /api/v1/trainers/me/students/{studentId}/body-map-reports:
+    get:
+      summary: Consultar reportes de mapa corporal de un alumno por parte de su entrenador
+      description: Requiere que el entrenador autenticado mantenga un vínculo activo con el alumno.
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: zone
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: intensity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [NORMAL, DISCOMFORT, PAIN]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Historial de reportes del alumno consultado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BodyMapReportResponse'
+        '403':
+          description: Sin relación activa autorizada con el alumno
+        '404':
+          description: Alumno no encontrado
+
+  /api/v1/trainers/me/students/{studentId}/body-map-reports/by-zone:
+    get:
+      summary: Consultar historial de sensaciones por zona de un alumno para su entrenador
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: zone
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista histórica desagregada por zona
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BodyMapZoneHistoryItem'
+        '403':
+          description: Sin relación activa con el alumno
+
+components:
+  schemas:
+    ReportZoneInput:
+      type: object
+      required: [zone, intensity]
+      properties:
+        zone:
+          type: string
+          example: 'Shoulder'
+        intensity:
+          type: string
+          enum: [NORMAL, DISCOMFORT, PAIN]
+          example: 'PAIN'
+
+    ReportZoneOutput:
+      type: object
+      required: [id, zone, zone_display, intensity, created_at]
+      properties:
+        id:
+          type: string
+        zone:
+          type: string
+        zone_display:
+          type: string
+        intensity:
+          type: string
+          enum: [NORMAL, DISCOMFORT, PAIN]
+        created_at:
+          type: string
+          format: date-time
+
+    BodyMapReportCreate:
+      type: object
+      required: [context, zones]
+      properties:
+        session_id:
+          type: string
+          nullable: true
+        exercise_id:
+          type: string
+          nullable: true
+        context:
+          type: string
+          enum: [POST_SESSION, IN_EXERCISE]
+        action_taken:
+          type: string
+          enum: [NONE, VARIANT_OFFERED, VARIANT_ACCEPTED, EXERCISE_SKIPPED]
+          nullable: true
+        idempotency_key:
+          type: string
+          nullable: true
+        zones:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ReportZoneInput'
+
+    BodyMapReportResponse:
+      type: object
+      required: [id, student_id, context, created_at, zones]
+      properties:
+        id:
+          type: string
+        student_id:
+          type: string
+        session_id:
+          type: string
+          nullable: true
+        exercise_id:
+          type: string
+          nullable: true
+        exercise_name:
+          type: string
+          nullable: true
+        context:
+          type: string
+          enum: [POST_SESSION, IN_EXERCISE]
+        action_taken:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        zones:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportZoneOutput'
+        safe_variant:
+          type: object
+          nullable: true
+          properties:
+            status:
+              type: string
+              enum: [SAFE, VARIANT, BLOCKED]
+            variant:
+              type: object
+              nullable: true
+              properties:
+                exercise_id:
+                  type: string
+                name:
+                  type: string
+                description:
+                  type: string
+                video_url:
+                  type: string
+                  nullable: true
+                video_platform:
+                  type: string
+                  nullable: true
+            message:
+              type: string
+              nullable: true
+            can_skip:
+              type: boolean
+
+    BodyMapZoneHistoryItem:
+      type: object
+      required: [id, report_id, zone, zone_display, intensity, created_at, context]
+      properties:
+        id:
+          type: string
+        report_id:
+          type: string
+        zone:
+          type: string
+        zone_display:
+          type: string
+        intensity:
+          type: string
+          enum: [NORMAL, DISCOMFORT, PAIN]
+        created_at:
+          type: string
+          format: date-time
+        session_id:
+          type: string
+          nullable: true
+        session_day_name:
+          type: string
+          nullable: true
+        exercise_id:
+          type: string
+          nullable: true
+        exercise_name:
+          type: string
+          nullable: true
+        context:
+          type: string
+          enum: [POST_SESSION, IN_EXERCISE]
+        action_taken:
+          type: string
+          nullable: true

@@ -1,5 +1,10 @@
 import { isAxiosError } from 'axios';
-import { ArrowLeft, CheckCircle2, Dumbbell, History, Home, Trophy, Video, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, Dumbbell, History, Home, Trophy, Video, X } from 'lucide-react';
+import { BodyMapSelector } from '../components/BodyMapSelector';
+import { InExercisePainReportModal } from '../components/InExercisePainReportModal';
+import { createBodyMapReport, getStudentZoneHistory } from '../services/bodyMapReportService';
+import type { BodyMapZoneHistoryItem, ReportZoneInput } from '../types/bodyMapReport';
+import '../styles/body-map.css';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SafeVariantNotice } from '../components/SafeVariantNotice';
@@ -129,6 +134,10 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const [finishingWorkout, setFinishingWorkout] = useState(false);
   const [showFinishRpeModal, setShowFinishRpeModal] = useState(false);
   const [selectedFinishRpe, setSelectedFinishRpe] = useState<number | null>(null);
+  const [finishBodyMapZones, setFinishBodyMapZones] = useState<ReportZoneInput[]>([]);
+  const [painReportExercise, setPainReportExercise] = useState<{ id: string; name: string } | null>(null);
+  const [zoneHistory, setZoneHistory] = useState<BodyMapZoneHistoryItem[]>([]);
+  const [historyTab, setHistoryTab] = useState<'workouts' | 'bodymap'>('workouts');
   const [pendingRpeValue, setPendingRpeValue] = useState<number>(0);
   const [savingPendingRpe, setSavingPendingRpe] = useState(false);
   const [activeSet, setActiveSet] = useState<{ exerciseId: string; startedAt: number } | null>(null);
@@ -139,12 +148,18 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const autoFinishTimeout = useRef<number | null>(null);
 
   useEffect(() => {
-    Promise.all([getAssignedStudentRoutine(), getAssignedRoutineWorkoutLogs().catch(() => []), getAssignedRoutineWorkoutSessions().catch(() => [])])
-      .then(([assigned, logs, sessions]) => {
+    Promise.all([
+      getAssignedStudentRoutine(),
+      getAssignedRoutineWorkoutLogs().catch(() => []),
+      getAssignedRoutineWorkoutSessions().catch(() => []),
+      getStudentZoneHistory().catch(() => []),
+    ])
+      .then(([assigned, logs, sessions, zones]) => {
         setRoutine(assigned);
         setSelectedDayId(assigned?.days.some((day) => day.id === requestedDayId) ? requestedDayId ?? '' : assigned?.days[0]?.id ?? '');
         setWorkoutLogs(logs);
         setWorkoutSessions(sessions);
+        setZoneHistory(zones);
       })
       .catch(() => setError('No pudimos cargar tu rutina. Intentá nuevamente.'))
       .finally(() => setLoading(false));
@@ -333,6 +348,14 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     setLogError('');
     setFinishingWorkout(true);
     try {
+      if (finishBodyMapZones.length > 0) {
+        await createBodyMapReport({
+          context: 'POST_SESSION',
+          session_id: sessionId,
+          zones: finishBodyMapZones,
+        }).catch(() => null);
+        setFinishBodyMapZones([]);
+      }
       await finishAssignedWorkoutSession(sessionId, rpe);
       window.localStorage.removeItem(`workout-started-at:${sessionId}`);
       setActiveRest(null);
@@ -735,6 +758,19 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                           })}
                           onSkip={() => setSkipped((current) => [...current, item.id])}
                         />
+                        {sessionMode && (
+                          <button
+                            type="button"
+                            className="student-routine-exercise__report-pain-btn"
+                            onClick={() => setPainReportExercise({
+                              id: replacements[item.id]?.exercise_id ?? item.exercise.id,
+                              name: replacements[item.id]?.name ?? item.exercise.name,
+                            })}
+                          >
+                            <AlertTriangle size={15} />
+                            Reportar molestia o dolor
+                          </button>
+                        )}
                         <p>{item.sets} series · {item.reps} repeticiones</p>
                         <p>
                           {isHomeModality
@@ -883,37 +919,94 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                   <History size={20} />
                   <h3 id="workout-history-heading">Tu progreso con esta rutina</h3>
                 </div>
-                <span>{routineWorkoutSummaries.length} {routineWorkoutSummaries.length === 1 ? 'entrenamiento' : 'entrenamientos'}</span>
+                <div className="student-routine-history__tabs" role="tablist">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={historyTab === 'workouts'}
+                    className={`student-routine-history__tab-btn ${historyTab === 'workouts' ? 'student-routine-history__tab-btn--active' : ''}`}
+                    onClick={() => setHistoryTab('workouts')}
+                  >
+                    Entrenamientos ({routineWorkoutSummaries.length})
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={historyTab === 'bodymap'}
+                    className={`student-routine-history__tab-btn ${historyTab === 'bodymap' ? 'student-routine-history__tab-btn--active' : ''}`}
+                    onClick={() => setHistoryTab('bodymap')}
+                  >
+                    Historial de zonas ({zoneHistory.length})
+                  </button>
+                </div>
               </header>
-              <p className="student-routine-history__subtitle">Resumen de tus entrenamientos anteriores, con promedios de las series registradas.</p>
-              {routineWorkoutSummaries.length === 0 ? (
-                <p className="student-routine-history__empty">Todavía no hay entrenamientos registrados para esta rutina. Cuando termines uno, vas a poder consultar acá tu progreso.</p>
+              {historyTab === 'workouts' ? (
+                <>
+                  <p className="student-routine-history__subtitle">Resumen de tus entrenamientos anteriores, con promedios de las series registradas.</p>
+                  {routineWorkoutSummaries.length === 0 ? (
+                    <p className="student-routine-history__empty">Todavía no hay entrenamientos registrados para esta rutina. Cuando termines uno, vas a poder consultar acá tu progreso.</p>
+                  ) : (
+                    <ul className="student-routine-history__list">
+                      {routineWorkoutSummaries.map((workout) => (
+                        <li key={workout.key} className="student-routine-history__item student-routine-history__item--workout">
+                          <div className="student-routine-history__item-main">
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                              <strong>{workout.day}</strong>
+                              {workout.rpe !== null && workout.rpe !== undefined ? (
+                                <span className="student-routine-session__rpe-badge student-routine-session__rpe-badge--reported">
+                                  RPE: {workout.rpe}/10
+                                </span>
+                              ) : (
+                                <span className="student-routine-session__rpe-badge student-routine-session__rpe-badge--unreported">
+                                  Sin reporte de RPE
+                                </span>
+                              )}
+                            </div>
+                            <time className="student-routine-history__date" dateTime={workout.recordedAt}>{new Date(workout.recordedAt).toLocaleDateString('es-AR')}</time>
+                            <span className="student-routine-history__meta">{workout.logs.length} {workout.logs.length === 1 ? 'serie registrada' : 'series registradas'}</span>
+                            <span className="student-routine-history__averages">
+                              Promedios: {workout.averageReps === null ? 'repeticiones —' : `${workout.averageReps.toFixed(1)} reps`} · {workout.averageWeight === null ? 'carga —' : `${workout.averageWeight.toFixed(1)} kg`} · {workout.averageDuration === null ? 'duración —' : `${workout.averageDuration.toFixed(0)} s por serie`}<br />Duración total: {workout.totalDuration === null ? 'No disponible' : formatWorkoutDuration(workout.totalDuration)}
+                            </span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               ) : (
-                <ul className="student-routine-history__list">
-                  {routineWorkoutSummaries.map((workout) => (
-                    <li key={workout.key} className="student-routine-history__item student-routine-history__item--workout">
-                      <div className="student-routine-history__item-main">
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                          <strong>{workout.day}</strong>
-                          {workout.rpe !== null && workout.rpe !== undefined ? (
-                            <span className="student-routine-session__rpe-badge student-routine-session__rpe-badge--reported">
-                              RPE: {workout.rpe}/10
+                <>
+                  <p className="student-routine-history__subtitle">Evolución y registro de sensaciones por zona corporal.</p>
+                  {zoneHistory.length === 0 ? (
+                    <p className="student-routine-history__empty">Todavía no tenés zonas reportadas en tus entrenamientos.</p>
+                  ) : (
+                    <ul className="student-routine-history__list">
+                      {zoneHistory.map((item) => (
+                        <li key={item.zone_id} className="student-routine-history__item">
+                          <div className="student-routine-history__item-main">
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                              <strong>{item.zone_name}</strong>
+                              <span className={`body-map-history-badge body-map-history-badge--${item.classification.toLowerCase()}`}>
+                                {item.classification === 'PAIN' ? 'Dolor' : item.classification === 'DISCOMFORT' ? 'Molestia' : 'Carga normal'}
+                              </span>
+                            </div>
+                            <time className="student-routine-history__date" dateTime={item.created_at}>
+                              {new Date(item.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
+                            </time>
+                            <span className="student-routine-history__meta">
+                              Contexto: {item.context === 'IN_EXERCISE' ? 'Durante ejercicio' : 'Fin de sesión'}
+                              {item.exercise_name ? ` · Ejercicio: ${item.exercise_name}` : ''}
                             </span>
-                          ) : (
-                            <span className="student-routine-session__rpe-badge student-routine-session__rpe-badge--unreported">
-                              Sin reporte de RPE
-                            </span>
-                          )}
-                        </div>
-                        <time className="student-routine-history__date" dateTime={workout.recordedAt}>{new Date(workout.recordedAt).toLocaleDateString('es-AR')}</time>
-                        <span className="student-routine-history__meta">{workout.logs.length} {workout.logs.length === 1 ? 'serie registrada' : 'series registradas'}</span>
-                        <span className="student-routine-history__averages">
-                          Promedios: {workout.averageReps === null ? 'repeticiones —' : `${workout.averageReps.toFixed(1)} reps`} · {workout.averageWeight === null ? 'carga —' : `${workout.averageWeight.toFixed(1)} kg`} · {workout.averageDuration === null ? 'duración —' : `${workout.averageDuration.toFixed(0)} s por serie`}<br />Duración total: {workout.totalDuration === null ? 'No disponible' : formatWorkoutDuration(workout.totalDuration)}
-                        </span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                            {item.action_taken && (
+                              <span className="student-routine-history__meta">
+                                Acción tomada: {item.action_taken === 'VARIANT_ACCEPTED' ? 'Variante aceptada' : item.action_taken === 'EXERCISE_SKIPPED' ? 'Ejercicio salteado' : item.action_taken}
+                              </span>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               )}
             </section>}
             {sessionMode && sessionId && <section className="student-routine-history student-routine-history--current" aria-labelledby="current-workout-history-heading">
@@ -955,6 +1048,42 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
               </button>
             </div>}
 
+            {painReportExercise && (
+              <InExercisePainReportModal
+                exerciseId={painReportExercise.id}
+                exerciseName={painReportExercise.name}
+                sessionId={sessionId ?? undefined}
+                onClose={() => setPainReportExercise(null)}
+                onAcceptVariant={(variantExercise) => {
+                  const targetExercise = selectedDay?.blocks
+                    .flatMap((b) => b.exercises)
+                    .find((e) => e.exercise.id === painReportExercise.id || replacements[e.id]?.exercise_id === painReportExercise.id);
+                  if (targetExercise) {
+                    setReplacements((current) => ({
+                      ...current,
+                      [targetExercise.id]: {
+                        exercise_id: variantExercise.id,
+                        name: variantExercise.name,
+                        equipment_needed: variantExercise.equipment_needed ?? '',
+                        target_muscle_group: variantExercise.target_muscle_group ?? '',
+                        description: variantExercise.description ?? '',
+                      },
+                    }));
+                  }
+                  setPainReportExercise(null);
+                }}
+                onSkipExercise={() => {
+                  const targetExercise = selectedDay?.blocks
+                    .flatMap((b) => b.exercises)
+                    .find((e) => e.exercise.id === painReportExercise.id || replacements[e.id]?.exercise_id === painReportExercise.id);
+                  if (targetExercise) {
+                    setSkipped((current) => [...current, targetExercise.id]);
+                  }
+                  setPainReportExercise(null);
+                }}
+              />
+            )}
+
             {showFinishRpeModal && (
               <div className="workout-pr-overlay" role="dialog" aria-modal="true" aria-labelledby="rpe-finish-modal-title">
                 <div className="workout-pr-card workout-rpe-card">
@@ -965,6 +1094,17 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                   <p className="workout-pr-comparison">
                     Indicá tu nivel de esfuerzo percibido (RPE) en una escala del 1 al 10 para que tu entrenador pueda evaluar la intensidad.
                   </p>
+
+                  <div className="workout-finish-bodymap-section">
+                    <h4>Mapa corporal de sensaciones (opcional)</h4>
+                    <p className="workout-finish-bodymap-desc">
+                      Marcá las zonas donde sientas carga normal, molestia o dolor al finalizar tu entrenamiento.
+                    </p>
+                    <BodyMapSelector
+                      selectedZones={finishBodyMapZones}
+                      onChange={setFinishBodyMapZones}
+                    />
+                  </div>
 
                   <div className="workout-rpe-selector" role="radiogroup" aria-label="Escala de esfuerzo percibido de 1 a 10">
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((val) => (
