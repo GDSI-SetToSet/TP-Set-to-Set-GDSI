@@ -1,0 +1,58 @@
+openapi: 3.0.3
+info:
+  title: Set to Set - Resumen de sesión (US-63)
+  version: 1.0.0
+paths:
+  /api/v1/students/me/routine-templates/assigned/workout-sessions/{session_id}/summary:
+    get:
+      summary: Resumen de una sesión finalizada del alumno autenticado
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Resumen calculado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkoutSessionSummary" }
+        "401": { description: No autenticado (problem+json) }
+        "403": { description: El usuario no es alumno (problem+json) }
+        "404": { description: Sesión inexistente o de otro alumno (problem+json) }
+        "422": { description: La sesión todavía no fue finalizada (problem+json) }
+components:
+  schemas:
+    SessionPersonalRecord:
+      type: object
+      required: [exercise_id, exercise_name, weight_kg, reps_completed]
+      properties:
+        exercise_id: { type: string }
+        exercise_name: { type: string }
+        weight_kg: { type: number }
+        reps_completed: { type: string }
+        previous_weight_kg: { type: number, nullable: true }
+    SessionHistoryComparison:
+      type: object
+      required: [previous_sessions_count]
+      properties:
+        previous_sessions_count: { type: integer }
+        average_tonnage_kg: { type: number, nullable: true }
+        tonnage_delta_percent: { type: number, nullable: true }
+    WorkoutSessionSummary:
+      type: object
+      required: [session_id, day_name, started_at, finished_at, duration_seconds, total_tonnage_kg, completed_sets, personal_records, history]
+      properties:
+        session_id: { type: string }
+        day_name: { type: string }
+        started_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time }
+        duration_seconds: { type: integer }
+        rpe: { type: integer, nullable: true }
+        total_tonnage_kg: { type: number }
+        completed_sets: { type: integer }
+        programmed_sets: { type: integer, nullable: true }
+        personal_records:
+          type: array
+          items: { $ref: "#/components/schemas/SessionPersonalRecord" }
+        history: { $ref: "#/components/schemas/SessionHistoryComparison" }

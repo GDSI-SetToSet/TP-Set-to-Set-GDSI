@@ -10,6 +10,15 @@
 
 **User Stories Cubiertas**: US-60, US-61, US-62, US-63, US-64
 
+## Clarifications
+
+### Session 2026-11-10
+
+- Q: US-63 escenario 3 depende de racha (US-68) y logros (US-67), que no están implementados. ¿Qué se hace? → A: Se difiere. US-63 entrega tonelaje, duración, series completadas vs programadas, PRs destacados y comparación histórica; racha y logros se incorporan al resumen cuando US-67/US-68 estén mergeadas en `develop`.
+- Q: ¿Contra qué se compara el tonelaje del resumen (FR-005)? → A: Contra el promedio de tonelaje de las sesiones finalizadas anteriores del mismo alumno, para el mismo día de la misma rutina. Si no hay sesiones anteriores comparables, el resumen indica que es la primera sesión registrada de ese día.
+- Q: ¿Qué forma tiene la devolución del entrenador (US-64)? → A: Una categoría obligatoria ("Podrías exigir más", "Esfuerzo adecuado", "Bajar la intensidad") más un comentario opcional de hasta 500 caracteres.
+- Q: ¿Cuántas devoluciones por sesión y qué ocurre al enviarla (US-64)? → A: Una devolución por sesión con RPE reportado; el entrenador puede editarla. Al crearla o editarla el alumno recibe una notificación; la ve al abrir su próxima sesión y en un historial de devoluciones, y queda marcada como vista al visualizarla.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-60: Reporte de esfuerzo percibido (RPE) post-sesión] (Priority: P2, Estimación: 2 SP)
@@ -93,7 +102,9 @@ Como alumno,
 
 2. Dado un alumno que logró uno o más PRs en la sesión, cuando ve el resumen, entonces los PRs se muestran destacados.
 
-3. Dado un alumno que finaliza su sesión, cuando ve el resumen, entonces ve su racha actualizada (US-68) y los logros desbloqueados en la sesión (US-67).
+3. Dado un alumno que finaliza su sesión, cuando ve el resumen, entonces ve su racha actualizada (US-68) y los logros desbloqueados en la sesión (US-67). *(Diferido: se implementa cuando US-67 y US-68 estén mergeadas; ver Clarifications 2026-11-10.)*
+
+4. Dado un alumno que finaliza su sesión y tiene sesiones finalizadas anteriores del mismo día de la misma rutina, cuando ve el resumen, entonces ve la diferencia porcentual de su tonelaje frente al promedio de esas sesiones; si no las tiene, el resumen indica que es su primera sesión registrada de ese día.
 
 
 ---
@@ -108,9 +119,13 @@ Como alumno, quiero recibir una devolución sobre el esfuerzo que reporté despu
 
 **Acceptance Scenarios**:
 
-1. Dado un alumno que reportó su RPE al finalizar una sesión, cuando el entrenador revisa el reporte, entonces puede dejarle una devolución indicando si podría haber exigido más o menos esfuerzo.
+1. Dado un alumno que reportó su RPE al finalizar una sesión, cuando el entrenador revisa el reporte, entonces puede dejarle una devolución eligiendo "Podrías exigir más", "Esfuerzo adecuado" o "Bajar la intensidad", con un comentario opcional de hasta 500 caracteres, y el alumno recibe una notificación.
 
-2. Dado un alumno con una devolución disponible, cuando abre su próxima sesión, entonces puede visualizarla.
+1b. Dado un entrenador que ya dejó una devolución sobre una sesión, cuando la edita, entonces se reemplaza la existente (una por sesión), vuelve a figurar como no vista y el alumno recibe una nueva notificación.
+
+1c. Dado una sesión sin RPE reportado o un entrenador sin vínculo activo con el alumno, cuando intenta dejar una devolución, entonces el sistema la rechaza con un mensaje de error.
+
+2. Dado un alumno con una devolución no vista, cuando abre su próxima sesión, entonces la visualiza y queda marcada como vista.
 
 3. Dado un alumno sin devoluciones pendientes, cuando consulta la sección de feedback, entonces el sistema lo indica claramente en lugar de mostrarla vacía.
 
@@ -141,9 +156,11 @@ Como alumno, quiero recibir una devolución sobre el esfuerzo que reporté despu
 
 - **FR-004**: El sistema DEBE permitir al entrenador responder la consulta técnica y fijar su respuesta como 'nota técnica' vinculada al ejercicio, la cual se mostrará de forma obligatoria al alumno al iniciar ese ejercicio en su próxima sesión (US-62).
 
-- **FR-005**: El sistema DEBE mostrar un resumen post-sesión con volumen total levantado y comparación histórica (US-63).
+- **FR-005**: El sistema DEBE mostrar un resumen post-sesión con tonelaje total (suma de peso × repeticiones de las series registradas), duración total, series completadas frente a programadas, PRs logrados en la sesión destacados y comparación contra el promedio de tonelaje de las sesiones anteriores del mismo día de la misma rutina (US-63).
 
-- **FR-006**: El sistema DEBE permitir al entrenador enviar feedback sobre el esfuerzo y ejecución reportados por el alumno (US-64).
+- **FR-006**: El sistema DEBE permitir al entrenador con vínculo activo dejar una devolución por sesión con RPE reportado (categoría obligatoria y comentario opcional de hasta 500 caracteres), editarla, y notificar al alumno en cada alta o edición (US-64).
+
+- **FR-007**: El sistema DEBE mostrar al alumno sus devoluciones no vistas al abrir la próxima sesión, marcarlas como vistas al visualizarlas, ofrecer un historial de devoluciones e indicar explícitamente cuando no tiene ninguna (US-64).
 
 
 
@@ -152,6 +169,8 @@ Como alumno, quiero recibir una devolución sobre el esfuerzo que reporté despu
 - **PostWorkoutReport**: Reporte final de sesión que consolida hora de finalización, duración total, tonelaje levantado y valor RPE (1 a 10).
 
 - **BodyMapPainReport**: Mapa anatómico corporal donde el alumno marca puntos con tres niveles de sensación: carga muscular normal, molestia leve o dolor agudo.
+
+- **EffortFeedback**: Devolución del entrenador sobre una sesión con RPE reportado: categoría, comentario opcional, fechas de creación y edición y fecha en que el alumno la vio. Una por sesión.
 
 - **ExerciseTechnicalQuery**: Consulta técnica sobre un ejercicio vinculada a la sesión y transmitida como mensaje estructurado al canal general de chat (US-21), con estado de respuesta y bandera de fijación como nota técnica.
 
