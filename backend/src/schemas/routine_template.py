@@ -238,6 +238,34 @@ class PersonalRecordResponse(BaseModel):
     achieved_at: datetime
 
 
+class SessionPersonalRecordResponse(BaseModel):
+    exercise_id: str
+    exercise_name: str
+    weight_kg: float
+    reps_completed: str
+    previous_weight_kg: float | None = None
+
+
+class SessionHistoryComparisonResponse(BaseModel):
+    previous_sessions_count: int
+    average_tonnage_kg: float | None = None
+    tonnage_delta_percent: float | None = None
+
+
+class WorkoutSessionSummaryResponse(BaseModel):
+    session_id: str
+    day_name: str
+    started_at: datetime
+    finished_at: datetime
+    duration_seconds: int
+    rpe: int | None = None
+    total_tonnage_kg: float
+    completed_sets: int
+    programmed_sets: int | None = None
+    personal_records: list[SessionPersonalRecordResponse]
+    history: SessionHistoryComparisonResponse
+
+
 class RoutineAssignmentUpdate(BaseModel):
     routine_template_id: str | None
 

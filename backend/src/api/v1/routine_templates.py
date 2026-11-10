@@ -17,6 +17,7 @@ from backend.src.schemas.routine_template import (
     WorkoutSessionResponse,
     WorkoutSessionRpeInput,
     WorkoutSessionStartInput,
+    WorkoutSessionSummaryResponse,
     WorkoutSetLogInput,
     WorkoutSetLogResponse,
 )
@@ -44,6 +45,7 @@ from backend.src.services.routine_template_service import (
     update_student_workout_session_rpe,
     update_template,
 )
+from backend.src.services.session_summary_service import build_student_session_summary
 from backend.src.services.student_routine_service import (
     on_reassign,
     student_assigned_view,
@@ -299,6 +301,19 @@ def get_assigned_routine_personal_records(
     try:
         records = list_student_personal_records(db, user, exercise_id=exercise_id)
         return [PersonalRecordResponse.model_validate(item) for item in records]
+    except ServiceErrors as error:
+        handle_error(error)
+
+
+@student_router.get(
+    "/assigned/workout-sessions/{session_id}/summary",
+    response_model=WorkoutSessionSummaryResponse,
+)
+def get_assigned_workout_session_summary(
+    session_id: str, user: CurrentUser, db: DbDep
+) -> WorkoutSessionSummaryResponse:
+    try:
+        return WorkoutSessionSummaryResponse(**build_student_session_summary(db, user, session_id))
     except ServiceErrors as error:
         handle_error(error)
 

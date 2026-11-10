@@ -1,0 +1,83 @@
+/* US-63: resumen post-sesión dentro del diálogo de celebración */
+.session-summary {
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+.session-summary__status {
+  margin: 0 0 18px;
+  color: var(--pf-body, #475569);
+}
+.session-summary__status--error { color: #9f1d1d; }
+.session-summary__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 16px;
+}
+.session-summary__metrics div {
+  padding: 12px 8px;
+  border: 1px solid #d4e7da;
+  border-radius: 14px;
+  background: #f4faf6;
+}
+.session-summary__metrics dt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #3f5f4f;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.session-summary__metrics dd {
+  margin: 6px 0 0;
+  color: #173c2c;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+.workout-celebration__card p.session-summary__history {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+  margin: 0 0 16px;
+  color: #334155;
+  font-size: 0.95rem;
+  text-align: left;
+}
+.workout-celebration__card p.session-summary__history--up { color: #1f5c3a; }
+.workout-celebration__card p.session-summary__history--down { color: #7a4a00; }
+.session-summary__history svg { flex: none; margin-top: 2px; }
+.session-summary__prs {
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border: 1px solid #f0d58a;
+  border-radius: 14px;
+  background: #fff8e1;
+  text-align: left;
+}
+.session-summary__prs h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  color: #6b4b00;
+  font-size: 1rem;
+}
+.session-summary__prs ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.session-summary__prs li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  color: #3d2c00;
+}
+@media (max-width: 480px) {
+  .session-summary__metrics { grid-template-columns: 1fr; }
+}
