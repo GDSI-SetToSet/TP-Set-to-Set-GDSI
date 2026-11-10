@@ -34,6 +34,7 @@ from backend.src.models import (  # noqa: F401
     AssignedRoutineExercise,
     BodyMapPainReport,
     BodyMapPainReportZone,
+    EffortFeedback,
     Exercise,
     ExerciseReplacementLog,
     ExerciseSafeVariant,

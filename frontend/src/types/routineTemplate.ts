@@ -78,6 +78,32 @@ export interface RoutineTemplate {
   days: RoutineDay[];
 }
 
+export type EffortFeedbackCategory = 'MORE_EFFORT' | 'ADEQUATE' | 'LESS_INTENSITY';
+
+export const EFFORT_FEEDBACK_CATEGORIES: Array<{ value: EffortFeedbackCategory; label: string; hint: string }> = [
+  { value: 'MORE_EFFORT', label: 'Podrías exigir más', hint: 'Te quedó margen: la próxima podés subir la intensidad.' },
+  { value: 'ADEQUATE', label: 'Esfuerzo adecuado', hint: 'El esfuerzo fue el esperado para esta sesión.' },
+  { value: 'LESS_INTENSITY', label: 'Bajar la intensidad', hint: 'Fue demasiado exigente: la próxima conviene aflojar.' },
+];
+
+export interface EffortFeedback {
+  id: string;
+  session_id: string;
+  day_name: string;
+  session_started_at: string;
+  rpe: number | null;
+  category: EffortFeedbackCategory;
+  comment: string | null;
+  created_at: string;
+  updated_at: string;
+  seen_at: string | null;
+}
+
+export interface EffortFeedbackInput {
+  category: EffortFeedbackCategory;
+  comment: string | null;
+}
+
 export interface WorkoutSession {
   id: string;
   student_id: string;
@@ -88,6 +114,7 @@ export interface WorkoutSession {
   started_at: string;
   finished_at: string | null;
   rpe?: number | null;
+  effort_feedback?: EffortFeedback | null;
 }
 
 export interface SessionPersonalRecord {

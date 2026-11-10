@@ -26,15 +26,15 @@ description: "Task list for 008-workout-feedback-and-communication (US-63, US-64
 
 ## Phase 2: US-64 — Devolución sobre el esfuerzo reportado (rama `feature/064-us64-effort-feedback`)
 
-- [ ] T009 [US5] Crear el modelo `EffortFeedback` en `backend/src/models/effort_feedback.py` y registrarlo en `backend/src/models/__init__.py` y `backend/tests/conftest.py`.
-- [ ] T010 [US5] Agregar `EffortFeedbackInput` y `EffortFeedbackResponse` en `backend/src/schemas/routine_template.py`.
-- [ ] T011 [US5] Crear `backend/src/services/effort_feedback_service.py` con `upsert_effort_feedback` (vínculo activo, sesión finalizada con RPE, notificación `EFFORT_FEEDBACK`, reset de `seen_at`), `list_student_effort_feedback`, `mark_effort_feedback_seen` y `list_trainer_session_feedback`.
-- [ ] T012 [US5] Exponer `PUT /routine-templates/assignments/{relationship_id}/workout-sessions/{session_id}/effort-feedback`, `GET /students/me/routine-templates/assigned/effort-feedback` y `POST .../effort-feedback/{feedback_id}/seen` en `backend/src/api/v1/routine_templates.py`; incluir `effort_feedback` en las sesiones del entrenador.
-- [ ] T013 [P] [US5] Cubrir la API en `backend/tests/test_us64_effort_feedback_api.py` (alta, edición única, notificación, sin RPE, sesión ajena, vínculo inactivo, comentario > 500, historial vacío, marcar vista).
-- [ ] T014 [P] [US5] Agregar tipos y servicios de devoluciones en `frontend/src/types/routineTemplate.ts` y `frontend/src/services/routineTemplateService.ts`.
-- [ ] T015 [US5] Crear `frontend/src/components/EffortFeedbackForm.tsx` e integrarlo por sesión con RPE en `frontend/src/components/RoutineAssignmentPanel.tsx`.
-- [ ] T016 [US5] Crear `frontend/src/components/EffortFeedbackList.tsx`; mostrar no vistas al abrir la sesión (y marcarlas) y el historial con estado vacío en `frontend/src/pages/StudentRoutinesPage.tsx`.
-- [ ] T017 [US5] Correr `ruff check backend`, `pytest backend/tests --cov=backend/src --cov-fail-under=90` y `npm run build`.
+- [x] T009 [US5] Crear el modelo `EffortFeedback` en `backend/src/models/effort_feedback.py` y registrarlo en `backend/src/models/__init__.py` y `backend/tests/conftest.py`.
+- [x] T010 [US5] Agregar `EffortFeedbackInput` y `EffortFeedbackResponse` en `backend/src/schemas/routine_template.py`.
+- [x] T011 [US5] Crear `backend/src/services/effort_feedback_service.py` con `upsert_effort_feedback` (vínculo activo, sesión finalizada con RPE, notificación `EFFORT_FEEDBACK`, reset de `seen_at`), `list_student_effort_feedback`, `mark_effort_feedback_seen` y `list_trainer_session_feedback`.
+- [x] T012 [US5] Exponer `PUT /routine-templates/assignments/{relationship_id}/workout-sessions/{session_id}/effort-feedback`, `GET /students/me/routine-templates/assigned/effort-feedback` y `POST .../effort-feedback/{feedback_id}/seen` en `backend/src/api/v1/routine_templates.py`; incluir `effort_feedback` en las sesiones del entrenador.
+- [x] T013 [P] [US5] Cubrir la API en `backend/tests/test_us64_effort_feedback_api.py` (alta, edición única, notificación, sin RPE, sesión ajena, vínculo inactivo, comentario > 500, historial vacío, marcar vista).
+- [x] T014 [P] [US5] Agregar tipos y servicios de devoluciones en `frontend/src/types/routineTemplate.ts` y `frontend/src/services/routineTemplateService.ts`.
+- [x] T015 [US5] Crear `frontend/src/components/EffortFeedbackForm.tsx` e integrarlo por sesión con RPE en `frontend/src/components/RoutineAssignmentPanel.tsx`.
+- [x] T016 [US5] Crear `frontend/src/components/EffortFeedbackList.tsx`; mostrar no vistas al abrir la sesión (y marcarlas) y el historial con estado vacío en `frontend/src/pages/StudentRoutinesPage.tsx`.
+- [x] T017 [US5] Correr `ruff check backend`, `pytest backend/tests --cov=backend/src --cov-fail-under=90` y `npm run build`.
 
 ## Dependencies
 
