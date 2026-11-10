@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SafeVariantNotice } from '../components/SafeVariantNotice';
 import { ExerciseAlternativesPanel } from '../components/ExerciseAlternativesPanel';
+import { saveReplacement } from '../services/exerciseAlternativeService';
 import type { ExerciseAlternative } from '../types/exerciseAlternative';
 import { RestTimer } from '../components/RestTimer';
 import { ROUTES } from '../constants/routes';
@@ -1060,14 +1061,20 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                     .flatMap((b) => b.exercises)
                     .find((e) => e.exercise.id === painReportExercise.id || replacements[e.id]?.exercise_id === painReportExercise.id);
                   if (targetExercise) {
+                    if (selectedDay) {
+                      void saveReplacement({
+                        day_name: selectedDay.name,
+                        original_exercise_id: targetExercise.exercise.id,
+                        replacement_exercise_id: variantExercise.exercise_id,
+                      }).catch(() => {});
+                    }
                     setReplacements((current) => ({
                       ...current,
                       [targetExercise.id]: {
-                        exercise_id: variantExercise.id,
+                        exercise_id: variantExercise.exercise_id,
                         name: variantExercise.name,
-                        equipment_needed: variantExercise.equipment_needed ?? '',
-                        target_muscle_group: variantExercise.target_muscle_group ?? '',
-                        description: variantExercise.description ?? '',
+                        equipment_needed: targetExercise.exercise.equipment_needed,
+                        variant: null,
                       },
                     }));
                   }
@@ -1078,6 +1085,13 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                     .flatMap((b) => b.exercises)
                     .find((e) => e.exercise.id === painReportExercise.id || replacements[e.id]?.exercise_id === painReportExercise.id);
                   if (targetExercise) {
+                    if (selectedDay) {
+                      void saveReplacement({
+                        day_name: selectedDay.name,
+                        original_exercise_id: targetExercise.exercise.id,
+                        replacement_exercise_id: null,
+                      }).catch(() => {});
+                    }
                     setSkipped((current) => [...current, targetExercise.id]);
                   }
                   setPainReportExercise(null);

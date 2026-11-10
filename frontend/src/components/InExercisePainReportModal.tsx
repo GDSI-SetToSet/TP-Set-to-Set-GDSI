@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle, ShieldCheck, Video, X } from 'lucide-react';
 import { BodyMapSelector } from './BodyMapSelector';
 import { createBodyMapReport, updateReportAction } from '../services/bodyMapReportService';
-import type { BodyMapReportResponse, ReportZoneInput } from '../types/bodyMapReport';
+import type { BodyMapReportResponse, ReportZoneInput, SafeVariantSnippet } from '../types/bodyMapReport';
 import { getVideoEmbedUrl } from '../utils/videoUrl';
 import '../styles/body-map.css';
 
@@ -12,7 +12,8 @@ interface Props {
   sessionId: string | null;
   isOpen: boolean;
   onClose: () => void;
-  onAcceptVariant: (variant: { id: string; name: string }) => void;
+  onCancel?: () => void;
+  onAcceptVariant: (variant: SafeVariantSnippet) => void;
   onSkipExercise: () => void;
 }
 
@@ -22,6 +23,7 @@ export function InExercisePainReportModal({
   sessionId,
   isOpen,
   onClose,
+  onCancel,
   onAcceptVariant,
   onSkipExercise,
 }: Props) {
@@ -59,7 +61,7 @@ export function InExercisePainReportModal({
     } catch {
       // No bloquea la acción local
     }
-    onAcceptVariant({ id: variant.exercise_id, name: variant.name });
+    onAcceptVariant(variant);
     handleClose();
   };
 
@@ -79,6 +81,9 @@ export function InExercisePainReportModal({
     setSelectedZones([]);
     setReportResult(null);
     setErrorMessage('');
+    if (onCancel) {
+      onCancel();
+    }
     onClose();
   };
 
