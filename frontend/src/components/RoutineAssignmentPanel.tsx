@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, Pencil } from 'lucide-react';
+import { ChevronDown, CircleAlert, Pencil } from 'lucide-react';
 import { ROUTES } from '../constants/routes';
 import { EffortFeedbackForm } from './EffortFeedbackForm';
 import { assignRoutineToStudent, getRoutineAssignments, getTrainerStudentWorkoutLogs, getTrainerStudentWorkoutSessions } from '../services/routineTemplateService';
@@ -311,9 +311,18 @@ export function RoutineAssignmentPanel({
                 <span className="routine-assignment__actions-label">Acciones del alumno</span>
                 <div className="routine-assignment__actions-buttons">
                   {student.routine_template_id && (
-                    <Link className="profile-save routine-assignment__action-link" to={ROUTES.trainerStudentRoutine.replace(':studentId', student.student_id)}>
+                    <Link
+                      className={`profile-save routine-assignment__action-link${student.conflict_count > 0 ? ' routine-assignment__action-link--conflict' : ''}`}
+                      to={ROUTES.trainerStudentRoutine.replace(':studentId', student.student_id)}
+                      aria-label={student.conflict_count > 0
+                        ? `Editar rutina de ${student.student_name}. Esta rutina tiene ejercicios que requieren revisión.`
+                        : undefined}
+                      title={student.conflict_count > 0 ? 'Esta rutina tiene ejercicios que requieren revisión' : undefined}
+                      data-tooltip={student.conflict_count > 0 ? 'Esta rutina tiene ejercicios que requieren revisión' : undefined}
+                    >
                       <Pencil size={15} aria-hidden="true" />
                       Editar rutina
+                      {student.conflict_count > 0 && <CircleAlert size={18} aria-hidden="true" />}
                     </Link>
                   )}
                   <button

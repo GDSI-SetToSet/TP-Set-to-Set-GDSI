@@ -814,7 +814,12 @@ def list_trainer_student_workout_sessions(
     return list(db.scalars(query))
 
 
-def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | None]]:
+def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | int | None]]:
+    from backend.src.services.student_routine_service import (
+        current_conflicts,
+        template_conflicts,
+    )
+
     trainer = get_trainer_profile(db, user)
     rows = db.execute(
         select(TrainingRelationship, StudentProfile, User)
@@ -854,7 +859,7 @@ def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | No
         ):
             ar_map[ar.id] = ar.name
 
-    sr_map: dict[str, tuple[str, str]] = {}
+    sr_map: dict[str, StudentRoutine] = {}
     if rel_ids:
         for sr in db.scalars(
             select(StudentRoutine).where(
@@ -862,9 +867,9 @@ def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | No
                 StudentRoutine.status != "UNASSIGNED",
             )
         ):
-            sr_map[sr.relationship_id] = (sr.id, sr.name)
+            sr_map[sr.relationship_id] = sr
 
-    assignments: list[dict[str, str | None]] = []
+    assignments: list[dict[str, str | int | None]] = []
     for relationship, student, student_user in rows:
         routine_template_id = None
         routine_name = None
@@ -876,12 +881,22 @@ def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | No
                 routine_template_id = relationship.initial_routine_id
                 routine_name = ar_map[relationship.initial_routine_id]
             elif relationship.id in sr_map:
-                routine_template_id, routine_name = sr_map[relationship.id]
+                routine_template_id = sr_map[relationship.id].id
+                routine_name = sr_map[relationship.id].name
         else:
             if relationship.id in sr_map:
-                routine_template_id, routine_name = sr_map[relationship.id]
+                routine_template_id = sr_map[relationship.id].id
+                routine_name = sr_map[relationship.id].name
 
         student_name = " ".join(part for part in (student.first_name, student.last_name) if part).strip()
+        student_routine = sr_map.get(relationship.id)
+        if student_routine is not None:
+            conflict_count = len(current_conflicts(db, student_routine))
+        elif routine_template_id and relationship.initial_routine_id:
+            conflict_count = len(template_conflicts(db, relationship.id, relationship.initial_routine_id))
+        else:
+            conflict_count = 0
+
         assignments.append(
             {
                 "relationship_id": relationship.id,
@@ -889,6 +904,7 @@ def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | No
                 "student_name": student_name or student_user.email,
                 "routine_template_id": routine_template_id,
                 "routine_name": routine_name,
+                "conflict_count": conflict_count,
             }
         )
     return assignments

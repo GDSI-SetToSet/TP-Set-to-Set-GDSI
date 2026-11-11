@@ -330,3 +330,4 @@ class RoutineAssignmentStudentResponse(BaseModel):
     student_name: str
     routine_template_id: str | None
     routine_name: str | None
+    conflict_count: int = 0

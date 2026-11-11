@@ -210,6 +210,9 @@ def test_exercise_zones_must_come_from_the_body_area_list(client):
 
 def test_existing_conflicts_are_reported_when_opening_and_when_assigning(client):
     api, sessions, trainer, _, sid, _template, squat, plank = setup_case(client)
+    assignments = api.get(f"{TEMPLATES_PATH}/assignments", headers=trainer).json()
+    assert assignments[0]["conflict_count"] == 0
+
     # el ejercicio ya está en la rutina y luego se lo marca como contraindicado
     api.put(path(sid, "/draft"), headers=trainer, json=draft(0, squat, plank))
     api.post(path(sid, "/draft/confirm"), headers=trainer)
@@ -221,6 +224,14 @@ def test_existing_conflicts_are_reported_when_opening_and_when_assigning(client)
     opened = api.get(path(sid), headers=trainer).json()
     assert [c["field"] for c in opened["conflicts"]] == ["days.0.blocks.0.exercises.1.exercise_id"]
     assert "rodilla" in opened["conflicts"][0]["message"]
+    assignments = api.get(f"{TEMPLATES_PATH}/assignments", headers=trainer).json()
+    assert assignments[0]["conflict_count"] == 1
+
+    corrected = api.put(path(sid, "/draft"), headers=trainer, json=draft(opened["draft_version"], squat))
+    assert corrected.status_code == 200
+    assert api.get(f"{TEMPLATES_PATH}/assignments", headers=trainer).json()[0]["conflict_count"] == 0
+    assert api.post(path(sid, "/draft/confirm"), headers=trainer).status_code == 200
+    assert api.get(f"{TEMPLATES_PATH}/assignments", headers=trainer).json()[0]["conflict_count"] == 0
 
     clean = create_template(api, trainer, squat, name="Limpia")
     risky = create_template(api, trainer, plank, name="Riesgosa")

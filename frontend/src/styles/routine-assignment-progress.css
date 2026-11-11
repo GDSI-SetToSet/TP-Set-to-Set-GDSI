@@ -45,6 +45,42 @@
 .routine-assignment__actions .profile-save:hover { color: #172b50; background: #fff; border-color: #e4eaf2; }
 .routine-assignment__actions .routine-assignment__action-link:hover,
 .routine-assignment__actions .routine-assignment__progress-toggle:hover { text-decoration: underline; text-underline-offset: 3px; }
+.routine-assignment__actions .routine-assignment__action-link--conflict {
+  position: relative;
+  gap: 6px;
+}
+.routine-assignment__action-link--conflict > svg:last-child {
+  color: #b42318;
+}
+.routine-assignment__action-link--conflict::after {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 7px);
+  left: 50%;
+  width: max-content;
+  max-width: 240px;
+  padding: 7px 10px;
+  border: 1px solid #e3a8a8;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 4px 12px rgb(23 43 80 / 12%);
+  color: #7f1d1d;
+  content: attr(data-tooltip);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -3px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  visibility: hidden;
+}
+.routine-assignment__action-link--conflict:hover::after,
+.routine-assignment__action-link--conflict:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  visibility: visible;
+}
 .routine-assignment__actions .routine-assignment__progress-toggle { cursor: pointer; }
 .routine-assignment__progress-toggle svg { transition: transform 160ms ease; }
 .routine-assignment__progress-toggle[aria-expanded='true'] svg { transform: rotate(180deg); }
