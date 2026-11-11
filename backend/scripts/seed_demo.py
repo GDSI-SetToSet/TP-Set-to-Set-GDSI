@@ -25,8 +25,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
 
-from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
 from backend.src.core.config import APP_ENV
+from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
 from backend.src.core.database import Base, SessionLocal, engine
 from backend.src.core.migrations import apply_migrations
 from backend.src.core.security import hash_password
