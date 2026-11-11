@@ -65,8 +65,8 @@ def test_seed_demo_creates_data():
         assert stats["plans"] >= 10
         assert stats["students"] == 8
         assert stats["questionnaires"] == 8
-        assert stats["requests"] == 4
-        assert stats["relationships"] == 2
+        assert stats["requests"] == 6
+        assert stats["relationships"] == 4
 
         # Verificar que existan en la base de datos
         trainers = db.scalars(select(TrainerProfile)).all()
@@ -337,7 +337,11 @@ def test_seed_loads_routines_only_for_some_trainers():
         for email in ("lucas.benitez", "mariana.vega", "gonzalo.morales"):
             trainer = trainer_by_email(db, email)
             assert db.scalar(select(func.count(Exercise.id)).where(Exercise.trainer_id == trainer.id)) >= 5
-            assert db.scalar(select(func.count(RoutineTemplate.id)).where(RoutineTemplate.trainer_id == trainer.id)) == 2
+            expected_routines = 3 if email == "mariana.vega" else 2
+            routine_count = db.scalar(
+                select(func.count(RoutineTemplate.id)).where(RoutineTemplate.trainer_id == trainer.id)
+            )
+            assert routine_count == expected_routines
 
         for email in ("ignacio.rossi", "camila.navarro"):
             trainer = trainer_by_email(db, email)
