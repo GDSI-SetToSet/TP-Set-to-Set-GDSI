@@ -32,6 +32,10 @@ services:
       SMTP_USERNAME: ${SMTP_USERNAME}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      AI_PROVIDER: ${AI_PROVIDER:-heuristic}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      GEMINI_TIMEOUT_SECONDS: ${GEMINI_TIMEOUT_SECONDS:-60}
     volumes:
       - medical_clearances:/app/backend/uploads
     depends_on:
