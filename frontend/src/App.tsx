@@ -70,6 +70,7 @@ export default function App() {
       <Route path={ROUTES.studentProtectedZones} element={<ProtectedRoute role={USER_ROLES.student}><ProtectedZonesPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentMedical} element={<ProtectedRoute role={USER_ROLES.student}><MedicalClearancePage /></ProtectedRoute>} />
       <Route path={ROUTES.studentRoutines} element={<ProtectedRoute role={USER_ROLES.student}><StudentRoutinesPage /></ProtectedRoute>} />
+      <Route path={ROUTES.studentRoutineSession} element={<ProtectedRoute role={USER_ROLES.student}><StudentRoutinesPage sessionMode /></ProtectedRoute>} />
       <Route path={ROUTES.studentActivePlans} element={<ProtectedRoute role={USER_ROLES.student}><StudentActivePlansPage /></ProtectedRoute>} />
     </Routes>
   );

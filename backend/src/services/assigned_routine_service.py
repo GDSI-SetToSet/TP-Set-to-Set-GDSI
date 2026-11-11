@@ -36,6 +36,7 @@ from backend.src.services.ai_routine_adapter import (
     _conflicts_with_zones,
     get_ai_routine_adapter,
     is_valid_reps_format,
+    validate_generated_routine_proposal,
 )
 from backend.src.services.student_service import (
     current_questionnaire,
@@ -67,10 +68,19 @@ def calculate_age(birth_date: datetime | date | None) -> int | None:
 
 
 class AssignedRoutineError(Exception):
-    def __init__(self, status_code: int, detail: str, errors: list[dict[str, Any]] | None = None):
+    def __init__(
+        self,
+        status_code: int,
+        detail: str,
+        errors: list[dict[str, Any]] | None = None,
+        error_code: str | None = None,
+    ):
         self.status_code = status_code
         self.detail = detail
-        self.errors = errors
+        self.error_code = error_code
+        self.errors = errors or (
+            [{"code": error_code, "message": detail}] if error_code else None
+        )
         super().__init__(detail)
 
 
@@ -80,59 +90,20 @@ def validate_ai_proposal_domain_rules(
     trainer_exercises: list[Exercise],
     protected_zones: list[ProtectedZone],
 ) -> None:
-    """Valida en el backend que la propuesta de IA respete el catálogo y rangos del dominio."""
-    if proposal_result.intensity not in INTENSITY_ORDER:
+    """Valida en el backend que la propuesta de IA respete estructura, rangos, semántica e integridad del dominio."""
+    try:
+        validate_generated_routine_proposal(
+            proposal_result=proposal_result,
+            template=template,
+            trainer_exercises=trainer_exercises,
+            protected_zones=protected_zones,
+        )
+    except AIRoutineAdapterError as exc:
         raise AssignedRoutineError(
             status.HTTP_502_BAD_GATEWAY,
-            f"La propuesta de IA contiene una intensidad inválida ('{proposal_result.intensity}').",
-        )
-
-    if not (1 <= proposal_result.duration_weeks <= 52):
-        raise AssignedRoutineError(
-            status.HTTP_502_BAD_GATEWAY,
-            "La propuesta de IA contiene una duración en semanas fuera del rango permitido (1 a 52).",
-        )
-
-    allowed_exercises: dict[str, Exercise] = {
-        ex.id: ex for ex in trainer_exercises if ex.deleted_at is None
-    }
-    for day in template.days:
-        for block in day.blocks:
-            for entry in block.exercises:
-                if entry.exercise.deleted_at is None:
-                    allowed_exercises.setdefault(entry.exercise_id, entry.exercise)
-
-    for day_data in proposal_result.days:
-        for block_data in day_data.blocks:
-            for ex_data in block_data.exercises:
-                exercise = allowed_exercises.get(ex_data.exercise_id)
-                if not exercise:
-                    raise AssignedRoutineError(
-                        status.HTTP_502_BAD_GATEWAY,
-                        f"La propuesta de IA referencia un ejercicio inexistente o no permitido ('{ex_data.exercise_id}').",
-                    )
-                conflict = _conflicts_with_zones(exercise, protected_zones)
-                if conflict:
-                    raise AssignedRoutineError(
-                        status.HTTP_502_BAD_GATEWAY,
-                        f"La propuesta de IA incluye el ejercicio '{exercise.name}' que compromete la zona protegida '{conflict}'.",
-                    )
-                if not (SETS_MIN <= ex_data.sets <= SETS_MAX):
-                    raise AssignedRoutineError(
-                        status.HTTP_502_BAD_GATEWAY,
-                        f"La propuesta de IA contiene series fuera del rango válido ({SETS_MIN}-{SETS_MAX}).",
-                    )
-                reps_clean = (ex_data.reps or "").strip()
-                if not is_valid_reps_format(reps_clean):
-                    raise AssignedRoutineError(
-                        status.HTTP_502_BAD_GATEWAY,
-                        f"La propuesta de IA contiene repeticiones vacías o con un formato inválido ('{reps_clean}').",
-                    )
-                if not (REST_MIN_SECONDS <= ex_data.rest_seconds <= REST_MAX_SECONDS):
-                    raise AssignedRoutineError(
-                        status.HTTP_502_BAD_GATEWAY,
-                        f"La propuesta de IA contiene un descanso fuera del rango válido ({REST_MIN_SECONDS}-{REST_MAX_SECONDS}s).",
-                    )
+            exc.detail,
+            error_code=exc.error_code,
+        ) from exc
 
 
 def list_active_students_for_trainer(db: Session, user: User) -> list[ActiveStudentResponse]:
@@ -234,7 +205,11 @@ def generate_ai_routine_proposal(
             trainer_exercises=trainer_exercises,
         )
     except AIRoutineAdapterError as exc:
-        raise AssignedRoutineError(exc.status_code, exc.detail) from exc
+        raise AssignedRoutineError(
+            exc.status_code,
+            exc.detail,
+            error_code=exc.error_code,
+        ) from exc
     except Exception as exc:
         logger.error(
             "Falla inesperada en el mecanismo de adaptación con IA (%s).",

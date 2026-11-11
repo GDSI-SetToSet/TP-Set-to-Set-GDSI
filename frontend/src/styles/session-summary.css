@@ -1,0 +1,253 @@
+/* US-63: resumen post-sesión dentro del diálogo de celebración */
+.session-summary {
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+.session-summary__status {
+  margin: 0 0 18px;
+  color: var(--pf-body, #475569);
+}
+.session-summary__status--error { color: #9f1d1d; }
+.session-summary__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 16px;
+}
+.session-summary__metrics div {
+  padding: 12px 8px;
+  border: 1px solid #d4e7da;
+  border-radius: 14px;
+  background: #f4faf6;
+}
+.session-summary__metrics dt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #3f5f4f;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.session-summary__metrics dd {
+  margin: 6px 0 0;
+  color: #173c2c;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+.workout-celebration__card p.session-summary__history {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+  margin: 0 0 16px;
+  color: #334155;
+  font-size: 0.95rem;
+  text-align: left;
+}
+.workout-celebration__card p.session-summary__history--up { color: #1f5c3a; }
+.workout-celebration__card p.session-summary__history--down { color: #7a4a00; }
+.session-summary__history svg { flex: none; margin-top: 2px; }
+.session-summary__prs {
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border: 1px solid #f0d58a;
+  border-radius: 14px;
+  background: #fff8e1;
+  text-align: left;
+}
+.session-summary__prs h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  color: #6b4b00;
+  font-size: 1rem;
+}
+.session-summary__prs ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.session-summary__prs li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  color: #3d2c00;
+}
+.session-summary__rpe-follow-up {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+.workout-celebration__card button.session-summary__rate-link {
+  min-width: 0;
+  min-height: 0;
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  color: #397452;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.workout-celebration__card button.session-summary__rate-link:hover { color: #245338; }
+.session-summary__rpe-form {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid #d4e7da;
+  border-radius: 12px;
+  background: #f7fbf8;
+}
+.session-summary__rpe-form > p { margin: 0 0 10px; font-size: 0.9rem; }
+.session-summary__rpe-options {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(36px, 1fr));
+  gap: 6px;
+}
+.workout-celebration__card button.session-summary__rpe-option {
+  min-width: 0;
+  min-height: 40px;
+  padding: 6px;
+  border: 1px solid #c6ddcf;
+  background: #fff;
+  color: #245338;
+}
+.workout-celebration__card button.session-summary__rpe-option--selected {
+  border-color: #397452;
+  background: #397452;
+  color: #fff;
+}
+.workout-celebration__card button.session-summary__rpe-save {
+  min-height: 42px;
+  margin-top: 12px;
+  padding: 8px 16px;
+}
+.workout-celebration__card button.session-summary__rpe-save:disabled { opacity: 0.55; cursor: not-allowed; }
+.workout-celebration__card p.session-summary__rpe-error,
+.workout-celebration__card p.session-summary__rpe-saved {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+}
+.workout-celebration__card p.session-summary__rpe-error { color: #9f1d1d; }
+.workout-celebration__card p.session-summary__rpe-saved { color: #245338; font-weight: 700; }
+.session-rating-overlay {
+  position: fixed;
+  z-index: 1002;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  overflow-y: auto;
+  background: rgba(15, 23, 42, 0.58);
+  backdrop-filter: blur(3px);
+}
+.session-rating-dialog {
+  position: relative;
+  width: min(900px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  padding: 28px;
+  border: 1px solid #dce8df;
+  border-radius: 20px;
+  background: #fff;
+  color: #1e293b;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+  text-align: left;
+}
+.session-rating-dialog__close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #dbe5dc;
+  border-radius: 10px;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+}
+.session-rating-dialog__close:hover { background: #f4faf6; color: #245338; }
+.session-rating-dialog__icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  background: #eaf5ed;
+  color: #397452;
+}
+.session-rating-dialog h2 { margin: 0 48px 8px 0; color: #1e293b; font-size: 1.4rem; }
+.session-rating-dialog__intro { margin: 0 0 22px; color: #526174; line-height: 1.5; }
+.session-rating-dialog__field h3 { margin: 0 0 4px; color: #1e293b; font-size: 1rem; }
+.session-rating-dialog__field > p { margin: 0 0 12px; color: #64748b; font-size: 0.9rem; }
+.session-rating-dialog__options {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+.session-rating-dialog__option {
+  display: flex;
+  min-width: 0;
+  min-height: 62px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 3px;
+  border: 1px solid #d2ded5;
+  border-radius: 10px;
+  background: #fff;
+  color: #1e293b;
+  font-size: 1.05rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.session-rating-dialog__option span { color: #64748b; font-size: 0.63rem; font-weight: 600; }
+.session-rating-dialog__option:hover { border-color: #72a486; background: #f7fbf8; }
+.session-rating-dialog__option--selected,
+.session-rating-dialog__option--selected:hover { border-color: #397452; background: #397452; color: #fff; }
+.session-rating-dialog__option--selected span { color: #e7f4eb; }
+.session-rating-dialog__body-map { margin-top: 22px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+.session-rating-dialog__body-map .body-map-selector { width: 100%; }
+.session-rating-dialog__error { margin: 14px 0 0; color: #9f1d1d; font-size: 0.9rem; }
+.session-rating-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid #e2e8f0;
+}
+.session-rating-dialog__actions button {
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.session-rating-dialog__cancel { border: 1px solid #cbd5e1; background: #fff; color: #475569; }
+.session-rating-dialog__cancel:hover:not(:disabled) { background: #f8fafc; }
+.session-rating-dialog__save { border: 1px solid #285b3d; background: #397452; color: #fff; }
+.session-rating-dialog__save:hover:not(:disabled) { background: #285b3d; }
+.session-rating-dialog__save:disabled,
+.session-rating-dialog__cancel:disabled { opacity: 0.55; cursor: not-allowed; }
+@media (max-width: 480px) {
+  .session-summary__metrics { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .session-rating-dialog { padding: 22px 16px; }
+  .session-rating-dialog__options { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .session-rating-dialog__option { min-height: 56px; }
+  .session-rating-dialog__actions { flex-direction: column-reverse; }
+  .session-rating-dialog__actions button { width: 100%; }
+}

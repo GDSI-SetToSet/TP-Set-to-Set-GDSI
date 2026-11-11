@@ -2,6 +2,7 @@ import axios from 'axios';
 import { ArrowLeft, CheckCircle2, Plus, Save } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { SafeVariantsPanel } from '../components/SafeVariantsPanel';
 import { ExerciseCard } from '../components/ExerciseCard';
 import { BODY_AREAS, ZONES_ES } from '../constants/bodyAreas';
 import { ROUTES } from '../constants/routes';
@@ -296,6 +297,9 @@ export function ExerciseLibraryPage() {
               ))}
             </div>
           </fieldset>
+          {editingId && exercises.find((item) => item.id === editingId) && (
+            <SafeVariantsPanel exercise={exercises.find((item) => item.id === editingId)!} library={exercises} />
+          )}
           <label className="exercise-check">
             <input type="checkbox" checked={form.has_no_materials_alternative} onChange={(event) => setForm((current) => ({ ...current, has_no_materials_alternative: event.target.checked }))} />
             Tiene alternativa "Sin materiales"

@@ -24,11 +24,11 @@ export function RoutineTemplateCard({ template, busy = false, onEdit, onDelete }
       {template.has_no_materials_alternative && <p className="routine-card__flag">Apta "Sin materiales"</p>}
       {open && <RoutineTemplateDetail template={template} />}
       <div className="plan-card__actions">
-        <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open}>
+        <button className="routine-card__action" type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open}>
           {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />} {open ? 'Ocultar' : 'Ver detalle'}
         </button>
-        {onEdit && <button type="button" onClick={() => onEdit(template)} disabled={busy}><Pencil size={16} /> Editar</button>}
-        {onDelete && <button type="button" onClick={() => onDelete(template)} disabled={busy}><Trash2 size={16} /> Eliminar</button>}
+        {onEdit && <button className="routine-card__action" type="button" onClick={() => onEdit(template)} disabled={busy}><Pencil size={16} /> Editar</button>}
+        {onDelete && <button className="routine-card__action routine-card__action--danger" type="button" onClick={() => onDelete(template)} disabled={busy}><Trash2 size={16} /> Eliminar</button>}
       </div>
     </article>
   );

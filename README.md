@@ -2,6 +2,10 @@
 
 **Plataforma de gestión y seguimiento del entrenamiento físico**
 
+## Ruta de sesión de rutina
+
+Los alumnos acceden a una sesión activa mediante `/alumno/rutinas/sesion`.
+
 ## Descripción
 
 Set to Set es una plataforma que busca conectar a entrenadores personales con personas que desean entrenar, facilitando la planificación de rutinas, el seguimiento del progreso físico y la comunicación entre ambas partes.
@@ -15,6 +19,7 @@ El proyecto propone centralizar en un mismo lugar las herramientas necesarias pa
 - Franco Agustín Finocchi Martín 110715 ffinocchi@fi.uba.ar
 - Bruno Pezman 110457 bpezman@fi.uba.ar
 - Axel Zielonka 110310 azielonka@fi.uba.ar
+- Delfina Videla 111620 dpvidela@fi.uba.ar
 
 ## Metodología de desarrollo
 
@@ -115,12 +120,15 @@ PYTHONPATH=. pytest backend/tests --cov=backend/src --cov-report=term-missing
 
 ### Datos de demostración (Seed para demo académica)
 
-El repositorio incluye un script idempotente para inicializar datos ficticios de prueba (alumnos, entrenadores con paquetes publicados, cuestionarios de salud, solicitudes, vínculos activos, ejercicios y rutinas) que permiten recorrer de punta a punta el flujo de descubrimiento, perfil público, solicitud e inbox de entrenadores, y mostrar rutinas sin cargarlas en vivo:
+El repositorio incluye un script idempotente para inicializar datos ficticios de prueba (alumnos, entrenadores con paquetes publicados, cuestionarios de salud, solicitudes, vínculos activos, ejercicios, rutinas e historial de entrenamiento) que permiten recorrer de punta a punta descubrimiento, solicitudes, asignación, seguimiento, reportes de molestias, devoluciones de esfuerzo, récords personales y rutinas sin cargarlo en vivo:
 
 - **Lucas Benítez:** ejercicios y dos rutinas genéricas.
-- **Mariana Vega:** ejercicios, dos rutinas genéricas y a Martín Herrera con una rutina con IA aprobada.
+- **Mariana Vega:** ejercicios, tres rutinas genéricas (incluida una en casa con videos de YouTube) y a Martín Herrera con una rutina con IA aprobada.
 - **Gonzalo Morales:** ejercicios, dos rutinas genéricas, a Tomás Castro con una rutina asignada y una propuesta con IA pendiente de revisión.
+- **Valentina Rossi:** vínculo activo con Lucas, sesiones históricas, un reporte de dolor de rodilla con una variante segura ya cargada y récord de sentadilla.
+- **Camila Torres:** vínculo activo con Camila Navarro para mostrar el estado inicial de carga de una rutina.
 - **Ignacio Rossi y Camila Navarro:** sin ejercicios ni rutinas, para mostrar la carga manual.
+- La biblioteca incluye 46 ejercicios variados, alternativas para sustituir ejercicios, variantes seguras precargadas y ejercicios con videos de YouTube.
 
 Para sembrar o actualizar los datos de demostración:
 
@@ -140,7 +148,23 @@ Para reiniciar los datos de demostración (limpieza y re-sembrado en un paso):
 python backend/scripts/seed_demo.py --reset
 ```
 
-> **Credenciales:** Todas las cuentas de prueba comparten la contraseña `DemoPassword123!` y pertenecen al dominio `@demo.settoset.com` (ej. `lucas.benitez@demo.settoset.com`, `mateo.gomez@demo.settoset.com`).
+> **Credenciales locales:** En desarrollo, todas las cuentas de prueba comparten `DemoPassword123!` y pertenecen al dominio `@demo.settoset.com` (ej. `lucas.benitez@demo.settoset.com`, `mateo.gomez@demo.settoset.com`). En producción se usa el valor protegido de `DEMO_SEED_PASSWORD`.
+
+#### Ejecución contra producción
+
+Para sembrar datos ficticios en PostgreSQL de producción, ejecutá el script desde el contenedor o entorno que ya tenga configurado el `DATABASE_URL` de producción. Antes, cargá estas variables desde el gestor de secretos del entorno:
+
+- `APP_ENV=production`.
+- `DEMO_SEED_PASSWORD`: contraseña de las cuentas demo, de al menos 12 caracteres, con mayúscula, minúscula y número.
+- `DATABASE_URL`: conexión PostgreSQL de producción.
+
+Aplicá primero las migraciones de la versión mediante el proceso normal de despliegue. Luego ejecutá:
+
+```bash
+python backend/scripts/seed_demo.py --production-demo --confirm-production-demo
+```
+
+Este modo verifica que la base sea PostgreSQL y que tenga las tablas actuales; no crea tablas ni aplica migraciones. Sólo agrega o actualiza registros con cuentas `@demo.settoset.com`, no permite `--clean` ni `--reset`, y establece la contraseña de todas esas cuentas desde `DEMO_SEED_PASSWORD`. Conservá esa contraseña en el gestor de secretos y compartila sólo con quienes necesiten entrar a la demo.
 
 ### Generación de rutinas particulares con IA — Google Gemini (US-13)
 

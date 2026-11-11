@@ -1,3 +1,6 @@
+from decimal import Decimal
+from typing import Any
+
 from fastapi import status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -5,6 +8,8 @@ from sqlalchemy.orm import Session
 from backend.src.core.constants import VALIDATION_ERROR_MESSAGE
 from backend.src.models.assigned_routine import AssignedRoutine
 from backend.src.models.exercise import Exercise
+from backend.src.models.notification import Notification
+from backend.src.models.personal_record import PersonalRecord
 from backend.src.models.routine_template import (
     RoutineTemplate,
     RoutineTemplateBlock,
@@ -18,7 +23,14 @@ from backend.src.models.student_routine import StudentRoutine
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.user import User
-from backend.src.schemas.routine_template import RoutineTemplateInput
+from backend.src.models.workout_log import WorkoutSession, WorkoutSetLog
+from backend.src.schemas.routine_template import (
+    RoutineModalityUpdate,
+    RoutineTemplateInput,
+    WorkoutSessionStartInput,
+    WorkoutSetLogInput,
+)
+from backend.src.services.notification_service import create_notification
 from backend.src.services.student_service import (
     get_or_create_profile as get_student_profile,
 )
@@ -190,6 +202,51 @@ def get_student_template(db: Session, user: User, template_id: str) -> RoutineTe
     return template
 
 
+def _routine_supports_home(routine: RoutineTemplate | AssignedRoutine) -> bool:
+    return all(
+        entry.exercise.has_no_materials_alternative
+        for day in routine.days
+        for block in day.blocks
+        for entry in block.exercises
+    )
+
+
+def _resolve_from_initial_routine(
+    db: Session, relationship: TrainingRelationship
+) -> RoutineTemplate | dict | None:
+    if relationship.initial_routine_id is None:
+        return None
+    template = db.scalar(
+        select(RoutineTemplate).where(
+            RoutineTemplate.id == relationship.initial_routine_id,
+            RoutineTemplate.trainer_id == relationship.trainer_id,
+        )
+    )
+    if template is not None:
+        effective_modality = relationship.routine_modality or "GYM"
+        if effective_modality == "HOME" and not _routine_supports_home(template):
+            effective_modality = "GYM"
+            relationship.routine_modality = "GYM"
+            db.commit()
+        template._modality = effective_modality
+        return template
+
+    # Si initial_routine_id corresponde a una AssignedRoutine aprobada, renderizar vista
+    assigned = db.scalar(
+        select(AssignedRoutine).where(
+            AssignedRoutine.id == relationship.initial_routine_id,
+            AssignedRoutine.trainer_id == relationship.trainer_id,
+            AssignedRoutine.status == "APPROVED",
+        )
+    )
+    if assigned is not None:
+        from backend.src.services.student_routine_service import ensure_routine, render
+
+        sr = ensure_routine(db, relationship)
+        return render(db, sr)
+    return None
+
+
 def get_assigned_student_template(db: Session, user: User) -> RoutineTemplate | dict | None:
     profile = get_student_profile(db, user)
     relationship = db.scalar(
@@ -201,32 +258,568 @@ def get_assigned_student_template(db: Session, user: User) -> RoutineTemplate | 
         )
         .order_by(TrainingRelationship.start_date.desc())
     )
-    if relationship is None or relationship.initial_routine_id is None:
+    if relationship is None:
         return None
-    template = db.scalar(
-        select(RoutineTemplate).where(
-            RoutineTemplate.id == relationship.initial_routine_id,
-            RoutineTemplate.trainer_id == relationship.trainer_id,
-        )
-    )
-    if template is not None:
-        return template
-    # Si initial_routine_id corresponde a una AssignedRoutine aprobada, renderizar vista
-    assigned = db.scalar(
-        select(AssignedRoutine).where(
-            AssignedRoutine.id == relationship.initial_routine_id,
-            AssignedRoutine.trainer_id == relationship.trainer_id,
-            AssignedRoutine.status == "APPROVED",
-        )
-    )
-    if assigned is not None:
-        from backend.src.services.student_routine_service import ensure_routine, render
-        sr = ensure_routine(db, relationship)
-        return render(db, sr)
-    return None
+    return _resolve_from_initial_routine(db, relationship)
 
 
-def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | None]]:
+def _resolve_student_active_routine(
+    db: Session, user: User
+) -> tuple[TrainingRelationship, RoutineTemplate | dict]:
+    from backend.src.services.student_routine_service import render
+
+    profile = get_student_profile(db, user)
+    routine = db.scalar(
+        select(StudentRoutine)
+        .join(TrainingRelationship, StudentRoutine.relationship_id == TrainingRelationship.id)
+        .where(
+            TrainingRelationship.student_id == profile.id,
+            TrainingRelationship.status == "ACTIVE",
+            StudentRoutine.status != "UNASSIGNED",
+        )
+    )
+    if routine is not None:
+        relationship = db.get(TrainingRelationship, routine.relationship_id)
+        return relationship, render(db, routine)
+
+    relationship = db.scalar(
+        select(TrainingRelationship)
+        .where(
+            TrainingRelationship.student_id == profile.id,
+            TrainingRelationship.status == "ACTIVE",
+            TrainingRelationship.initial_routine_id.is_not(None),
+        )
+        .order_by(TrainingRelationship.start_date.desc())
+    )
+    if relationship is not None:
+        resolved = _resolve_from_initial_routine(db, relationship)
+        if resolved is not None:
+            return relationship, resolved
+
+    raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No tenés una rutina activa asignada.")
+
+
+def _iter_routine_exercises(routine_view: RoutineTemplate | dict):
+    is_template = isinstance(routine_view, RoutineTemplate)
+    days = routine_view.days if is_template else routine_view["days"]
+    for day_index, day in enumerate(days):
+        day_name = day.name if is_template else day["name"]
+        blocks = day.blocks if is_template else day["blocks"]
+        for block_index, block in enumerate(blocks):
+            exercises = block.exercises if is_template else block["exercises"]
+            for entry_index, entry in enumerate(exercises):
+                ex: Exercise = entry.exercise if is_template else entry["exercise"]
+                yield day_index, day_name, block_index, entry_index, ex
+
+
+def update_student_routine_modality(
+    db: Session, user: User, payload: RoutineModalityUpdate
+) -> RoutineTemplate | dict:
+    relationship, routine_view = _resolve_student_active_routine(db, user)
+    target_modality = payload.modality
+
+    if target_modality == "HOME":
+        errors: list[dict[str, str]] = []
+        blocking_names: list[str] = []
+        for day_index, day_name, block_index, entry_index, ex in _iter_routine_exercises(routine_view):
+            if not ex.has_no_materials_alternative:
+                field = f"days.{day_index}.blocks.{block_index}.exercises.{entry_index}.exercise_id"
+                errors.append(
+                    {
+                        "field": field,
+                        "message": (
+                            f'"{ex.name}" ({day_name}) no tiene alternativa "Sin materiales" cargada '
+                            f"(requiere equipamiento: {ex.equipment_needed})."
+                        ),
+                    }
+                )
+                if ex.name not in blocking_names:
+                    blocking_names.append(ex.name)
+
+        if errors:
+            joined_names = ", ".join(f'"{name}"' for name in blocking_names)
+            if len(blocking_names) == 1:
+                detail = (
+                    f"No se puede alternar a la modalidad Casa/Viaje porque el ejercicio {joined_names} "
+                    'no tiene una alternativa "Sin materiales" cargada.'
+                )
+            else:
+                detail = (
+                    f"No se puede alternar a la modalidad Casa/Viaje porque los ejercicios {joined_names} "
+                    'no tienen una alternativa "Sin materiales" cargada.'
+                )
+            raise RoutineTemplateError(VALIDATION_ERROR_STATUS, detail, errors)
+
+    relationship.routine_modality = target_modality
+    db.commit()
+    if isinstance(routine_view, RoutineTemplate):
+        routine_view._modality = target_modality
+    else:
+        routine_view["modality"] = target_modality
+    return routine_view
+
+
+def start_student_workout_session(
+    db: Session, user: User, payload: WorkoutSessionStartInput
+) -> WorkoutSession:
+    relationship, routine_view = _resolve_student_active_routine(db, user)
+    routine_id = routine_view.id if isinstance(routine_view, RoutineTemplate) else routine_view["id"]
+    valid_day_names = {day_name for _, day_name, _, _, _ in _iter_routine_exercises(routine_view)}
+    if payload.day_name not in valid_day_names:
+        raise RoutineTemplateError(VALIDATION_ERROR_STATUS, "El día no pertenece a tu rutina activa.")
+
+    session = WorkoutSession(
+        student_id=relationship.student_id,
+        relationship_id=relationship.id,
+        routine_id=routine_id,
+        day_name=payload.day_name,
+        modality=relationship.routine_modality or "GYM",
+        started_at=utc_now(),
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return session
+
+
+def finish_student_workout_session(
+    db: Session, user: User, session_id: str, rpe: int | None = None
+) -> WorkoutSession:
+    profile = get_student_profile(db, user)
+    # MED-01: Bloqueo pesimista para serializar concurrencia y prevenir carreras
+    session = db.scalar(
+        select(WorkoutSession)
+        .where(
+            WorkoutSession.id == session_id,
+            WorkoutSession.student_id == profile.id,
+        )
+        .with_for_update()
+    )
+    if session is None:
+        raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No encontramos este entrenamiento.")
+    if session.finished_at is None:
+        session.finished_at = utc_now()
+        if rpe is not None:
+            session.rpe = rpe
+        db.commit()
+        db.refresh(session)
+    else:
+        if rpe is not None:
+            if session.rpe is None:
+                session.rpe = rpe
+                db.commit()
+                db.refresh(session)
+            elif session.rpe != rpe:
+                raise RoutineTemplateError(
+                    status.HTTP_409_CONFLICT,
+                    "Este entrenamiento ya cuenta con un reporte de esfuerzo percibido registrado.",
+                )
+    return session
+
+
+def update_student_workout_session_rpe(
+    db: Session, user: User, session_id: str, rpe: int
+) -> WorkoutSession:
+    profile = get_student_profile(db, user)
+    # MED-01: Bloqueo pesimista para serializar concurrencia y prevenir carreras
+    session = db.scalar(
+        select(WorkoutSession)
+        .where(
+            WorkoutSession.id == session_id,
+            WorkoutSession.student_id == profile.id,
+        )
+        .with_for_update()
+    )
+    if session is None:
+        raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No encontramos este entrenamiento.")
+    if session.finished_at is None:
+        raise RoutineTemplateError(
+            VALIDATION_ERROR_STATUS,
+            "Solo podés calificar el esfuerzo de un entrenamiento finalizado.",
+        )
+    if session.rpe is not None:
+        if session.rpe == rpe:
+            return session
+        raise RoutineTemplateError(
+            status.HTTP_409_CONFLICT,
+            "Este entrenamiento ya cuenta con un reporte de esfuerzo percibido registrado.",
+        )
+    session.rpe = rpe
+    db.commit()
+    db.refresh(session)
+    return session
+
+
+def create_student_workout_log(
+    db: Session, user: User, payload: WorkoutSetLogInput
+) -> WorkoutSetLog:
+    relationship, routine_view = _resolve_student_active_routine(db, user)
+    routine_id = routine_view.id if isinstance(routine_view, RoutineTemplate) else routine_view["id"]
+    exercises_by_id = {ex.id: ex for _, _, _, _, ex in _iter_routine_exercises(routine_view)}
+
+    exercise = exercises_by_id.get(payload.exercise_id)
+    if exercise is None:  # US-54: ejercicio elegido hoy como reemplazo
+        from backend.src.services.exercise_alternative_service import (
+            is_replacement_today,
+        )
+
+        exercise = is_replacement_today(db, relationship.student_id, routine_id, payload.day_name, payload.exercise_id)
+    if exercise is None:
+        raise RoutineTemplateError(
+            VALIDATION_ERROR_STATUS,
+            VALIDATION_ERROR_MESSAGE,
+            [{"field": "exercise_id", "message": "El ejercicio no pertenece a tu rutina activa."}],
+        )
+
+    # US-53: sin variante segura el ejercicio queda bloqueado también del lado del servidor
+    from backend.src.services.safe_variant_service import check_for_student
+
+    if check_for_student(db, relationship, exercise)[0] == "BLOCKED":
+        detail = (
+            f'No se puede registrar "{exercise.name}": no hay una variante segura para tus limitaciones. '
+            "Podés saltearlo; tu entrenador ya fue avisado."
+        )
+        raise RoutineTemplateError(VALIDATION_ERROR_STATUS, detail, [{"field": "exercise_id", "message": detail}])
+
+    workout_session = None
+    if payload.session_id:
+        workout_session = db.scalar(
+            select(WorkoutSession).where(
+                WorkoutSession.id == payload.session_id,
+                WorkoutSession.student_id == relationship.student_id,
+                WorkoutSession.relationship_id == relationship.id,
+            )
+        )
+        if (
+            workout_session is None
+            or workout_session.finished_at is not None
+            or workout_session.routine_id != routine_id
+            or workout_session.day_name != payload.day_name
+        ):
+            raise RoutineTemplateError(VALIDATION_ERROR_STATUS, "La sesión de entrenamiento no está activa o no corresponde a este día.")
+        if payload.weight_kg is None:
+            raise RoutineTemplateError(
+                VALIDATION_ERROR_STATUS,
+                "Indicá el peso usado. Para peso corporal, ingresá 0 kg.",
+                [{"field": "weight_kg", "message": "Este campo es obligatorio para registrar una serie."}],
+            )
+
+    effective_modality = workout_session.modality if workout_session else payload.modality or (relationship.routine_modality or "GYM")
+    if effective_modality == "HOME" and not exercise.has_no_materials_alternative:
+        detail = (
+            f'No se puede registrar en modalidad Casa/Viaje porque "{exercise.name}" '
+            'no tiene una alternativa "Sin materiales" cargada.'
+        )
+        raise RoutineTemplateError(
+            VALIDATION_ERROR_STATUS,
+            detail,
+            [{"field": "modality", "message": detail}],
+        )
+
+    log_entry = WorkoutSetLog(
+        student_id=relationship.student_id,
+        relationship_id=relationship.id,
+        routine_id=routine_id,
+        day_name=payload.day_name,
+        exercise_id=exercise.id,
+        exercise_name=exercise.name,
+        modality=effective_modality,
+        set_number=payload.set_number,
+        reps_completed=payload.reps_completed,
+        weight_kg=payload.weight_kg,
+        duration_seconds=payload.duration_seconds,
+        session_id=workout_session.id if workout_session else None,
+        recorded_at=utc_now(),
+    )
+    db.add(log_entry)
+    db.flush()
+
+    # US-59: Detección y persistencia de nuevo récord personal (PR)
+    is_personal_record = False
+    is_initial_pr = False
+    pr_previous_weight_kg: float | None = None
+
+    if payload.weight_kg is not None and payload.weight_kg > 0:
+        current_weight = Decimal(str(payload.weight_kg))
+
+        # CONC-01: Serialización pesimista sobre el perfil del alumno (aggregate root)
+        # para coordinar la evaluación y evitar colisiones concurrentes en el primer PR
+        db.scalar(
+            select(StudentProfile.id)
+            .where(StudentProfile.id == relationship.student_id)
+            .with_for_update()
+        )
+
+        existing_pr = db.scalar(
+            select(PersonalRecord).where(
+                PersonalRecord.student_id == relationship.student_id,
+                PersonalRecord.exercise_id == exercise.id,
+            ).with_for_update()
+        )
+
+        if existing_pr is None:
+            # Comprobar si existían registros históricos previos de peso > 0
+            historical_max = db.scalar(
+                select(WorkoutSetLog).where(
+                    WorkoutSetLog.student_id == relationship.student_id,
+                    WorkoutSetLog.exercise_id == exercise.id,
+                    WorkoutSetLog.id != log_entry.id,
+                    WorkoutSetLog.weight_kg > 0,
+                ).order_by(WorkoutSetLog.weight_kg.desc(), WorkoutSetLog.recorded_at.desc())
+            )
+            if historical_max is not None:
+                if current_weight > historical_max.weight_kg:
+                    is_personal_record = True
+                    is_initial_pr = False
+                    pr_previous_weight_kg = float(historical_max.weight_kg)
+                    new_pr = PersonalRecord(
+                        student_id=relationship.student_id,
+                        exercise_id=exercise.id,
+                        weight_kg=log_entry.weight_kg,
+                        reps_completed=log_entry.reps_completed,
+                        workout_set_log_id=log_entry.id,
+                        achieved_at=log_entry.recorded_at,
+                    )
+                    db.add(new_pr)
+                else:
+                    sync_pr = PersonalRecord(
+                        student_id=relationship.student_id,
+                        exercise_id=exercise.id,
+                        weight_kg=historical_max.weight_kg,
+                        reps_completed=historical_max.reps_completed,
+                        workout_set_log_id=historical_max.id,
+                        achieved_at=historical_max.recorded_at,
+                    )
+                    db.add(sync_pr)
+            else:
+                is_personal_record = True
+                is_initial_pr = True
+                pr_previous_weight_kg = None
+                new_pr = PersonalRecord(
+                    student_id=relationship.student_id,
+                    exercise_id=exercise.id,
+                    weight_kg=log_entry.weight_kg,
+                    reps_completed=log_entry.reps_completed,
+                    workout_set_log_id=log_entry.id,
+                    achieved_at=log_entry.recorded_at,
+                )
+                db.add(new_pr)
+        else:
+            if current_weight > existing_pr.weight_kg:
+                is_personal_record = True
+                is_initial_pr = False
+                pr_previous_weight_kg = float(existing_pr.weight_kg)
+                existing_pr.weight_kg = log_entry.weight_kg
+                existing_pr.reps_completed = log_entry.reps_completed
+                existing_pr.workout_set_log_id = log_entry.id
+                existing_pr.achieved_at = log_entry.recorded_at
+
+        # US-59: Notificar al entrenador del vínculo activo si hubo nuevo PR
+        trainer_user_id = relationship.trainer.user_id if relationship.trainer else None
+        if not trainer_user_id:
+            trainer_profile = db.get(TrainerProfile, relationship.trainer_id)
+            if trainer_profile:
+                trainer_user_id = trainer_profile.user_id
+
+        if is_personal_record and trainer_user_id:
+            already_notified = db.scalar(
+                select(Notification.id).where(
+                    Notification.recipient_id == trainer_user_id,
+                    Notification.type == "PERSONAL_RECORD",
+                    Notification.related_entity_id == log_entry.id,
+                )
+            )
+            if not already_notified:
+                student = relationship.student
+                student_name = f"{student.first_name or ''} {student.last_name or ''}".strip()
+                if not student_name and student.user_id:
+                    st_user = db.get(User, student.user_id)
+                    if st_user and st_user.email:
+                        student_name = st_user.email
+                if not student_name:
+                    student_name = "Tu alumno"
+
+                curr_weight_str = f"{float(log_entry.weight_kg):.2f}".rstrip("0").rstrip(".")
+                title = f"¡Nuevo récord personal de {student_name}!"
+
+                if is_initial_pr:
+                    message = (
+                        f"{student_name} registró su primer récord en {exercise.name}: "
+                        f"{curr_weight_str} kg ({log_entry.reps_completed} reps)."
+                    )
+                else:
+                    prev_weight_str = f"{pr_previous_weight_kg:.2f}".rstrip("0").rstrip(".")
+                    message = (
+                        f"{student_name} superó su récord personal en {exercise.name}: "
+                        f"{curr_weight_str} kg ({log_entry.reps_completed} reps). "
+                        f"Récord anterior: {prev_weight_str} kg."
+                    )
+
+                create_notification(
+                    db,
+                    recipient_id=trainer_user_id,
+                    type="PERSONAL_RECORD",
+                    title=title,
+                    message=message,
+                    related_entity_type="PERSONAL_RECORD",
+                    related_entity_id=log_entry.id,
+                    related_student_id=log_entry.student_id,
+                    related_session_id=log_entry.session_id,
+                    commit=False,
+                )
+
+    db.commit()
+    db.refresh(log_entry)
+    log_entry.is_personal_record = is_personal_record
+    log_entry.is_initial_pr = is_initial_pr
+    log_entry.pr_previous_weight_kg = pr_previous_weight_kg
+    return log_entry
+
+
+def delete_student_workout_log(db: Session, user: User, log_id: str) -> None:
+    relationship, routine_view = _resolve_student_active_routine(db, user)
+    routine_id = routine_view.id if isinstance(routine_view, RoutineTemplate) else routine_view["id"]
+    log_entry = db.scalar(
+        select(WorkoutSetLog).where(
+            WorkoutSetLog.id == log_id,
+            WorkoutSetLog.student_id == relationship.student_id,
+            WorkoutSetLog.relationship_id == relationship.id,
+        )
+    )
+    if log_entry is None:
+        raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No encontramos la serie registrada.")
+    if log_entry.session_id is None:
+        raise RoutineTemplateError(VALIDATION_ERROR_STATUS, "Solo podés desmarcar series de un entrenamiento en curso.")
+    workout_session = db.scalar(
+        select(WorkoutSession).where(
+            WorkoutSession.id == log_entry.session_id,
+            WorkoutSession.student_id == relationship.student_id,
+            WorkoutSession.relationship_id == relationship.id,
+        )
+    )
+    if (
+        workout_session is None
+        or workout_session.finished_at is not None
+        or workout_session.routine_id != routine_id
+    ):
+        raise RoutineTemplateError(VALIDATION_ERROR_STATUS, "No se pueden modificar series de un entrenamiento finalizado.")
+    # CONC-02: Bloqueo coordinado con create_student_workout_log para eliminación y recálculo
+    db.scalar(
+        select(StudentProfile.id)
+        .where(StudentProfile.id == relationship.student_id)
+        .with_for_update()
+    )
+
+    pr = db.scalar(
+        select(PersonalRecord).where(
+            PersonalRecord.student_id == relationship.student_id,
+            PersonalRecord.exercise_id == log_entry.exercise_id,
+        ).with_for_update()
+    )
+    if pr and pr.workout_set_log_id == log_entry.id:
+        remaining_max = db.scalar(
+            select(WorkoutSetLog).where(
+                WorkoutSetLog.student_id == relationship.student_id,
+                WorkoutSetLog.exercise_id == log_entry.exercise_id,
+                WorkoutSetLog.id != log_entry.id,
+                WorkoutSetLog.weight_kg > 0,
+            ).order_by(WorkoutSetLog.weight_kg.desc(), WorkoutSetLog.recorded_at.desc())
+        )
+        if remaining_max is not None:
+            pr.weight_kg = remaining_max.weight_kg
+            pr.reps_completed = remaining_max.reps_completed
+            pr.workout_set_log_id = remaining_max.id
+            pr.achieved_at = remaining_max.recorded_at
+        else:
+            db.delete(pr)
+
+    db.delete(log_entry)
+    db.commit()
+
+
+def list_student_workout_sessions(db: Session, user: User) -> list[WorkoutSession]:
+    profile = get_student_profile(db, user)
+    active_rel_ids = select(TrainingRelationship.id).where(
+        TrainingRelationship.student_id == profile.id,
+        TrainingRelationship.status == "ACTIVE",
+    )
+    query = select(WorkoutSession).where(
+        WorkoutSession.student_id == profile.id,
+        WorkoutSession.relationship_id.in_(active_rel_ids),
+        WorkoutSession.finished_at.is_not(None),
+    ).order_by(WorkoutSession.started_at.desc())
+    return list(db.scalars(query))
+
+
+def list_student_workout_logs(
+    db: Session, user: User, exercise_id: str | None = None
+) -> list[WorkoutSetLog]:
+    profile = get_student_profile(db, user)
+    active_rel_ids = select(TrainingRelationship.id).where(
+        TrainingRelationship.student_id == profile.id,
+        TrainingRelationship.status == "ACTIVE",
+    )
+    query = select(WorkoutSetLog).where(
+        WorkoutSetLog.student_id == profile.id,
+        WorkoutSetLog.relationship_id.in_(active_rel_ids),
+    )
+    if exercise_id is not None:
+        query = query.where(WorkoutSetLog.exercise_id == exercise_id)
+    query = query.order_by(WorkoutSetLog.recorded_at.desc(), WorkoutSetLog.id.desc())
+    return list(db.scalars(query))
+
+
+def list_trainer_student_workout_logs(
+    db: Session, user: User, relationship_id: str
+) -> list[WorkoutSetLog]:
+    trainer = get_trainer_profile(db, user)
+    relationship = db.scalar(
+        select(TrainingRelationship).where(
+            TrainingRelationship.id == relationship_id,
+            TrainingRelationship.trainer_id == trainer.id,
+            TrainingRelationship.status == "ACTIVE",
+        )
+    )
+    if relationship is None:
+        raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No se encontró un vínculo activo con ese alumno.")
+    query = select(WorkoutSetLog).where(
+        WorkoutSetLog.relationship_id == relationship.id,
+        WorkoutSetLog.student_id == relationship.student_id,
+    ).order_by(WorkoutSetLog.recorded_at.desc(), WorkoutSetLog.id.desc())
+    return list(db.scalars(query))
+
+
+def list_trainer_student_workout_sessions(
+    db: Session, user: User, relationship_id: str
+) -> list[WorkoutSession]:
+    trainer = get_trainer_profile(db, user)
+    relationship = db.scalar(
+        select(TrainingRelationship).where(
+            TrainingRelationship.id == relationship_id,
+            TrainingRelationship.trainer_id == trainer.id,
+            TrainingRelationship.status == "ACTIVE",
+        )
+    )
+    if relationship is None:
+        raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No se encontró un vínculo activo con ese alumno.")
+    query = (
+        select(WorkoutSession)
+        .where(
+            WorkoutSession.relationship_id == relationship.id,
+            WorkoutSession.student_id == relationship.student_id,
+            WorkoutSession.finished_at.is_not(None),
+        )
+        .order_by(WorkoutSession.started_at.desc(), WorkoutSession.id.desc())
+    )
+    return list(db.scalars(query))
+
+
+def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | int | None]]:
+    from backend.src.services.student_routine_service import (
+        current_conflicts,
+        template_conflicts,
+    )
+
     trainer = get_trainer_profile(db, user)
     rows = db.execute(
         select(TrainingRelationship, StudentProfile, User)
@@ -266,7 +859,7 @@ def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | No
         ):
             ar_map[ar.id] = ar.name
 
-    sr_map: dict[str, tuple[str, str]] = {}
+    sr_map: dict[str, StudentRoutine] = {}
     if rel_ids:
         for sr in db.scalars(
             select(StudentRoutine).where(
@@ -274,9 +867,9 @@ def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | No
                 StudentRoutine.status != "UNASSIGNED",
             )
         ):
-            sr_map[sr.relationship_id] = (sr.id, sr.name)
+            sr_map[sr.relationship_id] = sr
 
-    assignments: list[dict[str, str | None]] = []
+    assignments: list[dict[str, str | int | None]] = []
     for relationship, student, student_user in rows:
         routine_template_id = None
         routine_name = None
@@ -288,12 +881,22 @@ def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | No
                 routine_template_id = relationship.initial_routine_id
                 routine_name = ar_map[relationship.initial_routine_id]
             elif relationship.id in sr_map:
-                routine_template_id, routine_name = sr_map[relationship.id]
+                routine_template_id = sr_map[relationship.id].id
+                routine_name = sr_map[relationship.id].name
         else:
             if relationship.id in sr_map:
-                routine_template_id, routine_name = sr_map[relationship.id]
+                routine_template_id = sr_map[relationship.id].id
+                routine_name = sr_map[relationship.id].name
 
         student_name = " ".join(part for part in (student.first_name, student.last_name) if part).strip()
+        student_routine = sr_map.get(relationship.id)
+        if student_routine is not None:
+            conflict_count = len(current_conflicts(db, student_routine))
+        elif routine_template_id and relationship.initial_routine_id:
+            conflict_count = len(template_conflicts(db, relationship.id, relationship.initial_routine_id))
+        else:
+            conflict_count = 0
+
         assignments.append(
             {
                 "relationship_id": relationship.id,
@@ -301,6 +904,7 @@ def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | No
                 "student_name": student_name or student_user.email,
                 "routine_template_id": routine_template_id,
                 "routine_name": routine_name,
+                "conflict_count": conflict_count,
             }
         )
     return assignments
@@ -320,6 +924,7 @@ def assign_routine_to_student(
     if relationship is None:
         raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No se encontró un vínculo activo con ese alumno.")
 
+    routine: RoutineTemplate | AssignedRoutine | None = None
     if routine_template_id is not None:
         routine = db.scalar(
             select(RoutineTemplate).where(
@@ -341,5 +946,37 @@ def assign_routine_to_student(
             raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "Rutina no encontrada.")
 
     relationship.initial_routine_id = routine_template_id
+    if routine is None or (relationship.routine_modality == "HOME" and not _routine_supports_home(routine)):
+        relationship.routine_modality = "GYM"
     db.commit()
     return {"relationship_id": relationship.id, "routine_template_id": routine_template_id}
+
+
+def list_student_personal_records(
+    db: Session, user: User, exercise_id: str | None = None
+) -> list[dict[str, Any]]:
+    profile = get_student_profile(db, user)
+    query = (
+        select(PersonalRecord, Exercise.name)
+        .join(Exercise, Exercise.id == PersonalRecord.exercise_id)
+        .where(PersonalRecord.student_id == profile.id)
+    )
+    if exercise_id is not None:
+        query = query.where(PersonalRecord.exercise_id == exercise_id)
+    query = query.order_by(PersonalRecord.achieved_at.desc())
+
+    records = []
+    for pr, ex_name in db.execute(query).all():
+        records.append(
+            {
+                "id": pr.id,
+                "student_id": pr.student_id,
+                "exercise_id": pr.exercise_id,
+                "exercise_name": ex_name,
+                "weight_kg": float(pr.weight_kg),
+                "reps_completed": pr.reps_completed,
+                "workout_set_log_id": pr.workout_set_log_id,
+                "achieved_at": pr.achieved_at,
+            }
+        )
+    return records

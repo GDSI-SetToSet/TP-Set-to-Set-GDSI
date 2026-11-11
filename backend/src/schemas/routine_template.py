@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -8,10 +9,12 @@ from backend.src.schemas.exercise import ExerciseResponse, required_text
 from backend.src.schemas.trainer import REQUIRED_FIELD_MESSAGE
 
 ROUTINE_INTENSITIES = ("BAJA", "MEDIA", "ALTA", "EXIGENTE")
+ROUTINE_MODALITIES = ("GYM", "HOME")
 ROUTINE_NAME_MAX_LENGTH = 150
 SECTION_NAME_MAX_LENGTH = 100
 REPS_MAX_LENGTH = 50
 INVALID_INTENSITY_MESSAGE = "Elegí una intensidad válida"
+INVALID_MODALITY_MESSAGE = "Elegí una modalidad válida"
 
 
 def required_range(minimum: int, maximum: int) -> Callable[[int | None], int]:
@@ -46,6 +49,15 @@ def validate_intensity(value: str | None) -> str:
     if value not in ROUTINE_INTENSITIES:
         raise PydanticCustomError("intensity", INVALID_INTENSITY_MESSAGE)
     return value
+
+
+def validate_modality(value: str | None) -> str:
+    if value is None or not value.strip():
+        raise PydanticCustomError("required", REQUIRED_FIELD_MESSAGE)
+    normalized = value.strip().upper()
+    if normalized not in ROUTINE_MODALITIES:
+        raise PydanticCustomError("modality", INVALID_MODALITY_MESSAGE)
+    return normalized
 
 
 class RoutineExerciseInput(BaseModel):
@@ -129,8 +141,177 @@ class RoutineTemplateResponse(BaseModel):
     duration_weeks: int
     intensity: str
     has_no_materials_alternative: bool
+    modality: str = "GYM"
     exercise_count: int
     days: list[RoutineDayResponse]
+
+
+class RoutineModalityUpdate(BaseModel):
+    modality: str | None = Field(default=None, validate_default=True)
+
+    _modality = field_validator("modality")(validate_modality)
+
+
+class WorkoutSessionStartInput(BaseModel):
+    day_name: str | None = Field(default=None, validate_default=True)
+
+    _day = field_validator("day_name")(required_text(SECTION_NAME_MAX_LENGTH))
+
+
+class WorkoutSessionFinishInput(BaseModel):
+    rpe: int | None = Field(default=None, ge=1, le=10, strict=True)
+
+
+class WorkoutSessionRpeInput(BaseModel):
+    rpe: int = Field(..., ge=1, le=10, strict=True)
+
+
+EFFORT_FEEDBACK_CATEGORIES = ("MORE_EFFORT", "ADEQUATE", "LESS_INTENSITY")
+EFFORT_FEEDBACK_COMMENT_MAX_LENGTH = 500
+INVALID_EFFORT_CATEGORY_MESSAGE = "Elegí una devolución válida"
+
+
+def validate_effort_category(value: str | None) -> str:
+    if value is None or not value.strip():
+        raise PydanticCustomError("required", REQUIRED_FIELD_MESSAGE)
+    if value not in EFFORT_FEEDBACK_CATEGORIES:
+        raise PydanticCustomError("effort_category", INVALID_EFFORT_CATEGORY_MESSAGE)
+    return value
+
+
+def optional_comment(value: str | None) -> str | None:
+    if value is None or not value.strip():
+        return None
+    text = value.strip()
+    if len(text) > EFFORT_FEEDBACK_COMMENT_MAX_LENGTH:
+        raise PydanticCustomError(
+            "too_long",
+            "Este campo admite hasta {max_length} caracteres",
+            {"max_length": EFFORT_FEEDBACK_COMMENT_MAX_LENGTH},
+        )
+    return text
+
+
+class EffortFeedbackInput(BaseModel):
+    category: str | None = Field(default=None, validate_default=True)
+    comment: str | None = None
+
+    _category = field_validator("category")(validate_effort_category)
+    _comment = field_validator("comment")(optional_comment)
+
+
+class EffortFeedbackResponse(BaseModel):
+    id: str
+    session_id: str
+    day_name: str
+    session_started_at: datetime
+    rpe: int | None = None
+    category: str
+    comment: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    seen_at: datetime | None = None
+
+
+class WorkoutSessionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    student_id: str
+    relationship_id: str
+    routine_id: str
+    day_name: str
+    modality: str
+    started_at: datetime
+    finished_at: datetime | None = None
+    rpe: int | None = None
+    effort_feedback: EffortFeedbackResponse | None = None
+
+
+class WorkoutSetLogInput(BaseModel):
+    exercise_id: str | None = Field(default=None, validate_default=True)
+    day_name: str | None = Field(default=None, validate_default=True)
+    set_number: int | None = Field(default=None, validate_default=True)
+    reps_completed: str | None = Field(default=None, validate_default=True)
+    weight_kg: float | None = Field(default=None, ge=0, le=9999.99)
+    duration_seconds: int | None = Field(default=None, ge=0, le=7200)
+    session_id: str | None = None
+    modality: str | None = None
+
+    _exercise = field_validator("exercise_id")(required_text())
+    _day = field_validator("day_name")(required_text(SECTION_NAME_MAX_LENGTH))
+    _set = field_validator("set_number")(required_range(1, 20))
+    _reps = field_validator("reps_completed")(required_text(REPS_MAX_LENGTH))
+
+    @field_validator("modality")
+    @classmethod
+    def _check_optional_modality(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return validate_modality(value)
+
+
+class WorkoutSetLogResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    student_id: str
+    relationship_id: str
+    routine_id: str
+    day_name: str
+    exercise_id: str
+    exercise_name: str
+    modality: str
+    set_number: int
+    reps_completed: str
+    weight_kg: float | None = None
+    duration_seconds: int | None = None
+    session_id: str | None = None
+    recorded_at: datetime
+    is_personal_record: bool = False
+    is_initial_pr: bool = False
+    pr_previous_weight_kg: float | None = None
+
+
+class PersonalRecordResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    student_id: str
+    exercise_id: str
+    exercise_name: str | None = None
+    weight_kg: float
+    reps_completed: str
+    workout_set_log_id: str
+    achieved_at: datetime
+
+
+class SessionPersonalRecordResponse(BaseModel):
+    exercise_id: str
+    exercise_name: str
+    weight_kg: float
+    reps_completed: str
+    previous_weight_kg: float | None = None
+
+
+class SessionHistoryComparisonResponse(BaseModel):
+    previous_sessions_count: int
+    average_tonnage_kg: float | None = None
+    tonnage_delta_percent: float | None = None
+
+
+class WorkoutSessionSummaryResponse(BaseModel):
+    session_id: str
+    day_name: str
+    started_at: datetime
+    finished_at: datetime
+    duration_seconds: int
+    rpe: int | None = None
+    total_tonnage_kg: float
+    completed_sets: int
+    programmed_sets: int | None = None
+    personal_records: list[SessionPersonalRecordResponse]
+    history: SessionHistoryComparisonResponse
 
 
 class RoutineAssignmentUpdate(BaseModel):
@@ -149,3 +330,4 @@ class RoutineAssignmentStudentResponse(BaseModel):
     student_name: str
     routine_template_id: str | None
     routine_name: str | None
+    conflict_count: int = 0

@@ -18,6 +18,7 @@ from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.user import User
 from backend.src.schemas.student_routine import RoutineDraftInput
 from backend.src.services.routine_template_service import RoutineTemplateError
+from backend.src.services.safe_variant_service import resolve_variant
 from backend.src.services.student_service import (
     get_or_create_profile as get_student_profile,
 )
@@ -38,6 +39,20 @@ def _entries(days: list[dict]):
         for bi, block in enumerate(day["blocks"]):
             for ei, entry in enumerate(block["exercises"]):
                 yield f"days.{di}.blocks.{bi}.exercises.{ei}.exercise_id", entry
+
+
+def _days_support_home_modality(db: Session, days: list[dict]) -> bool:
+    exercise_ids = {entry["exercise_id"] for _, entry in _entries(days)}
+    if not exercise_ids:
+        return True
+    exercises = {
+        ex.id: ex
+        for ex in db.scalars(select(Exercise).where(Exercise.id.in_(exercise_ids)))
+    }
+    return all(
+        (ex := exercises.get(entry["exercise_id"])) is not None and ex.has_no_materials_alternative
+        for _, entry in _entries(days)
+    )
 
 
 def _content_from_assigned_routine(assigned: AssignedRoutine) -> list[dict]:
@@ -174,6 +189,8 @@ def sync_assigned_routine(
         )
     _seed(routine, assigned)
     routine.draft_version = 0
+    if relationship.routine_modality == "HOME" and not _days_support_home_modality(db, routine.days):
+        relationship.routine_modality = "GYM"
     db.add(routine)
     db.commit()
     db.refresh(routine)
@@ -249,7 +266,17 @@ def find_conflicts(
         matching_keys = sorted(student_canonical.keys() & ex_canonical)
         if matching_keys:
             names = ", ".join(BODY_AREAS_ES.get(k, student_canonical[k]) for k in matching_keys)
-            conflicts.append({"field": field, "message": f'"{ex.name}" está contraindicado por la limitación del alumno: {names}'})
+            # resolución pura: nunca abre casos ni notifica desde acá (solo lo hace la consulta del alumno)
+            kind, variant = resolve_variant(db, ex, set(student_canonical))
+            safe = {"exercise_id": variant.id, "name": variant.name} if kind == "VARIANT" else None
+            suffix = f' Variante segura: "{variant.name}".' if safe else ""
+            conflicts.append(
+                {
+                    "field": field,
+                    "message": f'"{ex.name}" está contraindicado por la limitación del alumno: {names}.{suffix}',
+                    "safe_variant": safe,
+                }
+            )
     return conflicts, exercises
 
 
@@ -257,6 +284,7 @@ def _validate_draft_content(
     db: Session, relationship: TrainingRelationship, days: list[dict], retained_ids: set[str]
 ) -> dict[str, Exercise]:
     conflicts, exercises = find_conflicts(db, relationship, days)
+    conflicts = [{"field": c["field"], "message": c["message"]} for c in conflicts]
     errors = [
         {"field": field, "message": UNAVAILABLE_MESSAGE}
         for field, entry in _entries(days)
@@ -389,6 +417,10 @@ def confirm_draft(db: Session, user: User, student_id: str) -> StudentRoutine:
     routine.draft_version += 1
     routine.status = "ACTIVE"
     routine.updated_at = now
+    if relationship.routine_modality == "HOME" and not all(
+        exercises[e["exercise_id"]].has_no_materials_alternative for _, e in _entries(routine.days)
+    ):
+        relationship.routine_modality = "GYM"
     db.commit()
     db.refresh(routine)
     return routine
@@ -409,6 +441,16 @@ def render(db: Session, routine: StudentRoutine, content: dict | None = None) ->
         ex.id: ex
         for ex in db.scalars(select(Exercise).where(Exercise.id.in_({e["exercise_id"] for _, e in _entries(src["days"])})))
     }
+    effective_modality = (relationship.routine_modality or "GYM") if relationship else "GYM"
+    if (
+        content is None
+        and effective_modality == "HOME"
+        and not all(exercises[e["exercise_id"]].has_no_materials_alternative for _, e in _entries(src["days"]))
+    ):
+        effective_modality = "GYM"
+        if relationship is not None:
+            relationship.routine_modality = "GYM"
+            db.commit()
     days = [
         {
             "id": f"{routine.id}-d{di}",
@@ -443,9 +485,25 @@ def render(db: Session, routine: StudentRoutine, content: dict | None = None) ->
         "duration_weeks": src["duration_weeks"],
         "intensity": src["intensity"],
         "has_no_materials_alternative": src["has_no_materials_alternative"],
+        "modality": effective_modality,
         "exercise_count": sum(len(b["exercises"]) for d in days for b in d["blocks"]),
         "days": days,
     }
+
+
+def current_exercise_ids(db: Session, relationship: TrainingRelationship) -> set[str]:
+    """Ejercicios de la rutina vigente del alumno (nunca el borrador); cae a la rutina asignada si no hay copia."""
+    routine = db.scalar(select(StudentRoutine).where(StudentRoutine.relationship_id == relationship.id))
+    if routine is not None and routine.status != "UNASSIGNED":
+        days = routine.days
+    else:
+        source = _assignable_source(db, relationship.initial_routine_id)
+        if source is None or source.trainer_id != relationship.trainer_id:
+            return set()
+        days = (
+            _content_from_assigned_routine(source) if isinstance(source, AssignedRoutine) else _content_from_template(source)
+        )
+    return {e["exercise_id"] for _, e in _entries(days)}
 
 
 def student_assigned_view(db: Session, user: User) -> dict | None:

@@ -38,6 +38,8 @@ def create_notification(
     message: str,
     related_entity_type: str | None = None,
     related_entity_id: str | None = None,
+    related_student_id: str | None = None,
+    related_session_id: str | None = None,
     commit: bool = False,
 ) -> Notification:
     notification = Notification(
@@ -47,6 +49,8 @@ def create_notification(
         message=message,
         related_entity_type=related_entity_type,
         related_entity_id=related_entity_id,
+        related_student_id=related_student_id,
+        related_session_id=related_session_id,
         is_read=False,
         created_at=utc_now(),
     )

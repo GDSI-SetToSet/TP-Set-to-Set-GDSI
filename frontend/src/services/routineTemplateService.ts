@@ -1,7 +1,20 @@
 import { api } from './api';
-import type { RoutineAssignmentStudent, RoutineTemplate, RoutineTemplateInput } from '../types/routineTemplate';
+import type {
+  EffortFeedback,
+  EffortFeedbackInput,
+  RoutineAssignmentStudent,
+  RoutineModality,
+  RoutineTemplate,
+  RoutineTemplateInput,
+  WorkoutSetLog,
+  WorkoutSetLogInput,
+  WorkoutSession,
+  WorkoutSessionSummary,
+  PersonalRecord,
+} from '../types/routineTemplate';
 
 const TEMPLATES_PATH = '/api/v1/routine-templates';
+const STUDENT_ASSIGNED_PATH = '/api/v1/students/me/routine-templates/assigned';
 
 export async function getRoutineTemplates(): Promise<RoutineTemplate[]> {
   const { data } = await api.get<RoutineTemplate[]>(TEMPLATES_PATH);
@@ -28,7 +41,80 @@ export async function getStudentRoutineTemplates(): Promise<RoutineTemplate[]> {
 }
 
 export async function getAssignedStudentRoutine(): Promise<RoutineTemplate | null> {
-  const { data } = await api.get<RoutineTemplate | null>('/api/v1/students/me/routine-templates/assigned');
+  const { data } = await api.get<RoutineTemplate | null>(STUDENT_ASSIGNED_PATH);
+  return data;
+}
+
+export async function updateAssignedRoutineModality(modality: RoutineModality): Promise<RoutineTemplate> {
+  const { data } = await api.put<RoutineTemplate>(`${STUDENT_ASSIGNED_PATH}/modality`, { modality });
+  return data;
+}
+
+export async function startAssignedWorkoutSession(dayName: string): Promise<WorkoutSession> {
+  const { data } = await api.post<WorkoutSession>(`${STUDENT_ASSIGNED_PATH}/workout-sessions`, { day_name: dayName });
+  return data;
+}
+
+export async function finishAssignedWorkoutSession(sessionId: string, rpe?: number | null): Promise<WorkoutSession> {
+  const payload = rpe !== undefined && rpe !== null ? { rpe } : {};
+  const { data } = await api.post<WorkoutSession>(`${STUDENT_ASSIGNED_PATH}/workout-sessions/${sessionId}/finish`, payload);
+  return data;
+}
+
+export async function reportWorkoutSessionRpe(sessionId: string, rpe: number): Promise<WorkoutSession> {
+  const { data } = await api.patch<WorkoutSession>(`${STUDENT_ASSIGNED_PATH}/workout-sessions/${sessionId}/rpe`, { rpe });
+  return data;
+}
+
+export async function getWorkoutSessionSummary(sessionId: string): Promise<WorkoutSessionSummary> {
+  const { data } = await api.get<WorkoutSessionSummary>(`${STUDENT_ASSIGNED_PATH}/workout-sessions/${sessionId}/summary`);
+  return data;
+}
+
+export async function saveSessionEffortFeedback(relationshipId: string, sessionId: string, payload: EffortFeedbackInput): Promise<EffortFeedback> {
+  const { data } = await api.put<EffortFeedback>(`${TEMPLATES_PATH}/assignments/${relationshipId}/workout-sessions/${sessionId}/effort-feedback`, payload);
+  return data;
+}
+
+export async function getAssignedEffortFeedback(): Promise<EffortFeedback[]> {
+  const { data } = await api.get<EffortFeedback[]>(`${STUDENT_ASSIGNED_PATH}/effort-feedback`);
+  return data;
+}
+
+export async function markEffortFeedbackSeen(feedbackId: string): Promise<EffortFeedback> {
+  const { data } = await api.post<EffortFeedback>(`${STUDENT_ASSIGNED_PATH}/effort-feedback/${feedbackId}/seen`);
+  return data;
+}
+
+export async function deleteAssignedRoutineWorkoutLog(logId: string): Promise<void> {
+  await api.delete(`${STUDENT_ASSIGNED_PATH}/workout-logs/${logId}`);
+}
+
+export async function getAssignedRoutineWorkoutSessions(): Promise<WorkoutSession[]> {
+  const { data } = await api.get<WorkoutSession[]>(`${STUDENT_ASSIGNED_PATH}/workout-sessions`);
+  return data;
+}
+
+export async function getAssignedRoutineWorkoutLogs(exerciseId?: string): Promise<WorkoutSetLog[]> {
+  const { data } = await api.get<WorkoutSetLog[]>(
+    `${STUDENT_ASSIGNED_PATH}/workout-logs`,
+    exerciseId ? { params: { exercise_id: exerciseId } } : undefined,
+  );
+  return data;
+}
+
+export async function createAssignedRoutineWorkoutLog(payload: WorkoutSetLogInput): Promise<WorkoutSetLog> {
+  const { data } = await api.post<WorkoutSetLog>(`${STUDENT_ASSIGNED_PATH}/workout-logs`, payload);
+  return data;
+}
+
+export async function getTrainerStudentWorkoutLogs(relationshipId: string): Promise<WorkoutSetLog[]> {
+  const { data } = await api.get<WorkoutSetLog[]>(`${TEMPLATES_PATH}/assignments/${relationshipId}/workout-logs`);
+  return data;
+}
+
+export async function getTrainerStudentWorkoutSessions(relationshipId: string): Promise<WorkoutSession[]> {
+  const { data } = await api.get<WorkoutSession[]>(`${TEMPLATES_PATH}/assignments/${relationshipId}/workout-sessions`);
   return data;
 }
 
@@ -44,4 +130,13 @@ export async function assignRoutineToStudent(relationshipId: string, routineTemp
     { routine_template_id: routineTemplateId },
   );
   return data.warnings ?? [];
+}
+
+
+export async function getAssignedRoutinePersonalRecords(exerciseId?: string): Promise<PersonalRecord[]> {
+  const { data } = await api.get<PersonalRecord[]>(
+    `${STUDENT_ASSIGNED_PATH}/personal-records`,
+    exerciseId ? { params: { exercise_id: exerciseId } } : undefined,
+  );
+  return data;
 }

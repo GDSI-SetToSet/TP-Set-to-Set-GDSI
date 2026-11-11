@@ -78,6 +78,24 @@ def test_edit_in_draft_keeps_student_view_until_confirmed(client):
         assert log.confirmed_at is not None and log.trainer_id
 
 
+def test_student_progress_context_endpoints_require_active_trainer_relationship(client):
+    api, sessions, trainer, student, sid, _, _, _ = setup_case(client)
+    other_trainer = register_and_login(api, "other-coach@example.com", "TRAINER")
+    with sessions() as db:
+        relationship_id = db.scalar(
+            select(TrainingRelationship.id).where(TrainingRelationship.student_id == sid)
+        )
+
+    sessions_path = f"{TEMPLATES_PATH}/assignments/{relationship_id}/workout-sessions"
+    logs_path = f"{TEMPLATES_PATH}/assignments/{relationship_id}/workout-logs"
+    assert api.get(sessions_path, headers=trainer).status_code == 200
+    assert api.get(logs_path, headers=trainer).status_code == 200
+    assert api.get(sessions_path, headers=other_trainer).status_code == 404
+    assert api.get(logs_path, headers=other_trainer).status_code == 404
+    assert api.get(sessions_path, headers=student).status_code == 403
+    assert api.get(logs_path, headers=student).status_code == 403
+
+
 def test_stale_draft_version_conflicts_and_discard_restores_active(client):
     api, _, trainer, _, sid, _, squat, plank = setup_case(client)
     assert api.put(path(sid, "/draft"), headers=trainer, json=draft(0, squat)).status_code == 200
@@ -210,6 +228,9 @@ def test_exercise_zones_must_come_from_the_body_area_list(client):
 
 def test_existing_conflicts_are_reported_when_opening_and_when_assigning(client):
     api, sessions, trainer, _, sid, _template, squat, plank = setup_case(client)
+    assignments = api.get(f"{TEMPLATES_PATH}/assignments", headers=trainer).json()
+    assert assignments[0]["conflict_count"] == 0
+
     # el ejercicio ya está en la rutina y luego se lo marca como contraindicado
     api.put(path(sid, "/draft"), headers=trainer, json=draft(0, squat, plank))
     api.post(path(sid, "/draft/confirm"), headers=trainer)
@@ -221,6 +242,14 @@ def test_existing_conflicts_are_reported_when_opening_and_when_assigning(client)
     opened = api.get(path(sid), headers=trainer).json()
     assert [c["field"] for c in opened["conflicts"]] == ["days.0.blocks.0.exercises.1.exercise_id"]
     assert "rodilla" in opened["conflicts"][0]["message"]
+    assignments = api.get(f"{TEMPLATES_PATH}/assignments", headers=trainer).json()
+    assert assignments[0]["conflict_count"] == 1
+
+    corrected = api.put(path(sid, "/draft"), headers=trainer, json=draft(opened["draft_version"], squat))
+    assert corrected.status_code == 200
+    assert api.get(f"{TEMPLATES_PATH}/assignments", headers=trainer).json()[0]["conflict_count"] == 0
+    assert api.post(path(sid, "/draft/confirm"), headers=trainer).status_code == 200
+    assert api.get(f"{TEMPLATES_PATH}/assignments", headers=trainer).json()[0]["conflict_count"] == 0
 
     clean = create_template(api, trainer, squat, name="Limpia")
     risky = create_template(api, trainer, plank, name="Riesgosa")

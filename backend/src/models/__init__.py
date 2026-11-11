@@ -4,9 +4,16 @@ from backend.src.models.assigned_routine import (
     AssignedRoutineDay,
     AssignedRoutineExercise,
 )
+from backend.src.models.body_map_report import (
+    BodyMapPainReport,
+    BodyMapPainReportZone,
+)
+from backend.src.models.effort_feedback import EffortFeedback
 from backend.src.models.exercise import Exercise
+from backend.src.models.exercise_replacement_log import ExerciseReplacementLog
 from backend.src.models.medical_clearance import MedicalClearance
 from backend.src.models.notification import Notification
+from backend.src.models.personal_record import PersonalRecord
 from backend.src.models.routine_template import (
     RoutineTemplate,
     RoutineTemplateBlock,
@@ -15,12 +22,14 @@ from backend.src.models.routine_template import (
     RoutineTemplateExercise,
     RoutineTemplateExercisePrescription,
 )
+from backend.src.models.safe_variant import ExerciseSafeVariant, SafeVariantCase
 from backend.src.models.student_routine import RoutineChangeLog, StudentRoutine
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.training_request import TrainingRequest
 from backend.src.models.user import PasswordResetToken, User, UserSession
+from backend.src.models.workout_log import WorkoutSession, WorkoutSetLog
 
 from .health_questionnaire import HealthQuestionnaire
 from .protected_zone import ProtectedZone
@@ -31,11 +40,17 @@ __all__ = [
     "AssignedRoutineBlock",
     "AssignedRoutineDay",
     "AssignedRoutineExercise",
+    "BodyMapPainReport",
+    "BodyMapPainReportZone",
+    "EffortFeedback",
     "Exercise",
+    "ExerciseReplacementLog",
+    "ExerciseSafeVariant",
     "HealthQuestionnaire",
     "MedicalClearance",
     "Notification",
     "PasswordResetToken",
+    "PersonalRecord",
     "ProtectedZone",
     "RoutineChangeLog",
     "RoutineTemplate",
@@ -44,6 +59,7 @@ __all__ = [
     "RoutineTemplateDay",
     "RoutineTemplateExercise",
     "RoutineTemplateExercisePrescription",
+    "SafeVariantCase",
     "StudentProfile",
     "StudentRoutine",
     "TrainerProfile",
@@ -52,4 +68,6 @@ __all__ = [
     "TrainingRequest",
     "User",
     "UserSession",
+    "WorkoutSession",
+    "WorkoutSetLog",
 ]

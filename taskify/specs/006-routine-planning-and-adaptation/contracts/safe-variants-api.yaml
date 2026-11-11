@@ -1,0 +1,64 @@
+openapi: 3.0.3
+info: {title: Variantes seguras (US-53), version: 1.0.0}
+paths:
+  /api/v1/exercises/{exerciseId}/safe-variants:
+    get:
+      summary: Variantes seguras configuradas para un ejercicio propio
+      responses: {"200": {description: OK, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/SafeVariant'}}}}}, "404": {description: Ejercicio inexistente o ajeno}}
+    post:
+      summary: Vincular un ejercicio como variante segura
+      requestBody:
+        content: {application/json: {schema: {$ref: '#/components/schemas/SafeVariantInput'}}}
+      responses:
+        "201": {description: Creada; los casos pendientes cubiertos pasan a RESOLVED}
+        "422": {description: Zonas fuera de las del ejercicio, variante contraindicada para esas zonas o ejercicios no válidos (problem+json con errors[])}
+        "409": {description: La variante ya está vinculada}
+  /api/v1/exercises/{exerciseId}/safe-variants/{variantId}:
+    put:
+      summary: Cambiar las zonas cubiertas
+      requestBody:
+        content: {application/json: {schema: {type: object, required: [covered_zones], properties: {covered_zones: {type: array, items: {type: string}, minItems: 1}}}}}
+      responses: {"200": {description: OK}, "422": {description: Zonas inválidas}}
+    delete:
+      summary: Quitar la variante (reabre casos que dejan de estar cubiertos en la próxima consulta)
+      responses: {"204": {description: Eliminada}}
+  /api/v1/students/me/exercises/{exerciseId}/safe-variant:
+    get:
+      summary: Resuelve qué debe ver el alumno para un ejercicio de su rutina vigente
+      responses:
+        "200":
+          description: Resultado de la resolución
+          content: {application/json: {schema: {$ref: '#/components/schemas/SafeVariantResolution'}}}
+        "403": {description: Sin vínculo activo}
+        "404": {description: El ejercicio no está en su rutina vigente}
+components:
+  schemas:
+    SafeVariantInput:
+      type: object
+      required: [variant_exercise_id, covered_zones]
+      properties:
+        variant_exercise_id: {type: string}
+        covered_zones: {type: array, minItems: 1, items: {type: string}}
+    SafeVariant:
+      type: object
+      properties:
+        id: {type: string}
+        variant_exercise_id: {type: string}
+        covered_zones: {type: array, items: {type: string}}
+    SafeVariantResolution:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, enum: [SAFE, VARIANT, BLOCKED]}
+        variant:
+          nullable: true
+          description: Presente solo con status VARIANT; incluye nombre, descripción, notas técnicas y video (US-12/US-52) del ejercicio variante.
+          type: object
+          properties:
+            exercise_id: {type: string}
+            name: {type: string}
+            description: {type: string}
+            video_url: {type: string, nullable: true}
+            video_platform: {type: string}
+        message: {type: string, nullable: true, description: "Solo con BLOCKED: aviso de que no hay variante segura"}
+        can_skip: {type: boolean, description: "true con BLOCKED"}

@@ -308,7 +308,7 @@ export function GenerateAIRoutinePage() {
   }
 
   return (
-    <main className="profile-shell">
+    <main className="profile-shell profile-shell--trainer">
       <header className="profile-header">
         <Link to={cameFromRoutines ? ROUTES.trainerRoutines : ROUTES.trainerHome} className="profile-back">
           <ArrowLeft size={18} /> {cameFromRoutines ? 'Volver a mis rutinas' : 'Volver al inicio'}
@@ -476,7 +476,7 @@ export function GenerateAIRoutinePage() {
               </div>
             )}
 
-            <div style={{ marginTop: '24px' }}>
+            <div className="ai-generate-actions">
               <button
                 type="button"
                 className="profile-cta"
@@ -497,12 +497,12 @@ export function GenerateAIRoutinePage() {
           </div>
         ) : (
           <div className="ai-proposal-banner">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="ai-proposal-toolbar">
+              <div className="ai-proposal-status">
                 <span className="ai-proposal-badge">
                   <Sparkles size={15} /> Generada mediante IA
                 </span>
-                <span className="ai-proposal-badge" style={{ background: proposal.status === 'APPROVED' ? '#16a34a' : '#4f46e5' }}>
+                <span className={`ai-proposal-badge ${proposal.status === 'APPROVED' ? 'ai-proposal-badge--approved' : 'ai-proposal-badge--review'}`}>
                   {proposal.status === 'APPROVED' ? (
                     <>
                       <CheckCircle2 size={16} /> Rutina Aprobada y Asignada
@@ -514,7 +514,7 @@ export function GenerateAIRoutinePage() {
                   )}
                 </span>
               </div>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div className="ai-proposal-actions">
                 {!isEditing && (
                   <button
                     type="button"
@@ -539,12 +539,12 @@ export function GenerateAIRoutinePage() {
             {isEditing && editForm ? (
               <div className="ai-edit-form">
                 <h3>Editar rutina manualmente</h3>
-                <p style={{ margin: 0, fontSize: '13px', color: 'var(--pf-body)' }}>
+                <p className="ai-edit-description">
                   Ajustá series, repeticiones (ej. "8-12", "30s"), descansos, pesos o intercambiá ejercicios. Guardar cambios no invoca la IA.
                 </p>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                  <label style={{ display: 'grid', gap: '4px', fontWeight: 600 }}>
+                <div className="ai-edit-settings">
+                  <label className="ai-edit-field">
                     Nombre de la rutina
                     <input
                       type="text"
@@ -553,7 +553,7 @@ export function GenerateAIRoutinePage() {
                       maxLength={150}
                     />
                   </label>
-                  <label style={{ display: 'grid', gap: '4px', fontWeight: 600 }}>
+                  <label className="ai-edit-field">
                     Duración (semanas)
                     <input
                       type="number"
@@ -563,7 +563,7 @@ export function GenerateAIRoutinePage() {
                       onChange={(e) => setEditForm({ ...editForm, duration_weeks: Number(e.target.value) || 1 })}
                     />
                   </label>
-                  <label style={{ display: 'grid', gap: '4px', fontWeight: 600 }}>
+                  <label className="ai-edit-field">
                     Intensidad
                     <select
                       value={editForm.intensity}
@@ -576,11 +576,11 @@ export function GenerateAIRoutinePage() {
                   </label>
                 </div>
 
-                <div style={{ display: 'grid', gap: '16px', marginTop: '12px' }}>
+                <div className="ai-edit-days">
                   {editForm.days.map((day, dayIdx) => (
                     <div key={`day-${dayIdx}`} className="ai-edit-day">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700 }}>
+                      <div className="ai-edit-day-heading">
+                        <label className="ai-edit-day-name">
                           Día {dayIdx + 1}:
                           <input
                             type="text"
@@ -596,7 +596,7 @@ export function GenerateAIRoutinePage() {
 
                       {day.blocks.map((block, blockIdx) => (
                         <div key={`block-${dayIdx}-${blockIdx}`} className="ai-edit-block">
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '14px' }}>
+                          <label className="ai-edit-block-name">
                             Bloque:
                             <input
                               type="text"
@@ -613,7 +613,7 @@ export function GenerateAIRoutinePage() {
                             />
                           </label>
 
-                          <div style={{ display: 'grid', gap: '8px' }}>
+                          <div className="ai-edit-exercises">
                             {block.exercises.map((item, exIdx) => (
                               <div key={`ex-${dayIdx}-${blockIdx}-${exIdx}`} className="ai-edit-exercise-row">
                                 <label>
@@ -695,11 +695,10 @@ export function GenerateAIRoutinePage() {
                             ))}
                           </div>
 
-                          <div style={{ marginTop: '8px' }}>
+                          <div className="ai-edit-add-exercise">
                             <button
                               type="button"
                               className="plan-action-btn"
-                              style={{ fontSize: '13px', padding: '6px 12px' }}
                               onClick={() => addExerciseToBlock(dayIdx, blockIdx)}
                             >
                               <Plus size={14} /> Agregar ejercicio al bloque
@@ -733,7 +732,7 @@ export function GenerateAIRoutinePage() {
             ) : (
               <>
                 <h2>{proposal.name}</h2>
-                <div style={{ display: 'flex', gap: '16px', fontSize: '14px', color: 'var(--pf-body)', flexWrap: 'wrap' }}>
+                <div className="ai-proposal-metrics">
                   <span>
                     <strong>Intensidad:</strong> {proposal.intensity}
                   </span>
@@ -746,16 +745,16 @@ export function GenerateAIRoutinePage() {
                 </div>
 
                 {proposal.adaptation_summary && (
-                  <div style={{ marginTop: '12px' }}>
-                    <h3 style={{ fontSize: '14px', margin: '0 0 6px', color: 'var(--pf-ink)' }}>
+                  <div className="ai-summary-section">
+                    <h3 className="ai-summary-title">
                       Resumen de adaptaciones y decisiones biomecánicas de la IA:
                     </h3>
                     <div className="ai-summary-box">{proposal.adaptation_summary}</div>
                   </div>
                 )}
 
-                <div className="ai-routine-preview" style={{ marginTop: '16px' }}>
-                  <h3 style={{ margin: 0, fontSize: '15px' }}>Estructura de la rutina</h3>
+                <div className="ai-routine-preview">
+                  <h3 className="ai-routine-preview-heading">Estructura de la rutina</h3>
                   {proposal.days.map((day) => (
                     <div key={day.id} className="ai-day-card">
                       <h3>{day.name}</h3>
