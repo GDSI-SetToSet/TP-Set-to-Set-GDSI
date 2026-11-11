@@ -45,6 +45,22 @@ class CheckConstraintMigration:
 TARGET_COLUMNS: tuple[ColumnMigration, ...] = (
     ColumnMigration(
         table="exercises",
+        column="video_url",
+        sqlite_type="VARCHAR(500)",
+        postgres_type="VARCHAR(500)",
+        nullable=True,
+    ),
+    ColumnMigration(
+        table="exercises",
+        column="video_platform",
+        sqlite_type="VARCHAR(12)",
+        postgres_type="video_platform",
+        nullable=False,
+        sqlite_default="'NONE'",
+        postgres_default="'NONE'::video_platform",
+    ),
+    ColumnMigration(
+        table="exercises",
         column="technical_cues",
         sqlite_type="TEXT",
         postgres_type="TEXT",
@@ -371,6 +387,17 @@ def _migrate_sqlite_body_map_pain_reports_unique_constraint(eng: Engine, inspect
 def apply_migrations(target_engine: Engine | None = None) -> list[str]:
     """Aplica de forma aditiva e idempotente las columnas faltantes y ampliaciones de tipo en tablas existentes."""
     eng = target_engine or engine
+    if eng.dialect.name == "postgresql":
+        enum_names = {enum["name"] for enum in inspect(eng).get_enums()}
+        if "video_platform" not in enum_names:
+            with eng.begin() as conn:
+                conn.execute(
+                    text(
+                        "CREATE TYPE video_platform AS ENUM "
+                        "('YOUTUBE', 'VIMEO', 'GOOGLE_DRIVE', 'NONE')"
+                    )
+                )
+
     # 1. Asegurar la creación de tablas que aún no existan
     Base.metadata.create_all(bind=eng)
 
