@@ -78,6 +78,24 @@ def test_edit_in_draft_keeps_student_view_until_confirmed(client):
         assert log.confirmed_at is not None and log.trainer_id
 
 
+def test_student_progress_context_endpoints_require_active_trainer_relationship(client):
+    api, sessions, trainer, student, sid, _, _, _ = setup_case(client)
+    other_trainer = register_and_login(api, "other-coach@example.com", "TRAINER")
+    with sessions() as db:
+        relationship_id = db.scalar(
+            select(TrainingRelationship.id).where(TrainingRelationship.student_id == sid)
+        )
+
+    sessions_path = f"{TEMPLATES_PATH}/assignments/{relationship_id}/workout-sessions"
+    logs_path = f"{TEMPLATES_PATH}/assignments/{relationship_id}/workout-logs"
+    assert api.get(sessions_path, headers=trainer).status_code == 200
+    assert api.get(logs_path, headers=trainer).status_code == 200
+    assert api.get(sessions_path, headers=other_trainer).status_code == 404
+    assert api.get(logs_path, headers=other_trainer).status_code == 404
+    assert api.get(sessions_path, headers=student).status_code == 403
+    assert api.get(logs_path, headers=student).status_code == 403
+
+
 def test_stale_draft_version_conflicts_and_discard_restores_active(client):
     api, _, trainer, _, sid, _, squat, plank = setup_case(client)
     assert api.put(path(sid, "/draft"), headers=trainer, json=draft(0, squat)).status_code == 200

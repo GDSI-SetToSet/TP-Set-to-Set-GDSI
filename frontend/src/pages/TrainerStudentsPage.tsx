@@ -53,6 +53,8 @@ export function TrainerStudentsPage() {
             aiRoutines={aiRoutines}
             initialStudentId={searchParams.get('studentId') ?? undefined}
             initialSessionId={searchParams.get('sessionId') ?? undefined}
+            initialEventId={searchParams.get('eventId') ?? undefined}
+            initialEventType={searchParams.get('eventType') ?? undefined}
           />
         )}
       </section>

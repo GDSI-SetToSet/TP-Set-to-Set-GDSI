@@ -163,6 +163,12 @@
   color: #475569;
   font-size: 12px;
 }
+.routine-assignment__session-report--highlighted,
+.routine-assignment__set-item--highlighted {
+  border-radius: 6px;
+  background: #fff7db;
+  box-shadow: 0 0 0 4px #fff7db;
+}
 .routine-assignment__session-report > strong { color: #33483c; }
 .routine-assignment__session-report > time { color: #607367; }
 .routine-assignment__session-report-exercise { color: #607367; }

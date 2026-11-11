@@ -203,6 +203,7 @@ def test_first_positive_weight_set_sets_initial_personal_record_and_notifies_tra
         assert "Sentadilla" in notif.message
         assert "50 kg" in notif.message
         assert "primer récord" in notif.message
+        assert notif.related_entity_id == body["id"]
         assert notif.related_student_id == body["student_id"]
         assert notif.related_session_id == session_id
 

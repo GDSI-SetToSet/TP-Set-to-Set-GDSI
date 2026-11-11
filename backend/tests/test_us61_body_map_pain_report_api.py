@@ -600,6 +600,7 @@ def test_notification_alert_generated_on_pain_classification(client):
         assert notif.title == "Alerta de dolor reportado"
         assert "Hombro" in notif.message
         assert notif.is_read is False
+        assert notif.related_entity_id == rep_id
         assert notif.related_student_id == data["student_profile_id"]
         assert notif.related_session_id == data["session_id"]
 

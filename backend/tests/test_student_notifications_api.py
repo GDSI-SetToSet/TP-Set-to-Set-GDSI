@@ -219,6 +219,7 @@ def test_trainer_notification_navigation_metadata_is_returned_when_marked_read(c
     item = response.json()["items"][0]
     assert item["related_student_id"] == "student-1"
     assert item["related_session_id"] == "session-1"
+    assert item["related_entity_id"] == "report-1"
 
     marked_read = api.patch(
         f"/api/v1/trainers/me/notifications/{notification_id}/read",
@@ -228,6 +229,7 @@ def test_trainer_notification_navigation_metadata_is_returned_when_marked_read(c
     assert marked_read.json()["is_read"] is True
     assert marked_read.json()["related_student_id"] == "student-1"
     assert marked_read.json()["related_session_id"] == "session-1"
+    assert marked_read.json()["related_entity_id"] == "report-1"
 
 
 def test_unauthenticated_notifications(client):

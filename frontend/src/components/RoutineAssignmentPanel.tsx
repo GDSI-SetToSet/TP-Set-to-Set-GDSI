@@ -40,6 +40,8 @@ interface RoutineAssignmentPanelProps {
   aiRoutines: TrainerAIRoutine[];
   initialStudentId?: string;
   initialSessionId?: string;
+  initialEventId?: string;
+  initialEventType?: string;
 }
 
 export function RoutineAssignmentPanel({
@@ -47,12 +49,16 @@ export function RoutineAssignmentPanel({
   aiRoutines,
   initialStudentId,
   initialSessionId,
+  initialEventId,
+  initialEventType,
 }: RoutineAssignmentPanelProps) {
   const [students, setStudents] = useState<RoutineAssignmentStudent[]>([]);
   const [selectedRoutines, setSelectedRoutines] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [attentionLoaded, setAttentionLoaded] = useState(false);
   const [attentionError, setAttentionError] = useState('');
+  const [sessionAvailabilityByRelationship, setSessionAvailabilityByRelationship] = useState<Record<string, boolean>>({});
+  const [reportAvailabilityByStudent, setReportAvailabilityByStudent] = useState<Record<string, boolean>>({});
   const [savingId, setSavingId] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -64,6 +70,8 @@ export function RoutineAssignmentPanel({
   const [zoneReportsByStudent, setZoneReportsByStudent] = useState<Record<string, BodyMapZoneHistoryItem[]>>({});
   const [expandedSessionDetails, setExpandedSessionDetails] = useState<Record<string, boolean>>({});
   const [highlightedSessionId, setHighlightedSessionId] = useState<string | null>(null);
+  const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null);
+  const [notificationContextMessage, setNotificationContextMessage] = useState('');
   const [progressLoadingFor, setProgressLoadingFor] = useState<string | null>(null);
   const [progressErrorFor, setProgressErrorFor] = useState<string | null>(null);
   const openedFromNotification = useRef(false);
@@ -94,21 +102,29 @@ export function RoutineAssignmentPanel({
       if (cancelled) return;
       const nextSessions: Record<string, WorkoutSession[]> = {};
       const nextReports: Record<string, BodyMapReportResponse[]> = {};
+      const nextSessionAvailability: Record<string, boolean> = {};
+      const nextReportAvailability: Record<string, boolean> = {};
       let failed = false;
       results.forEach(({ student, sessionsResult, reportsResult }) => {
         if (sessionsResult.status === 'fulfilled') {
           nextSessions[student.relationship_id] = sessionsResult.value;
+          nextSessionAvailability[student.relationship_id] = true;
         } else {
+          nextSessionAvailability[student.relationship_id] = false;
           failed = true;
         }
         if (reportsResult.status === 'fulfilled') {
           nextReports[student.student_id] = reportsResult.value;
+          nextReportAvailability[student.student_id] = true;
         } else {
+          nextReportAvailability[student.student_id] = false;
           failed = true;
         }
       });
       setSessionsByRelationship((current) => ({ ...current, ...nextSessions }));
       setReportsByStudent(nextReports);
+      setSessionAvailabilityByRelationship(nextSessionAvailability);
+      setReportAvailabilityByStudent(nextReportAvailability);
       setAttentionLoaded(true);
       if (failed) setAttentionError('No pudimos actualizar todos los indicadores de atención.');
     });
@@ -122,22 +138,106 @@ export function RoutineAssignmentPanel({
     if (!initialStudentId || loading || openedFromNotification.current) return;
     const student = students.find((item) => item.student_id === initialStudentId);
     openedFromNotification.current = true;
-    if (!student) return;
+    if (!student) {
+      setNotificationContextMessage('No encontramos este alumno entre tus vínculos activos. Puede que ya no esté disponible.');
+      return;
+    }
     setOpenProgressFor(student.relationship_id);
+    if (initialEventId) setHighlightedEventId(initialEventId);
     if (initialSessionId) {
       setExpandedSessionDetails((current) => ({ ...current, [initialSessionId]: true }));
       setHighlightedSessionId(initialSessionId);
     }
-  }, [initialStudentId, initialSessionId, loading, students]);
+  }, [initialStudentId, initialSessionId, initialEventId, loading, students]);
+
+  useEffect(() => {
+    if (!initialStudentId || loading || !openedFromNotification.current) return;
+    const student = students.find((item) => item.student_id === initialStudentId);
+    if (!student) return;
+
+    const sessionsAvailable = sessionAvailabilityByRelationship[student.relationship_id];
+    if (attentionLoaded && sessionsAvailable === false) {
+      setNotificationContextMessage('No pudimos cargar las sesiones de este alumno. Revisá su progreso desde esta sección.');
+      return;
+    }
+
+    if (initialSessionId && attentionLoaded && sessionsAvailable) {
+      const sessionExists = (sessionsByRelationship[student.relationship_id] ?? [])
+        .some((session) => session.id === initialSessionId);
+      if (!sessionExists) {
+        setNotificationContextMessage('La sesión de esta notificación ya no está disponible. Podés consultar el progreso actual del alumno.');
+      }
+    }
+
+    if (!initialEventId) return;
+    if (initialEventType === 'PAIN_ALERT') {
+      if (!attentionLoaded || reportAvailabilityByStudent[student.student_id] === undefined) return;
+      if (!reportAvailabilityByStudent[student.student_id]) {
+        setNotificationContextMessage('No pudimos comprobar el reporte asociado a esta notificación. Podés consultar los reportes disponibles del alumno.');
+        return;
+      }
+      const report = (reportsByStudent[student.student_id] ?? [])
+        .find((item) => item.id === initialEventId);
+      if (!report) {
+        setNotificationContextMessage('El reporte asociado a esta notificación ya no está disponible. Podés consultar los reportes actuales del alumno.');
+        return;
+      }
+      const sessionId = report.session_id ?? initialSessionId;
+      if (sessionId) {
+        setHighlightedSessionId(sessionId);
+        setExpandedSessionDetails((current) => ({ ...current, [sessionId]: true }));
+      } else {
+        setNotificationContextMessage('Este reporte no tiene una sesión disponible para destacar. Podés consultar los reportes actuales del alumno.');
+      }
+    } else if (initialEventType === 'PERSONAL_RECORD') {
+      if (!Object.prototype.hasOwnProperty.call(progressByRelationship, student.relationship_id)) {
+        if (progressErrorFor === student.relationship_id && progressLoadingFor !== student.relationship_id) {
+          setNotificationContextMessage('No pudimos comprobar el récord asociado a esta notificación. Podés consultar el progreso actual del alumno.');
+        }
+        return;
+      }
+      const log = (progressByRelationship[student.relationship_id] ?? [])
+        .find((item) => item.id === initialEventId);
+      if (!log) {
+        setNotificationContextMessage('La serie asociada a este récord ya no está disponible. Podés consultar el progreso actual del alumno.');
+        return;
+      }
+      const sessionId = log.session_id ?? initialSessionId;
+      if (sessionId) {
+        setHighlightedSessionId(sessionId);
+        setExpandedSessionDetails((current) => ({ ...current, [sessionId]: true }));
+      } else {
+        setNotificationContextMessage('Este récord no tiene una sesión disponible para destacar. Podés consultar el progreso actual del alumno.');
+      }
+    }
+  }, [
+    attentionLoaded,
+    initialEventId,
+    initialEventType,
+    initialSessionId,
+    initialStudentId,
+    loading,
+    progressByRelationship,
+    progressErrorFor,
+    progressLoadingFor,
+    reportAvailabilityByStudent,
+    reportsByStudent,
+    sessionAvailabilityByRelationship,
+    sessionsByRelationship,
+    students,
+  ]);
 
   useEffect(() => {
     if (!highlightedSessionId || !openProgressFor) return;
     const frame = window.requestAnimationFrame(() => {
-      document.getElementById(`routine-session-${highlightedSessionId}`)
-        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const target = document.getElementById(highlightedEventId
+        ? `routine-event-${highlightedEventId}`
+        : `routine-session-${highlightedSessionId}`)
+        ?? document.getElementById(`routine-session-${highlightedSessionId}`);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [highlightedSessionId, openProgressFor, sessionsByRelationship]);
+  }, [highlightedEventId, highlightedSessionId, openProgressFor, progressByRelationship, sessionsByRelationship, zoneReportsByStudent]);
 
   const approvedAIRoutines = (studentId: string) => aiRoutines.filter((item) => item.student_id === studentId && item.status === 'APPROVED');
 
@@ -208,6 +308,7 @@ export function RoutineAssignmentPanel({
 
   function focusStudentEvent(student: RoutineAssignmentStudent, sessionId?: string | null) {
     setOpenProgressFor(student.relationship_id);
+    setHighlightedEventId(null);
     if (!sessionId) {
       setHighlightedSessionId(null);
       return;
@@ -358,6 +459,9 @@ export function RoutineAssignmentPanel({
                         sessions,
                         zoneReportsByStudent[student.student_id] ?? [],
                       );
+                      const highlightedReportIndex = highlightedEventId
+                        ? sessionReports.findIndex((report) => report.report_id === highlightedEventId)
+                        : -1;
                       const detailExpanded = Boolean(expandedSessionDetails[session.id]);
 
                       return (
@@ -394,8 +498,12 @@ export function RoutineAssignmentPanel({
                             )}
                             {sessionReports.length > 0 && (
                               <div className="routine-assignment__session-reports" aria-label="Reportes de molestias de este entrenamiento">
-                                {sessionReports.map((report) => (
-                                  <div className="routine-assignment__session-report" key={report.id}>
+                                {sessionReports.map((report, index) => (
+                                  <div
+                                    className={`routine-assignment__session-report${index === highlightedReportIndex ? ' routine-assignment__session-report--highlighted' : ''}`}
+                                    id={index === highlightedReportIndex ? `routine-event-${highlightedEventId}` : undefined}
+                                    key={report.id}
+                                  >
                                     <strong>{report.zone_display || report.zone}</strong>
                                     <span className={`body-map-history-badge body-map-history-badge--${report.intensity.toLowerCase()}`}>
                                       {report.intensity === 'PAIN' ? 'Dolor' : report.intensity === 'DISCOMFORT' ? 'Molestia' : 'Carga normal'}
@@ -425,7 +533,11 @@ export function RoutineAssignmentPanel({
                                 {sessionLogs.length === 0 ? (
                                   <li className="routine-assignment__set-empty">No hay series registradas en este entrenamiento.</li>
                                 ) : sessionLogs.map((log) => (
-                                  <li key={log.id} className="routine-assignment__set-item">
+                                  <li
+                                    key={log.id}
+                                    id={log.id === highlightedEventId ? `routine-event-${highlightedEventId}` : undefined}
+                                    className={`routine-assignment__set-item${log.id === highlightedEventId ? ' routine-assignment__set-item--highlighted' : ''}`}
+                                  >
                                     <strong>{log.exercise_name}</strong>
                                     <span>Serie {log.set_number}</span>
                                     <span>{log.reps_completed} reps</span>
@@ -450,6 +562,9 @@ export function RoutineAssignmentPanel({
       )}
       {error && students.length > 0 && <p className="form-alert" role="alert">{error}</p>}
       {attentionError && <p className="form-alert" role="alert">{attentionError}</p>}
+      {notificationContextMessage && (
+        <p className="form-alert" role="status">{notificationContextMessage}</p>
+      )}
       {message && <p className="profile-success" role="status">{message}</p>}
       {warnings.length > 0 && (
         <div className="rt-alert" role="alert">

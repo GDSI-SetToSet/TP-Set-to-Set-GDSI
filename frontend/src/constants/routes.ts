@@ -40,7 +40,7 @@ export function homePath(role: UserRole): string {
 
 export function trainerNotificationPath(notification: Pick<
   NotificationItem,
-  'type' | 'related_student_id' | 'related_session_id'
+  'type' | 'related_student_id' | 'related_session_id' | 'related_entity_id'
 >): string {
   if (
     notification.type !== 'PAIN_ALERT'
@@ -57,6 +57,13 @@ export function trainerNotificationPath(notification: Pick<
   const params = new URLSearchParams({ studentId: notification.related_student_id });
   if (notification.related_session_id) {
     params.set('sessionId', notification.related_session_id);
+  }
+  if (
+    notification.related_entity_id
+    && (notification.type === 'PAIN_ALERT' || notification.type === 'PERSONAL_RECORD')
+  ) {
+    params.set('eventId', notification.related_entity_id);
+    params.set('eventType', notification.type);
   }
   return `${ROUTES.trainerStudents}?${params.toString()}`;
 }
