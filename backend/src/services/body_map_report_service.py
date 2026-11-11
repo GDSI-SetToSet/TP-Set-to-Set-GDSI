@@ -26,6 +26,7 @@ from backend.src.schemas.body_map_report import (
     SafeVariantEvaluation,
     SafeVariantSnippet,
 )
+from backend.src.services.exercise_alternative_service import is_replacement_today
 from backend.src.services.notification_service import create_notification
 from backend.src.services.safe_variant_service import (
     NO_VARIANT_MESSAGE,
@@ -264,7 +265,20 @@ def create_body_map_report(
             .limit(1)
         ) is not None
 
-        if not (is_in_routine_day or is_in_session_logs):
+        # Si el alumno ya sustituyó este ejercicio para la sesión actual,
+        # el ejercicio alternativo también es un contexto válido para reportar.
+        # El reemplazo queda guardado en ExerciseReplacementLog y puede no tener
+        # series registradas todavía, por lo que no aparece en los dos chequeos
+        # anteriores.
+        is_session_replacement = is_replacement_today(
+            db,
+            profile.id,
+            session.routine_id,
+            session.day_name,
+            payload.exercise_id,
+        )
+
+        if not (is_in_routine_day or is_in_session_logs or is_session_replacement):
             raise BodyMapReportError(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
                 f'El ejercicio "{exercise.name}" no forma parte del entrenamiento programado ni ejecutado en esta sesión.',

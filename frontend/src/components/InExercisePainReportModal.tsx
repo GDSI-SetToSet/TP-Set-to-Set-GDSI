@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isAxiosError } from 'axios';
 import { AlertCircle, AlertTriangle, CheckCircle, ShieldCheck, Video, X } from 'lucide-react';
 import { BodyMapSelector } from './BodyMapSelector';
 import { createBodyMapReport, updateReportAction } from '../services/bodyMapReportService';
@@ -46,8 +47,13 @@ export function InExercisePainReportModal({
         zones: selectedZones,
       });
       setReportResult(res);
-    } catch {
-      setErrorMessage('No pudimos guardar el reporte de dolor. Por favor, reintentá.');
+    } catch (error) {
+      const detail = isAxiosError(error) ? error.response?.data?.detail : undefined;
+      setErrorMessage(
+        typeof detail === 'string'
+          ? detail
+          : 'No pudimos guardar el reporte de dolor. Por favor, reintentá.'
+      );
     } finally {
       setSubmitting(false);
     }
