@@ -1061,9 +1061,24 @@ def _seed_workout_history(
         )
         if relationship is None:
             continue
-        routine_id = relationship.initial_routine_id
-        if not routine_id:
+        source_routine_id = relationship.initial_routine_id
+        if not source_routine_id:
             continue
+
+        # Las sesiones sembradas inicialmente apuntaban a la plantilla genérica. Si el
+        # entrenador ya abrió/editó la rutina y existe una copia vigente del alumno,
+        # la pantalla de progreso filtra por StudentRoutine.id; mantenemos el historial
+        # visible migrando las sesiones demo de la plantilla a esa copia.
+        student_routine = db.scalar(
+            select(StudentRoutine).where(StudentRoutine.relationship_id == relationship.id)
+        )
+        student_routine_is_copy = bool(
+            student_routine
+            and student_routine.status != "UNASSIGNED"
+            and student_routine.source_kind == "GENERIC"
+            and student_routine.source_template_id == source_routine_id
+        )
+        routine_id = student_routine.id if student_routine_is_copy else source_routine_id
 
         # No insertar historia ficticia en una cuenta que ya empezó a usar alguna rutina.
         existing_sessions = db.scalars(
@@ -1072,6 +1087,21 @@ def _seed_workout_history(
             )
         ).all()
         if existing_sessions:
+            if student_routine_is_copy and student_routine is not None:
+                legacy_sessions = [
+                    session for session in existing_sessions if session.routine_id == source_routine_id
+                ]
+                legacy_session_ids = [session.id for session in legacy_sessions]
+                for session in legacy_sessions:
+                    session.routine_id = student_routine.id
+                if legacy_session_ids:
+                    for log in db.scalars(
+                        select(WorkoutSetLog).where(
+                            WorkoutSetLog.session_id.in_(legacy_session_ids),
+                            WorkoutSetLog.routine_id == source_routine_id,
+                        )
+                    ):
+                        log.routine_id = student_routine.id
             stats["workout_sessions"] += len(data["sessions"])
             stats["workout_set_logs"] += sum(len(session["sets"]) for session in data["sessions"])
             stats["body_map_reports"] += int("pain_report" in data)
@@ -1085,12 +1115,16 @@ def _seed_workout_history(
             stats["notifications"] += len(data.get("personal_records", []))
             continue
 
-        assigned = db.get(AssignedRoutine, routine_id)
-        template = db.get(RoutineTemplate, routine_id) if assigned is None else None
+        assigned = db.get(AssignedRoutine, source_routine_id)
+        template = db.get(RoutineTemplate, source_routine_id) if assigned is None else None
         if assigned is None and template is None:
             continue
 
-        routine_days = assigned.days if assigned is not None else template.days
+        routine_days = (
+            student_routine.days
+            if student_routine_is_copy and student_routine is not None
+            else assigned.days if assigned is not None else template.days
+        )
         day = next((item for item in routine_days if item.name == data["day_name"]), None)
         if day is None:
             continue
