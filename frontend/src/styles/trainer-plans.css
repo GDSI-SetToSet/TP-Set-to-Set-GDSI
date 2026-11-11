@@ -32,8 +32,10 @@
   border-radius: 16px;
   background: #fff;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   align-content: start;
+  overflow-wrap: anywhere;
 }
 
 .trainer-plans-header {
@@ -63,7 +65,7 @@
 .trainer-plans-page .plan-empty { margin: 0; }
 
 @media (max-width: 680px) {
-  .plan-list { grid-template-columns: 1fr; }
+  .plan-list { grid-template-columns: minmax(0, 1fr); }
   .plan-form__actions > * { width: 100%; justify-content: center; }
   .trainer-plans-header { align-items: stretch; flex-direction: column; gap: 16px; }
   .trainer-plans-header > button { width: 100%; justify-content: center; }

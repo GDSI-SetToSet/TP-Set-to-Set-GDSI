@@ -158,6 +158,11 @@
 .student-daily-routine__block li h4 { margin: 0; color: var(--pf-ink); font: 700 15px 'Manrope'; }
 .student-daily-routine__block li p { margin: 4px 0 0; font-size: 14px; }
 
+@media (max-width: 960px) {
+  .student-daily-routine__summary { grid-template-columns: minmax(0, 1fr) auto; }
+  .student-daily-routine__summary > div:first-child { grid-column: 1 / -1; }
+}
+
 @media (max-width: 680px) {
   .routine-template-toolbar { align-items: stretch; }
   .routine-template-toolbar > * { flex: 1; justify-content: center; }

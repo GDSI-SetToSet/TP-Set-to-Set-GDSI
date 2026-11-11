@@ -136,7 +136,7 @@
 .profile-heading > span { color: var(--pf-accent); font: 700 11px 'Manrope'; letter-spacing: 1.4px; }
 .profile-heading h1 { margin: 10px 0 8px; color: var(--pf-ink); font: 700 clamp(30px, 5vw, 44px) 'Manrope'; letter-spacing: -1.5px; }
 .profile-heading p { margin: 0; color: var(--pf-muted); }
-.profile-form { margin-top: 38px; display: grid; gap: 22px; }
+.profile-form { margin-top: 38px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; }
 .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .profile-form label { display: grid; gap: 8px; color: var(--pf-label); font-weight: 700; }
 .profile-form input,
