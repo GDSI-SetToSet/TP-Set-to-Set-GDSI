@@ -9,6 +9,13 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { EffortFeedbackList } from '../components/EffortFeedbackList';
 import { SafeVariantNotice } from '../components/SafeVariantNotice';
 import { SessionSummaryDialog } from '../components/SessionSummaryDialog';
+import {
+  elapsedSessionSeconds,
+  parseSessionTimestamp,
+  resolveSessionTimerState,
+  shouldShowPersonalRecordAlert,
+  type SessionTimerState,
+} from './studentRoutineSessionState.mjs';
 import { ExerciseAlternativesPanel } from '../components/ExerciseAlternativesPanel';
 import { saveReplacement } from '../services/exerciseAlternativeService';
 import type { ExerciseAlternative } from '../types/exerciseAlternative';
@@ -90,6 +97,8 @@ interface PersonalRecordAlert {
   reps: string;
   previousWeightKg: number | null;
   isInitial: boolean;
+  sessionId: string | null;
+  dayName: string;
 }
 
 function formatWorkoutDuration(totalSeconds: number): string {
@@ -98,21 +107,16 @@ function formatWorkoutDuration(totalSeconds: number): string {
   return minutes > 0 ? `${minutes} min ${seconds} s` : `${seconds} s`;
 }
 
-function parseSessionTimestamp(value: string | null): number | null {
-  if (!value) return null;
-  const numeric = Number(value);
-  if (Number.isFinite(numeric) && numeric > 0) return numeric;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boolean }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const requestedDayId = searchParams.get('day');
   const sessionId = searchParams.get('session');
   const sessionStartedAt = searchParams.get('startedAt');
-  const [sessionStartedAtMs, setSessionStartedAtMs] = useState<number | null>(() => parseSessionTimestamp(sessionStartedAt));
+  const [sessionTimerState, setSessionTimerState] = useState<SessionTimerState>(() => ({
+    sessionId: sessionMode ? sessionId : null,
+    startedAtMs: sessionMode && sessionId ? parseSessionTimestamp(sessionStartedAt) : null,
+  }));
   const [routine, setRoutine] = useState<RoutineTemplate | null>(null);
   const [selectedDayId, setSelectedDayId] = useState('');
   const [openVideoExerciseId, setOpenVideoExerciseId] = useState<string | null>(null);
@@ -152,6 +156,9 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const [unseenFeedback, setUnseenFeedback] = useState<EffortFeedback[]>([]);
   const [effortFeedbackError, setEffortFeedbackError] = useState(false);
   const autoFinishTimeout = useRef<number | null>(null);
+  const sessionStartedAtMs = sessionMode && sessionTimerState.sessionId === sessionId
+    ? sessionTimerState.startedAtMs
+    : null;
 
   useEffect(() => {
     Promise.all([
@@ -207,13 +214,41 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   }, []);
 
   useEffect(() => {
-    if (!sessionMode || !sessionId || sessionStartedAtMs !== null) return;
+    if (!sessionMode || !sessionId) {
+      setSessionTimerState((current) => (
+        current.sessionId === null && current.startedAtMs === null
+          ? current
+          : { sessionId: null, startedAtMs: null }
+      ));
+      return;
+    }
+
     const storageKey = `workout-started-at:${sessionId}`;
-    const stored = Number(window.localStorage.getItem(storageKey));
-    const startedAt = Number.isFinite(stored) && stored > 0 ? stored : Date.now();
-    if (!(Number.isFinite(stored) && stored > 0)) window.localStorage.setItem(storageKey, String(startedAt));
-    setSessionStartedAtMs(startedAt);
-  }, [sessionMode, sessionId, sessionStartedAtMs]);
+    const nextState = resolveSessionTimerState(
+      sessionMode,
+      sessionId,
+      sessionStartedAt,
+      window.localStorage.getItem(storageKey),
+      sessionTimerState,
+    );
+    if (nextState.startedAtMs === null) {
+      const startedAtMs = Date.now();
+      window.localStorage.setItem(storageKey, String(startedAtMs));
+      nextState.startedAtMs = startedAtMs;
+    } else {
+      window.localStorage.setItem(storageKey, String(nextState.startedAtMs));
+    }
+    setSessionTimerState((current) => (
+      current.sessionId === nextState.sessionId && current.startedAtMs === nextState.startedAtMs
+        ? current
+        : nextState
+    ));
+  }, [sessionMode, sessionId, sessionStartedAt, sessionTimerState]);
+
+  useEffect(() => {
+    setPrCelebration(null);
+    setPrAlertBanner(null);
+  }, [sessionMode, sessionId, selectedDayId]);
 
   if (loading) return <main className="loading-screen"><span className="loading-mark" /> Cargando tu rutina…</main>;
 
@@ -222,6 +257,16 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const selectedDay = routine?.days.find((day) => day.id === selectedDayId) ?? routine?.days[0];
   const totalDuration = selectedDay?.blocks.reduce((total, block) => total + (block.estimated_duration_minutes ?? 0), 0) ?? 0;
   const showCelebration = searchParams.get('completed') === '1';
+  const showPrAlertBanner = shouldShowPersonalRecordAlert(prAlertBanner, {
+    sessionMode,
+    sessionId,
+    dayName: selectedDay?.name,
+  });
+  const showPrCelebration = shouldShowPersonalRecordAlert(prCelebration, {
+    sessionMode,
+    sessionId,
+    dayName: selectedDay?.name,
+  });
   const currentSessionLogs = workoutLogs.filter((log) => Boolean(sessionId) && log.session_id === sessionId);
   const routineWorkoutSummaries = (() => {
     const routineLogs = workoutLogs.filter((entry) => routine && entry.routine_id === routine.id);
@@ -362,7 +407,8 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     setStartingWorkout(true);
     try {
       const session = await startAssignedWorkoutSession(selectedDay.name);
-      const startedAt = Date.now();
+      const startedAt = parseSessionTimestamp(session.started_at);
+      if (startedAt === null) throw new Error('La sesión no devolvió una fecha de inicio válida.');
       window.localStorage.setItem(`workout-started-at:${session.id}`, String(startedAt));
       navigate(ROUTES.studentRoutineSession + '?day=' + encodeURIComponent(selectedDay.id) + '&session=' + encodeURIComponent(session.id) + '&startedAt=' + encodeURIComponent(String(startedAt)));
     } catch {
@@ -477,6 +523,8 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
           reps: created.reps_completed,
           previousWeightKg: created.pr_previous_weight_kg ?? null,
           isInitial: Boolean(created.is_initial_pr),
+          sessionId: created.session_id,
+          dayName: created.day_name,
         };
         setPrCelebration(alertData);
         setPrAlertBanner(alertData);
@@ -604,7 +652,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                 <h2>{selectedDay?.name ?? 'Rutina'}</h2>
                 <p>Iniciá una serie, finalizala y registrá las repeticiones y la carga.</p>
                 {autoFinishPending && !activeRest && <p className="student-routine-session-heading__undo-hint" role="status">Completaste las series. El entrenamiento se cerrará automáticamente en unos segundos; desmarcá una serie si fue un error.</p>}
-                <span className="student-routine-session-heading__elapsed" role="timer" aria-label="Tiempo transcurrido del entrenamiento">Tiempo de entrenamiento: {formatClock(sessionStartedAtMs ? Math.max(0, Math.floor((clockNow - sessionStartedAtMs) / 1000)) : 0)}</span>
+                <span className="student-routine-session-heading__elapsed" role="timer" aria-label="Tiempo transcurrido del entrenamiento">Tiempo de entrenamiento: {formatClock(elapsedSessionSeconds(clockNow, sessionStartedAtMs))}</span>
               </div>
             </div>}
             {sessionMode && unseenFeedback.length > 0 && <section className="effort-feedback-notice" aria-labelledby="effort-feedback-notice-title">
@@ -708,7 +756,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
               );
             })()}
 
-            {prAlertBanner && (
+            {showPrAlertBanner && prAlertBanner && (
               <aside className="student-routine-pr-banner" role="status" aria-live="polite">
                 <div className="student-routine-pr-banner__content">
                   <span className="student-routine-pr-banner__icon" aria-hidden="true">🏆</span>
@@ -1145,7 +1193,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
 
           </>
         )}
-        {prCelebration && (
+        {showPrCelebration && prCelebration && (
           <div className="workout-celebration workout-pr-modal" role="dialog" aria-modal="true" aria-labelledby="pr-celebration-title">
             <div className="workout-confetti" aria-hidden="true">
               {Array.from({ length: 28 }, (_, index) => (
