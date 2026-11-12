@@ -316,6 +316,17 @@
   cursor: pointer;
 }
 .routine-assignment__attention--report { border-color: #e8c98a; background: #fff8e8; color: #825709; }
+.routine-assignment .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.routine-assignment__attention--risk { border-color: #f0b4ac; background: #fff1ef; color: #9f2a1f; cursor: default; }
 .routine-assignment__attention--feedback { border-color: #b6d6ee; background: #eef7fc; color: #175c83; }
 .routine-assignment__attention:hover { filter: brightness(0.97); }
 .routine-assignment__attention:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }

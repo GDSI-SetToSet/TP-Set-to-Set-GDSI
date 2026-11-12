@@ -101,3 +101,15 @@ class DailyRoutineItem(BaseModel):
     status: str  # NOT_STARTED, TRAINING, FINISHED
     session: DailyRoutineSession | None = None
     exercises: list[DailyRoutineExercise] = []
+
+
+class AbandonmentRiskItem(BaseModel):
+    relationship_id: str
+    student_id: str
+    student_name: str
+    at_risk: bool
+    reason: str | None = None  # MISSED_TRAININGS, INACTIVE_TWO_WEEKS
+    weekly_trainings: int
+    days_without_report: int
+    missed_trainings: int
+    last_report_at: datetime | None = None

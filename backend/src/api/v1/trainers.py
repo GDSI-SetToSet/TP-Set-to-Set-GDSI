@@ -18,10 +18,12 @@ from backend.src.schemas.trainer import (
     TrainingPlanUpdate,
 )
 from backend.src.schemas.trainer_student import (
+    AbandonmentRiskItem,
     DailyRoutineItem,
     TrainerStudentDetail,
     TrainerStudentListItem,
 )
+from backend.src.services.abandonment_risk_service import list_abandonment_risk
 from backend.src.services.daily_routine_tracking_service import list_daily_routines
 from backend.src.services.trainer_service import (
     TrainerProfileError,
@@ -87,6 +89,15 @@ def own_students_daily_routines(
     """US-22: estado y registro de la rutina del día de cada alumno activo."""
     try:
         return list_daily_routines(db, user, day or date.today(), utc_offset_minutes)
+    except TrainerStudentError as error:
+        handle_student_error(error)
+
+
+@router.get("/me/abandonment-risk", response_model=list[AbandonmentRiskItem])
+def own_students_abandonment_risk(user: CurrentUser, db: DbDep) -> list[AbandonmentRiskItem]:
+    """US-32: alumnos activos con su riesgo de abandono (en riesgo primero)."""
+    try:
+        return list_abandonment_risk(db, user)
     except TrainerStudentError as error:
         handle_student_error(error)
 

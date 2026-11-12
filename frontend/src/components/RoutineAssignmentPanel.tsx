@@ -5,6 +5,9 @@ import { ROUTES } from '../constants/routes';
 import { filterStudentsByName } from '../utils/studentSearch.mjs';
 import { ALL_PLANS, buildPlanFilterOptions, canFilterByPlan, filterStudentsByPlan } from '../utils/studentPlanFilter.mjs';
 import { getOwnTrainingPlans } from '../services/trainerService';
+import { abandonmentRiskDescription, sortByAbandonmentRisk } from '../utils/abandonmentRisk.mjs';
+import { getAbandonmentRisk } from '../services/trainerStudentService';
+import type { AbandonmentRiskItem } from '../types/trainerStudent';
 import { EffortFeedbackForm } from './EffortFeedbackForm';
 import { assignRoutineToStudent, getRoutineAssignments, getTrainerStudentWorkoutLogs, getTrainerStudentWorkoutSessions } from '../services/routineTemplateService';
 import { getAllTrainerStudentBodyMapReports, getTrainerStudentZoneHistory } from '../services/bodyMapReportService';
@@ -64,6 +67,7 @@ export function RoutineAssignmentPanel({
   const [studentSearch, setStudentSearch] = useState('');
   const [trainerPlans, setTrainerPlans] = useState<TrainingPlan[]>([]);
   const [planFilter, setPlanFilter] = useState<string>(ALL_PLANS);
+  const [abandonmentRisks, setAbandonmentRisks] = useState<AbandonmentRiskItem[]>([]);
   const [selectedRoutines, setSelectedRoutines] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [attentionLoaded, setAttentionLoaded] = useState(false);
@@ -97,6 +101,8 @@ export function RoutineAssignmentPanel({
       .finally(() => setLoading(false));
     // Si falla, el filtro por paquete se arma solo con los paquetes de los alumnos activos.
     getOwnTrainingPlans().then(setTrainerPlans).catch(() => setTrainerPlans([]));
+    // US-32: si falla, la lista se muestra sin priorizar riesgos.
+    getAbandonmentRisk().then(setAbandonmentRisks).catch(() => setAbandonmentRisks([]));
   }, []);
 
   useEffect(() => {
@@ -346,7 +352,11 @@ export function RoutineAssignmentPanel({
   const showPlanFilter = canFilterByPlan(planOptions);
   const activePlanFilter = showPlanFilter && planOptions.some((option) => option.plan_id === planFilter) ? planFilter : ALL_PLANS;
   const selectedPlanOption = planOptions.find((option) => option.plan_id === activePlanFilter);
-  const visibleStudents = filterStudentsByName(filterStudentsByPlan(students, activePlanFilter), studentSearch);
+  const riskByRelationship = new Map(abandonmentRisks.map((risk) => [risk.relationship_id, risk]));
+  const visibleStudents = sortByAbandonmentRisk(
+    filterStudentsByName(filterStudentsByPlan(students, activePlanFilter), studentSearch),
+    abandonmentRisks,
+  );
 
   function visibleSessionsFor(relationshipId: string): WorkoutSession[] {
     const sessions = sessionsByRelationship[relationshipId] ?? [];
@@ -438,6 +448,16 @@ export function RoutineAssignmentPanel({
                 >
                   {student.student_name}
                 </button>
+                {riskByRelationship.get(student.relationship_id)?.at_risk && (
+                  <span
+                    className="routine-assignment__attention routine-assignment__attention--risk"
+                    title={abandonmentRiskDescription(riskByRelationship.get(student.relationship_id))}
+                  >
+                    <CircleAlert size={14} aria-hidden="true" />
+                    Riesgo de abandono
+                    <span className="sr-only">: {abandonmentRiskDescription(riskByRelationship.get(student.relationship_id))}</span>
+                  </span>
+                )}
                 {attentionLoaded && reportsWithDiscomfort(student.student_id).length > 0 && (
                   <button
                     type="button"
