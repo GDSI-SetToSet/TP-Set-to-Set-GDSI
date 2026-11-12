@@ -349,6 +349,10 @@ components:
         exercise_name:
           type: string
           nullable: true
+        exercise_muscle_group:
+          type: string
+          nullable: true
+          description: Grupo muscular del ejercicio asociado (US-28).
         context:
           type: string
           enum: [POST_SESSION, IN_EXERCISE]

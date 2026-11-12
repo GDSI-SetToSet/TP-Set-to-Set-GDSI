@@ -19,6 +19,12 @@
 - Q: ¿Qué significa “métricas” para US-18 sin absorber US-24 o US-30? → A: Un resumen de actividad reciente (sesiones finalizadas, última sesión, series registradas, último RPE y tonelaje de la última sesión); no incluye gráficos, filtros ni comparación histórica avanzada.
 - Q: ¿Cómo se deben ordenar y destacar las alertas en esta entrega? → A: El ordenamiento por alertas de seguridad queda fuera de este incremento y se implementará junto con US-29; US-18 conserva el punto de integración visual sin inventar estados de revisión.
 
+### Sesión 2026-11-12 — US-28
+
+- Q: ¿Qué reportes se analizan? → A: Las zonas reportadas con molestia o dolor en el mapa corporal (US-61), tanto durante el ejercicio como post-sesión; las zonas "Normal" se descartan.
+- Q: ¿Qué significa "grupo muscular" en el gráfico? → A: El grupo muscular objetivo del ejercicio asociado al reporte. Como el mapa corporal registra zonas, el gráfico también permite agrupar por zona corporal, ejercicio y día de rutina; los reportes post-sesión sin ejercicio se agrupan aparte.
+- Q: ¿Dónde se muestra? → A: En el detalle del alumno (US-18), con un gráfico de barras apiladas dolor/molestia y el listado de reportes del más reciente al más antiguo. El backend solo agrega `exercise_muscle_group` al historial por zona existente.
+
 ### Límite de alcance de este incremento
 
 Los artefactos de implementación de esta iteración cubren únicamente los escenarios de aceptación 1–3 de US-18. El escenario 4, de priorización de alertas, permanece en la especificación de la feature como dependencia de US-29 y explícitamente no se implementa en este incremento. La búsqueda, el filtrado por paquete, la mensajería, las comparaciones avanzadas, los gráficos, los ajustes de sesiones, el ciclo de vida de las alertas de seguridad y el cálculo del riesgo de abandono siguen perteneciendo a sus respectivas historias de usuario.
@@ -282,7 +288,7 @@ Como entrenador personal,
 
 - **FR-007**: El sistema DEBE permitir ajustar las variables de la próxima sesión en base a los reportes del alumno (US-26).
 
-- **FR-008**: El sistema DEBE permitir analizar la evolución de cargas y RPE reportados por el alumno (US-28, US-30).
+- **FR-008**: El sistema DEBE permitir analizar los reportes de molestia y dolor del alumno por ejercicio, rutina y grupo muscular (US-28), y la evolución de cargas y RPE (US-30).
 
 - **FR-009**: El sistema DEBE disparar alertas automáticas de seguridad ante reportes de dolor, molestias repetidas o esfuerzo excesivo (US-29).
 

@@ -6,7 +6,7 @@ description: "Lista de tareas de US-18 y US-19 para alumnos activos"
 
 **Entrada**: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/trainer-student-detail-api.yaml`, `quickstart.md`
 
-**Alcance**: US-18 y US-19. No implementado US-20, US-21, US-22, US-24, US-26, US-28, US-29, US-30 ni US-32.
+**Alcance**: US-18, US-19 y US-28. No implementado US-20, US-21, US-22, US-24, US-26, US-29, US-30 ni US-32.
 
 ## Phase 1: Línea base del flujo existente
 
@@ -39,6 +39,14 @@ description: "Lista de tareas de US-18 y US-19 para alumnos activos"
 - [X] T015 [US19] Mostrar todos los alumnos activos con el campo vacío y `No se encontraron alumnos` cuando no haya coincidencias, preservando las acciones existentes en `frontend/src/components/RoutineAssignmentPanel.tsx`.
 - [X] T016 [P] [US19] Agregar pruebas de búsqueda por nombre, apellido, nombre completo, ausencia de coincidencias, campo vacío, mayúsculas/minúsculas, exclusión de no activos y preservación de datos de acciones en `frontend/src/utils/studentSearch.test.mjs`.
 - [X] T017 [US19] Ejecutar las pruebas enfocadas de US-19 y `npm run build` en `frontend/`.
+
+## Phase 8: US-28 — Analizar reportes de molestia y dolor
+
+- [X] T031 [US28] Agregar `exercise_muscle_group` a `BodyMapZoneHistoryItem` y a las consultas de historial por zona (alumno y entrenador) en `backend/src/schemas/body_map_report.py` y `backend/src/services/body_map_report_service.py`, y documentarlo en `taskify/specs/008-workout-feedback-and-communication/contracts/body-map-pain-reports-api.yaml`.
+- [X] T032 [P] [US28] Agregar pruebas del historial con ejercicio, día de rutina y grupo muscular en `backend/tests/test_us28_pain_report_analysis_api.py`.
+- [X] T033 [US28] Implementar `aggregatePain` y `groupByReport` en `frontend/src/utils/painReportAnalysis.mjs` con pruebas en `frontend/src/utils/painReportAnalysis.test.mjs`.
+- [X] T034 [US28] Crear `frontend/src/components/PainReportAnalysis.tsx` (gráfico por zona, grupo muscular, ejercicio o día y listado de reportes) e integrarlo en `frontend/src/components/TrainerStudentDetail.tsx`.
+- [X] T035 [US28] Ejecutar la suite completa del backend con cobertura, `ruff`, `npm test` y `npm run build`.
 
 ## Dependencias
 

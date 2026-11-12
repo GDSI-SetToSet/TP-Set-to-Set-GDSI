@@ -488,7 +488,13 @@ def list_student_zone_history(
     profile = get_student_profile(db, user)
 
     query = (
-        select(BodyMapPainReportZone, BodyMapPainReport, Exercise.name, WorkoutSession.day_name)
+        select(
+            BodyMapPainReportZone,
+            BodyMapPainReport,
+            Exercise.name,
+            WorkoutSession.day_name,
+            Exercise.target_muscle_group,
+        )
         .join(BodyMapPainReport, BodyMapPainReportZone.report_id == BodyMapPainReport.id)
         .outerjoin(Exercise, BodyMapPainReport.exercise_id == Exercise.id)
         .outerjoin(WorkoutSession, BodyMapPainReport.session_id == WorkoutSession.id)
@@ -514,10 +520,11 @@ def list_student_zone_history(
             session_day_name=session_day_name,
             exercise_id=report.exercise_id,
             exercise_name=exercise_name,
+            exercise_muscle_group=muscle_group,
             context=report.context,
             action_taken=report.action_taken,
         )
-        for zone_record, report, exercise_name, session_day_name in rows
+        for zone_record, report, exercise_name, session_day_name, muscle_group in rows
     ]
 
 
@@ -590,7 +597,13 @@ def list_trainer_student_zone_history(
         )
 
     query = (
-        select(BodyMapPainReportZone, BodyMapPainReport, Exercise.name, WorkoutSession.day_name)
+        select(
+            BodyMapPainReportZone,
+            BodyMapPainReport,
+            Exercise.name,
+            WorkoutSession.day_name,
+            Exercise.target_muscle_group,
+        )
         .join(BodyMapPainReport, BodyMapPainReportZone.report_id == BodyMapPainReport.id)
         .outerjoin(Exercise, BodyMapPainReport.exercise_id == Exercise.id)
         .outerjoin(WorkoutSession, BodyMapPainReport.session_id == WorkoutSession.id)
@@ -616,8 +629,9 @@ def list_trainer_student_zone_history(
             session_day_name=session_day_name,
             exercise_id=report.exercise_id,
             exercise_name=exercise_name,
+            exercise_muscle_group=muscle_group,
             context=report.context,
             action_taken=report.action_taken,
         )
-        for zone_record, report, exercise_name, session_day_name in rows
+        for zone_record, report, exercise_name, session_day_name, muscle_group in rows
     ]
