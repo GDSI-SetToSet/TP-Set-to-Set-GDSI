@@ -1,5 +1,5 @@
 import { api } from './api';
-import type { TrainerStudentDetail, TrainerStudentListItem } from '../types/trainerStudent';
+import type { DailyRoutineItem, TrainerStudentDetail, TrainerStudentListItem } from '../types/trainerStudent';
 
 const STUDENTS_PATH = '/api/v1/trainers/me/students';
 
@@ -10,5 +10,13 @@ export async function getTrainerStudents(): Promise<TrainerStudentListItem[]> {
 
 export async function getTrainerStudentDetail(studentId: string): Promise<TrainerStudentDetail> {
   const { data } = await api.get<TrainerStudentDetail>(`${STUDENTS_PATH}/${studentId}`);
+  return data;
+}
+
+/** US-22: rutinas del día de los alumnos activos, en el día local del entrenador. */
+export async function getTrainerDailyRoutines(date: string): Promise<DailyRoutineItem[]> {
+  const { data } = await api.get<DailyRoutineItem[]>('/api/v1/trainers/me/daily-routines', {
+    params: { date, utc_offset_minutes: -new Date(`${date}T12:00:00`).getTimezoneOffset() },
+  });
   return data;
 }

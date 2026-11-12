@@ -1,0 +1,141 @@
+.daily-routines__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin: 18px 0 16px;
+}
+.daily-routines__toolbar label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--pf-label);
+  font-size: .85rem;
+  font-weight: 600;
+}
+.daily-routines__toolbar input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--pf-input-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--pf-input-text);
+  font: inherit;
+  font-size: 16px;
+}
+.daily-routines__toolbar input:focus {
+  outline: 0;
+  border-color: var(--pf-accent);
+  box-shadow: 0 0 0 3px var(--pf-focus);
+}
+.daily-routines__refresh {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--pf-input-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--pf-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.daily-routines__refresh:disabled { opacity: .6; cursor: default; }
+
+.daily-routines__summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+}
+.daily-routines__summary li {
+  padding: 12px;
+  border: 1px solid var(--pf-border);
+  border-radius: 12px;
+  color: var(--pf-muted);
+  font-size: .85rem;
+}
+.daily-routines__summary strong {
+  display: block;
+  color: var(--pf-ink);
+  font-size: 1.4rem;
+}
+.daily-routines__summary .is-training { background: #fff6e0; }
+.daily-routines__summary .is-finished { background: var(--pf-ok-bg); }
+.daily-routines__summary .is-not-started { background: #f1f4f8; }
+
+.daily-routines__list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.daily-routines__row {
+  border: 1px solid var(--pf-border);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+.daily-routines__row-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 60px;
+  padding: 12px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.daily-routines__row-header:focus-visible { outline: 3px solid var(--pf-focus); outline-offset: -3px; }
+.daily-routines__student { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.daily-routines__student strong { color: var(--pf-ink); }
+.daily-routines__student small,
+.daily-routines__meta small { color: var(--pf-muted); }
+.daily-routines__meta { display: flex; flex-shrink: 0; gap: 10px; align-items: center; }
+.daily-routines__meta svg { color: var(--pf-muted); transition: transform .18s ease; }
+.daily-routines__meta svg.is-open { transform: rotate(180deg); }
+.daily-routines__status {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: .8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.daily-routines__status--training { background: #ffe9b8; color: #7a4b00; }
+.daily-routines__status--finished { background: var(--pf-ok-bg); color: var(--pf-ok-text); }
+.daily-routines__status--not_started { background: #e8edf3; color: #45546a; }
+
+.daily-routines__row-body { padding: 0 16px 16px; border-top: 1px solid var(--pf-border); }
+.daily-routines__muted { margin: 14px 0 0; color: var(--pf-muted); }
+.daily-routines__session {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+.daily-routines__session div { padding: 10px; border-radius: 10px; background: var(--pf-bg); }
+.daily-routines__session dt { color: var(--pf-muted); font-size: .75rem; }
+.daily-routines__session dd { margin: 2px 0 0; color: var(--pf-ink); font-weight: 700; }
+.daily-routines__exercise h3 { margin: 16px 0 8px; color: var(--pf-ink); font-size: 1rem; }
+.daily-routines__table-wrap { overflow-x: auto; }
+.daily-routines__exercise table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.daily-routines__exercise th,
+.daily-routines__exercise td { padding: 8px 10px; border-bottom: 1px solid var(--pf-border); text-align: left; white-space: nowrap; }
+.daily-routines__exercise th { color: var(--pf-muted); font-size: .75rem; font-weight: 600; text-transform: uppercase; }
+
+@media (max-width: 560px) {
+  .daily-routines__row-header { align-items: flex-start; }
+  .daily-routines__meta small { display: none; }
+  .daily-routines__summary { gap: 6px; }
+  .daily-routines__summary li { padding: 10px 8px; }
+}

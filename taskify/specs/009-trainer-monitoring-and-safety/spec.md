@@ -25,6 +25,12 @@
 - Q: ¿Cómo se muestran los cupos ocupados por plan? → A: Cada opción del filtro indica la cantidad de alumnos activos que contrataron ese paquete; un paquete sin alumnos aparece con cero cupos ocupados y un mensaje de estado vacío propio.
 - Q: ¿Dónde se filtra? → A: Localmente en el cliente, sobre los alumnos activos ya cargados y combinado con la búsqueda por nombre de US-19. El backend solo expone `plan_id` y `plan_title` en `GET /api/v1/routine-templates/assignments`.
 
+### Sesión 2026-11-12 — US-22
+
+- Q: ¿Qué es "rutina del día" si los días de la rutina no están atados al calendario? → A: La sesión de entrenamiento que el alumno inició en el día calendario local del entrenador (se envía `date` y `utc_offset_minutes`). Sin sesión ese día, el estado es "No comenzada".
+- Q: ¿Qué sesión se muestra si hubo más de una en el día? → A: La sesión en curso, si existe; si no, la última finalizada.
+- Q: ¿Qué detalle se muestra? → A: Día de rutina, hora de inicio y fin, duración, RPE y, por ejercicio, cada serie con repeticiones, carga, tiempo de la serie y hora de registro. Los alumnos que están entrenando aparecen primero.
+
 ### Límite de alcance de este incremento
 
 Los artefactos de implementación de esta iteración cubren únicamente los escenarios de aceptación 1–3 de US-18. El escenario 4, de priorización de alertas, permanece en la especificación de la feature como dependencia de US-29 y explícitamente no se implementa en este incremento. La búsqueda, el filtrado por paquete, la mensajería, las comparaciones avanzadas, los gráficos, los ajustes de sesiones, el ciclo de vida de las alertas de seguridad y el cálculo del riesgo de abandono siguen perteneciendo a sus respectivas historias de usuario.
@@ -282,7 +288,7 @@ Como entrenador personal,
 
 - **FR-004**: El sistema DEBE proveer un canal de comunicación directo entre entrenador y alumno (US-21), integrando las consultas técnicas sobre ejercicios provenientes de US-62 con tarjetas referenciales al ejercicio consultado (Decisión Alternativa B).
 
-- **FR-005**: El sistema DEBE permitir al entrenador visualizar la rutina activa y el avance de cada alumno (US-22).
+- **FR-005**: El sistema DEBE permitir al entrenador visualizar la rutina del día de cada alumno activo con su estado (No comenzada, Entrenando, Finalizada) y los tiempos y cargas de cada serie registrada (US-22).
 
 - **FR-006**: El sistema DEBE contrastar métricas planificadas vs obtenidas por rutina (cargas, repeticiones, series) (US-24).
 

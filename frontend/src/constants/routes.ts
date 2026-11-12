@@ -16,6 +16,7 @@ export const ROUTES = {
   trainerRoutines: '/entrenador/rutinas',
   trainerGenerateAIRoutine: '/entrenador/rutinas/generar-ia',
   trainerStudents: '/entrenador/alumnos',
+  trainerDailyRoutines: '/entrenador/rutinas-del-dia',
   trainerStudentRoutine: '/entrenador/alumnos/:studentId/rutina',
   trainerRequests: '/entrenador/solicitudes',
   trainerRequestDetail: '/entrenador/solicitudes/:requestId',
