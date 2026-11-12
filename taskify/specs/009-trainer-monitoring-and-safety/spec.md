@@ -1,28 +1,41 @@
-# Feature Specification: Panel de Monitoreo del Entrenador, Métricas y Alertas de Seguridad
+# Especificación de la feature: Panel de Monitoreo del Entrenador, Métricas y Alertas de Seguridad
 
-**Feature Branch**: `009-trainer-monitoring-and-safety`
+**Rama de la feature**: `009-trainer-monitoring-and-safety`
 
-**Created**: 2026-10-15
+**Creada**: 2026-10-15
 
-**Status**: Draft
+**Estado**: Borrador
 
-**Input**: User Story Map y Backlog MVP: Centro de control del entrenador para supervisar alumnos activos, buscar y filtrar por paquete, comunicarse por canal directo, comparar ejecución planificada vs realizada, analizar cargas y RPE, ajustar próximas sesiones y recibir alertas tempranas de dolor y de riesgo de abandono.
+**Entrada**: Mapa de historias de usuario y Backlog MVP: Centro de control del entrenador para supervisar alumnos activos, buscar y filtrar por paquete, comunicarse por canal directo, comparar ejecución planificada vs realizada, analizar cargas y RPE, ajustar próximas sesiones y recibir alertas tempranas de dolor y de riesgo de abandono.
 
-**User Stories Cubiertas**: US-18, US-19, US-20, US-21, US-22, US-24, US-26, US-28, US-29, US-30, US-32
+**Historias de usuario cubiertas**: US-18, US-19, US-20, US-21, US-22, US-24, US-26, US-28, US-29, US-30, US-32
 
-## User Scenarios & Testing *(mandatory)*
+## Clarificaciones
 
-### User Story 1 - [US-18: visualización de alumnos activos] (Priority: P1, Estimación: 3 SP)
+### Sesión 2026-11-11 — US-18
+
+- Q: ¿Qué alcance se implementa en este incremento de la feature 009? → A: Exclusivamente US-18; US-19, US-20, US-21, US-22, US-24, US-26, US-28, US-29, US-30 y US-32 permanecen fuera de alcance.
+- Q: ¿Qué debe incluir el detalle de un alumno activo sin duplicar módulos existentes? → A: Perfil básico, paquete y tarifa acordada, objetivos, zonas protegidas, rutina vigente y un resumen de métricas ya disponibles; se reutilizan los servicios existentes de rutinas, sesiones, logs, feedback y reportes.
+- Q: ¿Qué significa “métricas” para US-18 sin absorber US-24 o US-30? → A: Un resumen de actividad reciente (sesiones finalizadas, última sesión, series registradas, último RPE y tonelaje de la última sesión); no incluye gráficos, filtros ni comparación histórica avanzada.
+- Q: ¿Cómo se deben ordenar y destacar las alertas en esta entrega? → A: El ordenamiento por alertas de seguridad queda fuera de este incremento y se implementará junto con US-29; US-18 conserva el punto de integración visual sin inventar estados de revisión.
+
+### Límite de alcance de este incremento
+
+Los artefactos de implementación de esta iteración cubren únicamente los escenarios de aceptación 1–3 de US-18. El escenario 4, de priorización de alertas, permanece en la especificación de la feature como dependencia de US-29 y explícitamente no se implementa en este incremento. La búsqueda, el filtrado por paquete, la mensajería, las comparaciones avanzadas, los gráficos, los ajustes de sesiones, el ciclo de vida de las alertas de seguridad y el cálculo del riesgo de abandono siguen perteneciendo a sus respectivas historias de usuario.
+
+## Escenarios de usuario y pruebas *(obligatorio)*
+
+### Historia de usuario 1 - [US-18: visualización de alumnos activos] (Prioridad: P1, Estimación: 3 SP)
 
 Como entrenador personal,
  quiero visualizar el listado de alumnos activos que tengo,
  para poder llevar un monitoreo general y particular de cada uno de mis alumnos.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador, cuando ingresa a la sección "Alumnos", entonces debe visualizar todos sus alumnos activos.
 
@@ -30,22 +43,22 @@ Como entrenador personal,
 
 3. Dado un entrenador con alumnos activos, cuando selecciona un alumno en particular, entonces se muestra el perfil del alumno, paquete contratado, objetivos, limitaciones, rutinas cargadas y métricas del alumno.
 
-4. Dado un entrenador con alumnos con alertas de seguridad sin revisar (US-29), cuando ingresa a "Alumnos", entonces esos alumnos aparecen primero y destacados.
+4. Dado un entrenador con alumnos con alertas de seguridad sin revisar (US-29), cuando ingresa a "Alumnos", entonces esos alumnos aparecen primero y destacados. **Nota sobre la dependencia**: este escenario queda reservado para el incremento de US-29 y no forma parte del alcance actual de implementación de US-18.
 
 
 ---
 
-### User Story 2 - [US-19: buscar por alumno] (Priority: P1, Estimación: 2 SP)
+### Historia de usuario 2 - [US-19: buscar por alumno] (Prioridad: P1, Estimación: 2 SP)
 
 Como entrenador personal,
  quiero poder buscar alumnos dentro de mi listado de alumnos activos,
  para encontrar y consultar el perfil de un alumno en particular.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador con alumnos activos, cuando el entrenador busca por nombre y apellido un alumno existente, entonces el sistema devuelve el alumno buscado.
 
@@ -54,17 +67,17 @@ Como entrenador personal,
 
 ---
 
-### User Story 3 - [US-20: filtrar alumnos por paquete contratado] (Priority: P2, Estimación: 2 SP)
+### Historia de usuario 3 - [US-20: filtrar alumnos por paquete contratado] (Prioridad: P2, Estimación: 2 SP)
 
 Como entrenador personal,
  quiero filtrar a mis alumnos por paquete contratado,
  para poder ver los cupos ocupados en cada uno de mis planes.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador con un solo paquete de entrenamiento cargado, cuando entra a la sección de "Alumnos", entonces no puede filtrar por paquete ya que solamente hay un único paquete
 
@@ -75,17 +88,17 @@ Como entrenador personal,
 
 ---
 
-### User Story 4 - [US-21: Canal de mensajes entrenador–alumno] (Priority: P1, Estimación: 4 SP)
+### Historia de usuario 4 - [US-21: Canal de mensajes entrenador–alumno] (Prioridad: P1, Estimación: 4 SP)
 
 Como entrenador personal o alumno,
  quiero intercambiar mensajes con mi alumno o mi entrenador dentro de la aplicación,
  para coordinar cambios y resolver dudas generales sin usar WhatsApp.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador y su alumno activo, cuando uno ingresa al perfil del otro, entonces puede abrir la conversación entre ambos.
 
@@ -98,17 +111,17 @@ Como entrenador personal o alumno,
 
 ---
 
-### User Story 5 - [US-22: seguimiento de rutinas de alumnos] (Priority: P1, Estimación: 4 SP)
+### Historia de usuario 5 - [US-22: seguimiento de rutinas de alumnos] (Prioridad: P1, Estimación: 4 SP)
 
 Como entrenador personal,
  quiero realizar un seguimiento de las rutinas del día del alumno,
  para conocer el estado del entrenamiento de mi alumno.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador con alumnos activos, cuando entra a la sección de "Rutinas del día", entonces debe poder ver todas las rutinas de sus alumnos para ese día.
 
@@ -119,34 +132,34 @@ Como entrenador personal,
 
 ---
 
-### User Story 6 - [US-24: ver métricas esperadas vs obtenidas por rutina] (Priority: P2, Estimación: 3 SP)
+### Historia de usuario 6 - [US-24: ver métricas esperadas vs obtenidas por rutina] (Prioridad: P2, Estimación: 3 SP)
 
 Como entrenador personal,
  quiero comparar las métricas esperadas del entrenamiento con las métricas obtenidas,
  para realizar un seguimiento de los entrenamientos de mis alumnos y adaptar las rutinas en base a lo obtenido.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador con alumnos activos, cuando entra a una rutina en estado "Finalizada", entonces puede ver las métricas de tiempos y cargas del alumno y compararlas con entrenamientos previos del alumno.
 
 
 ---
 
-### User Story 7 - [US-26: Ajustar la próxima sesión del alumno a partir de sus reportes] (Priority: P1, Estimación: 3 SP)
+### Historia de usuario 7 - [US-26: Ajustar la próxima sesión del alumno a partir de sus reportes] (Prioridad: P1, Estimación: 3 SP)
 
 Como entrenador personal,
  quiero ajustar la próxima sesión de un alumno a partir de lo que reportó en la anterior,
  para adaptar cargas o ejercicios según su rendimiento, sus molestias y sus pedidos.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador revisando una sesión "Finalizada" (cargas, RPE, molestias y pedidos de reemplazo), cuando decide ajustar, entonces puede modificar cargas, series o reemplazar ejercicios de la próxima sesión programada desde esa misma pantalla.
 
@@ -159,17 +172,17 @@ Como entrenador personal,
 
 ---
 
-### User Story 8 - [US-28: analizar cargas reportadas por alumnos] (Priority: P1, Estimación: 4 SP)
+### Historia de usuario 8 - [US-28: analizar cargas reportadas por alumnos] (Prioridad: P1, Estimación: 4 SP)
 
 Como entrenador personal,
  quiero poder analizar los reportes de carga de los alumnos después de cada entrenamiento,
  para poder llevar un mejor seguimiento de cada alumno y adaptar los entrenamientos para prevenir lesiones.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador con alumnos activos, cuando consulta un alumno en particular, entonces puede ver todos sus reportes de molestia y dolor asociados al ejercicio o rutina correspondiente.
 
@@ -178,17 +191,17 @@ Como entrenador personal,
 
 ---
 
-### User Story 9 - [US-29: Alertas de seguridad por dolor, molestia repetida o esfuerzo excesivo] (Priority: P1, Estimación: 3 SP)
+### Historia de usuario 9 - [US-29: Alertas de seguridad por dolor, molestia repetida o esfuerzo excesivo] (Prioridad: P1, Estimación: 3 SP)
 
 Como entrenador personal,
  quiero recibir alertas inmediatas cuando un alumno reporta dolor, molestias repetidas o un esfuerzo excesivo,
  para actuar antes de que se produzca una lesión o una recaída.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un alumno que reporta "dolor" en una zona (durante el ejercicio o al finalizar la sesión, US-61), cuando lo registra, entonces el entrenador recibe una notificación inmediata con el alumno, la zona, el ejercicio y la sesión.
 
@@ -203,17 +216,17 @@ Como entrenador personal,
 
 ---
 
-### User Story 10 - [US-30: ver métricas de evolución de entrenamientos] (Priority: P2, Estimación: 4 SP)
+### Historia de usuario 10 - [US-30: ver métricas de evolución de entrenamientos] (Prioridad: P2, Estimación: 4 SP)
 
 Como entrenador personal,
  quiero ver un gráfico de evolución de los entrenamientos de mis alumnos mostrando pesos levantados, repeticiones y series realizadas,
  para evaluar el avance y evolución de los entrenamientos de mis alumnos
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador con alumnos activos, cuando consulta un alumno en particular, entonces debe poder ver un gráfico de evolución de peso levantado, repeticiones y series realizadas.
 
@@ -222,17 +235,17 @@ Como entrenador personal,
 
 ---
 
-### User Story 11 - [US-32: ver alumnos con riesgo de abandono] (Priority: P1, Estimación: 3 SP)
+### Historia de usuario 11 - [US-32: ver alumnos con riesgo de abandono] (Prioridad: P1, Estimación: 3 SP)
 
 Como entrenador personal,
  quiero ver los alumnos con riesgo de abandono,
  para poder crear incentivos y evitar que abandonen
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador con alumnos activos, cuando un alumno no realizó el reporte del entrenamiento por 5 entrenamientos o 2 semanas (lo que ocurra primero), entonces el entrenador recibe una alerta de posible abandono
 
@@ -241,7 +254,7 @@ Como entrenador personal,
 
 ---
 
-### Edge Cases
+### Casos límite
 
 - ¿Qué ocurre si un alumno reporta dolor en la misma zona durante dos sesiones consecutivas? El sistema eleva la alerta a nivel crítico en el panel del entrenador y sugiere revisar ejercicios vinculados a esa articulación.
 
@@ -251,9 +264,9 @@ Como entrenador personal,
 
 
 
-## Requirements *(mandatory)*
+## Requisitos *(obligatorio)
 
-### Functional Requirements
+### Requisitos funcionales
 
 - **FR-001**: El sistema DEBE mostrar el listado de alumnos activos con su estado actual y paquete contratado (US-18).
 
@@ -277,7 +290,7 @@ Como entrenador personal,
 
 
 
-### Key Entities *(include if feature involves data)*
+### Entidades principales *(incluir si la feature involucra datos)
 
 - **TrainerDashboardOverview**: Vista consolidada de cartera de alumnos activos, clasificados por estado de actividad y paquete contratado.
 
@@ -291,9 +304,9 @@ Como entrenador personal,
 
 
 
-## Success Criteria *(mandatory)*
+## Criterios de éxito *(obligatorio)
 
-### Measurable Outcomes
+### Resultados medibles
 
 - **SC-001**: Las alertas de dolor agudo aparecen destacadas en el panel del entrenador de forma inmediata.
 
@@ -303,7 +316,7 @@ Como entrenador personal,
 
 
 
-## Assumptions
+## Supuestos
 
 - El entrenador consulta su panel periódicamente desde web o móvil para supervisar a su cartera de alumnos.
 
