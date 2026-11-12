@@ -83,3 +83,41 @@
     transition-duration: .01ms !important;
   }
 }
+
+/* Mobile / gym usability (cargado último: gana por orden de cascada). */
+a, button, input, select, textarea, label, summary { touch-action: manipulation; }
+html { -webkit-text-size-adjust: 100%; }
+
+/* La barra de URL del navegador móvil hace que 100vh quede más alto que la pantalla visible. */
+@supports (height: 100dvh) {
+  body, .loading-screen, .profile-shell, .home-shell { min-height: 100dvh; }
+  .session-summary, .session-rating-dialog, .body-map-modal-card { max-height: calc(100dvh - 32px); }
+}
+
+@media (max-width: 680px) {
+  @supports (height: 100dvh) { .auth-panel { min-height: 100dvh; } }
+  /* 16px evita el zoom automático de iOS al enfocar un campo. */
+  input, select, textarea,
+  .student-routine-exercise__logger input,
+  .ai-edit-exercise-row input, .ai-edit-exercise-row select { font-size: 16px !important; }
+
+  /* Objetivos táctiles >= 44px para uso con manos sudadas / guantes. */
+  .student-routine-exercise__logger input,
+  .ai-edit-exercise-row input, .ai-edit-exercise-row select { min-height: 44px; }
+  .student-routine-exercise__logger input { width: 100%; }
+  .student-routine-exercise__logger label { flex: 1 1 90px; font-size: 13px; }
+  .student-routine-exercise__quick-actions .exercise-alternatives > button.plan-cancel,
+  .student-routine-exercise__quick-actions .exercise-alternatives > div > button.plan-cancel,
+  .student-routine-exercise__quick-actions .exercise-alternatives > div > ul button.plan-cancel,
+  .student-routine-exercise__quick-actions .safe-variant .plan-cancel,
+  .student-daily-routine .safe-variant .plan-cancel,
+  .student-routine-exercise__quick-actions .student-routine-exercise__report-pain-btn,
+  .student-routine-exercise__video-toggle,
+  .body-map-intensity-picker__close,
+  .student-routine-history__tab-btn,
+  .session-rating-dialog__close,
+  .session-rating-dialog__option { min-height: 44px; }
+  .session-rating-dialog__close { min-width: 44px; height: 44px; }
+  .rest-timer__actions button { flex: 1 1 120px; }
+  .session-summary__metrics { gap: 6px; }
+}

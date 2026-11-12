@@ -1,5 +1,6 @@
 .medical-clearance-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   padding: 18px;
   background: #f9fbf9;
@@ -10,6 +11,8 @@
 
 .medical-clearance-header {
   display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -61,6 +64,7 @@
 
 .medical-clearance-upload-box {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   margin-top: 10px;
 }
@@ -74,6 +78,9 @@
 
 .medical-clearance-upload-box input[type="file"],
 .medical-clearance-upload-box input[type="date"] {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   min-height: 44px;
   padding: 8px 12px;
   border: 1px solid #cbd7cd;
@@ -117,3 +124,6 @@
   line-height: 1.4;
   margin: 0;
 }
+
+.medical-clearance-header > div { min-width: 0; }
+.medical-clearance-header strong { overflow-wrap: anywhere; }

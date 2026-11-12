@@ -506,6 +506,7 @@
 .inbox-list {
   margin-top: 28px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -830,6 +831,8 @@
 
 .active-plan-card__header {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.25rem;
@@ -878,6 +881,10 @@
   gap: 1rem;
 }
 
+.active-plan-card__trainer-info > div:not(.active-plan-card__trainer-avatar) {
+  min-width: 0;
+}
+
 .active-plan-card__trainer-avatar {
   width: 54px;
   height: 54px;
@@ -915,6 +922,8 @@
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .active-plan-card__plan-info {
@@ -926,6 +935,7 @@
 
 .active-plan-card__plan-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
@@ -988,6 +998,8 @@
 
 .active-plan-card__routine-available {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   justify-content: space-between;
   align-items: center;
   background: rgba(240, 253, 244, 0.8);

@@ -128,15 +128,15 @@
   background: color-mix(in srgb, var(--pf-bg), white 52%);
 }
 .profile-details > .profile-details__wide { grid-column: 1 / -1; }
-.profile-details dt { margin-bottom: 5px; color: var(--pf-muted); font-size: 11px; font-weight: 700; }
+.profile-details dt { margin-bottom: 5px; color: var(--pf-muted); font-size: 12px; font-weight: 700; }
 .profile-details dd { margin: 0; color: var(--pf-ink); font-size: 13px; font-weight: 600; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 .profile-goal-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .profile-goal-list li { padding: 6px 10px; border-radius: 999px; background: var(--pf-ok-bg); color: var(--pf-ok-text); font-size: 12px; font-weight: 700; }
 
-.profile-heading > span { color: var(--pf-accent); font: 700 11px 'Manrope'; letter-spacing: 1.4px; }
+.profile-heading > span { color: var(--pf-accent); font: 700 12px 'Manrope'; letter-spacing: 1.4px; }
 .profile-heading h1 { margin: 10px 0 8px; color: var(--pf-ink); font: 700 clamp(30px, 5vw, 44px) 'Manrope'; letter-spacing: -1.5px; }
 .profile-heading p { margin: 0; color: var(--pf-muted); }
-.profile-form { margin-top: 38px; display: grid; gap: 22px; }
+.profile-form { margin-top: 38px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; }
 .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .profile-form label { display: grid; gap: 8px; color: var(--pf-label); font-weight: 700; }
 .profile-form input,

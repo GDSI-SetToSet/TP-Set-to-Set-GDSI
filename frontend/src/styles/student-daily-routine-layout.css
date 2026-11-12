@@ -280,6 +280,7 @@
 .student-routine-exercise__logger input {
   min-height: 38px;
   width: 110px;
+  max-width: 100%;
   padding: 6px 10px;
   border: 1px solid var(--pf-border, #cbd5e1);
   border-radius: 8px;
@@ -614,8 +615,10 @@
   .student-routine-finish__button { width: 100%; }
   .student-routine-exercise__session-actions .student-routine-exercise__log-btn {
     width: auto;
+    min-width: 0;
     flex: 1 1 160px;
   }
+  .student-routine-exercise__session-actions { min-width: 0; }
 }
 
 /* Resumen e instancia activa tienen señales visuales distintas. */
@@ -953,7 +956,7 @@
   align-items: center;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -1012,7 +1015,7 @@
 }
 
 .workout-rpe-desc {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: #64748b;
   text-align: center;
