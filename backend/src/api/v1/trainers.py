@@ -16,6 +16,10 @@ from backend.src.schemas.trainer import (
     TrainingPlanResponse,
     TrainingPlanUpdate,
 )
+from backend.src.schemas.trainer_student import (
+    TrainerStudentDetail,
+    TrainerStudentListItem,
+)
 from backend.src.services.trainer_service import (
     TrainerProfileError,
     archive_plan,
@@ -28,6 +32,11 @@ from backend.src.services.trainer_service import (
     update_plan,
     update_profile,
     update_quota,
+)
+from backend.src.services.trainer_student_service import (
+    TrainerStudentError,
+    get_trainer_student_detail,
+    list_trainer_students,
 )
 
 router = APIRouter(prefix=f"{API_V1_PREFIX}/trainers", tags=["trainers"])
@@ -51,6 +60,28 @@ def handle_error(error: TrainerProfileError) -> None:
     if error.errors is not None:
         detail = {"detail": error.detail, "errors": error.errors}
     raise HTTPException(status_code=error.status_code, detail=detail) from error
+
+
+def handle_student_error(error: TrainerStudentError) -> None:
+    raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+
+
+@router.get("/me/students", response_model=list[TrainerStudentListItem])
+def own_active_students(user: CurrentUser, db: DbDep) -> list[TrainerStudentListItem]:
+    try:
+        return list_trainer_students(db, user)
+    except TrainerStudentError as error:
+        handle_student_error(error)
+
+
+@router.get("/me/students/{student_id}", response_model=TrainerStudentDetail)
+def own_active_student_detail(
+    student_id: str, user: CurrentUser, db: DbDep
+) -> TrainerStudentDetail:
+    try:
+        return get_trainer_student_detail(db, user, student_id)
+    except TrainerStudentError as error:
+        handle_student_error(error)
 
 
 @router.get("/me/profile", response_model=TrainerProfileResponse)

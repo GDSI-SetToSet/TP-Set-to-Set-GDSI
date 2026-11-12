@@ -42,6 +42,8 @@ interface RoutineAssignmentPanelProps {
   initialSessionId?: string;
   initialEventId?: string;
   initialEventType?: string;
+  onStudentSelect?: (studentId: string) => void;
+  selectedStudentId?: string | null;
 }
 
 export function RoutineAssignmentPanel({
@@ -51,6 +53,8 @@ export function RoutineAssignmentPanel({
   initialSessionId,
   initialEventId,
   initialEventType,
+  onStudentSelect,
+  selectedStudentId,
 }: RoutineAssignmentPanelProps) {
   const [students, setStudents] = useState<RoutineAssignmentStudent[]>([]);
   const [selectedRoutines, setSelectedRoutines] = useState<Record<string, string>>({});
@@ -357,7 +361,15 @@ export function RoutineAssignmentPanel({
           {students.map((student) => (
             <div className="routine-assignment__row" key={student.relationship_id}>
               <div className="routine-assignment__student">
-                <strong>{student.student_name}</strong>
+                <button
+                  type="button"
+                  className="routine-assignment__student-link"
+                  aria-expanded={selectedStudentId === student.student_id}
+                  aria-controls={`student-detail-${student.student_id}`}
+                  onClick={() => onStudentSelect?.(student.student_id)}
+                >
+                  {student.student_name}
+                </button>
                 {attentionLoaded && reportsWithDiscomfort(student.student_id).length > 0 && (
                   <button
                     type="button"
