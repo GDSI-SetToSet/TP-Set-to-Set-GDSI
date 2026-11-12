@@ -68,7 +68,7 @@ export function TrainerStudentsPage() {
         <div className="profile-heading">
           <span>ALUMNOS</span>
           <h1>Mis alumnos</h1>
-          <p>Consultá tus vínculos activos y asigná a cada alumno la rutina que va a ver en “Rutina del día”.</p>
+          <p>Consultá tus alumnos activos, sus rutinas y su progreso.</p>
         </div>
         {routineStatus === 'missing' && (
           <p className="form-alert" role="status">Este alumno todavía no tiene una rutina asignada para revisar.</p>

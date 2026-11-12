@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, CircleAlert, Pencil } from 'lucide-react';
+import { ChevronDown, CircleAlert, Pencil, Search, X } from 'lucide-react';
 import { ROUTES } from '../constants/routes';
+import { filterStudentsByName } from '../utils/studentSearch.mjs';
 import { EffortFeedbackForm } from './EffortFeedbackForm';
 import { assignRoutineToStudent, getRoutineAssignments, getTrainerStudentWorkoutLogs, getTrainerStudentWorkoutSessions } from '../services/routineTemplateService';
 import { getAllTrainerStudentBodyMapReports, getTrainerStudentZoneHistory } from '../services/bodyMapReportService';
@@ -57,6 +58,7 @@ export function RoutineAssignmentPanel({
   selectedStudentId,
 }: RoutineAssignmentPanelProps) {
   const [students, setStudents] = useState<RoutineAssignmentStudent[]>([]);
+  const [studentSearch, setStudentSearch] = useState('');
   const [selectedRoutines, setSelectedRoutines] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [attentionLoaded, setAttentionLoaded] = useState(false);
@@ -333,6 +335,8 @@ export function RoutineAssignmentPanel({
     );
   }
 
+  const visibleStudents = filterStudentsByName(students, studentSearch);
+
   function visibleSessionsFor(relationshipId: string): WorkoutSession[] {
     const sessions = sessionsByRelationship[relationshipId] ?? [];
     const recentSessions = sessions.slice(0, 5);
@@ -344,12 +348,6 @@ export function RoutineAssignmentPanel({
 
   return (
     <section className="routine-assignment">
-      <div className="profile-heading">
-        <span>ALUMNOS ACTIVOS</span>
-        <h2>Asignar rutinas</h2>
-        <p>Elegí qué rutina puede consultar cada alumno en “Rutina del día”.</p>
-      </div>
-
       {loading ? (
         <p role="status">Cargando alumnos…</p>
       ) : error && students.length === 0 ? (
@@ -357,8 +355,39 @@ export function RoutineAssignmentPanel({
       ) : students.length === 0 ? (
         <p className="plan-empty">No tenés alumnos con un vínculo activo.</p>
       ) : (
-        <div className="routine-assignment__list">
-          {students.map((student) => (
+        <>
+          <div className="routine-assignment__search">
+            <label className="routine-assignment__search-label" htmlFor="active-student-search">
+              Buscar alumno
+            </label>
+            <Search className="routine-assignment__search-icon" size={18} aria-hidden="true" />
+            <input
+              id="active-student-search"
+              type="search"
+              value={studentSearch}
+              onChange={(event) => setStudentSearch(event.target.value)}
+              placeholder="Buscar por nombre o apellido..."
+              aria-label="Buscar alumno por nombre y apellido"
+            />
+            {studentSearch && (
+              <button
+                type="button"
+                className="routine-assignment__search-clear"
+                aria-label="Limpiar búsqueda"
+                onClick={() => setStudentSearch('')}
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            )}
+          </div>
+          {visibleStudents.length === 0 ? (
+            <div className="routine-assignment__no-results">
+              <strong>No se encontraron alumnos</strong>
+              <span>Probá con otro nombre o apellido.</span>
+            </div>
+          ) : (
+            <div className="routine-assignment__list">
+              {visibleStudents.map((student) => (
             <div className="routine-assignment__row" key={student.relationship_id}>
               <div className="routine-assignment__student">
                 <button
@@ -569,8 +598,10 @@ export function RoutineAssignmentPanel({
                   ) : null}
               </div>}
             </div>
-          ))}
-        </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
       {error && students.length > 0 && <p className="form-alert" role="alert">{error}</p>}
       {attentionError && <p className="form-alert" role="alert">{attentionError}</p>}

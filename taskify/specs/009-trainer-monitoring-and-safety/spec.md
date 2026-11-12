@@ -270,7 +270,7 @@ Como entrenador personal,
 
 - **FR-001**: El sistema DEBE mostrar el listado de alumnos activos con su estado actual y paquete contratado (US-18).
 
-- **FR-002**: El sistema DEBE permitir buscar alumnos por nombre o email (US-19).
+- **FR-002**: El sistema DEBE permitir buscar alumnos activos por nombre y apellido (US-19), sin distinguir mayúsculas ni acentos y mostrando todos los alumnos cuando el campo esté vacío.
 
 - **FR-003**: El sistema DEBE permitir filtrar alumnos según el paquete contratado (US-20).
 

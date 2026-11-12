@@ -1,12 +1,13 @@
-# Plan de implementación: US-18 — Visualización de alumnos activos
+# Plan de implementación: Feature 009 — US-18 y US-19
 
 **Branch**: `feature/us18-active-students` | **Date**: 2026-11-11 | **Spec**: [spec.md](./spec.md)
 
-**Entrada**: únicamente US-18 de `taskify/specs/009-trainer-monitoring-and-safety/spec.md`.
+**Entrada**: US-18 y US-19 de `taskify/specs/009-trainer-monitoring-and-safety/spec.md`.
 
 ## Resumen
 
 Completar la experiencia existente de “Mis alumnos” del entrenador sin reconstruirla. Mantener el listado actual de vínculos activos, la asignación de rutinas, el progreso, las sesiones, los registros de esfuerzo, los reportes de dolor y las advertencias de zonas protegidas. Agregar un modelo de lectura del entrenador sobre el alumno y una vista de detalle que componga los datos existentes de perfil, paquete, rutina y actividad. US-19, US-20, US-21, US-22, US-24, US-26, US-28, US-29, US-30 y US-32 quedan explícitamente excluidas.
+Agregar sobre ese listado la búsqueda local de US-19 por nombre y apellido, sin distinguir mayúsculas ni acentos, sin modificar el backend ni las acciones existentes. US-20, US-21, US-22, US-24, US-26, US-28, US-29, US-30 y US-32 quedan explícitamente excluidas.
 
 ## Contexto técnico
 
@@ -26,7 +27,7 @@ Completar la experiencia existente de “Mis alumnos” del entrenador sin recon
 
 **Restricciones**: autorización del lado del servidor en cada solicitud de detalle; solo `TrainingRelationship.status == "ACTIVE"` concede acceso; errores RFC 7807; marcas de tiempo UTC; no duplicar reglas de negocio
 
-**Escala/Alcance**: alumnos activos de un entrenador; únicamente US-18; sin búsqueda, filtrado, mensajería, gráficos, ciclo de vida de alertas ni cálculo de abandono
+**Escala/Alcance**: alumnos activos de un entrenador; US-18 y búsqueda local de US-19; sin filtrado por paquete, mensajería, gráficos, ciclo de vida de alertas ni cálculo de abandono
 
 ## Verificación de la Constitución
 
@@ -69,6 +70,8 @@ backend/
 frontend/
 └── src/
     ├── components/TrainerStudentDetail.tsx
+    ├── components/RoutineAssignmentPanel.tsx
+    ├── utils/studentSearch.mjs
     ├── pages/TrainerStudentsPage.tsx
     ├── services/trainerStudentService.ts
     └── types/trainerStudent.ts
