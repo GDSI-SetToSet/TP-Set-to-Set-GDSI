@@ -6,7 +6,7 @@ description: "Lista de tareas de US-18 y US-19 para alumnos activos"
 
 **Entrada**: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/trainer-student-detail-api.yaml`, `quickstart.md`
 
-**Alcance**: US-18 y US-19. No implementado US-20, US-21, US-22, US-24, US-26, US-28, US-29, US-30 ni US-32.
+**Alcance**: US-18, US-19 y US-22. No implementado US-20, US-21, US-24, US-26, US-28, US-29, US-30 ni US-32.
 
 ## Phase 1: Línea base del flujo existente
 
@@ -39,6 +39,16 @@ description: "Lista de tareas de US-18 y US-19 para alumnos activos"
 - [X] T015 [US19] Mostrar todos los alumnos activos con el campo vacío y `No se encontraron alumnos` cuando no haya coincidencias, preservando las acciones existentes en `frontend/src/components/RoutineAssignmentPanel.tsx`.
 - [X] T016 [P] [US19] Agregar pruebas de búsqueda por nombre, apellido, nombre completo, ausencia de coincidencias, campo vacío, mayúsculas/minúsculas, exclusión de no activos y preservación de datos de acciones en `frontend/src/utils/studentSearch.test.mjs`.
 - [X] T017 [US19] Ejecutar las pruebas enfocadas de US-19 y `npm run build` en `frontend/`.
+
+## Phase 7: US-22 — Seguimiento de rutinas del día
+
+- [X] T024 [US22] Definir `DailyRoutineItem`, `DailyRoutineSession`, `DailyRoutineExercise` y `DailyRoutineSet` en `backend/src/schemas/trainer_student.py`.
+- [X] T025 [US22] Implementar `list_daily_routines` en `backend/src/services/daily_routine_tracking_service.py`: ventana del día local, prioridad de sesión en curso, agrupación de series por ejercicio y timestamps con zona UTC explícita.
+- [X] T026 [US22] Exponer `GET /api/v1/trainers/me/daily-routines?date=&utc_offset_minutes=` en `backend/src/api/v1/trainers.py`.
+- [X] T027 [P] [US22] Agregar pruebas de estados, detalle de series, día local, prioridad de sesión en curso, privacidad entre entrenadores y validación de parámetros en `backend/tests/test_us22_daily_routines_api.py`.
+- [X] T028 [US22] Crear `frontend/src/pages/TrainerDailyRoutinesPage.tsx` (ruta `/entrenador/rutinas-del-dia`, acceso desde el inicio del entrenador) con selector de día, resumen por estado y detalle expandible por alumno.
+- [X] T029 [P] [US22] Agregar utilidades y pruebas de formato/orden en `frontend/src/utils/dailyRoutineFormat.mjs` y `frontend/src/utils/dailyRoutineFormat.test.mjs`.
+- [X] T030 [US22] Ejecutar la suite completa del backend con cobertura, `ruff`, `npm test` y `npm run build`.
 
 ## Dependencias
 

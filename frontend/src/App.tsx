@@ -12,6 +12,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { RoutineTemplatesPage } from './pages/RoutineTemplatesPage';
 import { StudentRoutineEditPage } from './pages/StudentRoutineEditPage';
 import { TrainerStudentsPage } from './pages/TrainerStudentsPage';
+import { TrainerDailyRoutinesPage } from './pages/TrainerDailyRoutinesPage';
 import { TrainerProfileEditPage } from './pages/TrainerProfileEditPage';
 import { TrainerPlansManagementPage } from './pages/TrainerPlansManagementPage';
 import { TrainerRequestsInboxPage } from './pages/TrainerRequestsInboxPage';
@@ -57,6 +58,7 @@ export default function App() {
       <Route path={ROUTES.trainerRoutines} element={<ProtectedRoute role={USER_ROLES.trainer}><RoutineTemplatesPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerGenerateAIRoutine} element={<ProtectedRoute role={USER_ROLES.trainer}><GenerateAIRoutinePage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerStudents} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerStudentsPage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerDailyRoutines} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerDailyRoutinesPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerStudentRoutine} element={<ProtectedRoute role={USER_ROLES.trainer}><StudentRoutineEditPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerRequests} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerRequestsInboxPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerRequestDetail} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerRequestDetailPage /></ProtectedRoute>} />
