@@ -53,7 +53,7 @@
 }
 
 .visual-kicker,.eyebrow {
-  font: 700 10px 'Manrope',sans-serif;
+  font: 700 12px 'Manrope',sans-serif;
   letter-spacing: 1.6px;
   color: #9ecf76;
   display: flex;
@@ -113,7 +113,7 @@
 }
 
 .visual-stat small {
-  font-size: 11px;
+  font-size: 12px;
   color: #acc3b8;
   margin-top: 4px;
 }
@@ -128,7 +128,7 @@
   justify-content: space-between;
   gap: 10px;
   color: #9db4a8;
-  font: 600 9px 'Manrope',sans-serif;
+  font: 600 12px 'Manrope',sans-serif;
   letter-spacing: 1.25px;
 }
 
@@ -263,7 +263,7 @@
 }
 
 .field-hint,.field-error {
-  font-size: 10px;
+  font-size: 12px;
   color: #818d86;
 }
 
@@ -359,7 +359,7 @@
 .auth-note {
   text-align: center;
   color: #87928b;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.5;
   margin: 16px auto 0;
   max-width: 330px;
@@ -371,7 +371,7 @@
   gap: 20px;
   width: min(100%,520px);
   color: #9aa39d;
-  font-size: 9px;
+  font-size: 12px;
   margin-top: auto;
   padding-top: 20px;
 }
@@ -429,11 +429,11 @@
 }
 
 .role-option b {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .role-option small {
-  font-size: 9px;
+  font-size: 12px;
   color: #849087;
   margin-top: 3px;
 }

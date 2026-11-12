@@ -100,7 +100,7 @@
 }
 .routine-templates-page .plan-card__top { align-items: center; }
 .routine-templates-page .routine-card h3 { font-size: 16px; line-height: 1.35; }
-.routine-templates-page .plan-badge { padding: 5px 9px; font-size: 11px; }
+.routine-templates-page .plan-badge { padding: 5px 9px; font-size: 12px; }
 .routine-templates-page .plan-card__description { font-size: 13px; }
 .routine-templates-page .routine-template-create { background: var(--pf-accent); color: #fff; }
 .routine-templates-page .routine-card__ai { margin: 0; color: var(--pf-accent); font-size: 12px; }

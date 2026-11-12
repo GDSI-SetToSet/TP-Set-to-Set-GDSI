@@ -951,6 +951,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                             Repeticiones
                             <input
                               type="text"
+                              inputMode="numeric"
                               value={draft.repsCompleted}
                               onChange={(event) => updateDraftField(item, 'repsCompleted', event.target.value)}
                             />
