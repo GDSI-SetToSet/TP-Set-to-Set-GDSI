@@ -127,5 +127,6 @@ class BodyMapZoneHistoryItem(BaseModel):
     session_day_name: str | None = None
     exercise_id: str | None = None
     exercise_name: str | None = None
+    exercise_muscle_group: str | None = None
     context: str
     action_taken: str | None = None

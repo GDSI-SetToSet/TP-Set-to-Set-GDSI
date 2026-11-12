@@ -10,6 +10,8 @@ description: "Lista de tareas de US-18, US-19 y US-20 para alumnos activos"
 
 **Alcance**: US-18, US-19 y US-22. No implementado US-20, US-21, US-24, US-26, US-28, US-29, US-30 ni US-32.
 
+**Alcance**: US-18, US-19 y US-28. No implementado US-20, US-21, US-22, US-24, US-26, US-29, US-30 ni US-32.
+
 ## Phase 1: Línea base del flujo existente
 
 - [X] T001 [US1] [US18] Registrar el comportamiento actual de `/entrenador/alumnos` y la consulta existente de vínculos activos en `backend/tests/test_trainer_student_api.py` y `frontend/src/pages/TrainerStudentsPage.tsx` sin cambiar el flujo existente de asignación/progreso.
@@ -60,6 +62,14 @@ description: "Lista de tareas de US-18, US-19 y US-20 para alumnos activos"
 - [X] T028 [US22] Crear `frontend/src/pages/TrainerDailyRoutinesPage.tsx` (ruta `/entrenador/rutinas-del-dia`, acceso desde el inicio del entrenador) con selector de día, resumen por estado y detalle expandible por alumno.
 - [X] T029 [P] [US22] Agregar utilidades y pruebas de formato/orden en `frontend/src/utils/dailyRoutineFormat.mjs` y `frontend/src/utils/dailyRoutineFormat.test.mjs`.
 - [X] T030 [US22] Ejecutar la suite completa del backend con cobertura, `ruff`, `npm test` y `npm run build`.
+
+## Phase 8: US-28 — Analizar reportes de molestia y dolor
+
+- [X] T031 [US28] Agregar `exercise_muscle_group` a `BodyMapZoneHistoryItem` y a las consultas de historial por zona (alumno y entrenador) en `backend/src/schemas/body_map_report.py` y `backend/src/services/body_map_report_service.py`, y documentarlo en `taskify/specs/008-workout-feedback-and-communication/contracts/body-map-pain-reports-api.yaml`.
+- [X] T032 [P] [US28] Agregar pruebas del historial con ejercicio, día de rutina y grupo muscular en `backend/tests/test_us28_pain_report_analysis_api.py`.
+- [X] T033 [US28] Implementar `aggregatePain` y `groupByReport` en `frontend/src/utils/painReportAnalysis.mjs` con pruebas en `frontend/src/utils/painReportAnalysis.test.mjs`.
+- [X] T034 [US28] Crear `frontend/src/components/PainReportAnalysis.tsx` (gráfico por zona, grupo muscular, ejercicio o día y listado de reportes) e integrarlo en `frontend/src/components/TrainerStudentDetail.tsx`.
+- [X] T035 [US28] Ejecutar la suite completa del backend con cobertura, `ruff`, `npm test` y `npm run build`.
 
 ## Dependencias
 
