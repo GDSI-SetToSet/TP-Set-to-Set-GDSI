@@ -1,4 +1,4 @@
-# Inicio rápido: US-18 — Visualización de alumnos activos
+# Inicio rápido: US-18 y US-19 — Alumnos activos y búsqueda
 
 ## Prerrequisitos
 
@@ -46,9 +46,26 @@ Resultado esperado: todos los datos del detalle pertenecen al vínculo activo se
 
 Resultado esperado: ambas solicitudes son rechazadas según la convención existente de errores de la API; no se divulgan datos de perfil, salud, rutina ni métricas.
 
+## Escenario 5 — Buscar por nombre y apellido
+
+1. Iniciar sesión como un entrenador con al menos dos alumnos activos.
+2. Abrir `/entrenador/alumnos`.
+3. Buscar por nombre, por apellido y por nombre completo.
+4. Repetir una búsqueda usando mayúsculas/minúsculas y omitiendo acentos.
+
+Resultado esperado: solo se muestran los alumnos activos coincidentes.
+
+## Escenario 6 — Búsqueda sin coincidencias y campo vacío
+
+1. Buscar un nombre inexistente.
+2. Confirmar que se muestra `No se encontraron alumnos`.
+3. Vaciar el campo de búsqueda.
+
+Resultado esperado: no se muestra ningún alumno para la búsqueda inexistente y vuelven a mostrarse todos los alumnos activos al vaciar el campo.
+
 ## Verificaciones fuera de alcance
 
-- Búsqueda y filtros por paquete: US-19/US-20.
+- Filtros por paquete: US-20.
 - Mensajería: US-21.
 - Comparaciones avanzadas y gráficos: US-24/US-30.
 - Generación/revisión/ordenamiento de alertas: US-29.
