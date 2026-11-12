@@ -19,6 +19,12 @@
 - Q: ¿Qué significa “métricas” para US-18 sin absorber US-24 o US-30? → A: Un resumen de actividad reciente (sesiones finalizadas, última sesión, series registradas, último RPE y tonelaje de la última sesión); no incluye gráficos, filtros ni comparación histórica avanzada.
 - Q: ¿Cómo se deben ordenar y destacar las alertas en esta entrega? → A: El ordenamiento por alertas de seguridad queda fuera de este incremento y se implementará junto con US-29; US-18 conserva el punto de integración visual sin inventar estados de revisión.
 
+### Sesión 2026-11-12 — US-20
+
+- Q: ¿Qué se considera un "paquete registrado" para habilitar el filtro? → A: Los paquetes vigentes (no archivados) del entrenador más cualquier paquete archivado que todavía tenga contratado un alumno activo. Con un único paquete el filtro no se muestra.
+- Q: ¿Cómo se muestran los cupos ocupados por plan? → A: Cada opción del filtro indica la cantidad de alumnos activos que contrataron ese paquete; un paquete sin alumnos aparece con cero cupos ocupados y un mensaje de estado vacío propio.
+- Q: ¿Dónde se filtra? → A: Localmente en el cliente, sobre los alumnos activos ya cargados y combinado con la búsqueda por nombre de US-19. El backend solo expone `plan_id` y `plan_title` en `GET /api/v1/routine-templates/assignments`.
+
 ### Límite de alcance de este incremento
 
 Los artefactos de implementación de esta iteración cubren únicamente los escenarios de aceptación 1–3 de US-18. El escenario 4, de priorización de alertas, permanece en la especificación de la feature como dependencia de US-29 y explícitamente no se implementa en este incremento. La búsqueda, el filtrado por paquete, la mensajería, las comparaciones avanzadas, los gráficos, los ajustes de sesiones, el ciclo de vida de las alertas de seguridad y el cálculo del riesgo de abandono siguen perteneciendo a sus respectivas historias de usuario.
@@ -272,7 +278,7 @@ Como entrenador personal,
 
 - **FR-002**: El sistema DEBE permitir buscar alumnos activos por nombre y apellido (US-19), sin distinguir mayúsculas ni acentos y mostrando todos los alumnos cuando el campo esté vacío.
 
-- **FR-003**: El sistema DEBE permitir filtrar alumnos según el paquete contratado (US-20).
+- **FR-003**: El sistema DEBE permitir filtrar alumnos según el paquete contratado (US-20), mostrando el filtro solo cuando haya más de un paquete registrado e indicando los cupos ocupados de cada paquete.
 
 - **FR-004**: El sistema DEBE proveer un canal de comunicación directo entre entrenador y alumno (US-21), integrando las consultas técnicas sobre ejercicios provenientes de US-62 con tarjetas referenciales al ejercicio consultado (Decisión Alternativa B).
 

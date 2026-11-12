@@ -3,12 +3,15 @@ import { Link } from 'react-router-dom';
 import { ChevronDown, CircleAlert, Pencil, Search, X } from 'lucide-react';
 import { ROUTES } from '../constants/routes';
 import { filterStudentsByName } from '../utils/studentSearch.mjs';
+import { ALL_PLANS, buildPlanFilterOptions, canFilterByPlan, filterStudentsByPlan } from '../utils/studentPlanFilter.mjs';
+import { getOwnTrainingPlans } from '../services/trainerService';
 import { EffortFeedbackForm } from './EffortFeedbackForm';
 import { assignRoutineToStudent, getRoutineAssignments, getTrainerStudentWorkoutLogs, getTrainerStudentWorkoutSessions } from '../services/routineTemplateService';
 import { getAllTrainerStudentBodyMapReports, getTrainerStudentZoneHistory } from '../services/bodyMapReportService';
 import type { TrainerAIRoutine } from '../types/assignedRoutine';
 import type { BodyMapReportResponse, BodyMapZoneHistoryItem } from '../types/bodyMapReport';
 import type { RoutineAssignmentStudent, RoutineTemplate, WorkoutSession, WorkoutSetLog } from '../types/routineTemplate';
+import type { TrainingPlan } from '../types/trainer';
 import '../styles/routine-assignment-progress.css';
 import '../styles/body-map.css';
 
@@ -59,6 +62,8 @@ export function RoutineAssignmentPanel({
 }: RoutineAssignmentPanelProps) {
   const [students, setStudents] = useState<RoutineAssignmentStudent[]>([]);
   const [studentSearch, setStudentSearch] = useState('');
+  const [trainerPlans, setTrainerPlans] = useState<TrainingPlan[]>([]);
+  const [planFilter, setPlanFilter] = useState<string>(ALL_PLANS);
   const [selectedRoutines, setSelectedRoutines] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [attentionLoaded, setAttentionLoaded] = useState(false);
@@ -90,6 +95,8 @@ export function RoutineAssignmentPanel({
       })
       .catch(() => setError('No pudimos cargar tus alumnos activos. Intentá nuevamente.'))
       .finally(() => setLoading(false));
+    // Si falla, el filtro por paquete se arma solo con los paquetes de los alumnos activos.
+    getOwnTrainingPlans().then(setTrainerPlans).catch(() => setTrainerPlans([]));
   }, []);
 
   useEffect(() => {
@@ -335,7 +342,11 @@ export function RoutineAssignmentPanel({
     );
   }
 
-  const visibleStudents = filterStudentsByName(students, studentSearch);
+  const planOptions = buildPlanFilterOptions(students, trainerPlans);
+  const showPlanFilter = canFilterByPlan(planOptions);
+  const activePlanFilter = showPlanFilter && planOptions.some((option) => option.plan_id === planFilter) ? planFilter : ALL_PLANS;
+  const selectedPlanOption = planOptions.find((option) => option.plan_id === activePlanFilter);
+  const visibleStudents = filterStudentsByName(filterStudentsByPlan(students, activePlanFilter), studentSearch);
 
   function visibleSessionsFor(relationshipId: string): WorkoutSession[] {
     const sessions = sessionsByRelationship[relationshipId] ?? [];
@@ -356,6 +367,7 @@ export function RoutineAssignmentPanel({
         <p className="plan-empty">No tenés alumnos con un vínculo activo.</p>
       ) : (
         <>
+          <div className="routine-assignment__filters">
           <div className="routine-assignment__search">
             <label className="routine-assignment__search-label" htmlFor="active-student-search">
               Buscar alumno
@@ -380,10 +392,37 @@ export function RoutineAssignmentPanel({
               </button>
             )}
           </div>
+          {showPlanFilter && (
+            <div className="routine-assignment__plan-filter">
+              <label htmlFor="active-student-plan-filter">Paquete</label>
+              <select
+                id="active-student-plan-filter"
+                value={activePlanFilter}
+                onChange={(event) => setPlanFilter(event.target.value)}
+              >
+                <option value={ALL_PLANS}>Todos los paquetes ({students.length})</option>
+                {planOptions.map((option) => (
+                  <option key={option.plan_id} value={option.plan_id}>
+                    {option.title} ({option.student_count} {option.student_count === 1 ? 'cupo ocupado' : 'cupos ocupados'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          </div>
           {visibleStudents.length === 0 ? (
             <div className="routine-assignment__no-results">
-              <strong>No se encontraron alumnos</strong>
-              <span>Probá con otro nombre o apellido.</span>
+              {selectedPlanOption && selectedPlanOption.student_count === 0 ? (
+                <>
+                  <strong>No hay alumnos en {selectedPlanOption.title}</strong>
+                  <span>Todavía no tenés cupos ocupados en este paquete.</span>
+                </>
+              ) : (
+                <>
+                  <strong>No se encontraron alumnos</strong>
+                  <span>{activePlanFilter ? 'Probá con otro nombre, apellido o paquete.' : 'Probá con otro nombre o apellido.'}</span>
+                </>
+              )}
             </div>
           ) : (
             <div className="routine-assignment__list">

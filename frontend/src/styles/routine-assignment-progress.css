@@ -1,7 +1,46 @@
+.routine-assignment__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin: 0 0 20px;
+}
 .routine-assignment__search {
   position: relative;
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.routine-assignment__plan-filter {
+  display: flex;
+  flex: 0 1 280px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.routine-assignment__plan-filter label {
+  color: #4b5a70;
+  font-size: .85rem;
+  font-weight: 600;
+}
+.routine-assignment__plan-filter select {
   width: 100%;
-  margin: 0 0 20px;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--pf-input-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--pf-input-text);
+  font: inherit;
+  font-size: 16px;
+}
+.routine-assignment__plan-filter select:focus {
+  outline: 0;
+  border-color: var(--pf-accent);
+  box-shadow: 0 0 0 3px var(--pf-focus);
+}
+@media (max-width: 640px) {
+  .routine-assignment__search,
+  .routine-assignment__plan-filter { flex-basis: 100%; }
 }
 .routine-assignment__search-label {
   position: absolute;

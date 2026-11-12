@@ -12,6 +12,7 @@ from backend.src.models.user import User
 from backend.src.models.workout_log import WorkoutSession
 
 STUDENTS_PATH = "/api/v1/trainers/me/students"
+ASSIGNMENTS_PATH = "/api/v1/routine-templates/assignments"
 
 
 def register_and_login(api, email: str, role: str) -> dict[str, str]:
@@ -21,7 +22,13 @@ def register_and_login(api, email: str, role: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
-def create_relationship(sessions, trainer_email: str, student_email: str, status: str = "ACTIVE") -> tuple[str, str]:
+def create_relationship(
+    sessions,
+    trainer_email: str,
+    student_email: str,
+    status: str = "ACTIVE",
+    plan_title: str = "Plan Premium",
+) -> tuple[str, str]:
     now = datetime.now(UTC).replace(tzinfo=None)
     with sessions() as db:
         trainer_user = db.scalar(select(User).where(User.email == trainer_email))
@@ -53,7 +60,7 @@ def create_relationship(sessions, trainer_email: str, student_email: str, status
         student.protected_zones.append(ProtectedZone(body_area="Hombro derecho", created_at=now))
         plan = TrainingPlan(
             trainer_id=trainer.id,
-            title="Plan Premium",
+            title=plan_title,
             description="Plan de prueba",
             monthly_price=Decimal("10000.00"),
             currency="ARS",
@@ -159,3 +166,28 @@ def test_rejects_detail_for_another_trainer_or_terminated_relationship(client):
 
     terminated_response = api.get(f"{STUDENTS_PATH}/{student_id}", headers=owner_headers)
     assert terminated_response.status_code == 404
+
+
+def test_us20_assignments_include_contracted_plan_for_filtering(client):
+    api, sessions = client
+    trainer_headers = register_and_login(api, "plans-trainer@example.com", "TRAINER")
+    register_and_login(api, "student-basic@example.com", "STUDENT")
+    register_and_login(api, "student-premium@example.com", "STUDENT")
+    register_and_login(api, "student-ended-plan@example.com", "STUDENT")
+    create_relationship(sessions, "plans-trainer@example.com", "student-basic@example.com", plan_title="Plan Básico")
+    create_relationship(sessions, "plans-trainer@example.com", "student-premium@example.com", plan_title="Plan Premium")
+    create_relationship(
+        sessions,
+        "plans-trainer@example.com",
+        "student-ended-plan@example.com",
+        status="TERMINATED",
+        plan_title="Plan Terminado",
+    )
+
+    response = api.get(ASSIGNMENTS_PATH, headers=trainer_headers)
+
+    assert response.status_code == 200
+    assignments = response.json()
+    assert sorted(item["plan_title"] for item in assignments) == ["Plan Básico", "Plan Premium"]
+    assert all(item["plan_id"] for item in assignments)
+    assert len({item["plan_id"] for item in assignments}) == 2

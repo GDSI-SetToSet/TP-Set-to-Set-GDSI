@@ -1,12 +1,12 @@
 ---
-description: "Lista de tareas de US-18 y US-19 para alumnos activos"
+description: "Lista de tareas de US-18, US-19 y US-20 para alumnos activos"
 ---
 
-# Tasks: US-18 y US-19 — Alumnos activos y búsqueda
+# Tasks: US-18, US-19 y US-20 — Alumnos activos, búsqueda y filtro por paquete
 
 **Entrada**: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/trainer-student-detail-api.yaml`, `quickstart.md`
 
-**Alcance**: US-18 y US-19. No implementado US-20, US-21, US-22, US-24, US-26, US-28, US-29, US-30 ni US-32.
+**Alcance**: US-18, US-19 y US-20. No implementado US-21, US-22, US-24, US-26, US-28, US-29, US-30 ni US-32.
 
 ## Phase 1: Línea base del flujo existente
 
@@ -40,9 +40,18 @@ description: "Lista de tareas de US-18 y US-19 para alumnos activos"
 - [X] T016 [P] [US19] Agregar pruebas de búsqueda por nombre, apellido, nombre completo, ausencia de coincidencias, campo vacío, mayúsculas/minúsculas, exclusión de no activos y preservación de datos de acciones en `frontend/src/utils/studentSearch.test.mjs`.
 - [X] T017 [US19] Ejecutar las pruebas enfocadas de US-19 y `npm run build` en `frontend/`.
 
+## Phase 6: US-20 — Filtrar alumnos por paquete contratado
+
+- [X] T018 [US20] Exponer `plan_id` y `plan_title` del vínculo activo en `RoutineAssignmentStudentResponse` desde `list_routine_assignments` en `backend/src/services/routine_template_service.py` y `backend/src/schemas/routine_template.py`, sin cambiar la autorización existente.
+- [X] T019 [P] [US20] Agregar la prueba de API que verifica el paquete contratado de cada alumno activo y la exclusión de vínculos terminados en `backend/tests/test_trainer_student_api.py`.
+- [X] T020 [US20] Implementar `buildPlanFilterOptions`, `canFilterByPlan` y `filterStudentsByPlan` en `frontend/src/utils/studentPlanFilter.mjs` (paquetes vigentes + paquetes contratados por alumnos activos, con cupos ocupados).
+- [X] T021 [US20] Integrar el selector de paquete en `frontend/src/components/RoutineAssignmentPanel.tsx`, visible solo con más de un paquete, combinado con la búsqueda de US-19 y con estado vacío para paquetes sin alumnos.
+- [X] T022 [P] [US20] Agregar pruebas de un único paquete, varios paquetes, cupos ocupados, paquetes archivados, filtrado y combinación con la búsqueda en `frontend/src/utils/studentPlanFilter.test.mjs`, e incluirlas en `npm test`.
+- [X] T023 [US20] Ejecutar las pruebas enfocadas y la suite completa del backend con cobertura, `npm test` y `npm run build` en `frontend/`.
+
 ## Dependencias
 
-T001 → T002/T003 (en paralelo) → T004 → T005 → T006 → T007/T008/T009 (T007 en paralelo con T006; T008 después de T007 y T005) → T010/T011/T012 → T013 → T014/T015/T016 (T016 en paralelo con T014/T015) → T017.
+T001 → T002/T003 (en paralelo) → T004 → T005 → T006 → T007/T008/T009 (T007 en paralelo con T006; T008 después de T007 y T005) → T010/T011/T012 → T013 → T014/T015/T016 (T016 en paralelo con T014/T015) → T017 → T018 → T019/T020 → T021/T022 → T023.
 
 ## Oportunidades de paralelización
 
@@ -53,4 +62,4 @@ T001 → T002/T003 (en paralelo) → T004 → T005 → T006 → T007/T008/T009 (
 
 ## MVP
 
-El incremento de US-18 comprende T003–T009 y el incremento de US-19 comprende T014–T017: búsqueda local sobre alumnos activos ya cargados, sin cambios de backend. Las demás historias de la feature permanecen fuera de alcance.
+El incremento de US-18 comprende T003–T009 y el incremento de US-19 comprende T014–T017: búsqueda local sobre alumnos activos ya cargados, sin cambios de backend. El incremento de US-20 comprende T018–T023: filtro local por paquete con cupos ocupados, apoyado en `plan_id`/`plan_title` del listado de asignaciones. Las demás historias de la feature permanecen fuera de alcance.

@@ -331,3 +331,5 @@ class RoutineAssignmentStudentResponse(BaseModel):
     routine_template_id: str | None
     routine_name: str | None
     conflict_count: int = 0
+    plan_id: str | None = None
+    plan_title: str | None = None
