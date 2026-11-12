@@ -17,9 +17,11 @@ from backend.src.schemas.trainer import (
     TrainingPlanUpdate,
 )
 from backend.src.schemas.trainer_student import (
+    AbandonmentRiskItem,
     TrainerStudentDetail,
     TrainerStudentListItem,
 )
+from backend.src.services.abandonment_risk_service import list_abandonment_risk
 from backend.src.services.trainer_service import (
     TrainerProfileError,
     archive_plan,
@@ -70,6 +72,15 @@ def handle_student_error(error: TrainerStudentError) -> None:
 def own_active_students(user: CurrentUser, db: DbDep) -> list[TrainerStudentListItem]:
     try:
         return list_trainer_students(db, user)
+    except TrainerStudentError as error:
+        handle_student_error(error)
+
+
+@router.get("/me/abandonment-risk", response_model=list[AbandonmentRiskItem])
+def own_students_abandonment_risk(user: CurrentUser, db: DbDep) -> list[AbandonmentRiskItem]:
+    """US-32: alumnos activos con su riesgo de abandono (en riesgo primero)."""
+    try:
+        return list_abandonment_risk(db, user)
     except TrainerStudentError as error:
         handle_student_error(error)
 

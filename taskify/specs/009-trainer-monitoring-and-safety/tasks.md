@@ -6,7 +6,7 @@ description: "Lista de tareas de US-18 y US-19 para alumnos activos"
 
 **Entrada**: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/trainer-student-detail-api.yaml`, `quickstart.md`
 
-**Alcance**: US-18 y US-19. No implementado US-20, US-21, US-22, US-24, US-26, US-28, US-29, US-30 ni US-32.
+**Alcance**: US-18, US-19 y US-32. No implementado US-20, US-21, US-22, US-24, US-26, US-28, US-29 ni US-30.
 
 ## Phase 1: Línea base del flujo existente
 
@@ -39,6 +39,14 @@ description: "Lista de tareas de US-18 y US-19 para alumnos activos"
 - [X] T015 [US19] Mostrar todos los alumnos activos con el campo vacío y `No se encontraron alumnos` cuando no haya coincidencias, preservando las acciones existentes en `frontend/src/components/RoutineAssignmentPanel.tsx`.
 - [X] T016 [P] [US19] Agregar pruebas de búsqueda por nombre, apellido, nombre completo, ausencia de coincidencias, campo vacío, mayúsculas/minúsculas, exclusión de no activos y preservación de datos de acciones en `frontend/src/utils/studentSearch.test.mjs`.
 - [X] T017 [US19] Ejecutar las pruebas enfocadas de US-19 y `npm run build` en `frontend/`.
+
+## Phase 9: US-32 — Alumnos con riesgo de abandono
+
+- [X] T036 [US32] Implementar `evaluate_risk` y `list_abandonment_risk` en `backend/src/services/abandonment_risk_service.py` (frecuencia según la rutina, umbral de 5 entrenamientos o 14 días, alerta `ABANDONMENT_RISK` deduplicada por período).
+- [X] T037 [US32] Exponer `GET /api/v1/trainers/me/abandonment-risk` en `backend/src/api/v1/trainers.py` y evaluar el riesgo al listar `GET /api/v1/trainers/me/notifications` sin bloquear la lectura si falla.
+- [X] T038 [P] [US32] Agregar pruebas de umbrales, deduplicación, orden, alumnos sin rutina, privacidad y tolerancia a fallos en `backend/tests/test_us32_abandonment_risk_api.py`.
+- [X] T039 [US32] Priorizar a los alumnos en riesgo y mostrar la etiqueta "Riesgo de abandono" en `frontend/src/components/RoutineAssignmentPanel.tsx`, con `frontend/src/utils/abandonmentRisk.mjs` y sus pruebas; enlazar la notificación al alumno en `frontend/src/constants/routes.ts`.
+- [X] T040 [US32] Ejecutar la suite completa del backend con cobertura, `ruff`, `npm test` y `npm run build`.
 
 ## Dependencias
 

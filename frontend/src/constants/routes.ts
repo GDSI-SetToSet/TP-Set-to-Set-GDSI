@@ -46,6 +46,7 @@ export function trainerNotificationPath(notification: Pick<
     notification.type !== 'PAIN_ALERT'
     && notification.type !== 'PERSONAL_RECORD'
     && notification.type !== 'PROTECTED_ZONES_UPDATED'
+    && notification.type !== 'ABANDONMENT_RISK'
   ) {
     return ROUTES.trainerRequests;
   }

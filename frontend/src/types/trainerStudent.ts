@@ -50,3 +50,15 @@ export interface TrainerStudentDetail {
   };
   available_existing_views: Record<string, boolean | string>;
 }
+
+export interface AbandonmentRiskItem {
+  relationship_id: string;
+  student_id: string;
+  student_name: string;
+  at_risk: boolean;
+  reason: 'MISSED_TRAININGS' | 'INACTIVE_TWO_WEEKS' | null;
+  weekly_trainings: number;
+  days_without_report: number;
+  missed_trainings: number;
+  last_report_at: string | null;
+}

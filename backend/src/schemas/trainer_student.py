@@ -67,3 +67,15 @@ class TrainerStudentDetail(BaseModel):
     routine: TrainerStudentRoutine | None = None
     metrics: TrainerStudentMetrics
     available_existing_views: dict[str, Any]
+
+
+class AbandonmentRiskItem(BaseModel):
+    relationship_id: str
+    student_id: str
+    student_name: str
+    at_risk: bool
+    reason: str | None = None  # MISSED_TRAININGS, INACTIVE_TWO_WEEKS
+    weekly_trainings: int
+    days_without_report: int
+    missed_trainings: int
+    last_report_at: datetime | None = None

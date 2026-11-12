@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import { ChevronDown, CircleAlert, Pencil, Search, X } from 'lucide-react';
 import { ROUTES } from '../constants/routes';
 import { filterStudentsByName } from '../utils/studentSearch.mjs';
+import { abandonmentRiskDescription, sortByAbandonmentRisk } from '../utils/abandonmentRisk.mjs';
+import { getAbandonmentRisk } from '../services/trainerStudentService';
+import type { AbandonmentRiskItem } from '../types/trainerStudent';
 import { EffortFeedbackForm } from './EffortFeedbackForm';
 import { assignRoutineToStudent, getRoutineAssignments, getTrainerStudentWorkoutLogs, getTrainerStudentWorkoutSessions } from '../services/routineTemplateService';
 import { getAllTrainerStudentBodyMapReports, getTrainerStudentZoneHistory } from '../services/bodyMapReportService';
@@ -59,6 +62,7 @@ export function RoutineAssignmentPanel({
 }: RoutineAssignmentPanelProps) {
   const [students, setStudents] = useState<RoutineAssignmentStudent[]>([]);
   const [studentSearch, setStudentSearch] = useState('');
+  const [abandonmentRisks, setAbandonmentRisks] = useState<AbandonmentRiskItem[]>([]);
   const [selectedRoutines, setSelectedRoutines] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [attentionLoaded, setAttentionLoaded] = useState(false);
@@ -90,6 +94,8 @@ export function RoutineAssignmentPanel({
       })
       .catch(() => setError('No pudimos cargar tus alumnos activos. Intentá nuevamente.'))
       .finally(() => setLoading(false));
+    // US-32: si falla, la lista se muestra sin priorizar riesgos.
+    getAbandonmentRisk().then(setAbandonmentRisks).catch(() => setAbandonmentRisks([]));
   }, []);
 
   useEffect(() => {
@@ -335,7 +341,8 @@ export function RoutineAssignmentPanel({
     );
   }
 
-  const visibleStudents = filterStudentsByName(students, studentSearch);
+  const riskByRelationship = new Map(abandonmentRisks.map((risk) => [risk.relationship_id, risk]));
+  const visibleStudents = sortByAbandonmentRisk(filterStudentsByName(students, studentSearch), abandonmentRisks);
 
   function visibleSessionsFor(relationshipId: string): WorkoutSession[] {
     const sessions = sessionsByRelationship[relationshipId] ?? [];
@@ -399,6 +406,16 @@ export function RoutineAssignmentPanel({
                 >
                   {student.student_name}
                 </button>
+                {riskByRelationship.get(student.relationship_id)?.at_risk && (
+                  <span
+                    className="routine-assignment__attention routine-assignment__attention--risk"
+                    title={abandonmentRiskDescription(riskByRelationship.get(student.relationship_id))}
+                  >
+                    <CircleAlert size={14} aria-hidden="true" />
+                    Riesgo de abandono
+                    <span className="sr-only">: {abandonmentRiskDescription(riskByRelationship.get(student.relationship_id))}</span>
+                  </span>
+                )}
                 {attentionLoaded && reportsWithDiscomfort(student.student_id).length > 0 && (
                   <button
                     type="button"

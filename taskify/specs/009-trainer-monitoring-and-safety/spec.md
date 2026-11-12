@@ -19,6 +19,13 @@
 - Q: ¿Qué significa “métricas” para US-18 sin absorber US-24 o US-30? → A: Un resumen de actividad reciente (sesiones finalizadas, última sesión, series registradas, último RPE y tonelaje de la última sesión); no incluye gráficos, filtros ni comparación histórica avanzada.
 - Q: ¿Cómo se deben ordenar y destacar las alertas en esta entrega? → A: El ordenamiento por alertas de seguridad queda fuera de este incremento y se implementará junto con US-29; US-18 conserva el punto de integración visual sin inventar estados de revisión.
 
+### Sesión 2026-11-12 — US-32
+
+- Q: ¿Qué cuenta como "reporte del entrenamiento"? → A: Una sesión de entrenamiento finalizada por el alumno.
+- Q: ¿Cómo se calculan los "5 entrenamientos"? → A: Con la frecuencia de la rutina asignada (días de rutina por semana): entrenamientos sin reportar = ⌊días sin reportar × frecuencia / 7⌋. El riesgo se dispara con 5 entrenamientos sin reportar o 14 días, lo que ocurra primero. Sin rutina asignada no se esperan entrenamientos y no hay riesgo.
+- Q: ¿Desde cuándo se cuentan los días? → A: Desde el último reporte, o desde el inicio del vínculo o la asignación de la rutina si nunca reportó (la fecha más reciente).
+- Q: ¿Cómo recibe la alerta el entrenador? → A: Como notificación `ABANDONMENT_RISK` (una sola vez por período de inactividad), generada al consultar sus notificaciones o el riesgo de sus alumnos. En "Mis alumnos" los alumnos en riesgo aparecen primero con la etiqueta "Riesgo de abandono".
+
 ### Límite de alcance de este incremento
 
 Los artefactos de implementación de esta iteración cubren únicamente los escenarios de aceptación 1–3 de US-18. El escenario 4, de priorización de alertas, permanece en la especificación de la feature como dependencia de US-29 y explícitamente no se implementa en este incremento. La búsqueda, el filtrado por paquete, la mensajería, las comparaciones avanzadas, los gráficos, los ajustes de sesiones, el ciclo de vida de las alertas de seguridad y el cálculo del riesgo de abandono siguen perteneciendo a sus respectivas historias de usuario.
@@ -286,7 +293,7 @@ Como entrenador personal,
 
 - **FR-009**: El sistema DEBE disparar alertas automáticas de seguridad ante reportes de dolor, molestias repetidas o esfuerzo excesivo (US-29).
 
-- **FR-010**: El sistema DEBE identificar y destacar alumnos con riesgo de abandono por inactividad prolongada (US-32).
+- **FR-010**: El sistema DEBE alertar al entrenador y mostrar primero a los alumnos con riesgo de abandono: 5 entrenamientos sin reportar o 2 semanas sin reportes, lo que ocurra primero (US-32).
 
 
 
