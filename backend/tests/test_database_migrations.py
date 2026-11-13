@@ -1001,3 +1001,135 @@ def test_sqlite_migration_preserves_foreign_key_integrity_and_passes_fk_check():
     with engine.connect() as conn:
         remaining_zones = conn.execute(text("SELECT COUNT(*) FROM body_map_pain_report_zones WHERE report_id = 'rep-fk-1'")).scalar()
         assert remaining_zones == 0
+
+
+def test_migration_adds_and_backfills_routine_assigned_at_without_losing_history():
+    from backend.src.core.migrations import TARGET_COLUMNS
+
+    col_def = next(c for c in TARGET_COLUMNS if c.table == "training_relationships" and c.column == "routine_assigned_at")
+    assert col_def.sqlite_type == "DATETIME"
+    assert col_def.postgres_type == "TIMESTAMP WITH TIME ZONE"
+    assert col_def.nullable is True
+
+    engine = make_legacy_engine()
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE training_relationships (
+                id VARCHAR(36) PRIMARY KEY,
+                trainer_id VARCHAR(36) NOT NULL,
+                student_id VARCHAR(36) NOT NULL,
+                plan_id VARCHAR(36) NOT NULL,
+                agreed_monthly_price NUMERIC(10, 2) NOT NULL,
+                agreed_currency VARCHAR(8) NOT NULL,
+                status VARCHAR(16) NOT NULL,
+                start_date DATE NOT NULL,
+                initial_routine_id VARCHAR(36)
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE student_routines (
+                id VARCHAR(36) PRIMARY KEY,
+                relationship_id VARCHAR(36) UNIQUE NOT NULL,
+                source_template_id VARCHAR(36),
+                source_kind VARCHAR(16) NOT NULL,
+                name VARCHAR(150) NOT NULL,
+                duration_weeks INTEGER NOT NULL,
+                intensity VARCHAR(16) NOT NULL,
+                has_no_materials_alternative BOOLEAN NOT NULL DEFAULT 0,
+                desired_weekly_volume INTEGER,
+                days JSON NOT NULL,
+                draft JSON,
+                draft_version INTEGER NOT NULL DEFAULT 0,
+                status VARCHAR(16) NOT NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE assigned_routines (
+                id VARCHAR(36) PRIMARY KEY,
+                trainer_id VARCHAR(36) NOT NULL,
+                student_id VARCHAR(36) NOT NULL,
+                template_id VARCHAR(36),
+                name VARCHAR(150) NOT NULL,
+                duration_weeks INTEGER NOT NULL,
+                intensity VARCHAR(16) NOT NULL,
+                has_no_materials_alternative BOOLEAN NOT NULL DEFAULT 0,
+                status VARCHAR(16) NOT NULL,
+                adaptation_summary TEXT,
+                approved_at DATETIME,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE workout_sessions (
+                id VARCHAR(36) PRIMARY KEY,
+                student_id VARCHAR(36) NOT NULL,
+                relationship_id VARCHAR(36) NOT NULL,
+                routine_id VARCHAR(36) NOT NULL,
+                day_name VARCHAR(100) NOT NULL,
+                modality VARCHAR(16) NOT NULL,
+                started_at DATETIME NOT NULL,
+                finished_at DATETIME,
+                rpe INTEGER
+            )
+        """))
+
+        # Vínculos históricos en distintos estados
+        conn.execute(text("""
+            INSERT INTO training_relationships
+            (id, trainer_id, student_id, plan_id, agreed_monthly_price, agreed_currency, status, start_date, initial_routine_id)
+            VALUES
+            ('rel-sr', 'tr-1', 'st-1', 'pl-1', 10000, 'ARS', 'ACTIVE', '2026-01-01', 'tpl-1'),
+            ('rel-ar', 'tr-1', 'st-2', 'pl-1', 10000, 'ARS', 'ACTIVE', '2026-01-01', 'ar-1'),
+            ('rel-ws', 'tr-1', 'st-3', 'pl-1', 10000, 'ARS', 'ACTIVE', '2026-01-01', 'tpl-2'),
+            ('rel-tpl-only', 'tr-1', 'st-4', 'pl-1', 10000, 'ARS', 'ACTIVE', '2026-01-01', 'tpl-3'),
+            ('rel-none', 'tr-1', 'st-5', 'pl-1', 10000, 'ARS', 'ACTIVE', '2026-01-01', NULL)
+        """))
+        conn.execute(text("""
+            INSERT INTO student_routines
+            (id, relationship_id, source_template_id, source_kind, name, duration_weeks, intensity, has_no_materials_alternative, days, draft_version, status, created_at, updated_at)
+            VALUES
+            ('sr-1', 'rel-sr', 'tpl-1', 'GENERIC', 'Rutina SR', 4, 'MEDIA', 0, '[]', 0, 'ACTIVE', '2026-02-10 10:00:00', '2026-02-10 10:00:00')
+        """))
+        conn.execute(text("""
+            INSERT INTO assigned_routines
+            (id, trainer_id, student_id, template_id, name, duration_weeks, intensity, has_no_materials_alternative, status, approved_at, created_at, updated_at)
+            VALUES
+            ('ar-1', 'tr-1', 'st-2', NULL, 'Rutina IA', 4, 'MEDIA', 0, 'APPROVED', '2026-02-15 12:00:00', '2026-02-14 09:00:00', '2026-02-15 12:00:00')
+        """))
+        conn.execute(text("""
+            INSERT INTO workout_sessions
+            (id, student_id, relationship_id, routine_id, day_name, modality, started_at, finished_at, rpe)
+            VALUES
+            ('ws-1', 'st-3', 'rel-ws', 'tpl-2', 'Día 1', 'GYM', '2026-02-20 09:00:00', '2026-02-20 10:00:00', 7),
+            ('ws-old-other', 'st-4', 'rel-tpl-only', 'tpl-old', 'Día 1', 'GYM', '2026-01-10 09:00:00', '2026-01-10 10:00:00', 8)
+        """))
+
+    applied = apply_migrations(engine)
+    assert "training_relationships.routine_assigned_at" in applied
+    assert "training_relationships.routine_assigned_at:backfill" in applied
+
+    cols = {c["name"]: c for c in inspect(engine).get_columns("training_relationships")}
+    assert "routine_assigned_at" in cols
+    assert cols["routine_assigned_at"]["nullable"] is True
+
+    with engine.connect() as conn:
+        rows = dict(conn.execute(text("SELECT id, routine_assigned_at FROM training_relationships")).fetchall())
+        assert str(rows["rel-sr"]).startswith("2026-02-10 10:00:00")
+        assert str(rows["rel-ar"]).startswith("2026-02-15 12:00:00")
+        assert str(rows["rel-ws"]).startswith("2026-02-20 09:00:00")
+        assert rows["rel-tpl-only"] is not None
+        assert rows["rel-none"] is None
+        # No destruye sesiones ni StudentRoutine existentes
+        assert conn.execute(text("SELECT COUNT(*) FROM workout_sessions")).scalar() == 2
+        assert str(conn.execute(text("SELECT created_at FROM student_routines WHERE id = 'sr-1'")).scalar()).startswith("2026-02-10 10:00:00")
+
+    # Idempotencia: una segunda ejecución no reaplica ni altera fechas ya migradas
+    second = apply_migrations(engine)
+    assert "training_relationships.routine_assigned_at" not in second
+    assert "training_relationships.routine_assigned_at:backfill" not in second
+    with engine.connect() as conn:
+        rows_after = dict(conn.execute(text("SELECT id, routine_assigned_at FROM training_relationships")).fetchall())
+        assert rows_after == rows

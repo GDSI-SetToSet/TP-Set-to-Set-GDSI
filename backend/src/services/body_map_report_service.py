@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import status
-from sqlalchemy import desc, select
+from sqlalchemy import and_, desc, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -306,9 +306,9 @@ def create_body_map_report(
                 safe_var = _evaluate_safe_variant_for_report(db, profile.id, exercise, payload.zones)
             return _build_report_response(cand, safe_variant=safe_var)
 
-    # 4. Determinar relación activa
+    # 4. Determinar relación activa (si hay sesión, respetar el vínculo al que pertenece la sesión)
     relationship = _get_active_relationship(db, profile.id)
-    relationship_id = relationship.id if relationship else None
+    relationship_id = session.relationship_id if session else (relationship.id if relationship else None)
 
     # 5. Evaluación de variante segura si aplica
     safe_variant_eval = None
@@ -345,7 +345,7 @@ def create_body_map_report(
 
             # 7. Disparo de alerta al entrenador ante dolor (PAIN)
             pain_zones = [z.zone for z in payload.zones if z.intensity == "PAIN"]
-            if pain_zones and relationship and relationship.trainer:
+            if pain_zones and relationship and relationship.trainer and relationship_id == relationship.id:
                 trainer_user_id = relationship.trainer.user_id
                 student_name = (
                     f"{profile.first_name or ''} {profile.last_name or ''}".strip() or user.email
@@ -528,6 +528,23 @@ def list_student_zone_history(
     ]
 
 
+def _trainer_relationship_report_filter(relationship_id: str):
+    """Acota reportes al vínculo activo del entrenador, contemplando registros legados enlazados vía sesión."""
+    return and_(
+        or_(
+            BodyMapPainReport.relationship_id == relationship_id,
+            and_(
+                BodyMapPainReport.relationship_id.is_(None),
+                WorkoutSession.relationship_id == relationship_id,
+            ),
+        ),
+        or_(
+            BodyMapPainReport.session_id.is_(None),
+            WorkoutSession.relationship_id == relationship_id,
+        ),
+    )
+
+
 def list_trainer_student_body_map_reports(
     db: Session,
     trainer_user: User,
@@ -555,7 +572,11 @@ def list_trainer_student_body_map_reports(
 
     query = (
         select(BodyMapPainReport)
-        .where(BodyMapPainReport.student_id == student_id)
+        .outerjoin(WorkoutSession, BodyMapPainReport.session_id == WorkoutSession.id)
+        .where(
+            BodyMapPainReport.student_id == student_id,
+            _trainer_relationship_report_filter(rel.id),
+        )
         .options(selectinload(BodyMapPainReport.zones), selectinload(BodyMapPainReport.exercise))
     )
     if zone or intensity:
@@ -607,7 +628,10 @@ def list_trainer_student_zone_history(
         .join(BodyMapPainReport, BodyMapPainReportZone.report_id == BodyMapPainReport.id)
         .outerjoin(Exercise, BodyMapPainReport.exercise_id == Exercise.id)
         .outerjoin(WorkoutSession, BodyMapPainReport.session_id == WorkoutSession.id)
-        .where(BodyMapPainReport.student_id == student_id)
+        .where(
+            BodyMapPainReport.student_id == student_id,
+            _trainer_relationship_report_filter(rel.id),
+        )
     )
     if zone:
         query = query.where(BodyMapPainReportZone.zone.ilike(f"%{zone.strip()}%"))

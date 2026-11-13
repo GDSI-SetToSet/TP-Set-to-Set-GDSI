@@ -949,7 +949,12 @@ def assign_routine_to_student(
         if routine is None:
             raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "Rutina no encontrada.")
 
+    previous_routine_id = relationship.initial_routine_id
     relationship.initial_routine_id = routine_template_id
+    if routine_template_id is None:
+        relationship.routine_assigned_at = None
+    elif previous_routine_id != routine_template_id or relationship.routine_assigned_at is None:
+        relationship.routine_assigned_at = utc_now()
     if routine is None or (relationship.routine_modality == "HOME" and not _routine_supports_home(routine)):
         relationship.routine_modality = "GYM"
     db.commit()

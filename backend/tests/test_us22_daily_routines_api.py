@@ -136,3 +136,26 @@ def test_daily_routines_are_private_and_validate_parameters(client):
     assert api.get(DAILY_PATH, headers=trainer, params={"utc_offset_minutes": 2000}).status_code == 422
     assert api.get(DAILY_PATH, headers=trainer, params={"date": "no-es-fecha"}).status_code == 422
     assert api.get(DAILY_PATH).status_code == 401
+
+
+def test_daily_routines_reflect_unreported_and_reported_rpe_consistently(client, monkeypatch):
+    api, sessions = client
+    trainer = register_and_login(api, "trainer@example.com", "TRAINER")
+    student = register_and_login(api, "student@example.com", "STUDENT")
+    create_assigned_routine(api, sessions, trainer, "student@example.com")
+
+    clock = fixed_clock(monkeypatch, datetime(2026, 11, 12, 14, 0, tzinfo=UTC))
+    session = api.post(SESSIONS_PATH, headers=student, json={"day_name": "Día 1"}).json()
+    clock["now"] += timedelta(minutes=25)
+    assert api.post(f"{SESSIONS_PATH}/{session['id']}/finish", headers=student).status_code == 200
+
+    unreported = api.get(DAILY_PATH, headers=trainer, params={"date": "2026-11-12"}).json()
+    assert unreported[0]["status"] == "FINISHED"
+    assert unreported[0]["session"]["rpe"] is None
+
+    patch = api.patch(f"{SESSIONS_PATH}/{session['id']}/rpe", headers=student, json={"rpe": 8})
+    assert patch.status_code == 200
+
+    reported = api.get(DAILY_PATH, headers=trainer, params={"date": "2026-11-12"}).json()
+    assert reported[0]["status"] == "FINISHED"
+    assert reported[0]["session"]["rpe"] == 8

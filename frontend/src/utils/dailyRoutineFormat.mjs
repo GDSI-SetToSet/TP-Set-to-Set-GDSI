@@ -4,6 +4,19 @@ export const DAILY_STATUS_LABELS = {
   FINISHED: 'Finalizada',
 };
 
+export const RPE_UNREPORTED_LABEL = 'Finalizada sin reporte';
+
+export function isFinishedWithoutRpe(item) {
+  return item?.status === 'FINISHED'
+    && Boolean(item?.session)
+    && (item.session.rpe === null || item.session.rpe === undefined);
+}
+
+export function dailyRoutineStatusLabel(item) {
+  if (isFinishedWithoutRpe(item)) return RPE_UNREPORTED_LABEL;
+  return DAILY_STATUS_LABELS[item?.status] ?? '';
+}
+
 const STATUS_ORDER = { TRAINING: 0, FINISHED: 1, NOT_STARTED: 2 };
 
 export function localDateInputValue(date = new Date()) {

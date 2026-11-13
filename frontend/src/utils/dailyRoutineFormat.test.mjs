@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  RPE_UNREPORTED_LABEL,
   countByStatus,
+  dailyRoutineStatusLabel,
   formatDuration,
   formatWeight,
+  isFinishedWithoutRpe,
   localDateInputValue,
   sortDailyRoutines,
   totalSets,
@@ -41,4 +44,13 @@ test('formatea duraciones y cargas', () => {
 
 test('genera la fecha local para el selector', () => {
   assert.equal(localDateInputValue(new Date(2026, 10, 2, 23, 30)), '2026-11-02');
+});
+
+test('identifica sesiones finalizadas sin reporte RPE sin confundirlas con no comenzadas o en curso', () => {
+  assert.equal(dailyRoutineStatusLabel({ status: 'NOT_STARTED', session: null }), 'No comenzada');
+  assert.equal(dailyRoutineStatusLabel({ status: 'TRAINING', session: { rpe: null } }), 'Entrenando');
+  assert.equal(dailyRoutineStatusLabel({ status: 'FINISHED', session: { rpe: 8 } }), 'Finalizada');
+  assert.equal(dailyRoutineStatusLabel({ status: 'FINISHED', session: { rpe: null } }), RPE_UNREPORTED_LABEL);
+  assert.equal(isFinishedWithoutRpe({ status: 'TRAINING', session: { rpe: null } }), false);
+  assert.equal(isFinishedWithoutRpe({ status: 'FINISHED', session: { rpe: null } }), true);
 });

@@ -5,10 +5,12 @@ import { ROUTES } from '../constants/routes';
 import { getTrainerDailyRoutines } from '../services/trainerStudentService';
 import type { DailyRoutineItem } from '../types/trainerStudent';
 import {
-  DAILY_STATUS_LABELS,
+  RPE_UNREPORTED_LABEL,
   countByStatus,
+  dailyRoutineStatusLabel,
   formatDuration,
   formatWeight,
+  isFinishedWithoutRpe,
   localDateInputValue,
   sortDailyRoutines,
   totalSets,
@@ -31,7 +33,16 @@ function DailyRoutineDetail({ item }: { item: DailyRoutineItem }) {
         <div><dt>Inicio</dt><dd>{formatTime(session.started_at)}</dd></div>
         <div><dt>Fin</dt><dd>{session.finished_at ? formatTime(session.finished_at) : 'En curso'}</dd></div>
         <div><dt>Duración</dt><dd>{formatDuration(session.duration_seconds)}</dd></div>
-        {session.rpe !== null && <div><dt>RPE</dt><dd>{session.rpe}/10</dd></div>}
+        {item.status === 'FINISHED' && (
+          <div>
+            <dt>RPE</dt>
+            <dd>
+              {session.rpe !== null && session.rpe !== undefined
+                ? `${session.rpe}/10`
+                : RPE_UNREPORTED_LABEL}
+            </dd>
+          </div>
+        )}
       </dl>
       {item.exercises.length === 0 ? (
         <p className="daily-routines__muted">Todavía no registró series en esta sesión.</p>
@@ -149,8 +160,10 @@ export function TrainerDailyRoutinesPage() {
                     </span>
                     <span className="daily-routines__meta">
                       {item.session && <small>{totalSets(item)} series</small>}
-                      <span className={`daily-routines__status daily-routines__status--${item.status.toLowerCase()}`}>
-                        {DAILY_STATUS_LABELS[item.status]}
+                      <span
+                        className={`daily-routines__status daily-routines__status--${isFinishedWithoutRpe(item) ? 'unreported' : item.status.toLowerCase()}`}
+                      >
+                        {dailyRoutineStatusLabel(item)}
                       </span>
                       <ChevronDown size={18} aria-hidden="true" className={open ? 'is-open' : ''} />
                     </span>

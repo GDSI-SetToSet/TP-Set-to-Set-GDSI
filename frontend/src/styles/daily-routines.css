@@ -113,6 +113,7 @@
 }
 .daily-routines__status--training { background: #ffe9b8; color: #7a4b00; }
 .daily-routines__status--finished { background: var(--pf-ok-bg); color: var(--pf-ok-text); }
+.daily-routines__status--unreported { background: #fff1d6; color: #7c4a03; }
 .daily-routines__status--not_started { background: #e8edf3; color: #45546a; }
 
 .daily-routines__row-body { padding: 0 16px 16px; border-top: 1px solid var(--pf-border); }

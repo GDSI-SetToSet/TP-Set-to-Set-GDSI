@@ -59,8 +59,32 @@ def evaluate_risk(days_without_report: int, weekly_trainings: int) -> tuple[bool
     return True, reason, missed
 
 
-def _weekly_trainings(db: Session, relationship: TrainingRelationship) -> tuple[int, datetime | None]:
-    """Días de rutina por semana y desde cuándo la tiene asignada (si se conoce)."""
+def _resolve_legacy_assigned_at(
+    db: Session,
+    relationship: TrainingRelationship,
+    current: datetime,
+    assigned_routine: AssignedRoutine | None = None,
+) -> datetime:
+    """Infiere y persiste routine_assigned_at cuando un registro heredado carece de fecha de asignación."""
+    if assigned_routine is not None:
+        inferred = _naive_utc(assigned_routine.approved_at or assigned_routine.updated_at or assigned_routine.created_at)
+    else:
+        earliest_session = db.scalar(
+            select(func.min(WorkoutSession.started_at)).where(
+                WorkoutSession.relationship_id == relationship.id,
+                WorkoutSession.routine_id == relationship.initial_routine_id,
+            )
+        )
+        inferred = _naive_utc(earliest_session) if earliest_session is not None else current
+    relationship.routine_assigned_at = inferred
+    return inferred
+
+
+def _weekly_trainings(
+    db: Session, relationship: TrainingRelationship, current: datetime
+) -> tuple[int, datetime | None, bool]:
+    """Días de rutina por semana, fecha efectiva de asignación y si requirió backfill en el vínculo."""
+    assigned_at = _naive_utc(relationship.routine_assigned_at) if relationship.routine_assigned_at else None
     student_routine = db.scalar(
         select(StudentRoutine).where(
             StudentRoutine.relationship_id == relationship.id,
@@ -68,7 +92,7 @@ def _weekly_trainings(db: Session, relationship: TrainingRelationship) -> tuple[
         )
     )
     if student_routine is not None:
-        return len(student_routine.days or []), student_routine.created_at
+        return len(student_routine.days or []), assigned_at or _naive_utc(student_routine.created_at), False
     if relationship.initial_routine_id:
         template_days = db.scalar(
             select(func.count(RoutineTemplateDay.id))
@@ -76,14 +100,25 @@ def _weekly_trainings(db: Session, relationship: TrainingRelationship) -> tuple[
             .where(RoutineTemplate.id == relationship.initial_routine_id)
         )
         if template_days:
-            return int(template_days), None
+            if assigned_at is not None:
+                return int(template_days), assigned_at, False
+            return int(template_days), _resolve_legacy_assigned_at(db, relationship, current), True
         assigned_days = db.scalar(
             select(func.count(AssignedRoutineDay.id))
             .join(AssignedRoutine, AssignedRoutineDay.routine_id == AssignedRoutine.id)
             .where(AssignedRoutine.id == relationship.initial_routine_id, AssignedRoutine.status == "APPROVED")
         )
-        return int(assigned_days or 0), None
-    return 0, None
+        if assigned_days:
+            if assigned_at is not None:
+                return int(assigned_days), assigned_at, False
+            assigned_routine = db.get(AssignedRoutine, relationship.initial_routine_id)
+            return (
+                int(assigned_days),
+                _resolve_legacy_assigned_at(db, relationship, current, assigned_routine=assigned_routine),
+                True,
+            )
+        return 0, assigned_at, False
+    return 0, None, False
 
 
 def _notify_once(
@@ -149,12 +184,19 @@ def list_abandonment_risk(
 
     items: list[AbandonmentRiskItem] = []
     created = False
+    backfilled = False
     for relationship, student, student_user in rows:
-        weekly, routine_since = _weekly_trainings(db, relationship)
+        weekly, routine_since, was_backfilled = _weekly_trainings(db, relationship, current)
+        backfilled = backfilled or was_backfilled
         last_report = last_reports.get(relationship.id)
+        last_report_naive = _naive_utc(last_report) if last_report else None
+        # Una reasignación abre un período nuevo: sesiones anteriores no cuentan en el período vigente.
+        if routine_since is not None and last_report_naive is not None and last_report_naive < routine_since:
+            last_report = None
+            last_report_naive = None
         start = datetime(relationship.start_date.year, relationship.start_date.month, relationship.start_date.day)
         reference = max(
-            value for value in (_naive_utc(last_report) if last_report else None, start, routine_since) if value
+            value for value in (last_report_naive, start, routine_since) if value
         )
         days_without_report = max(0, (current - reference).days)
         at_risk, reason, missed = evaluate_risk(days_without_report, weekly)
@@ -174,6 +216,6 @@ def list_abandonment_risk(
             created = _notify_once(db, trainer_user, item, reference) or created
         items.append(item)
 
-    if created:
+    if created or backfilled:
         db.commit()
     return sorted(items, key=lambda item: (not item.at_risk, -item.days_without_report, item.student_name))

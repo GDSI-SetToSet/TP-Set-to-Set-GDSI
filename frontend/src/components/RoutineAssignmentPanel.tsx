@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, CircleAlert, Pencil, Search, X } from 'lucide-react';
 import { ROUTES } from '../constants/routes';
@@ -7,6 +7,8 @@ import { ALL_PLANS, buildPlanFilterOptions, canFilterByPlan, filterStudentsByPla
 import { getOwnTrainingPlans } from '../services/trainerService';
 import { abandonmentRiskDescription, sortByAbandonmentRisk } from '../utils/abandonmentRisk.mjs';
 import { getAbandonmentRisk } from '../services/trainerStudentService';
+import { RPE_UNREPORTED_LABEL } from '../utils/sessionRpeState.mjs';
+import { applyAuxiliaryRetry, resolveAssignmentLoadResults } from '../utils/assignmentLoadState.mjs';
 import type { AbandonmentRiskItem } from '../types/trainerStudent';
 import { EffortFeedbackForm } from './EffortFeedbackForm';
 import { assignRoutineToStudent, getRoutineAssignments, getTrainerStudentWorkoutLogs, getTrainerStudentWorkoutSessions } from '../services/routineTemplateService';
@@ -70,6 +72,9 @@ export function RoutineAssignmentPanel({
   const [abandonmentRisks, setAbandonmentRisks] = useState<AbandonmentRiskItem[]>([]);
   const [selectedRoutines, setSelectedRoutines] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [plansError, setPlansError] = useState('');
+  const [riskError, setRiskError] = useState('');
+  const [retryingAuxiliary, setRetryingAuxiliary] = useState(false);
   const [attentionLoaded, setAttentionLoaded] = useState(false);
   const [attentionError, setAttentionError] = useState('');
   const [sessionAvailabilityByRelationship, setSessionAvailabilityByRelationship] = useState<Record<string, boolean>>({});
@@ -91,19 +96,56 @@ export function RoutineAssignmentPanel({
   const [progressErrorFor, setProgressErrorFor] = useState<string | null>(null);
   const openedFromNotification = useRef(false);
 
-  useEffect(() => {
-    getRoutineAssignments()
-      .then((items) => {
-        setStudents(items);
-        setSelectedRoutines(Object.fromEntries(items.map((item) => [item.relationship_id, item.routine_template_id ?? ''])));
+  const loadInitialData = useCallback(() => {
+    setLoading(true);
+    setError('');
+    setPlansError('');
+    setRiskError('');
+    Promise.allSettled([
+      getRoutineAssignments(),
+      getOwnTrainingPlans(),
+      getAbandonmentRisk(),
+    ])
+      .then(([studentsResult, plansResult, risksResult]) => {
+        const resolved = resolveAssignmentLoadResults(studentsResult, plansResult, risksResult);
+        if (resolved.students !== null) {
+          setStudents(resolved.students);
+          setSelectedRoutines(Object.fromEntries(resolved.students.map((item) => [item.relationship_id, item.routine_template_id ?? ''])));
+        }
+        setError(resolved.error);
+        setTrainerPlans(resolved.trainerPlans);
+        setPlansError(resolved.plansError);
+        setAbandonmentRisks(resolved.abandonmentRisks);
+        setRiskError(resolved.riskError);
       })
-      .catch(() => setError('No pudimos cargar tus alumnos activos. Intentá nuevamente.'))
       .finally(() => setLoading(false));
-    // Si falla, el filtro por paquete se arma solo con los paquetes de los alumnos activos.
-    getOwnTrainingPlans().then(setTrainerPlans).catch(() => setTrainerPlans([]));
-    // US-32: si falla, la lista se muestra sin priorizar riesgos.
-    getAbandonmentRisk().then(setAbandonmentRisks).catch(() => setAbandonmentRisks([]));
   }, []);
+
+  const retryAuxiliaryData = useCallback(async () => {
+    if (retryingAuxiliary) return;
+    setRetryingAuxiliary(true);
+    try {
+      const [plansResult, risksResult] = await Promise.allSettled([
+        plansError ? getOwnTrainingPlans() : Promise.resolve<TrainingPlan[] | null>(null),
+        riskError ? getAbandonmentRisk() : Promise.resolve<AbandonmentRiskItem[] | null>(null),
+      ]);
+      const next = applyAuxiliaryRetry(
+        { trainerPlans, plansError, abandonmentRisks, riskError },
+        plansError ? plansResult as PromiseSettledResult<TrainingPlan[]> : null,
+        riskError ? risksResult as PromiseSettledResult<AbandonmentRiskItem[]> : null,
+      );
+      setTrainerPlans(next.trainerPlans);
+      setPlansError(next.plansError);
+      setAbandonmentRisks(next.abandonmentRisks);
+      setRiskError(next.riskError);
+    } finally {
+      setRetryingAuxiliary(false);
+    }
+  }, [abandonmentRisks, plansError, retryingAuxiliary, riskError, trainerPlans]);
+
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
 
   useEffect(() => {
     if (loading) return undefined;
@@ -372,11 +414,46 @@ export function RoutineAssignmentPanel({
       {loading ? (
         <p role="status">Cargando alumnos…</p>
       ) : error && students.length === 0 ? (
-        <p className="form-alert" role="alert">{error}</p>
+        <div className="form-alert" role="alert">
+          <p>{error}</p>
+          <button type="button" className="profile-save" onClick={loadInitialData}>
+            Reintentar
+          </button>
+        </div>
       ) : students.length === 0 ? (
-        <p className="plan-empty">No tenés alumnos con un vínculo activo.</p>
+        <>
+          {(plansError || riskError) && (
+            <div className="form-alert" role="alert">
+              {plansError && <p>{plansError}</p>}
+              {riskError && <p>{riskError}</p>}
+              <button
+                type="button"
+                className="profile-save"
+                disabled={retryingAuxiliary}
+                onClick={() => void retryAuxiliaryData()}
+              >
+                {retryingAuxiliary ? 'Reintentando…' : 'Reintentar'}
+              </button>
+            </div>
+          )}
+          <p className="plan-empty">No tenés alumnos con un vínculo activo.</p>
+        </>
       ) : (
         <>
+          {(plansError || riskError) && (
+            <div className="form-alert" role="alert">
+              {plansError && <p>{plansError}</p>}
+              {riskError && <p>{riskError}</p>}
+              <button
+                type="button"
+                className="profile-save"
+                disabled={retryingAuxiliary}
+                onClick={() => void retryAuxiliaryData()}
+              >
+                {retryingAuxiliary ? 'Reintentando…' : 'Reintentar'}
+              </button>
+            </div>
+          )}
           <div className="routine-assignment__filters">
           <div className="routine-assignment__search">
             <label className="routine-assignment__search-label" htmlFor="active-student-search">
@@ -577,9 +654,13 @@ export function RoutineAssignmentPanel({
                                 <span className="routine-assignment__rpe-badge routine-assignment__rpe-badge--reported">
                                   Esfuerzo: {session.rpe}/10
                                 </span>
+                              ) : session.finished_at ? (
+                                <span className="routine-assignment__rpe-badge routine-assignment__rpe-badge--unreported">
+                                  {RPE_UNREPORTED_LABEL}
+                                </span>
                               ) : (
                                 <span className="routine-assignment__rpe-badge routine-assignment__rpe-badge--unreported">
-                                  Sin calificación
+                                  En curso
                                 </span>
                               )}
                             </div>

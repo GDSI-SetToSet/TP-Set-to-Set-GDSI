@@ -66,6 +66,8 @@ def _assignment_map(db: Session, user: User) -> dict[str, dict[str, str | int | 
 
 
 def list_trainer_students(db: Session, user: User) -> list[TrainerStudentListItem]:
+    from backend.src.services.abandonment_risk_service import list_abandonment_risk
+
     trainer = _trainer_profile(db, user)
     rows = db.execute(
         select(TrainingRelationship, StudentProfile, User)
@@ -75,9 +77,11 @@ def list_trainer_students(db: Session, user: User) -> list[TrainerStudentListIte
             TrainingRelationship.trainer_id == trainer.id,
             TrainingRelationship.status == "ACTIVE",
         )
-        .order_by(StudentProfile.last_name, StudentProfile.first_name)
+        .order_by(StudentProfile.last_name, StudentProfile.first_name, TrainingRelationship.id)
     ).all()
     assignments = _assignment_map(db, user)
+    risks = list_abandonment_risk(db, user, notify=False)
+    risk_order = {item.relationship_id: index for index, item in enumerate(risks) if item.at_risk}
     result: list[TrainerStudentListItem] = []
     for relationship, student, student_user in rows:
         sessions = db.scalar(
@@ -103,6 +107,11 @@ def list_trainer_students(db: Session, user: User) -> list[TrainerStudentListIte
                 has_activity=sessions is not None,
             )
         )
+    result.sort(
+        key=lambda item: (0, risk_order[item.relationship_id])
+        if item.relationship_id in risk_order
+        else (1, 0)
+    )
     return result
 
 

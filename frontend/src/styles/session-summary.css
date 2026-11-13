@@ -99,10 +99,16 @@
 .workout-celebration__card button.session-summary__rate-link:hover { color: #245338; }
 .session-summary__rpe-form {
   width: 100%;
+  margin: 0 0 16px;
   padding: 14px;
   border: 1px solid #d4e7da;
   border-radius: 12px;
   background: #f7fbf8;
+}
+.session-summary__rpe-form h3 {
+  margin: 0 0 4px;
+  color: #173c2c;
+  font-size: 1rem;
 }
 .session-summary__rpe-form > p { margin: 0 0 10px; font-size: 0.9rem; }
 .session-summary__rpe-options {
