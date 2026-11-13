@@ -20,11 +20,13 @@ from backend.src.schemas.trainer import (
 from backend.src.schemas.trainer_student import (
     AbandonmentRiskItem,
     DailyRoutineItem,
+    SessionComparison,
     TrainerStudentDetail,
     TrainerStudentListItem,
 )
 from backend.src.services.abandonment_risk_service import list_abandonment_risk
 from backend.src.services.daily_routine_tracking_service import list_daily_routines
+from backend.src.services.session_comparison_service import compare_session
 from backend.src.services.trainer_service import (
     TrainerProfileError,
     archive_plan,
@@ -89,6 +91,15 @@ def own_students_daily_routines(
     """US-22: estado y registro de la rutina del día de cada alumno activo."""
     try:
         return list_daily_routines(db, user, day or date.today(), utc_offset_minutes)
+    except TrainerStudentError as error:
+        handle_student_error(error)
+
+
+@router.get("/me/sessions/{session_id}/comparison", response_model=SessionComparison)
+def own_student_session_comparison(session_id: str, user: CurrentUser, db: DbDep) -> SessionComparison:
+    """US-24: sesión finalizada vs lo planificado y vs la sesión previa del mismo día de rutina."""
+    try:
+        return compare_session(db, user, session_id)
     except TrainerStudentError as error:
         handle_student_error(error)
 

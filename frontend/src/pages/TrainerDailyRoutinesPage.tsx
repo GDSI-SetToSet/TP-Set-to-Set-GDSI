@@ -1,6 +1,7 @@
-import { ArrowLeft, ChevronDown, RefreshCw } from 'lucide-react';
+import { ArrowLeft, BarChart3, ChevronDown, ListChecks, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { SessionComparison } from '../components/SessionComparison';
 import { ROUTES } from '../constants/routes';
 import { getTrainerDailyRoutines } from '../services/trainerStudentService';
 import type { DailyRoutineItem } from '../types/trainerStudent';
@@ -23,6 +24,7 @@ function formatTime(value: string): string {
 
 function DailyRoutineDetail({ item }: { item: DailyRoutineItem }) {
   const { session } = item;
+  const [comparing, setComparing] = useState(false);
   if (!session) {
     return <p className="daily-routines__muted">El alumno todavía no comenzó su entrenamiento en este día.</p>;
   }
@@ -44,7 +46,21 @@ function DailyRoutineDetail({ item }: { item: DailyRoutineItem }) {
           </div>
         )}
       </dl>
-      {item.exercises.length === 0 ? (
+      {item.status === 'FINISHED' && (
+        <button
+          type="button"
+          className="daily-routines__refresh session-comparison__toggle"
+          aria-pressed={comparing}
+          onClick={() => setComparing((value) => !value)}
+        >
+          {comparing
+            ? <><ListChecks size={16} aria-hidden="true" /> Ver series registradas</>
+            : <><BarChart3 size={16} aria-hidden="true" /> Comparar métricas</>}
+        </button>
+      )}
+      {comparing ? (
+        <SessionComparison sessionId={session.id} />
+      ) : item.exercises.length === 0 ? (
         <p className="daily-routines__muted">Todavía no registró series en esta sesión.</p>
       ) : (
         item.exercises.map((exercise) => (

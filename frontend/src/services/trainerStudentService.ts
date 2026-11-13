@@ -1,5 +1,11 @@
 import { api } from './api';
-import type { AbandonmentRiskItem, DailyRoutineItem, TrainerStudentDetail, TrainerStudentListItem } from '../types/trainerStudent';
+import type {
+  AbandonmentRiskItem,
+  DailyRoutineItem,
+  SessionComparison,
+  TrainerStudentDetail,
+  TrainerStudentListItem,
+} from '../types/trainerStudent';
 
 const STUDENTS_PATH = '/api/v1/trainers/me/students';
 
@@ -18,6 +24,12 @@ export async function getTrainerDailyRoutines(date: string): Promise<DailyRoutin
   const { data } = await api.get<DailyRoutineItem[]>('/api/v1/trainers/me/daily-routines', {
     params: { date, utc_offset_minutes: -new Date(`${date}T12:00:00`).getTimezoneOffset() },
   });
+  return data;
+}
+
+/** US-24: comparación de una sesión finalizada con lo planificado y con la sesión previa. */
+export async function getSessionComparison(sessionId: string): Promise<SessionComparison> {
+  const { data } = await api.get<SessionComparison>(`/api/v1/trainers/me/sessions/${sessionId}/comparison`);
   return data;
 }
 
