@@ -10,6 +10,11 @@ import { EffortFeedbackList } from '../components/EffortFeedbackList';
 import { SafeVariantNotice } from '../components/SafeVariantNotice';
 import { SessionSummaryDialog } from '../components/SessionSummaryDialog';
 import {
+  RPE_UNREPORTED_LABEL,
+  findPendingRpeSession,
+  syncSessionAfterRpe,
+} from '../utils/sessionRpeState.mjs';
+import {
   elapsedSessionSeconds,
   parseSessionTimestamp,
   resolveSessionTimerState,
@@ -423,7 +428,8 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     setLogError('');
     setFinishingWorkout(true);
     try {
-      await finishAssignedWorkoutSession(sessionId, null);
+      const finished = await finishAssignedWorkoutSession(sessionId, null);
+      setWorkoutSessions((current) => syncSessionAfterRpe(current, finished));
       window.localStorage.removeItem(`workout-started-at:${sessionId}`);
       setActiveRest(null);
       setAutoFinishPending(false);
@@ -441,9 +447,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     setLogError('');
     try {
       const updated = await reportWorkoutSessionRpe(targetSessionId, rpeVal);
-      setWorkoutSessions((current) =>
-        current.map((s) => (s.id === targetSessionId ? { ...s, rpe: updated.rpe } : s))
-      );
+      setWorkoutSessions((current) => syncSessionAfterRpe(current, updated));
       setPendingRpeValue(0);
     } catch {
       setLogError('No pudimos guardar el reporte de esfuerzo. Intentá nuevamente.');
@@ -715,9 +719,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
             )}
 
             {(() => {
-              const pendingRpeSession = workoutSessions.find(
-                (s) => s.finished_at && (s.rpe === null || s.rpe === undefined) && s.id !== sessionId
-              );
+              const pendingRpeSession = findPendingRpeSession(workoutSessions, sessionId);
               if (!pendingRpeSession) return null;
               return (
                 <aside className="student-routine-rpe-reminder" role="status" aria-live="polite">
@@ -1041,7 +1043,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                                 </span>
                               ) : (
                                 <span className="student-routine-session__rpe-badge student-routine-session__rpe-badge--unreported">
-                                  Sin reporte de RPE
+                                  {RPE_UNREPORTED_LABEL}
                                 </span>
                               )}
                             </div>
@@ -1237,6 +1239,12 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
         )}
         {showCelebration && sessionId && <SessionSummaryDialog
           sessionId={sessionId}
+          onRpeSaved={(updatedSession) => {
+            setWorkoutSessions((current) => syncSessionAfterRpe(current, updatedSession));
+          }}
+          onZonesReported={() => {
+            void getStudentZoneHistory().then(setZoneHistory).catch(() => {});
+          }}
           onClose={() => navigate(ROUTES.studentRoutines + '?session=' + encodeURIComponent(sessionId), { replace: true })}
         />}
       </section>

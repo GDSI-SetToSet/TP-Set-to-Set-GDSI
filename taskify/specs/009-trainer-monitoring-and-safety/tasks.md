@@ -1,12 +1,12 @@
 ---
-description: "Lista de tareas de US-18 y US-19 para alumnos activos"
+description: "Lista de tareas de US-18, US-19, US-20, US-22, US-28 y US-32 de la feature 009"
 ---
 
-# Tasks: US-18 y US-19 — Alumnos activos y búsqueda
+# Tasks: US-18, US-19, US-20, US-22, US-28 y US-32 — Monitoreo de alumnos activos
 
 **Entrada**: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/trainer-student-detail-api.yaml`, `quickstart.md`
 
-**Alcance**: US-18 y US-19. No implementado US-20, US-21, US-22, US-24, US-26, US-28, US-29, US-30 ni US-32.
+**Alcance**: US-18, US-19, US-20, US-22, US-28 y US-32. No implementado US-21, US-24, US-26, US-29 ni US-30.
 
 ## Phase 1: Línea base del flujo existente
 
@@ -40,9 +40,44 @@ description: "Lista de tareas de US-18 y US-19 para alumnos activos"
 - [X] T016 [P] [US19] Agregar pruebas de búsqueda por nombre, apellido, nombre completo, ausencia de coincidencias, campo vacío, mayúsculas/minúsculas, exclusión de no activos y preservación de datos de acciones en `frontend/src/utils/studentSearch.test.mjs`.
 - [X] T017 [US19] Ejecutar las pruebas enfocadas de US-19 y `npm run build` en `frontend/`.
 
+## Phase 6: US-20 — Filtrar alumnos por paquete contratado
+
+- [X] T018 [US20] Exponer `plan_id` y `plan_title` del vínculo activo en `RoutineAssignmentStudentResponse` desde `list_routine_assignments` en `backend/src/services/routine_template_service.py` y `backend/src/schemas/routine_template.py`, sin cambiar la autorización existente.
+- [X] T019 [P] [US20] Agregar la prueba de API que verifica el paquete contratado de cada alumno activo y la exclusión de vínculos terminados en `backend/tests/test_trainer_student_api.py`.
+- [X] T020 [US20] Implementar `buildPlanFilterOptions`, `canFilterByPlan` y `filterStudentsByPlan` en `frontend/src/utils/studentPlanFilter.mjs` (paquetes vigentes + paquetes contratados por alumnos activos, con cupos ocupados).
+- [X] T021 [US20] Integrar el selector de paquete en `frontend/src/components/RoutineAssignmentPanel.tsx`, visible solo con más de un paquete, combinado con la búsqueda de US-19 y con estado vacío para paquetes sin alumnos.
+- [X] T022 [P] [US20] Agregar pruebas de un único paquete, varios paquetes, cupos ocupados, paquetes archivados, filtrado y combinación con la búsqueda en `frontend/src/utils/studentPlanFilter.test.mjs`, e incluirlas en `npm test`.
+- [X] T023 [US20] Ejecutar las pruebas enfocadas y la suite completa del backend con cobertura, `npm test` y `npm run build` en `frontend/`.
+
+## Phase 7: US-22 — Seguimiento de rutinas del día
+
+- [X] T024 [US22] Definir `DailyRoutineItem`, `DailyRoutineSession`, `DailyRoutineExercise` y `DailyRoutineSet` en `backend/src/schemas/trainer_student.py`.
+- [X] T025 [US22] Implementar `list_daily_routines` en `backend/src/services/daily_routine_tracking_service.py`: ventana del día local, prioridad de sesión en curso, agrupación de series por ejercicio y timestamps con zona UTC explícita.
+- [X] T026 [US22] Exponer `GET /api/v1/trainers/me/daily-routines?date=&utc_offset_minutes=` en `backend/src/api/v1/trainers.py`.
+- [X] T027 [P] [US22] Agregar pruebas de estados, detalle de series, día local, prioridad de sesión en curso, privacidad entre entrenadores y validación de parámetros en `backend/tests/test_us22_daily_routines_api.py`.
+- [X] T028 [US22] Crear `frontend/src/pages/TrainerDailyRoutinesPage.tsx` (ruta `/entrenador/rutinas-del-dia`, acceso desde el inicio del entrenador) con selector de día, resumen por estado y detalle expandible por alumno.
+- [X] T029 [P] [US22] Agregar utilidades y pruebas de formato/orden en `frontend/src/utils/dailyRoutineFormat.mjs` y `frontend/src/utils/dailyRoutineFormat.test.mjs`.
+- [X] T030 [US22] Ejecutar la suite completa del backend con cobertura, `ruff`, `npm test` y `npm run build`.
+
+## Phase 8: US-28 — Analizar reportes de molestia y dolor
+
+- [X] T031 [US28] Agregar `exercise_muscle_group` a `BodyMapZoneHistoryItem` y a las consultas de historial por zona (alumno y entrenador) en `backend/src/schemas/body_map_report.py` y `backend/src/services/body_map_report_service.py`, y documentarlo en `taskify/specs/008-workout-feedback-and-communication/contracts/body-map-pain-reports-api.yaml`.
+- [X] T032 [P] [US28] Agregar pruebas del historial con ejercicio, día de rutina y grupo muscular en `backend/tests/test_us28_pain_report_analysis_api.py`.
+- [X] T033 [US28] Implementar `aggregatePain` y `groupByReport` en `frontend/src/utils/painReportAnalysis.mjs` con pruebas en `frontend/src/utils/painReportAnalysis.test.mjs`.
+- [X] T034 [US28] Crear `frontend/src/components/PainReportAnalysis.tsx` (gráfico por zona, grupo muscular, ejercicio o día y listado de reportes) e integrarlo en `frontend/src/components/TrainerStudentDetail.tsx`.
+- [X] T035 [US28] Ejecutar la suite completa del backend con cobertura, `ruff`, `npm test` y `npm run build`.
+
+## Phase 9: US-32 — Alumnos con riesgo de abandono
+
+- [X] T036 [US32] Implementar `evaluate_risk` y `list_abandonment_risk` en `backend/src/services/abandonment_risk_service.py` (frecuencia según la rutina, umbral de 5 entrenamientos o 14 días, alerta `ABANDONMENT_RISK` deduplicada por período).
+- [X] T037 [US32] Exponer `GET /api/v1/trainers/me/abandonment-risk` en `backend/src/api/v1/trainers.py` y evaluar el riesgo al listar `GET /api/v1/trainers/me/notifications` sin bloquear la lectura si falla.
+- [X] T038 [P] [US32] Agregar pruebas de umbrales, deduplicación, orden, alumnos sin rutina, privacidad y tolerancia a fallos en `backend/tests/test_us32_abandonment_risk_api.py`.
+- [X] T039 [US32] Priorizar a los alumnos en riesgo y mostrar la etiqueta "Riesgo de abandono" en `frontend/src/components/RoutineAssignmentPanel.tsx`, con `frontend/src/utils/abandonmentRisk.mjs` y sus pruebas; enlazar la notificación al alumno en `frontend/src/constants/routes.ts`.
+- [X] T040 [US32] Ejecutar la suite completa del backend con cobertura, `ruff`, `npm test` y `npm run build`.
+
 ## Dependencias
 
-T001 → T002/T003 (en paralelo) → T004 → T005 → T006 → T007/T008/T009 (T007 en paralelo con T006; T008 después de T007 y T005) → T010/T011/T012 → T013 → T014/T015/T016 (T016 en paralelo con T014/T015) → T017.
+T001 → T002/T003 (en paralelo) → T004 → T005 → T006 → T007/T008/T009 (T007 en paralelo con T006; T008 después de T007 y T005) → T010/T011/T012 → T013 → T014/T015/T016 (T016 en paralelo con T014/T015) → T017 → T018 → T019/T020 → T021/T022 → T023. US-22 (T024–T030), US-28 (T031–T035) y US-32 (T036–T040) son independientes entre sí y de US-20.
 
 ## Oportunidades de paralelización
 
@@ -53,4 +88,4 @@ T001 → T002/T003 (en paralelo) → T004 → T005 → T006 → T007/T008/T009 (
 
 ## MVP
 
-El incremento de US-18 comprende T003–T009 y el incremento de US-19 comprende T014–T017: búsqueda local sobre alumnos activos ya cargados, sin cambios de backend. Las demás historias de la feature permanecen fuera de alcance.
+El incremento de US-18 comprende T003–T009 y el incremento de US-19 comprende T014–T017: búsqueda local sobre alumnos activos ya cargados, sin cambios de backend. El incremento de US-20 comprende T018–T023: filtro local por paquete con cupos ocupados, apoyado en `plan_id`/`plan_title` del listado de asignaciones. US-22 comprende T024–T030 (pantalla "Rutinas del día"), US-28 comprende T031–T035 (análisis de molestias en el detalle del alumno) y US-32 comprende T036–T040 (riesgo de abandono con alerta y priorización). Las demás historias de la feature permanecen fuera de alcance.

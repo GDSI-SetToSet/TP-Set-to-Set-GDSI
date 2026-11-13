@@ -50,3 +50,51 @@ export interface TrainerStudentDetail {
   };
   available_existing_views: Record<string, boolean | string>;
 }
+
+export type DailyRoutineStatus = 'NOT_STARTED' | 'TRAINING' | 'FINISHED';
+
+export interface DailyRoutineSet {
+  set_number: number;
+  reps_completed: string;
+  weight_kg: number | null;
+  duration_seconds: number | null;
+  recorded_at: string;
+}
+
+export interface DailyRoutineExercise {
+  exercise_id: string;
+  exercise_name: string;
+  sets: DailyRoutineSet[];
+}
+
+export interface DailyRoutineSession {
+  id: string;
+  day_name: string;
+  modality: string;
+  started_at: string;
+  finished_at: string | null;
+  duration_seconds: number | null;
+  rpe: number | null;
+}
+
+export interface DailyRoutineItem {
+  relationship_id: string;
+  student_id: string;
+  student_name: string;
+  routine_name: string | null;
+  status: DailyRoutineStatus;
+  session: DailyRoutineSession | null;
+  exercises: DailyRoutineExercise[];
+}
+
+export interface AbandonmentRiskItem {
+  relationship_id: string;
+  student_id: string;
+  student_name: string;
+  at_risk: boolean;
+  reason: 'MISSED_TRAININGS' | 'INACTIVE_TWO_WEEKS' | null;
+  weekly_trainings: number;
+  days_without_report: number;
+  missed_trainings: number;
+  last_report_at: string | null;
+}

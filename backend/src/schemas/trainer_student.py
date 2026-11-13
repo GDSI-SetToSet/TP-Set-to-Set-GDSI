@@ -67,3 +67,49 @@ class TrainerStudentDetail(BaseModel):
     routine: TrainerStudentRoutine | None = None
     metrics: TrainerStudentMetrics
     available_existing_views: dict[str, Any]
+
+
+class DailyRoutineSet(BaseModel):
+    set_number: int
+    reps_completed: str
+    weight_kg: float | None = None
+    duration_seconds: int | None = None
+    recorded_at: datetime
+
+
+class DailyRoutineExercise(BaseModel):
+    exercise_id: str
+    exercise_name: str
+    sets: list[DailyRoutineSet]
+
+
+class DailyRoutineSession(BaseModel):
+    id: str
+    day_name: str
+    modality: str
+    started_at: datetime
+    finished_at: datetime | None = None
+    duration_seconds: int | None = None
+    rpe: int | None = None
+
+
+class DailyRoutineItem(BaseModel):
+    relationship_id: str
+    student_id: str
+    student_name: str
+    routine_name: str | None = None
+    status: str  # NOT_STARTED, TRAINING, FINISHED
+    session: DailyRoutineSession | None = None
+    exercises: list[DailyRoutineExercise] = []
+
+
+class AbandonmentRiskItem(BaseModel):
+    relationship_id: str
+    student_id: str
+    student_name: str
+    at_risk: bool
+    reason: str | None = None  # MISSED_TRAININGS, INACTIVE_TWO_WEEKS
+    weekly_trainings: int
+    days_without_report: int
+    missed_trainings: int
+    last_report_at: datetime | None = None

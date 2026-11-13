@@ -194,4 +194,6 @@ export interface RoutineAssignmentStudent {
   routine_template_id: string | null;
   routine_name: string | null;
   conflict_count: number;
+  plan_id: string | null;
+  plan_title: string | null;
 }

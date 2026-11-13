@@ -3,14 +3,16 @@ import { useEffect, useRef, useState } from 'react';
 import { BodyMapSelector } from './BodyMapSelector';
 import type { ReportZoneInput } from '../types/bodyMapReport';
 import { createBodyMapReport } from '../services/bodyMapReportService';
-import { reportWorkoutSessionRpe } from '../services/routineTemplateService';
-import { getWorkoutSessionSummary } from '../services/routineTemplateService';
-import type { WorkoutSessionSummary } from '../types/routineTemplate';
+import { reportWorkoutSessionRpe, getWorkoutSessionSummary } from '../services/routineTemplateService';
+import type { WorkoutSession, WorkoutSessionSummary } from '../types/routineTemplate';
+import { shouldPromptForRpe } from '../utils/sessionRpeState.mjs';
 import '../styles/session-summary.css';
 
 interface SessionSummaryDialogProps {
   sessionId: string;
   onClose: () => void;
+  onRpeSaved?: (session: WorkoutSession) => void;
+  onZonesReported?: () => void;
 }
 
 function formatKg(value: number): string {
@@ -49,7 +51,7 @@ function HistoryComparison({ summary }: { summary: WorkoutSessionSummary }) {
   );
 }
 
-export function SessionSummaryDialog({ sessionId, onClose }: SessionSummaryDialogProps) {
+export function SessionSummaryDialog({ sessionId, onClose, onRpeSaved, onZonesReported }: SessionSummaryDialogProps) {
   const [summary, setSummary] = useState<WorkoutSessionSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -77,13 +79,17 @@ export function SessionSummaryDialog({ sessionId, onClose }: SessionSummaryDialo
     setSavingRpe(true);
     setRpeError('');
     try {
+      let reportedZones = false;
       if (selectedZones.length > 0) {
         await createBodyMapReport({ context: 'POST_SESSION', session_id: sessionId, zones: selectedZones });
+        setSelectedZones([]);
+        reportedZones = true;
       }
-      await reportWorkoutSessionRpe(sessionId, selectedRpe);
-      setSummary((current) => current ? { ...current, rpe: selectedRpe } : current);
+      const updatedSession = await reportWorkoutSessionRpe(sessionId, selectedRpe);
+      setSummary((current) => current ? { ...current, rpe: updatedSession.rpe ?? selectedRpe } : current);
+      onRpeSaved?.(updatedSession);
+      if (reportedZones) onZonesReported?.();
       setRatingOpen(false);
-      setSelectedZones([]);
     } catch {
       setRpeError('No pudimos guardar tu calificación. Intentá nuevamente.');
     } finally {
@@ -149,26 +155,53 @@ export function SessionSummaryDialog({ sessionId, onClose }: SessionSummaryDialo
           )}
         </>}
 
-        <button ref={closeButton} type="button" onClick={onClose}>Continuar</button>
-        {summary && (summary.rpe === null || summary.rpe === undefined) && (
-          <div className="session-summary__rpe-follow-up">
-            <button
-              type="button"
-              className="session-summary__rate-link"
-              onClick={() => {
-                setSelectedRpe(null);
-                setSelectedZones([]);
-                setRatingOpen(true);
-                setRpeError('');
-              }}
-            >
-              Calificar esfuerzo y molestias de la rutina
-            </button>
-          </div>
+        {shouldPromptForRpe(summary) && (
+          <section className="session-summary__rpe-form" aria-labelledby="session-summary-rpe-title">
+            <h3 id="session-summary-rpe-title">¿Cómo calificarías tu esfuerzo?</h3>
+            <p>Indicá tu esfuerzo percibido (RPE) del 1 al 10, o continuá para completarlo después.</p>
+            <div className="session-summary__rpe-options" role="radiogroup" aria-label="Escala de esfuerzo percibido de 1 a 10">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selectedRpe === value}
+                  className={selectedRpe === value ? 'session-summary__rpe-option session-summary__rpe-option--selected' : 'session-summary__rpe-option'}
+                  onClick={() => setSelectedRpe(value)}
+                >
+                  {value}
+                </button>
+              ))}
+            </div>
+            <div className="session-summary__rpe-follow-up">
+              <button
+                type="button"
+                className="session-summary__rpe-save"
+                disabled={selectedRpe === null || savingRpe}
+                onClick={() => void handleSaveRpe()}
+              >
+                {savingRpe ? 'Guardando…' : 'Guardar reporte'}
+              </button>
+              <button
+                type="button"
+                className="session-summary__rate-link"
+                onClick={() => {
+                  setRatingOpen(true);
+                  setRpeError('');
+                }}
+              >
+                Reportar molestias o dolor (opcional)
+              </button>
+            </div>
+            {rpeError && !ratingOpen && <p className="session-summary__rpe-error" role="alert">{rpeError}</p>}
+          </section>
         )}
         {summary && summary.rpe !== null && summary.rpe !== undefined && (
           <p className="session-summary__rpe-saved" role="status">Esfuerzo calificado: {summary.rpe}/10</p>
         )}
+        <button ref={closeButton} type="button" onClick={onClose}>
+          {shouldPromptForRpe(summary) ? 'Continuar sin reportar' : 'Continuar'}
+        </button>
       </div>
       {ratingOpen && <div className="session-rating-overlay" role="dialog" aria-modal="true" aria-labelledby="session-rating-title">
         <section className="session-rating-dialog">

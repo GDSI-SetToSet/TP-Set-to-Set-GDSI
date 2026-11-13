@@ -6,8 +6,9 @@ sin destruir tablas preexistentes ni sobrescribir datos.
 
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
-from sqlalchemy import Engine, inspect, text
+from sqlalchemy import DateTime, Engine, bindparam, inspect, text
 
 import backend.src.models  # noqa: F401 - Asegura el registro de todas las entidades en Base.metadata
 from backend.src.core.database import Base, engine
@@ -120,6 +121,13 @@ TARGET_COLUMNS: tuple[ColumnMigration, ...] = (
         nullable=False,
         sqlite_default="'GYM'",
         postgres_default="'GYM'",
+    ),
+    ColumnMigration(
+        table="training_relationships",
+        column="routine_assigned_at",
+        sqlite_type="DATETIME",
+        postgres_type="TIMESTAMP WITH TIME ZONE",
+        nullable=True,
     ),
     ColumnMigration(
         table="workout_set_logs",
@@ -384,6 +392,113 @@ def _migrate_sqlite_body_map_pain_reports_unique_constraint(eng: Engine, inspect
     return [key]
 
 
+def _backfill_routine_assigned_at(
+    conn,
+    existing_tables: set[str],
+) -> list[str]:
+    """Completa routine_assigned_at en vínculos heredados con rutina asignada sin perder historial."""
+    if "training_relationships" not in existing_tables:
+        return []
+    conn_inspector = inspect(conn)
+    rel_cols = {c["name"] for c in conn_inspector.get_columns("training_relationships")}
+    if not {"initial_routine_id", "routine_assigned_at"}.issubset(rel_cols):
+        return []
+
+    pending = conn.execute(
+        text(
+            "SELECT COUNT(*) FROM training_relationships "
+            "WHERE initial_routine_id IS NOT NULL AND routine_assigned_at IS NULL"
+        )
+    ).scalar()
+    if not pending:
+        return []
+
+    sr_cols = {c["name"] for c in conn_inspector.get_columns("student_routines")} if "student_routines" in existing_tables else set()
+    ar_cols = {c["name"] for c in conn_inspector.get_columns("assigned_routines")} if "assigned_routines" in existing_tables else set()
+    ws_cols = {c["name"] for c in conn_inspector.get_columns("workout_sessions")} if "workout_sessions" in existing_tables else set()
+
+    applied: list[str] = []
+    if {"relationship_id", "status", "created_at"}.issubset(sr_cols):
+        conn.execute(
+            text(
+                "UPDATE training_relationships "
+                "SET routine_assigned_at = ("
+                "  SELECT sr.created_at FROM student_routines sr "
+                "  WHERE sr.relationship_id = training_relationships.id "
+                "    AND sr.status != 'UNASSIGNED' "
+                "  LIMIT 1"
+                ") "
+                "WHERE initial_routine_id IS NOT NULL "
+                "  AND routine_assigned_at IS NULL "
+                "  AND EXISTS ("
+                "    SELECT 1 FROM student_routines sr "
+                "    WHERE sr.relationship_id = training_relationships.id "
+                "      AND sr.status != 'UNASSIGNED'"
+                "  )"
+            )
+        )
+
+    if {"id", "status", "approved_at", "updated_at", "created_at"}.issubset(ar_cols):
+        conn.execute(
+            text(
+                "UPDATE training_relationships "
+                "SET routine_assigned_at = ("
+                "  SELECT COALESCE(ar.approved_at, ar.updated_at, ar.created_at) "
+                "  FROM assigned_routines ar "
+                "  WHERE ar.id = training_relationships.initial_routine_id "
+                "    AND ar.status = 'APPROVED' "
+                "  LIMIT 1"
+                ") "
+                "WHERE initial_routine_id IS NOT NULL "
+                "  AND routine_assigned_at IS NULL "
+                "  AND EXISTS ("
+                "    SELECT 1 FROM assigned_routines ar "
+                "    WHERE ar.id = training_relationships.initial_routine_id "
+                "      AND ar.status = 'APPROVED'"
+                "  )"
+            )
+        )
+
+    if {"relationship_id", "routine_id", "started_at"}.issubset(ws_cols):
+        conn.execute(
+            text(
+                "UPDATE training_relationships "
+                "SET routine_assigned_at = ("
+                "  SELECT MIN(ws.started_at) FROM workout_sessions ws "
+                "  WHERE ws.relationship_id = training_relationships.id "
+                "    AND ws.routine_id = training_relationships.initial_routine_id"
+                ") "
+                "WHERE initial_routine_id IS NOT NULL "
+                "  AND routine_assigned_at IS NULL "
+                "  AND EXISTS ("
+                "    SELECT 1 FROM workout_sessions ws "
+                "    WHERE ws.relationship_id = training_relationships.id "
+                "      AND ws.routine_id = training_relationships.initial_routine_id"
+                "  )"
+            )
+        )
+
+    remaining = conn.execute(
+        text(
+            "SELECT COUNT(*) FROM training_relationships "
+            "WHERE initial_routine_id IS NOT NULL AND routine_assigned_at IS NULL"
+        )
+    ).scalar()
+    if remaining:
+        fallback_now = datetime.now(UTC).replace(tzinfo=None)
+        stmt = text(
+            "UPDATE training_relationships "
+            "SET routine_assigned_at = :fallback_now "
+            "WHERE initial_routine_id IS NOT NULL AND routine_assigned_at IS NULL"
+        ).bindparams(bindparam("fallback_now", value=fallback_now, type_=DateTime(timezone=True)))
+        conn.execute(stmt)
+
+    key = "training_relationships.routine_assigned_at:backfill"
+    applied.append(key)
+    logger.info("Backfill aplicado: %s", key)
+    return applied
+
+
 def apply_migrations(target_engine: Engine | None = None) -> list[str]:
     """Aplica de forma aditiva e idempotente las columnas faltantes y ampliaciones de tipo en tablas existentes."""
     eng = target_engine or engine
@@ -421,6 +536,8 @@ def apply_migrations(target_engine: Engine | None = None) -> list[str]:
                 key = f"{m.table}.{m.column}"
                 applied.append(key)
                 logger.info("Migración aplicada: %s", key)
+
+        applied.extend(_backfill_routine_assigned_at(conn, existing_tables))
 
         # 2. Ampliaciones de tipo de columna en bases de datos relacionales estrictas (p. ej. PostgreSQL)
         if not is_sqlite:

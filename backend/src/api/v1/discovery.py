@@ -21,6 +21,7 @@ from backend.src.schemas.discovery import (
     TrainingRequestResponse,
     TrainingRequestStatus,
 )
+from backend.src.services.abandonment_risk_service import list_abandonment_risk
 from backend.src.services.discovery_service import (
     DiscoveryError,
     accept_training_request,
@@ -209,6 +210,12 @@ def trainer_notifications(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> NotificationListResponse:
+    if user.role == TRAINER_ROLE:
+        # US-32: las alertas de posible abandono se generan al consultar las notificaciones.
+        try:
+            list_abandonment_risk(db, user)
+        except Exception:  # noqa: BLE001 - la alerta nunca debe impedir leer notificaciones
+            db.rollback()
     try:
         return list_user_notifications(
             db, user, is_read=is_read, limit=limit, offset=offset, expected_role=TRAINER_ROLE

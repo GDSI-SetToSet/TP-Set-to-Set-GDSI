@@ -316,6 +316,7 @@ def approve_assigned_routine(db: Session, user: User, routine_id: str) -> Assign
     routine.updated_at = now
 
     relationship.initial_routine_id = routine.id
+    relationship.routine_assigned_at = now
 
     from backend.src.services.student_routine_service import sync_assigned_routine
 

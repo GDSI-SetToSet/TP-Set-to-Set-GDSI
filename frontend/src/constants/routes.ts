@@ -16,6 +16,7 @@ export const ROUTES = {
   trainerRoutines: '/entrenador/rutinas',
   trainerGenerateAIRoutine: '/entrenador/rutinas/generar-ia',
   trainerStudents: '/entrenador/alumnos',
+  trainerDailyRoutines: '/entrenador/rutinas-del-dia',
   trainerStudentRoutine: '/entrenador/alumnos/:studentId/rutina',
   trainerRequests: '/entrenador/solicitudes',
   trainerRequestDetail: '/entrenador/solicitudes/:requestId',
@@ -46,6 +47,7 @@ export function trainerNotificationPath(notification: Pick<
     notification.type !== 'PAIN_ALERT'
     && notification.type !== 'PERSONAL_RECORD'
     && notification.type !== 'PROTECTED_ZONES_UPDATED'
+    && notification.type !== 'ABANDONMENT_RISK'
   ) {
     return ROUTES.trainerRequests;
   }

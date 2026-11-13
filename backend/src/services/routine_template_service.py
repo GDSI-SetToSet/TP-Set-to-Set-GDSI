@@ -21,6 +21,7 @@ from backend.src.models.routine_template import (
 from backend.src.models.student_profile import StudentProfile
 from backend.src.models.student_routine import StudentRoutine
 from backend.src.models.trainer_profile import TrainerProfile
+from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.user import User
 from backend.src.models.workout_log import WorkoutSession, WorkoutSetLog
@@ -822,9 +823,10 @@ def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | in
 
     trainer = get_trainer_profile(db, user)
     rows = db.execute(
-        select(TrainingRelationship, StudentProfile, User)
+        select(TrainingRelationship, StudentProfile, User, TrainingPlan)
         .join(StudentProfile, TrainingRelationship.student_id == StudentProfile.id)
         .join(User, StudentProfile.user_id == User.id)
+        .outerjoin(TrainingPlan, TrainingRelationship.plan_id == TrainingPlan.id)
         .where(
             TrainingRelationship.trainer_id == trainer.id,
             TrainingRelationship.status == "ACTIVE",
@@ -835,8 +837,8 @@ def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | in
     if not rows:
         return []
 
-    rel_ids = [rel.id for rel, _, _ in rows]
-    initial_routine_ids = [rel.initial_routine_id for rel, _, _ in rows if rel.initial_routine_id]
+    rel_ids = [rel.id for rel, _, _, _ in rows]
+    initial_routine_ids = [rel.initial_routine_id for rel, _, _, _ in rows if rel.initial_routine_id]
 
     tpl_map: dict[str, str] = {}
     if initial_routine_ids:
@@ -870,7 +872,7 @@ def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | in
             sr_map[sr.relationship_id] = sr
 
     assignments: list[dict[str, str | int | None]] = []
-    for relationship, student, student_user in rows:
+    for relationship, student, student_user, plan in rows:
         routine_template_id = None
         routine_name = None
         if relationship.initial_routine_id:
@@ -905,6 +907,8 @@ def list_routine_assignments(db: Session, user: User) -> list[dict[str, str | in
                 "routine_template_id": routine_template_id,
                 "routine_name": routine_name,
                 "conflict_count": conflict_count,
+                "plan_id": relationship.plan_id,
+                "plan_title": plan.title if plan is not None else None,
             }
         )
     return assignments
@@ -945,7 +949,12 @@ def assign_routine_to_student(
         if routine is None:
             raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "Rutina no encontrada.")
 
+    previous_routine_id = relationship.initial_routine_id
     relationship.initial_routine_id = routine_template_id
+    if routine_template_id is None:
+        relationship.routine_assigned_at = None
+    elif previous_routine_id != routine_template_id or relationship.routine_assigned_at is None:
+        relationship.routine_assigned_at = utc_now()
     if routine is None or (relationship.routine_modality == "HOME" and not _routine_supports_home(routine)):
         relationship.routine_modality = "GYM"
     db.commit()

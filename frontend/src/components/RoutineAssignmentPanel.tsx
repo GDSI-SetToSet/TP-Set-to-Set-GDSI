@@ -1,14 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, CircleAlert, Pencil, Search, X } from 'lucide-react';
 import { ROUTES } from '../constants/routes';
 import { filterStudentsByName } from '../utils/studentSearch.mjs';
+import { ALL_PLANS, buildPlanFilterOptions, canFilterByPlan, filterStudentsByPlan } from '../utils/studentPlanFilter.mjs';
+import { getOwnTrainingPlans } from '../services/trainerService';
+import { abandonmentRiskDescription, sortByAbandonmentRisk } from '../utils/abandonmentRisk.mjs';
+import { getAbandonmentRisk } from '../services/trainerStudentService';
+import { RPE_UNREPORTED_LABEL } from '../utils/sessionRpeState.mjs';
+import { applyAuxiliaryRetry, resolveAssignmentLoadResults } from '../utils/assignmentLoadState.mjs';
+import type { AbandonmentRiskItem } from '../types/trainerStudent';
 import { EffortFeedbackForm } from './EffortFeedbackForm';
 import { assignRoutineToStudent, getRoutineAssignments, getTrainerStudentWorkoutLogs, getTrainerStudentWorkoutSessions } from '../services/routineTemplateService';
 import { getAllTrainerStudentBodyMapReports, getTrainerStudentZoneHistory } from '../services/bodyMapReportService';
 import type { TrainerAIRoutine } from '../types/assignedRoutine';
 import type { BodyMapReportResponse, BodyMapZoneHistoryItem } from '../types/bodyMapReport';
 import type { RoutineAssignmentStudent, RoutineTemplate, WorkoutSession, WorkoutSetLog } from '../types/routineTemplate';
+import type { TrainingPlan } from '../types/trainer';
 import '../styles/routine-assignment-progress.css';
 import '../styles/body-map.css';
 
@@ -59,8 +67,14 @@ export function RoutineAssignmentPanel({
 }: RoutineAssignmentPanelProps) {
   const [students, setStudents] = useState<RoutineAssignmentStudent[]>([]);
   const [studentSearch, setStudentSearch] = useState('');
+  const [trainerPlans, setTrainerPlans] = useState<TrainingPlan[]>([]);
+  const [planFilter, setPlanFilter] = useState<string>(ALL_PLANS);
+  const [abandonmentRisks, setAbandonmentRisks] = useState<AbandonmentRiskItem[]>([]);
   const [selectedRoutines, setSelectedRoutines] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [plansError, setPlansError] = useState('');
+  const [riskError, setRiskError] = useState('');
+  const [retryingAuxiliary, setRetryingAuxiliary] = useState(false);
   const [attentionLoaded, setAttentionLoaded] = useState(false);
   const [attentionError, setAttentionError] = useState('');
   const [sessionAvailabilityByRelationship, setSessionAvailabilityByRelationship] = useState<Record<string, boolean>>({});
@@ -82,15 +96,56 @@ export function RoutineAssignmentPanel({
   const [progressErrorFor, setProgressErrorFor] = useState<string | null>(null);
   const openedFromNotification = useRef(false);
 
-  useEffect(() => {
-    getRoutineAssignments()
-      .then((items) => {
-        setStudents(items);
-        setSelectedRoutines(Object.fromEntries(items.map((item) => [item.relationship_id, item.routine_template_id ?? ''])));
+  const loadInitialData = useCallback(() => {
+    setLoading(true);
+    setError('');
+    setPlansError('');
+    setRiskError('');
+    Promise.allSettled([
+      getRoutineAssignments(),
+      getOwnTrainingPlans(),
+      getAbandonmentRisk(),
+    ])
+      .then(([studentsResult, plansResult, risksResult]) => {
+        const resolved = resolveAssignmentLoadResults(studentsResult, plansResult, risksResult);
+        if (resolved.students !== null) {
+          setStudents(resolved.students);
+          setSelectedRoutines(Object.fromEntries(resolved.students.map((item) => [item.relationship_id, item.routine_template_id ?? ''])));
+        }
+        setError(resolved.error);
+        setTrainerPlans(resolved.trainerPlans);
+        setPlansError(resolved.plansError);
+        setAbandonmentRisks(resolved.abandonmentRisks);
+        setRiskError(resolved.riskError);
       })
-      .catch(() => setError('No pudimos cargar tus alumnos activos. Intentá nuevamente.'))
       .finally(() => setLoading(false));
   }, []);
+
+  const retryAuxiliaryData = useCallback(async () => {
+    if (retryingAuxiliary) return;
+    setRetryingAuxiliary(true);
+    try {
+      const [plansResult, risksResult] = await Promise.allSettled([
+        plansError ? getOwnTrainingPlans() : Promise.resolve<TrainingPlan[] | null>(null),
+        riskError ? getAbandonmentRisk() : Promise.resolve<AbandonmentRiskItem[] | null>(null),
+      ]);
+      const next = applyAuxiliaryRetry(
+        { trainerPlans, plansError, abandonmentRisks, riskError },
+        plansError ? plansResult as PromiseSettledResult<TrainingPlan[]> : null,
+        riskError ? risksResult as PromiseSettledResult<AbandonmentRiskItem[]> : null,
+      );
+      setTrainerPlans(next.trainerPlans);
+      setPlansError(next.plansError);
+      setAbandonmentRisks(next.abandonmentRisks);
+      setRiskError(next.riskError);
+    } finally {
+      setRetryingAuxiliary(false);
+    }
+  }, [abandonmentRisks, plansError, retryingAuxiliary, riskError, trainerPlans]);
+
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
 
   useEffect(() => {
     if (loading) return undefined;
@@ -335,7 +390,15 @@ export function RoutineAssignmentPanel({
     );
   }
 
-  const visibleStudents = filterStudentsByName(students, studentSearch);
+  const planOptions = buildPlanFilterOptions(students, trainerPlans);
+  const showPlanFilter = canFilterByPlan(planOptions);
+  const activePlanFilter = showPlanFilter && planOptions.some((option) => option.plan_id === planFilter) ? planFilter : ALL_PLANS;
+  const selectedPlanOption = planOptions.find((option) => option.plan_id === activePlanFilter);
+  const riskByRelationship = new Map(abandonmentRisks.map((risk) => [risk.relationship_id, risk]));
+  const visibleStudents = sortByAbandonmentRisk(
+    filterStudentsByName(filterStudentsByPlan(students, activePlanFilter), studentSearch),
+    abandonmentRisks,
+  );
 
   function visibleSessionsFor(relationshipId: string): WorkoutSession[] {
     const sessions = sessionsByRelationship[relationshipId] ?? [];
@@ -351,11 +414,47 @@ export function RoutineAssignmentPanel({
       {loading ? (
         <p role="status">Cargando alumnos…</p>
       ) : error && students.length === 0 ? (
-        <p className="form-alert" role="alert">{error}</p>
+        <div className="form-alert" role="alert">
+          <p>{error}</p>
+          <button type="button" className="profile-save" onClick={loadInitialData}>
+            Reintentar
+          </button>
+        </div>
       ) : students.length === 0 ? (
-        <p className="plan-empty">No tenés alumnos con un vínculo activo.</p>
+        <>
+          {(plansError || riskError) && (
+            <div className="form-alert" role="alert">
+              {plansError && <p>{plansError}</p>}
+              {riskError && <p>{riskError}</p>}
+              <button
+                type="button"
+                className="profile-save"
+                disabled={retryingAuxiliary}
+                onClick={() => void retryAuxiliaryData()}
+              >
+                {retryingAuxiliary ? 'Reintentando…' : 'Reintentar'}
+              </button>
+            </div>
+          )}
+          <p className="plan-empty">No tenés alumnos con un vínculo activo.</p>
+        </>
       ) : (
         <>
+          {(plansError || riskError) && (
+            <div className="form-alert" role="alert">
+              {plansError && <p>{plansError}</p>}
+              {riskError && <p>{riskError}</p>}
+              <button
+                type="button"
+                className="profile-save"
+                disabled={retryingAuxiliary}
+                onClick={() => void retryAuxiliaryData()}
+              >
+                {retryingAuxiliary ? 'Reintentando…' : 'Reintentar'}
+              </button>
+            </div>
+          )}
+          <div className="routine-assignment__filters">
           <div className="routine-assignment__search">
             <label className="routine-assignment__search-label" htmlFor="active-student-search">
               Buscar alumno
@@ -380,10 +479,37 @@ export function RoutineAssignmentPanel({
               </button>
             )}
           </div>
+          {showPlanFilter && (
+            <div className="routine-assignment__plan-filter">
+              <label htmlFor="active-student-plan-filter">Paquete</label>
+              <select
+                id="active-student-plan-filter"
+                value={activePlanFilter}
+                onChange={(event) => setPlanFilter(event.target.value)}
+              >
+                <option value={ALL_PLANS}>Todos los paquetes ({students.length})</option>
+                {planOptions.map((option) => (
+                  <option key={option.plan_id} value={option.plan_id}>
+                    {option.title} ({option.student_count} {option.student_count === 1 ? 'cupo ocupado' : 'cupos ocupados'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          </div>
           {visibleStudents.length === 0 ? (
             <div className="routine-assignment__no-results">
-              <strong>No se encontraron alumnos</strong>
-              <span>Probá con otro nombre o apellido.</span>
+              {selectedPlanOption && selectedPlanOption.student_count === 0 ? (
+                <>
+                  <strong>No hay alumnos en {selectedPlanOption.title}</strong>
+                  <span>Todavía no tenés cupos ocupados en este paquete.</span>
+                </>
+              ) : (
+                <>
+                  <strong>No se encontraron alumnos</strong>
+                  <span>{activePlanFilter ? 'Probá con otro nombre, apellido o paquete.' : 'Probá con otro nombre o apellido.'}</span>
+                </>
+              )}
             </div>
           ) : (
             <div className="routine-assignment__list">
@@ -399,6 +525,16 @@ export function RoutineAssignmentPanel({
                 >
                   {student.student_name}
                 </button>
+                {riskByRelationship.get(student.relationship_id)?.at_risk && (
+                  <span
+                    className="routine-assignment__attention routine-assignment__attention--risk"
+                    title={abandonmentRiskDescription(riskByRelationship.get(student.relationship_id))}
+                  >
+                    <CircleAlert size={14} aria-hidden="true" />
+                    Riesgo de abandono
+                    <span className="sr-only">: {abandonmentRiskDescription(riskByRelationship.get(student.relationship_id))}</span>
+                  </span>
+                )}
                 {attentionLoaded && reportsWithDiscomfort(student.student_id).length > 0 && (
                   <button
                     type="button"
@@ -518,9 +654,13 @@ export function RoutineAssignmentPanel({
                                 <span className="routine-assignment__rpe-badge routine-assignment__rpe-badge--reported">
                                   Esfuerzo: {session.rpe}/10
                                 </span>
+                              ) : session.finished_at ? (
+                                <span className="routine-assignment__rpe-badge routine-assignment__rpe-badge--unreported">
+                                  {RPE_UNREPORTED_LABEL}
+                                </span>
                               ) : (
                                 <span className="routine-assignment__rpe-badge routine-assignment__rpe-badge--unreported">
-                                  Sin calificación
+                                  En curso
                                 </span>
                               )}
                             </div>

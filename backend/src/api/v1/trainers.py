@@ -1,6 +1,7 @@
+from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from backend.src.api.v1.deps import DbDep, get_current_user
@@ -17,9 +18,13 @@ from backend.src.schemas.trainer import (
     TrainingPlanUpdate,
 )
 from backend.src.schemas.trainer_student import (
+    AbandonmentRiskItem,
+    DailyRoutineItem,
     TrainerStudentDetail,
     TrainerStudentListItem,
 )
+from backend.src.services.abandonment_risk_service import list_abandonment_risk
+from backend.src.services.daily_routine_tracking_service import list_daily_routines
 from backend.src.services.trainer_service import (
     TrainerProfileError,
     archive_plan,
@@ -70,6 +75,29 @@ def handle_student_error(error: TrainerStudentError) -> None:
 def own_active_students(user: CurrentUser, db: DbDep) -> list[TrainerStudentListItem]:
     try:
         return list_trainer_students(db, user)
+    except TrainerStudentError as error:
+        handle_student_error(error)
+
+
+@router.get("/me/daily-routines", response_model=list[DailyRoutineItem])
+def own_students_daily_routines(
+    user: CurrentUser,
+    db: DbDep,
+    day: Annotated[date | None, Query(alias="date")] = None,
+    utc_offset_minutes: Annotated[int, Query(ge=-840, le=840)] = 0,
+) -> list[DailyRoutineItem]:
+    """US-22: estado y registro de la rutina del día de cada alumno activo."""
+    try:
+        return list_daily_routines(db, user, day or date.today(), utc_offset_minutes)
+    except TrainerStudentError as error:
+        handle_student_error(error)
+
+
+@router.get("/me/abandonment-risk", response_model=list[AbandonmentRiskItem])
+def own_students_abandonment_risk(user: CurrentUser, db: DbDep) -> list[AbandonmentRiskItem]:
+    """US-32: alumnos activos con su riesgo de abandono (en riesgo primero)."""
+    try:
+        return list_abandonment_risk(db, user)
     except TrainerStudentError as error:
         handle_student_error(error)
 
