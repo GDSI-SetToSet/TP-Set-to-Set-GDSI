@@ -21,6 +21,10 @@ from backend.src.api.v1.safe_variants import router as safe_variants_router
 from backend.src.api.v1.safe_variants import (
     student_router as student_safe_variants_router,
 )
+from backend.src.api.v1.session_adjustments import router as session_adjustments_router
+from backend.src.api.v1.session_adjustments import (
+    student_router as student_session_adjustments_router,
+)
 from backend.src.api.v1.student_routines import router as student_routines_router
 from backend.src.api.v1.students import router as students_router
 from backend.src.api.v1.trainers import router as trainers_router
@@ -94,6 +98,8 @@ def create_app(create_tables: bool = True) -> FastAPI:
     app.include_router(student_safe_variants_router)
     app.include_router(exercise_alternatives_router)
     app.include_router(body_map_reports_router)
+    app.include_router(session_adjustments_router)
+    app.include_router(student_session_adjustments_router)
 
     @app.get("/health", tags=["health"])
     def health() -> dict[str, str]:

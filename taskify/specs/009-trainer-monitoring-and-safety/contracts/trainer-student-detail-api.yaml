@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: API de resumen del alumno para el entrenador
   version: 1.0.0
-  description: Contrato de solo lectura de US-18. Las demás historias de monitoreo se excluyen intencionalmente.
+  description: Contrato de US-18 (solo lectura) y US-26 (ajuste de la próxima sesión). Las demás historias de monitoreo se documentan en sus propios contratos o se excluyen.
 paths:
   /api/v1/trainers/me/students:
     get:
@@ -42,6 +42,81 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /api/v1/trainers/me/sessions/{session_id}/adjustment:
+    parameters:
+      - in: path
+        name: session_id
+        required: true
+        schema:
+          type: string
+    get:
+      summary: "US-26: reportes de una sesión finalizada y el día de rutina a ajustar"
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Cargas, RPE, molestias, pedidos de reemplazo, ejercicios del día y ajuste vigente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionAdjustmentContext'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: La sesión sigue en curso (RFC 7807)
+    put:
+      summary: "US-26: ajustar la próxima sesión de ese día de rutina"
+      description: >
+        Reescribe el día en la copia de la rutina del alumno (con registro en el historial de cambios). Si el alumno
+        tiene una sesión en curso, el ajuste queda PENDING y se aplica cuando esa sesión finaliza o cuando inicia otra.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [blocks]
+              properties:
+                note: {type: string, nullable: true, maxLength: 500}
+                blocks:
+                  type: array
+                  minItems: 1
+                  items: {type: object, description: Igual a un bloque de RoutineTemplateInput}
+      responses:
+        '200':
+          description: Ajuste guardado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdjustmentView'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Sesión en curso, rutina cambiada, día inexistente o borrador de US-14 sin confirmar (RFC 7807)
+        '422':
+          description: Ejercicio contraindicado, sin alternativa "Sin materiales", datos inválidos o sin cambios (RFC 7807 con errors)
+  /api/v1/students/me/routine-adjustments:
+    get:
+      summary: "US-26: días con ejercicios \"Ajustado por tu entrenador\" que el alumno todavía no entrenó"
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Avisos de ajuste por día
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [day_name, exercise_ids, adjusted_at]
+                  properties:
+                    day_name: {type: string}
+                    note: {type: string, nullable: true}
+                    exercise_ids: {type: array, items: {type: string}}
+                    adjusted_at: {type: string, format: date-time}
 components:
   securitySchemes:
     bearerAuth:
@@ -103,3 +178,45 @@ components:
             logged_sets: {type: integer}
             last_rpe: {type: number, nullable: true}
             last_tonnage_kg: {type: number, nullable: true}
+    AdjustmentView:
+      type: object
+      required: [id, status, changed_exercise_ids, created_at]
+      properties:
+        id: {type: string}
+        status: {type: string, enum: [PENDING, APPLIED]}
+        note: {type: string, nullable: true}
+        changed_exercise_ids: {type: array, items: {type: string}}
+        created_at: {type: string, format: date-time}
+        applied_at: {type: string, format: date-time, nullable: true}
+    SessionAdjustmentContext:
+      type: object
+      required: [session_id, day_name, logged_exercises, pain_zones, replacement_requests, blocks, can_adjust]
+      properties:
+        session_id: {type: string}
+        day_name: {type: string}
+        started_at: {type: string, format: date-time}
+        finished_at: {type: string, format: date-time, nullable: true}
+        rpe: {type: integer, nullable: true}
+        logged_exercises: {type: array, items: {type: object}}
+        pain_zones:
+          type: array
+          items:
+            type: object
+            properties:
+              zone: {type: string}
+              zone_label: {type: string}
+              intensity: {type: string, enum: [DISCOMFORT, PAIN]}
+              exercise_name: {type: string, nullable: true}
+              context: {type: string}
+        replacement_requests:
+          type: array
+          items:
+            type: object
+            properties:
+              original_exercise_id: {type: string}
+              original_exercise_name: {type: string}
+              replacement_exercise_name: {type: string, nullable: true, description: None si el alumno salteó el ejercicio}
+        blocks: {type: array, items: {type: object}, description: Día vigente, o el ajuste pendiente si lo hay}
+        can_adjust: {type: boolean}
+        blocked_reason: {type: string, nullable: true}
+        current_adjustment: {$ref: '#/components/schemas/AdjustmentView', nullable: true}

@@ -1,12 +1,12 @@
 ---
-description: "Lista de tareas de US-18, US-19, US-20, US-22, US-28 y US-32 de la feature 009"
+description: "Lista de tareas de US-18, US-19, US-20, US-22, US-26, US-28 y US-32 de la feature 009"
 ---
 
-# Tasks: US-18, US-19, US-20, US-22, US-28 y US-32 — Monitoreo de alumnos activos
+# Tasks: US-18, US-19, US-20, US-22, US-26, US-28 y US-32 — Monitoreo de alumnos activos
 
 **Entrada**: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/trainer-student-detail-api.yaml`, `quickstart.md`
 
-**Alcance**: US-18, US-19, US-20, US-22, US-28 y US-32. No implementado US-21, US-24, US-26, US-29 ni US-30.
+**Alcance**: US-18, US-19, US-20, US-22, US-26, US-28 y US-32. No implementado US-21, US-24, US-29 ni US-30.
 
 ## Phase 1: Línea base del flujo existente
 
@@ -75,9 +75,23 @@ description: "Lista de tareas de US-18, US-19, US-20, US-22, US-28 y US-32 de la
 - [X] T039 [US32] Priorizar a los alumnos en riesgo y mostrar la etiqueta "Riesgo de abandono" en `frontend/src/components/RoutineAssignmentPanel.tsx`, con `frontend/src/utils/abandonmentRisk.mjs` y sus pruebas; enlazar la notificación al alumno en `frontend/src/constants/routes.ts`.
 - [X] T040 [US32] Ejecutar la suite completa del backend con cobertura, `ruff`, `npm test` y `npm run build`.
 
+## Phase 11: US-26 — Ajustar la próxima sesión a partir de los reportes
+
+> Numeración a partir de T048: T041–T047 corresponden a US-24 (rama `feature/us24-planned-vs-actual-metrics`).
+
+- [X] T048 [US26] Crear el modelo `SessionAdjustment` (`PENDING`/`APPLIED`/`SUPERSEDED`) en `backend/src/models/session_adjustment.py` y registrarlo en `backend/src/models/__init__.py` (tabla nueva, la crea `create_all`).
+- [X] T049 [US26] Definir `AdjustmentInput`, `SessionAdjustmentContext`, `AdjustmentView` y `StudentAdjustmentNotice` en `backend/src/schemas/session_adjustment.py`.
+- [X] T050 [US26] Implementar `get_adjustment_context`, `save_adjustment`, `apply_pending_adjustments` y `list_student_adjustments` en `backend/src/services/session_adjustment_service.py`, con la validación de US-14 (bloqueo de contraindicados y "Sin materiales"), el registro en `RoutineChangeLog`, el ajuste pendiente si hay una sesión en curso y la copia de la rutina creada recién al aplicar.
+- [X] T051 [US26] Aplicar los ajustes pendientes al finalizar la sesión que esperaban y al iniciar una nueva en `backend/src/services/routine_template_service.py`.
+- [X] T052 [US26] Exponer `GET`/`PUT /api/v1/trainers/me/sessions/{session_id}/adjustment` y `GET /api/v1/students/me/routine-adjustments` en `backend/src/api/v1/session_adjustments.py` y documentarlos en `contracts/trainer-student-detail-api.yaml`.
+- [X] T053 [P] [US26] Agregar pruebas de contexto (cargas, RPE, molestias y reemplazos), ajuste aplicado y marca hasta entrenar el día, ajuste pendiente con sesión en curso, sesión abandonada, contraindicados, reemplazo de ejercicio, reglas de conflicto y privacidad en `backend/tests/test_us26_session_adjustment_api.py`.
+- [X] T054 [P] [US26] Agregar utilidades y pruebas en `frontend/src/utils/sessionAdjustment.mjs` y `frontend/src/utils/sessionAdjustment.test.mjs`.
+- [X] T055 [US26] Crear `frontend/src/components/SessionAdjustmentPanel.tsx` con la acción "Ajustar próxima sesión" en `frontend/src/pages/TrainerDailyRoutinesPage.tsx`, y mostrar "Ajustado por tu entrenador" con la nota en `frontend/src/pages/StudentRoutinesPage.tsx` (recargando la rutina al iniciar la sesión).
+- [X] T056 [US26] Ejecutar la suite completa del backend con cobertura, `ruff`, `npm test` y `npm run build`.
+
 ## Dependencias
 
-T001 → T002/T003 (en paralelo) → T004 → T005 → T006 → T007/T008/T009 (T007 en paralelo con T006; T008 después de T007 y T005) → T010/T011/T012 → T013 → T014/T015/T016 (T016 en paralelo con T014/T015) → T017 → T018 → T019/T020 → T021/T022 → T023. US-22 (T024–T030), US-28 (T031–T035) y US-32 (T036–T040) son independientes entre sí y de US-20.
+T001 → T002/T003 (en paralelo) → T004 → T005 → T006 → T007/T008/T009 (T007 en paralelo con T006; T008 después de T007 y T005) → T010/T011/T012 → T013 → T014/T015/T016 (T016 en paralelo con T014/T015) → T017 → T018 → T019/T020 → T021/T022 → T023. US-22 (T024–T030), US-28 (T031–T035) y US-32 (T036–T040) son independientes entre sí y de US-20. US-26 (T048–T056) extiende la pantalla de US-22 y reutiliza la edición de US-14: T048 → T049 → T050 → T051/T052 → T053; T054 en paralelo con el backend; T055 después de T052 y T054.
 
 ## Oportunidades de paralelización
 
@@ -88,4 +102,4 @@ T001 → T002/T003 (en paralelo) → T004 → T005 → T006 → T007/T008/T009 (
 
 ## MVP
 
-El incremento de US-18 comprende T003–T009 y el incremento de US-19 comprende T014–T017: búsqueda local sobre alumnos activos ya cargados, sin cambios de backend. El incremento de US-20 comprende T018–T023: filtro local por paquete con cupos ocupados, apoyado en `plan_id`/`plan_title` del listado de asignaciones. US-22 comprende T024–T030 (pantalla "Rutinas del día"), US-28 comprende T031–T035 (análisis de molestias en el detalle del alumno) y US-32 comprende T036–T040 (riesgo de abandono con alerta y priorización). Las demás historias de la feature permanecen fuera de alcance.
+El incremento de US-18 comprende T003–T009 y el incremento de US-19 comprende T014–T017: búsqueda local sobre alumnos activos ya cargados, sin cambios de backend. El incremento de US-20 comprende T018–T023: filtro local por paquete con cupos ocupados, apoyado en `plan_id`/`plan_title` del listado de asignaciones. US-22 comprende T024–T030 (pantalla "Rutinas del día"), US-28 comprende T031–T035 (análisis de molestias en el detalle del alumno), US-32 comprende T036–T040 (riesgo de abandono con alerta y priorización) y US-26 comprende T048–T056 (ajuste de la próxima sesión desde la sesión finalizada, con marca para el alumno). Las demás historias de la feature permanecen fuera de alcance.
