@@ -1,12 +1,12 @@
 ---
-description: "Lista de tareas de US-18, US-19, US-20, US-22, US-28 y US-32 de la feature 009"
+description: "Lista de tareas de US-18, US-19, US-20, US-22, US-24, US-28 y US-32 de la feature 009"
 ---
 
-# Tasks: US-18, US-19, US-20, US-22, US-28 y US-32 — Monitoreo de alumnos activos
+# Tasks: US-18, US-19, US-20, US-22, US-24, US-28 y US-32 — Monitoreo de alumnos activos
 
 **Entrada**: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/trainer-student-detail-api.yaml`, `quickstart.md`
 
-**Alcance**: US-18, US-19, US-20, US-22, US-28 y US-32. No implementado US-21, US-24, US-26, US-29 ni US-30.
+**Alcance**: US-18, US-19, US-20, US-22, US-24, US-28 y US-32. No implementado US-21, US-26, US-29 ni US-30.
 
 ## Phase 1: Línea base del flujo existente
 
@@ -75,9 +75,19 @@ description: "Lista de tareas de US-18, US-19, US-20, US-22, US-28 y US-32 de la
 - [X] T039 [US32] Priorizar a los alumnos en riesgo y mostrar la etiqueta "Riesgo de abandono" en `frontend/src/components/RoutineAssignmentPanel.tsx`, con `frontend/src/utils/abandonmentRisk.mjs` y sus pruebas; enlazar la notificación al alumno en `frontend/src/constants/routes.ts`.
 - [X] T040 [US32] Ejecutar la suite completa del backend con cobertura, `ruff`, `npm test` y `npm run build`.
 
+## Phase 10: US-24 — Métricas esperadas vs obtenidas por sesión
+
+- [X] T041 [US24] Definir `SessionComparison`, `ExerciseComparison`, `PlannedMetrics` y `PerformedMetrics` en `backend/src/schemas/trainer_student.py`.
+- [X] T042 [US24] Implementar `compare_session` en `backend/src/services/session_comparison_service.py`: plan vigente del día (copia del alumno, plantilla o rutina asignada), sesión previa finalizada del mismo día de rutina, métricas por ejercicio y por sesión y mapeo de reemplazos (US-54).
+- [X] T043 [US24] Exponer `GET /api/v1/trainers/me/sessions/{session_id}/comparison` en `backend/src/api/v1/trainers.py` (404 si la sesión no es de un alumno activo propio, 409 si sigue en curso) y documentarlo en `contracts/trainer-student-detail-api.yaml`.
+- [X] T044 [P] [US24] Agregar pruebas de plan vs real, sesión previa del mismo día, sin sesión previa, reemplazos, sesión en curso y privacidad en `backend/tests/test_us24_session_comparison_api.py`.
+- [X] T045 [P] [US24] Agregar utilidades de diferencias y formato en `frontend/src/utils/sessionComparison.mjs` con pruebas en `frontend/src/utils/sessionComparison.test.mjs`.
+- [X] T046 [US24] Crear `frontend/src/components/SessionComparison.tsx` e integrarlo con la acción "Comparar métricas" en el detalle de sesiones finalizadas de `frontend/src/pages/TrainerDailyRoutinesPage.tsx`.
+- [X] T047 [US24] Ejecutar la suite completa del backend con cobertura, `ruff`, `npm test` y `npm run build`.
+
 ## Dependencias
 
-T001 → T002/T003 (en paralelo) → T004 → T005 → T006 → T007/T008/T009 (T007 en paralelo con T006; T008 después de T007 y T005) → T010/T011/T012 → T013 → T014/T015/T016 (T016 en paralelo con T014/T015) → T017 → T018 → T019/T020 → T021/T022 → T023. US-22 (T024–T030), US-28 (T031–T035) y US-32 (T036–T040) son independientes entre sí y de US-20.
+T001 → T002/T003 (en paralelo) → T004 → T005 → T006 → T007/T008/T009 (T007 en paralelo con T006; T008 después de T007 y T005) → T010/T011/T012 → T013 → T014/T015/T016 (T016 en paralelo con T014/T015) → T017 → T018 → T019/T020 → T021/T022 → T023. US-22 (T024–T030), US-28 (T031–T035) y US-32 (T036–T040) son independientes entre sí y de US-20. US-24 (T041–T047) extiende la pantalla de US-22: T041 → T042 → T043 → T044; T045 en paralelo con el backend; T046 después de T043 y T045.
 
 ## Oportunidades de paralelización
 
@@ -88,4 +98,4 @@ T001 → T002/T003 (en paralelo) → T004 → T005 → T006 → T007/T008/T009 (
 
 ## MVP
 
-El incremento de US-18 comprende T003–T009 y el incremento de US-19 comprende T014–T017: búsqueda local sobre alumnos activos ya cargados, sin cambios de backend. El incremento de US-20 comprende T018–T023: filtro local por paquete con cupos ocupados, apoyado en `plan_id`/`plan_title` del listado de asignaciones. US-22 comprende T024–T030 (pantalla "Rutinas del día"), US-28 comprende T031–T035 (análisis de molestias en el detalle del alumno) y US-32 comprende T036–T040 (riesgo de abandono con alerta y priorización). Las demás historias de la feature permanecen fuera de alcance.
+El incremento de US-18 comprende T003–T009 y el incremento de US-19 comprende T014–T017: búsqueda local sobre alumnos activos ya cargados, sin cambios de backend. El incremento de US-20 comprende T018–T023: filtro local por paquete con cupos ocupados, apoyado en `plan_id`/`plan_title` del listado de asignaciones. US-22 comprende T024–T030 (pantalla "Rutinas del día"), US-28 comprende T031–T035 (análisis de molestias en el detalle del alumno), US-32 comprende T036–T040 (riesgo de abandono con alerta y priorización) y US-24 comprende T041–T047 (comparación de métricas planificadas, realizadas y previas de una sesión finalizada). Las demás historias de la feature permanecen fuera de alcance.

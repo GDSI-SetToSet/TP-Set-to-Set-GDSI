@@ -52,6 +52,23 @@ def _pick_session(sessions: list[WorkoutSession]) -> WorkoutSession | None:
     return max(candidates, key=lambda session: session.started_at, default=None)
 
 
+def session_view(session: WorkoutSession) -> DailyRoutineSession:
+    duration = (
+        int((session.finished_at - session.started_at).total_seconds())
+        if session.finished_at is not None
+        else None
+    )
+    return DailyRoutineSession(
+        id=session.id,
+        day_name=session.day_name,
+        modality=session.modality,
+        started_at=_as_utc(session.started_at),
+        finished_at=_as_utc(session.finished_at) if session.finished_at else None,
+        duration_seconds=duration,
+        rpe=session.rpe,
+    )
+
+
 def _group_exercises(logs: list[WorkoutSetLog]) -> list[DailyRoutineExercise]:
     grouped: dict[str, list[WorkoutSetLog]] = defaultdict(list)
     for log in sorted(logs, key=lambda item: (item.recorded_at, item.set_number)):
@@ -141,24 +158,11 @@ def list_daily_routines(
             continue
         session = chosen.get(relationship_id)
         status = STATUS_NOT_STARTED
-        session_view = None
+        session_data = None
         exercises: list[DailyRoutineExercise] = []
         if session is not None:
             status = STATUS_TRAINING if session.finished_at is None else STATUS_FINISHED
-            duration = (
-                int((session.finished_at - session.started_at).total_seconds())
-                if session.finished_at is not None
-                else None
-            )
-            session_view = DailyRoutineSession(
-                id=session.id,
-                day_name=session.day_name,
-                modality=session.modality,
-                started_at=_as_utc(session.started_at),
-                finished_at=_as_utc(session.finished_at) if session.finished_at else None,
-                duration_seconds=duration,
-                rpe=session.rpe,
-            )
+            session_data = session_view(session)
             exercises = _group_exercises(logs_by_relationship.get(relationship_id, []))
         items.append(
             DailyRoutineItem(
@@ -167,7 +171,7 @@ def list_daily_routines(
                 student_name=str(assignment["student_name"]),
                 routine_name=assignment["routine_name"],
                 status=status,
-                session=session_view,
+                session=session_data,
                 exercises=exercises,
             )
         )

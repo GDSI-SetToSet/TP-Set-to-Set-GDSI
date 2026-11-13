@@ -113,3 +113,36 @@ class AbandonmentRiskItem(BaseModel):
     days_without_report: int
     missed_trainings: int
     last_report_at: datetime | None = None
+
+
+class PlannedMetrics(BaseModel):
+    sets: int
+    reps: str
+    target_weight_kg: float | None = None
+
+
+class PerformedMetrics(BaseModel):
+    sets_completed: int
+    reps: list[str]
+    max_weight_kg: float | None = None
+    volume_kg: float
+    total_duration_seconds: int
+
+
+class ExerciseComparison(BaseModel):
+    exercise_id: str
+    exercise_name: str
+    replaced_exercise_name: str | None = None
+    planned: PlannedMetrics | None = None
+    performed: PerformedMetrics | None = None
+    previous: PerformedMetrics | None = None
+
+
+class SessionComparison(BaseModel):
+    """US-24: sesión finalizada vs lo planificado y vs la sesión previa del mismo día de rutina."""
+
+    session: DailyRoutineSession
+    previous_session: DailyRoutineSession | None = None
+    volume_kg: float
+    previous_volume_kg: float | None = None
+    exercises: list[ExerciseComparison]

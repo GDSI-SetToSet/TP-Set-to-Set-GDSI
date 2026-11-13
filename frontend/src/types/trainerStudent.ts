@@ -87,6 +87,38 @@ export interface DailyRoutineItem {
   exercises: DailyRoutineExercise[];
 }
 
+export interface PlannedMetrics {
+  sets: number;
+  reps: string;
+  target_weight_kg: number | null;
+}
+
+export interface PerformedMetrics {
+  sets_completed: number;
+  reps: string[];
+  max_weight_kg: number | null;
+  volume_kg: number;
+  total_duration_seconds: number;
+}
+
+export interface ExerciseComparison {
+  exercise_id: string;
+  exercise_name: string;
+  replaced_exercise_name: string | null;
+  planned: PlannedMetrics | null;
+  performed: PerformedMetrics | null;
+  previous: PerformedMetrics | null;
+}
+
+/** US-24: sesión finalizada vs lo planificado y vs la sesión previa del mismo día de rutina. */
+export interface SessionComparison {
+  session: DailyRoutineSession;
+  previous_session: DailyRoutineSession | null;
+  volume_kg: number;
+  previous_volume_kg: number | null;
+  exercises: ExerciseComparison[];
+}
+
 export interface AbandonmentRiskItem {
   relationship_id: string;
   student_id: string;
