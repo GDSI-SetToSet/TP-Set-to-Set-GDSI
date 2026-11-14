@@ -1,16 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, CircleAlert, Pencil, Search, X } from 'lucide-react';
+import { ChevronDown, CircleAlert, Pencil, Search, ShieldAlert, X } from 'lucide-react';
 import { ROUTES } from '../constants/routes';
 import { filterStudentsByName } from '../utils/studentSearch.mjs';
 import { ALL_PLANS, buildPlanFilterOptions, canFilterByPlan, filterStudentsByPlan } from '../utils/studentPlanFilter.mjs';
 import { getOwnTrainingPlans } from '../services/trainerService';
-import { abandonmentRiskDescription, sortByAbandonmentRisk } from '../utils/abandonmentRisk.mjs';
+import { abandonmentRiskDescription } from '../utils/abandonmentRisk.mjs';
 import { getAbandonmentRisk } from '../services/trainerStudentService';
+import { getTrainerSafetyAlerts, getTrainerStudentSafetyAlerts } from '../services/safetyAlertService';
+import {
+  createScopedRequestTracker,
+  executeStudentSafetyAlertsRequest,
+  focusSafetyAlertsTransition,
+  groupPendingAlertsByRelationship,
+  resolvePainAlertHighlightId,
+  runOpenProgressSafetyTransition,
+  runSafetyRefreshTransition,
+  sortAssignmentsByPriority,
+} from '../utils/safetyAlerts.mjs';
 import { RPE_UNREPORTED_LABEL } from '../utils/sessionRpeState.mjs';
 import { applyAuxiliaryRetry, resolveAssignmentLoadResults } from '../utils/assignmentLoadState.mjs';
+import type { SafetyAlertView } from '../types/safetyAlert';
 import type { AbandonmentRiskItem } from '../types/trainerStudent';
 import { EffortFeedbackForm } from './EffortFeedbackForm';
+import { SafetyAlertListSection } from './SafetyAlertListSection';
 import { assignRoutineToStudent, getRoutineAssignments, getTrainerStudentWorkoutLogs, getTrainerStudentWorkoutSessions } from '../services/routineTemplateService';
 import { getAllTrainerStudentBodyMapReports, getTrainerStudentZoneHistory } from '../services/bodyMapReportService';
 import type { TrainerAIRoutine } from '../types/assignedRoutine';
@@ -53,6 +66,8 @@ interface RoutineAssignmentPanelProps {
   initialEventType?: string;
   onStudentSelect?: (studentId: string) => void;
   selectedStudentId?: string | null;
+  safetyRefreshKey?: number;
+  onSafetyAlertReviewed?: (studentId: string) => void;
 }
 
 export function RoutineAssignmentPanel({
@@ -64,16 +79,24 @@ export function RoutineAssignmentPanel({
   initialEventType,
   onStudentSelect,
   selectedStudentId,
+  safetyRefreshKey = 0,
+  onSafetyAlertReviewed,
 }: RoutineAssignmentPanelProps) {
   const [students, setStudents] = useState<RoutineAssignmentStudent[]>([]);
   const [studentSearch, setStudentSearch] = useState('');
   const [trainerPlans, setTrainerPlans] = useState<TrainingPlan[]>([]);
   const [planFilter, setPlanFilter] = useState<string>(ALL_PLANS);
   const [abandonmentRisks, setAbandonmentRisks] = useState<AbandonmentRiskItem[]>([]);
+  const [pendingSafetyAlerts, setPendingSafetyAlerts] = useState<SafetyAlertView[]>([]);
   const [selectedRoutines, setSelectedRoutines] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [plansError, setPlansError] = useState('');
   const [riskError, setRiskError] = useState('');
+  const [safetyAlertsError, setSafetyAlertsError] = useState('');
+  const [safetyAlertsByStudent, setSafetyAlertsByStudent] = useState<Record<string, SafetyAlertView[]>>({});
+  const [safetyAlertsLoadingFor, setSafetyAlertsLoadingFor] = useState<Record<string, boolean>>({});
+  const [safetyAlertsErrorByStudent, setSafetyAlertsErrorByStudent] = useState<Record<string, string>>({});
+  const [highlightedAlertId, setHighlightedAlertId] = useState<string | null>(null);
   const [retryingAuxiliary, setRetryingAuxiliary] = useState(false);
   const [attentionLoaded, setAttentionLoaded] = useState(false);
   const [attentionError, setAttentionError] = useState('');
@@ -95,19 +118,48 @@ export function RoutineAssignmentPanel({
   const [progressLoadingFor, setProgressLoadingFor] = useState<string | null>(null);
   const [progressErrorFor, setProgressErrorFor] = useState<string | null>(null);
   const openedFromNotification = useRef(false);
+  const initialLoadTrackerRef = useRef(createScopedRequestTracker());
+  const globalAlertsTrackerRef = useRef(createScopedRequestTracker());
+  const studentAlertsTrackerRef = useRef(createScopedRequestTracker());
+  const retryingAuxiliaryRef = useRef(false);
+  const openProgressForRef = useRef<string | null>(openProgressFor);
+  openProgressForRef.current = openProgressFor;
+  const studentsRef = useRef<RoutineAssignmentStudent[]>(students);
+  studentsRef.current = students;
+
+  useEffect(() => {
+    initialLoadTrackerRef.current = createScopedRequestTracker();
+    globalAlertsTrackerRef.current = createScopedRequestTracker();
+    studentAlertsTrackerRef.current = createScopedRequestTracker();
+    return () => {
+      initialLoadTrackerRef.current.dispose();
+      globalAlertsTrackerRef.current.dispose();
+      studentAlertsTrackerRef.current.dispose();
+    };
+  }, []);
 
   const loadInitialData = useCallback(() => {
+    const req = initialLoadTrackerRef.current.begin('initial');
+    const globalAlertsReq = globalAlertsTrackerRef.current.begin('global-pending');
     setLoading(true);
     setError('');
     setPlansError('');
     setRiskError('');
+    setSafetyAlertsError('');
     Promise.allSettled([
       getRoutineAssignments(),
       getOwnTrainingPlans(),
       getAbandonmentRisk(),
+      getTrainerSafetyAlerts({ status: 'PENDING' }),
     ])
-      .then(([studentsResult, plansResult, risksResult]) => {
-        const resolved = resolveAssignmentLoadResults(studentsResult, plansResult, risksResult);
+      .then(([studentsResult, plansResult, risksResult, safetyAlertsResult]) => {
+        if (!req.isCurrent()) return;
+        const resolved = resolveAssignmentLoadResults(
+          studentsResult,
+          plansResult,
+          risksResult,
+          safetyAlertsResult,
+        );
         if (resolved.students !== null) {
           setStudents(resolved.students);
           setSelectedRoutines(Object.fromEntries(resolved.students.map((item) => [item.relationship_id, item.routine_template_id ?? ''])));
@@ -117,35 +169,108 @@ export function RoutineAssignmentPanel({
         setPlansError(resolved.plansError);
         setAbandonmentRisks(resolved.abandonmentRisks);
         setRiskError(resolved.riskError);
+        if (globalAlertsReq.isCurrent()) {
+          setPendingSafetyAlerts(resolved.safetyAlerts);
+          setSafetyAlertsError(resolved.safetyAlertsError);
+        }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!req.isCurrent()) return;
+        setLoading(false);
+      });
+  }, []);
+
+  const loadStudentSafetyAlerts = useCallback((studentId: string) => {
+    setSafetyAlertsLoadingFor((current) => ({ ...current, [studentId]: true }));
+    setSafetyAlertsErrorByStudent((current) => ({ ...current, [studentId]: '' }));
+    return executeStudentSafetyAlertsRequest({
+      studentId,
+      tracker: studentAlertsTrackerRef.current,
+      fetchAlerts: getTrainerStudentSafetyAlerts,
+      onSuccess: (items) => {
+        setSafetyAlertsByStudent((current) => ({ ...current, [studentId]: items }));
+      },
+      onError: () => {
+        setSafetyAlertsErrorByStudent((current) => ({
+          ...current,
+          [studentId]: 'No pudimos cargar las alertas de seguridad de este alumno. Intentá nuevamente.',
+        }));
+      },
+      onFinally: () => {
+        setSafetyAlertsLoadingFor((current) => ({ ...current, [studentId]: false }));
+      },
+    });
   }, []);
 
   const retryAuxiliaryData = useCallback(async () => {
-    if (retryingAuxiliary) return;
+    if (retryingAuxiliaryRef.current) return;
+    retryingAuxiliaryRef.current = true;
     setRetryingAuxiliary(true);
+    const shouldFetchPlans = Boolean(plansError);
+    const shouldFetchRisks = Boolean(riskError);
+    const shouldFetchSafetyAlerts = Boolean(safetyAlertsError);
+    const globalAlertsReq = shouldFetchSafetyAlerts
+      ? globalAlertsTrackerRef.current.begin('global-pending')
+      : null;
     try {
-      const [plansResult, risksResult] = await Promise.allSettled([
-        plansError ? getOwnTrainingPlans() : Promise.resolve<TrainingPlan[] | null>(null),
-        riskError ? getAbandonmentRisk() : Promise.resolve<AbandonmentRiskItem[] | null>(null),
+      const [plansResult, risksResult, safetyAlertsResult] = await Promise.allSettled([
+        shouldFetchPlans ? getOwnTrainingPlans() : Promise.resolve<TrainingPlan[] | null>(null),
+        shouldFetchRisks ? getAbandonmentRisk() : Promise.resolve<AbandonmentRiskItem[] | null>(null),
+        shouldFetchSafetyAlerts ? getTrainerSafetyAlerts({ status: 'PENDING' }) : Promise.resolve<SafetyAlertView[] | null>(null),
       ]);
+      if (!initialLoadTrackerRef.current.isActive()) return;
       const next = applyAuxiliaryRetry(
-        { trainerPlans, plansError, abandonmentRisks, riskError },
-        plansError ? plansResult as PromiseSettledResult<TrainingPlan[]> : null,
-        riskError ? risksResult as PromiseSettledResult<AbandonmentRiskItem[]> : null,
+        {
+          trainerPlans,
+          plansError,
+          abandonmentRisks,
+          riskError,
+          safetyAlerts: pendingSafetyAlerts,
+          safetyAlertsError,
+        },
+        shouldFetchPlans ? plansResult as PromiseSettledResult<TrainingPlan[]> : null,
+        shouldFetchRisks ? risksResult as PromiseSettledResult<AbandonmentRiskItem[]> : null,
+        shouldFetchSafetyAlerts && globalAlertsReq?.isCurrent()
+          ? safetyAlertsResult as PromiseSettledResult<SafetyAlertView[]>
+          : null,
       );
       setTrainerPlans(next.trainerPlans);
       setPlansError(next.plansError);
       setAbandonmentRisks(next.abandonmentRisks);
       setRiskError(next.riskError);
+      if (!shouldFetchSafetyAlerts || globalAlertsReq?.isCurrent()) {
+        setPendingSafetyAlerts(next.safetyAlerts);
+        setSafetyAlertsError(next.safetyAlertsError);
+      }
     } finally {
-      setRetryingAuxiliary(false);
+      retryingAuxiliaryRef.current = false;
+      if (initialLoadTrackerRef.current.isActive()) {
+        setRetryingAuxiliary(false);
+      }
     }
-  }, [abandonmentRisks, plansError, retryingAuxiliary, riskError, trainerPlans]);
+  }, [abandonmentRisks, pendingSafetyAlerts, plansError, riskError, safetyAlertsError, trainerPlans]);
 
   useEffect(() => {
     loadInitialData();
   }, [loadInitialData]);
+
+  // MED-02: efecto exclusivo de safetyRefreshKey, desacoplado de openProgressFor y students.
+  useEffect(() => {
+    if (safetyRefreshKey === 0) return;
+    void runSafetyRefreshTransition({
+      safetyRefreshKey,
+      openRelationshipId: openProgressForRef.current,
+      students: studentsRef.current,
+      globalTracker: globalAlertsTrackerRef.current,
+      fetchPendingAlerts: () => getTrainerSafetyAlerts({ status: 'PENDING' }),
+      onPendingSuccess: (alerts) => {
+        setPendingSafetyAlerts(alerts);
+        setSafetyAlertsError('');
+      },
+      onPendingError: () => setSafetyAlertsError('No pudimos actualizar las alertas de seguridad pendientes.'),
+      loadStudentAlerts: loadStudentSafetyAlerts,
+    });
+  }, [safetyRefreshKey, loadStudentSafetyAlerts]);
 
   useEffect(() => {
     if (loading) return undefined;
@@ -204,12 +329,18 @@ export function RoutineAssignmentPanel({
       return;
     }
     setOpenProgressFor(student.relationship_id);
-    if (initialEventId) setHighlightedEventId(initialEventId);
+    if (initialEventId) {
+      if (initialEventType === 'REPEATED_DISCOMFORT_ALERT' || initialEventType === 'EXCESSIVE_EFFORT_ALERT') {
+        setHighlightedAlertId(initialEventId);
+      } else {
+        setHighlightedEventId(initialEventId);
+      }
+    }
     if (initialSessionId) {
       setExpandedSessionDetails((current) => ({ ...current, [initialSessionId]: true }));
       setHighlightedSessionId(initialSessionId);
     }
-  }, [initialStudentId, initialSessionId, initialEventId, loading, students]);
+  }, [initialStudentId, initialSessionId, initialEventId, initialEventType, loading, students]);
 
   useEffect(() => {
     if (!initialStudentId || loading || !openedFromNotification.current) return;
@@ -232,6 +363,15 @@ export function RoutineAssignmentPanel({
 
     if (!initialEventId) return;
     if (initialEventType === 'PAIN_ALERT') {
+      if (openProgressFor === student.relationship_id && highlightedEventId === initialEventId) {
+        const matchingPainAlertId = resolvePainAlertHighlightId(
+          safetyAlertsByStudent[student.student_id],
+          initialEventId,
+        );
+        if (matchingPainAlertId) {
+          setHighlightedAlertId(matchingPainAlertId);
+        }
+      }
       if (!attentionLoaded || reportAvailabilityByStudent[student.student_id] === undefined) return;
       if (!reportAvailabilityByStudent[student.student_id]) {
         setNotificationContextMessage('No pudimos comprobar el reporte asociado a esta notificación. Podés consultar los reportes disponibles del alumno.');
@@ -270,35 +410,64 @@ export function RoutineAssignmentPanel({
       } else {
         setNotificationContextMessage('Este récord no tiene una sesión disponible para destacar. Podés consultar el progreso actual del alumno.');
       }
+    } else if (
+      initialEventType === 'REPEATED_DISCOMFORT_ALERT'
+      || initialEventType === 'EXCESSIVE_EFFORT_ALERT'
+    ) {
+      if (!Object.prototype.hasOwnProperty.call(safetyAlertsByStudent, student.student_id)) {
+        if (
+          safetyAlertsErrorByStudent[student.student_id]
+          && !safetyAlertsLoadingFor[student.student_id]
+        ) {
+          setNotificationContextMessage('No pudimos comprobar la alerta de seguridad asociada a esta notificación. Podés revisarla en el panel del alumno.');
+        }
+        return;
+      }
+      const alertItem = (safetyAlertsByStudent[student.student_id] ?? [])
+        .find((item) => item.id === initialEventId);
+      if (!alertItem) {
+        setNotificationContextMessage('La alerta de seguridad asociada a esta notificación ya no está disponible.');
+        return;
+      }
+      setHighlightedAlertId(alertItem.id);
+      const sessionId = alertItem.session_id ?? initialSessionId;
+      if (sessionId) {
+        setHighlightedSessionId(sessionId);
+        setExpandedSessionDetails((current) => ({ ...current, [sessionId]: true }));
+      }
     }
   }, [
     attentionLoaded,
+    highlightedEventId,
     initialEventId,
     initialEventType,
     initialSessionId,
     initialStudentId,
     loading,
+    openProgressFor,
     progressByRelationship,
     progressErrorFor,
     progressLoadingFor,
     reportAvailabilityByStudent,
     reportsByStudent,
+    safetyAlertsByStudent,
+    safetyAlertsErrorByStudent,
+    safetyAlertsLoadingFor,
     sessionAvailabilityByRelationship,
     sessionsByRelationship,
     students,
   ]);
 
   useEffect(() => {
-    if (!highlightedSessionId || !openProgressFor) return;
+    if (!openProgressFor || (!highlightedSessionId && !highlightedAlertId)) return;
     const frame = window.requestAnimationFrame(() => {
-      const target = document.getElementById(highlightedEventId
-        ? `routine-event-${highlightedEventId}`
-        : `routine-session-${highlightedSessionId}`)
-        ?? document.getElementById(`routine-session-${highlightedSessionId}`);
+      const target = (highlightedAlertId ? document.getElementById(`safety-alert-${highlightedAlertId}`) : null)
+        ?? (highlightedEventId ? document.getElementById(`routine-event-${highlightedEventId}`) : null)
+        ?? (highlightedSessionId ? document.getElementById(`routine-session-${highlightedSessionId}`) : null);
       target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [highlightedEventId, highlightedSessionId, openProgressFor, progressByRelationship, sessionsByRelationship, zoneReportsByStudent]);
+  }, [highlightedAlertId, highlightedEventId, highlightedSessionId, openProgressFor, progressByRelationship, safetyAlertsByStudent, sessionsByRelationship, zoneReportsByStudent]);
 
   const approvedAIRoutines = (studentId: string) => aiRoutines.filter((item) => item.student_id === studentId && item.status === 'APPROVED');
 
@@ -307,12 +476,17 @@ export function RoutineAssignmentPanel({
     let cancelled = false;
     let inFlight = false;
     const relationshipId = openProgressFor;
+    void runOpenProgressSafetyTransition({
+      openRelationshipId: relationshipId,
+      students: studentsRef.current,
+      loadStudentAlerts: loadStudentSafetyAlerts,
+    });
     const refreshProgress = async () => {
       if (inFlight) return;
       inFlight = true;
       setProgressLoadingFor(relationshipId);
       try {
-        const studentObj = students.find((s) => s.relationship_id === relationshipId);
+        const studentObj = studentsRef.current.find((s) => s.relationship_id === relationshipId);
         const [logs, sessions, zoneReports] = await Promise.all([
           getTrainerStudentWorkoutLogs(relationshipId),
           getTrainerStudentWorkoutSessions(relationshipId).catch(() => []),
@@ -339,7 +513,7 @@ export function RoutineAssignmentPanel({
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [openProgressFor]);
+  }, [openProgressFor, loadStudentSafetyAlerts]);
 
   // La rutina vigente puede ser una copia cuyo origen ya no existe: se muestra, pero no se reasigna.
   const isDetachedCopy = (student: RoutineAssignmentStudent) => Boolean(student.routine_template_id)
@@ -354,6 +528,7 @@ export function RoutineAssignmentPanel({
     try {
       const routineTemplateId = selectedRoutines[student.relationship_id] || null;
       const conflicts = await assignRoutineToStudent(student.relationship_id, routineTemplateId);
+      if (!initialLoadTrackerRef.current.isActive()) return;
       setWarnings(conflicts);
       const routine = [...templates, ...aiRoutines].find((item) => item.id === routineTemplateId);
       setStudents((current) => current.map((item) => item.relationship_id === student.relationship_id
@@ -361,21 +536,39 @@ export function RoutineAssignmentPanel({
         : item));
       setMessage(`Rutina actualizada para ${student.student_name}.`);
     } catch {
-      setError('No pudimos guardar la asignación. Intentá nuevamente.');
+      if (initialLoadTrackerRef.current.isActive()) {
+        setError('No pudimos guardar la asignación. Intentá nuevamente.');
+      }
     } finally {
-      setSavingId('');
+      if (initialLoadTrackerRef.current.isActive()) {
+        setSavingId('');
+      }
     }
   }
 
   function focusStudentEvent(student: RoutineAssignmentStudent, sessionId?: string | null) {
     setOpenProgressFor(student.relationship_id);
     setHighlightedEventId(null);
+    setHighlightedAlertId(null);
     if (!sessionId) {
       setHighlightedSessionId(null);
       return;
     }
     setHighlightedSessionId(sessionId);
     setExpandedSessionDetails((current) => ({ ...current, [sessionId]: true }));
+  }
+
+  function focusSafetyAlertsForStudent(student: RoutineAssignmentStudent) {
+    setHighlightedEventId(null);
+    setHighlightedSessionId(null);
+    const firstPendingAlert = (groupPendingAlertsByRelationship(pendingSafetyAlerts).get(student.relationship_id)?.alerts ?? [])[0];
+    setHighlightedAlertId(firstPendingAlert?.id ?? null);
+    void focusSafetyAlertsTransition({
+      student,
+      openRelationshipId: openProgressFor,
+      setOpenProgressFor,
+      loadStudentAlerts: loadStudentSafetyAlerts,
+    });
   }
 
   function reportsWithDiscomfort(studentId: string): BodyMapReportResponse[] {
@@ -395,9 +588,11 @@ export function RoutineAssignmentPanel({
   const activePlanFilter = showPlanFilter && planOptions.some((option) => option.plan_id === planFilter) ? planFilter : ALL_PLANS;
   const selectedPlanOption = planOptions.find((option) => option.plan_id === activePlanFilter);
   const riskByRelationship = new Map(abandonmentRisks.map((risk) => [risk.relationship_id, risk]));
-  const visibleStudents = sortByAbandonmentRisk(
+  const pendingAlertsByRelationship = groupPendingAlertsByRelationship(pendingSafetyAlerts);
+  const visibleStudents = sortAssignmentsByPriority(
     filterStudentsByName(filterStudentsByPlan(students, activePlanFilter), studentSearch),
     abandonmentRisks,
+    pendingSafetyAlerts,
   );
 
   function visibleSessionsFor(relationshipId: string): WorkoutSession[] {
@@ -422,10 +617,11 @@ export function RoutineAssignmentPanel({
         </div>
       ) : students.length === 0 ? (
         <>
-          {(plansError || riskError) && (
+          {(plansError || riskError || safetyAlertsError) && (
             <div className="form-alert" role="alert">
               {plansError && <p>{plansError}</p>}
               {riskError && <p>{riskError}</p>}
+              {safetyAlertsError && <p>{safetyAlertsError}</p>}
               <button
                 type="button"
                 className="profile-save"
@@ -440,10 +636,11 @@ export function RoutineAssignmentPanel({
         </>
       ) : (
         <>
-          {(plansError || riskError) && (
+          {(plansError || riskError || safetyAlertsError) && (
             <div className="form-alert" role="alert">
               {plansError && <p>{plansError}</p>}
               {riskError && <p>{riskError}</p>}
+              {safetyAlertsError && <p>{safetyAlertsError}</p>}
               <button
                 type="button"
                 className="profile-save"
@@ -525,6 +722,18 @@ export function RoutineAssignmentPanel({
                 >
                   {student.student_name}
                 </button>
+                {(pendingAlertsByRelationship.get(student.relationship_id)?.count ?? 0) > 0 && (
+                  <button
+                    type="button"
+                    className="routine-assignment__attention routine-assignment__attention--safety"
+                    onClick={() => focusSafetyAlertsForStudent(student)}
+                  >
+                    <ShieldAlert size={14} aria-hidden="true" />
+                    {pendingAlertsByRelationship.get(student.relationship_id)?.count === 1
+                      ? 'Alerta de seguridad (1 pendiente)'
+                      : `Alertas de seguridad (${pendingAlertsByRelationship.get(student.relationship_id)?.count} pendientes)`}
+                  </button>
+                )}
                 {riskByRelationship.get(student.relationship_id)?.at_risk && (
                   <span
                     className="routine-assignment__attention routine-assignment__attention--risk"
@@ -609,6 +818,8 @@ export function RoutineAssignmentPanel({
                     aria-expanded={openProgressFor === student.relationship_id}
                     onClick={() => {
                       setHighlightedSessionId(null);
+                      setHighlightedEventId(null);
+                      setHighlightedAlertId(null);
                       setOpenProgressFor((current) => current === student.relationship_id ? null : student.relationship_id);
                     }}
                   >
@@ -618,6 +829,26 @@ export function RoutineAssignmentPanel({
                 </div>
               </div>
               {openProgressFor === student.relationship_id && <div className="routine-assignment__progress" aria-label={`Progreso de ${student.student_name}`}>
+                <SafetyAlertListSection
+                  studentName={student.student_name}
+                  alerts={safetyAlertsByStudent[student.student_id] ?? []}
+                  loading={Boolean(safetyAlertsLoadingFor[student.student_id])}
+                  error={safetyAlertsErrorByStudent[student.student_id] ?? ''}
+                  onRetry={() => void loadStudentSafetyAlerts(student.student_id)}
+                  highlightedAlertId={highlightedAlertId}
+                  onReviewed={(updatedAlert) => {
+                    studentAlertsTrackerRef.current.invalidate(student.student_id);
+                    globalAlertsTrackerRef.current.invalidate('global-pending');
+                    setSafetyAlertsByStudent((current) => ({
+                      ...current,
+                      [student.student_id]: (current[student.student_id] ?? []).map((item) => (
+                        item.id === updatedAlert.id ? updatedAlert : item
+                      )),
+                    }));
+                    setPendingSafetyAlerts((current) => current.filter((item) => item.id !== updatedAlert.id));
+                    onSafetyAlertReviewed?.(student.student_id);
+                  }}
+                />
                 <div className="routine-assignment__progress-heading">
                   <strong>Sesiones y Esfuerzo (RPE)</strong>
                   <span>{progressLoadingFor === student.relationship_id ? 'Actualizando…' : 'Actualización automática'}</span>

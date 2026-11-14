@@ -183,6 +183,7 @@ def list_abandonment_risk(
     )
 
     items: list[AbandonmentRiskItem] = []
+    alpha_key_by_rel: dict[str, tuple[str, str, str, str]] = {}
     created = False
     backfilled = False
     for relationship, student, student_user in rows:
@@ -201,10 +202,17 @@ def list_abandonment_risk(
         days_without_report = max(0, (current - reference).days)
         at_risk, reason, missed = evaluate_risk(days_without_report, weekly)
         name = " ".join(part for part in (student.first_name, student.last_name) if part).strip()
+        display_name = name or student_user.email
+        alpha_key_by_rel[relationship.id] = (
+            (student.last_name or "").strip().lower(),
+            (student.first_name or "").strip().lower(),
+            display_name.lower(),
+            relationship.id,
+        )
         item = AbandonmentRiskItem(
             relationship_id=relationship.id,
             student_id=student.id,
-            student_name=name or student_user.email,
+            student_name=display_name,
             at_risk=at_risk,
             reason=reason,
             weekly_trainings=weekly,
@@ -218,4 +226,11 @@ def list_abandonment_risk(
 
     if created or backfilled:
         db.commit()
-    return sorted(items, key=lambda item: (not item.at_risk, -item.days_without_report, item.student_name))
+    return sorted(
+        items,
+        key=lambda item: (
+            not item.at_risk,
+            -item.days_without_report,
+            alpha_key_by_rel[item.relationship_id],
+        ),
+    )

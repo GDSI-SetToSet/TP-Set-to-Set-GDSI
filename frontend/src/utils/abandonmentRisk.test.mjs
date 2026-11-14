@@ -22,6 +22,39 @@ test('sin riesgos conserva el orden original', () => {
   assert.deepEqual(sortByAbandonmentRisk(students, []), students);
 });
 
+test('prioriza alertas de seguridad PENDING de US-29 por encima del riesgo de abandono (US-32)', () => {
+  const risks = [
+    { relationship_id: 'd', at_risk: true, days_without_report: 30 },
+    { relationship_id: 'c', at_risk: true, days_without_report: 15 },
+  ];
+  const safetyAlerts = [
+    { relationship_id: 'b', status: 'PENDING', created_at: '2026-11-10T10:00:00Z' },
+    { relationship_id: 'a', status: 'REVIEWED', created_at: '2026-11-11T10:00:00Z' },
+  ];
+  assert.deepEqual(
+    sortByAbandonmentRisk(students, risks, safetyAlerts).map((s) => s.relationship_id),
+    ['b', 'd', 'c', 'a'],
+  );
+});
+
+test('LOW-01: unifica desempate y tercer nivel alfabético por apellido y nombre igual que backend y panel de asignaciones', () => {
+  const mixedStudents = [
+    { relationship_id: 'alba-z', student_name: 'Alba Zeta' },
+    { relationship_id: 'zoe-a', student_name: 'Zoe Alpha' },
+    { relationship_id: 'ana-a', student_name: 'Ana Alpha' },
+    { relationship_id: 'bruno-r', student_name: 'Bruno Zeta' },
+    { relationship_id: 'dario-r', student_name: 'Dario Alpha' },
+  ];
+  const risks = [
+    { relationship_id: 'bruno-r', at_risk: true, days_without_report: 15 },
+    { relationship_id: 'dario-r', at_risk: true, days_without_report: 15 },
+  ];
+  assert.deepEqual(
+    sortByAbandonmentRisk(mixedStudents, risks, []).map((s) => s.relationship_id),
+    ['dario-r', 'bruno-r', 'ana-a', 'zoe-a', 'alba-z'],
+  );
+});
+
 test('describe el motivo del riesgo', () => {
   assert.equal(abandonmentRiskDescription(undefined), '');
   assert.equal(abandonmentRiskDescription({ at_risk: false }), '');

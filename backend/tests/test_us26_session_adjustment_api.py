@@ -8,6 +8,7 @@ from backend.src.models.protected_zone import ProtectedZone
 from backend.src.models.session_adjustment import SessionAdjustment
 from backend.src.models.student_routine import RoutineChangeLog
 from backend.src.models.workout_log import WorkoutSession
+from backend.src.services import session_adjustment_service, student_routine_service
 from backend.tests.test_us22_daily_routines_api import (
     SESSIONS_PATH,
     fixed_clock,
@@ -78,6 +79,8 @@ def setup(client, monkeypatch):
     student = register_and_login(api, "student@example.com", "STUDENT")
     exercise_id, relationship_id = create_assigned_routine(api, sessions, trainer, "student@example.com")
     clock = fixed_clock(monkeypatch, datetime(2026, 11, 12, 13, 0, tzinfo=UTC))
+    monkeypatch.setattr(session_adjustment_service, "utc_now", lambda: clock["now"])
+    monkeypatch.setattr(student_routine_service, "utc_now", lambda: clock["now"])
     session = start(api, student)
     clock["now"] += timedelta(minutes=5)
     log_set(api, student, exercise_id, session["id"], 1, 10, 30)

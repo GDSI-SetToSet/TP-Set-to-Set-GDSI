@@ -1,12 +1,17 @@
 openapi: 3.0.3
 info:
   title: API de resumen del alumno para el entrenador
-  version: 1.0.0
-  description: Contrato de US-18 (solo lectura), US-24 (comparación de sesiones) y US-26 (ajuste de la próxima sesión). Las demás historias de monitoreo se documentan en sus propios contratos o se excluyen.
+  version: 1.1.0
+  description: Contrato de US-18 (resumen del alumno), US-24 (comparación de sesiones), US-26 (ajuste de la próxima sesión) y US-29 (alertas de seguridad por dolor, molestia repetida o esfuerzo excesivo). Las demás historias de monitoreo se documentan en sus propios contratos o se excluyen.
 paths:
   /api/v1/trainers/me/students:
     get:
       summary: Listar los alumnos activos del entrenador
+      description: >
+        Devuelve los vínculos activos del entrenador autenticados ordenados en tres niveles (US-29 + US-32 + US-18):
+        (1) alumnos con alertas de seguridad sin revisar (`unreviewed_alert_count > 0`),
+        (2) alumnos sin alertas pendientes pero con riesgo de abandono activo (US-32),
+        (3) resto de los alumnos activos en orden alfabético.
       security:
         - bearerAuth: []
       responses:
@@ -18,6 +23,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/TrainerStudentListItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
   /api/v1/trainers/me/students/{student_id}:
@@ -139,12 +146,179 @@ paths:
                     note: {type: string, nullable: true}
                     exercise_ids: {type: array, items: {type: string}}
                     adjusted_at: {type: string, format: date-time}
+  /api/v1/trainers/me/safety-alerts:
+    get:
+      summary: "US-29: listar alertas de seguridad de los alumnos activos del entrenador"
+      description: >
+        Devuelve las alertas de seguridad (`PAIN`, `REPEATED_DISCOMFORT`, `EXCESSIVE_EFFORT`) pertenecientes a vínculos
+        con estado `ACTIVE` del entrenador autenticado. Se ordenan priorizando las alertas `PENDING` y luego por fecha
+        de creación descendente. Nunca incluye alertas de vínculos `TERMINATED` ni de otros entrenadores.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema:
+            $ref: '#/components/schemas/SafetyAlertStatus'
+          description: Filtrar por estado de revisión (`PENDING` o `REVIEWED`).
+        - in: query
+          name: student_id
+          required: false
+          schema:
+            type: string
+          description: Filtrar por identificador de perfil del alumno vinculado activamente.
+      responses:
+        '200':
+          description: Listado autorizado de alertas de seguridad
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SafetyAlertView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /api/v1/trainers/me/students/{student_id}/safety-alerts:
+    get:
+      summary: "US-29: listar alertas de seguridad de un alumno activo específico"
+      description: >
+        Requiere que el entrenador autenticado posea un vínculo `ACTIVE` con `student_id`. Rechaza con 404 si el alumno
+        pertenece a otro entrenador o si el vínculo está `TERMINATED`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: student_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: status
+          required: false
+          schema:
+            $ref: '#/components/schemas/SafetyAlertStatus'
+      responses:
+        '200':
+          description: Alertas de seguridad del alumno activo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SafetyAlertView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /api/v1/trainers/me/safety-alerts/{alert_id}/review:
+    patch:
+      summary: "US-29: marcar una alerta de seguridad como Revisada indicando la acción tomada"
+      description: >
+        Transiciona una alerta de `PENDING` a `REVIEWED` registrando obligatoriamente `action_taken` y opcionalmente
+        `trainer_note`. Requiere rol TRAINER y vínculo `ACTIVE` titular de la alerta. Marcar la notificación como leída
+        en la campana no modifica este estado. Si la alerta es de tipo `PAIN`, habilita el aviso en la próxima sesión
+        del alumno (CA-5).
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: alert_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SafetyAlertReviewRequest'
+      responses:
+        '200':
+          description: Alerta marcada como revisada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SafetyAlertView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /api/v1/students/me/safety-alerts/reviewed-notices:
+    get:
+      summary: "US-29 (CA-5): obtener avisos pendientes de alertas por dolor revisadas por el entrenador"
+      description: >
+        Devuelve exclusivamente alertas con `alert_type = PAIN`, `status = REVIEWED` y `student_seen_at = null` del
+        vínculo `ACTIVE` del alumno autenticado. Nunca incluye alertas `REPEATED_DISCOMFORT` ni `EXCESSIVE_EFFORT`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Avisos de dolor revisados pendientes de visualización en la próxima sesión
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StudentPainAlertReviewedNotice'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/students/me/safety-alerts/{alert_id}/seen:
+    post:
+      summary: "US-29 (CA-5): marcar como visto un aviso de alerta por dolor revisada"
+      description: >
+        Registra `student_seen_at` en UTC cuando el alumno visualiza el aviso en su próxima sesión para garantizar
+        consumo único. Operación idempotente para alertas `PAIN` en estado `REVIEWED` del propio alumno en vínculo
+        `ACTIVE`. Rechaza alertas de otros alumnos o tipos que no corresponden a dolor.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: alert_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Aviso marcado como visto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentPainAlertReviewedNotice'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
   responses:
+    Unauthorized:
+      description: Error de autenticación RFC 7807
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     Forbidden:
       description: Error de autorización RFC 7807
       content:
@@ -153,6 +327,18 @@ components:
             $ref: '#/components/schemas/Problem'
     NotFound:
       description: Error de recurso no encontrado RFC 7807
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Conflicto de estado (ej. alerta ya revisada) RFC 7807
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnprocessableEntity:
+      description: Error de validación de datos RFC 7807
       content:
         application/problem+json:
           schema:
@@ -181,7 +367,7 @@ components:
         package_title: {type: string, nullable: true}
         routine_name: {type: string, nullable: true}
         has_activity: {type: boolean}
-        unreviewed_alert_count: {type: integer, nullable: true, description: Reservado para US-29}
+        unreviewed_alert_count: {type: integer, nullable: true, description: "Cantidad de alertas de seguridad PENDING del vínculo activo (poblado por US-29)"}
     TrainerStudentDetail:
       type: object
       required: [relationship, profile, goals, limitations, routine, metrics]
@@ -279,3 +465,70 @@ components:
         can_adjust: {type: boolean}
         blocked_reason: {type: string, nullable: true}
         current_adjustment: {$ref: '#/components/schemas/AdjustmentView', nullable: true}
+    SafetyAlertType:
+      type: string
+      enum: [PAIN, REPEATED_DISCOMFORT, EXCESSIVE_EFFORT]
+      description: >
+        PAIN: dolor reportado en mapa corporal (CA-1);
+        REPEATED_DISCOMFORT: molestia en la misma zona en 2 sesiones consecutivas (CA-2);
+        EXCESSIVE_EFFORT: RPE 9 o 10 reportado en una sesión (CA-3).
+    SafetyAlertStatus:
+      type: string
+      enum: [PENDING, REVIEWED]
+    SafetyAlertAction:
+      type: string
+      enum: [ADJUSTED_ROUTINE, CONTACTED_STUDENT, NO_ACTION]
+      description: >
+        ADJUSTED_ROUTINE = "Ajusté la rutina";
+        CONTACTED_STUDENT = "Contacté al alumno";
+        NO_ACTION = "Sin acción".
+    SafetyAlertReviewRequest:
+      type: object
+      required: [action_taken]
+      properties:
+        action_taken:
+          $ref: '#/components/schemas/SafetyAlertAction'
+        trainer_note:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: Nota opcional del entrenador para registrar contexto de la revisión (visible al alumno en CA-5 si la alerta es PAIN).
+    SafetyAlertView:
+      type: object
+      required: [id, relationship_id, student_id, student_name, alert_type, status, created_at]
+      properties:
+        id: {type: string}
+        relationship_id: {type: string}
+        student_id: {type: string}
+        student_name: {type: string}
+        session_id: {type: string, nullable: true}
+        session_day_name: {type: string, nullable: true}
+        report_id: {type: string, nullable: true}
+        exercise_id: {type: string, nullable: true}
+        exercise_name: {type: string, nullable: true}
+        alert_type: {$ref: '#/components/schemas/SafetyAlertType'}
+        zone: {type: string, nullable: true}
+        zone_display_name: {type: string, nullable: true}
+        rpe: {type: integer, nullable: true, minimum: 9, maximum: 10}
+        status: {$ref: '#/components/schemas/SafetyAlertStatus'}
+        action_taken:
+          allOf:
+            - $ref: '#/components/schemas/SafetyAlertAction'
+          nullable: true
+        trainer_note: {type: string, nullable: true}
+        created_at: {type: string, format: date-time}
+        reviewed_at: {type: string, format: date-time, nullable: true}
+        student_seen_at: {type: string, format: date-time, nullable: true}
+    StudentPainAlertReviewedNotice:
+      type: object
+      required: [id, action_taken, reviewed_at]
+      properties:
+        id: {type: string}
+        session_id: {type: string, nullable: true}
+        session_day_name: {type: string, nullable: true}
+        exercise_name: {type: string, nullable: true}
+        zone: {type: string, nullable: true}
+        zone_display_name: {type: string, nullable: true}
+        action_taken: {$ref: '#/components/schemas/SafetyAlertAction'}
+        trainer_note: {type: string, nullable: true}
+        reviewed_at: {type: string, format: date-time}
