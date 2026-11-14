@@ -1,12 +1,12 @@
 ---
-description: "Lista de tareas de US-18, US-19, US-20, US-22, US-24, US-26, US-28 y US-32 de la feature 009"
+description: "Lista de tareas de US-18, US-19, US-20, US-22, US-24, US-26, US-28, US-30 y US-32 de la feature 009"
 ---
 
-# Tasks: US-18, US-19, US-20, US-22, US-24, US-26, US-28 y US-32 — Monitoreo de alumnos activos
+# Tasks: US-18, US-19, US-20, US-22, US-24, US-26, US-28, US-30 y US-32 — Monitoreo de alumnos activos
 
 **Entrada**: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/trainer-student-detail-api.yaml`, `quickstart.md`
 
-**Alcance**: US-18, US-19, US-20, US-22, US-24, US-26, US-28 y US-32. No implementado US-21, US-29 ni US-30.
+**Alcance**: US-18, US-19, US-20, US-22, US-24, US-26, US-28, US-30 y US-32. No implementado US-21 ni US-29.
 
 ## Phase 1: Línea base del flujo existente
 
@@ -99,9 +99,26 @@ description: "Lista de tareas de US-18, US-19, US-20, US-22, US-24, US-26, US-28
 - [X] T055 [US26] Crear `frontend/src/components/SessionAdjustmentPanel.tsx` con la acción "Ajustar próxima sesión" en `frontend/src/pages/TrainerDailyRoutinesPage.tsx`, y mostrar "Ajustado por tu entrenador" con la nota en `frontend/src/pages/StudentRoutinesPage.tsx` (recargando la rutina al iniciar la sesión).
 - [X] T056 [US26] Ejecutar la suite completa del backend con cobertura, `ruff`, `npm test` y `npm run build`.
 
+## Phase 12: US-30 — Evolución de entrenamientos del alumno
+
+> Numeración a partir de T057. Sin tablas ni migraciones: modelo de lectura sobre `WorkoutSession` finalizadas y `WorkoutSetLog` (ver `data-model.md`).
+> **Objetivo**: en el detalle del alumno, un gráfico de carga, repeticiones totales y series, agrupable por entrenamiento, semana o grupo muscular.
+> **Prueba independiente**: con un alumno de ≥3 sesiones finalizadas en semanas distintas, el escenario 7 de `quickstart.md` se cumple de punta a punta.
+
+- [ ] T057 [US30] Definir `TrainingEvolution`, `EvolutionSeries` y `EvolutionPoint` en `backend/src/schemas/trainer_student.py` (`group_by`: `session`|`week`|`muscle_group`; `period`: `4w`|`12w`|`all`; `weight_kind`: `max_weight`|`volume`; punto: `key`, `date`, `weight_kg`, `total_reps`, `sets`; `label` es null salvo en `muscle_group`).
+- [ ] T058 [US30] Hacer públicas `number` y `performed_metrics` (hoy `_number` y `_performed`) en `backend/src/services/session_comparison_service.py` y actualizar sus usos internos, para reutilizar la definición de volumen (repeticiones × carga) sin duplicarla.
+- [ ] T059 [US30] Implementar `get_training_evolution(db, user, student_id, group_by, period, exercise_id)` en `backend/src/services/training_evolution_service.py`: solo sesiones con `finished_at` de un vínculo `ACTIVE` del entrenador (404 si no, como en `session_comparison_service`); período por `finished_at` (4 o 12 semanas, `all` sin filtro); `session` = un punto por sesión, `week` = semana calendario lunes a domingo en UTC con clave el lunes ISO (carga máxima, repeticiones y series sumadas), `muscle_group` = una serie por `Exercise.target_muscle_group` con un punto por semana; con `exercise_id` la carga es la carga máxima de ese ejercicio y sin él el volumen; puntos en orden cronológico; sin sesiones `series` es `[]`. Marcar con `ponytail:` el límite de semana en UTC.
+- [ ] T060 [US30] Exponer `GET /api/v1/trainers/me/students/{student_id}/evolution` en `backend/src/api/v1/trainers.py` con `group_by` (default `week`), `period` (default `12w`) y `exercise_id` opcional, validados por enum (422 RFC 7807), registrando la ruta antes de `/me/students/{student_id}` si hace falta para evitar conflictos; el contrato ya está en `contracts/trainer-student-detail-api.yaml`.
+- [ ] T061 [P] [US30] Agregar pruebas en `backend/tests/test_us30_training_evolution_api.py`: agrupación por sesión, por semana y por grupo muscular; período 4w/12w/all; con y sin `exercise_id` (carga máxima vs volumen); exclusión de sesiones en curso y abandonadas; sin sesiones; una sola sesión; `group_by`/`period` inválidos (422); alumno de otro entrenador o vínculo inactivo (404).
+- [ ] T062 [P] [US30] Agregar tipos y `getTrainingEvolution(studentId, { groupBy, period, exerciseId })` en `frontend/src/types/trainerStudent.ts` y `frontend/src/services/trainerStudentService.ts`.
+- [ ] T063 [P] [US30] Crear `frontend/src/utils/trainingEvolution.mjs` (+ `.d.mts`) con escalado de puntos del gráfico, formato de etiquetas de semana/fecha y la regla de estado (`empty` sin puntos, `single` con un punto, `ok` con 2 o más), con pruebas en `frontend/src/utils/trainingEvolution.test.mjs`.
+- [ ] T064 [US30] Crear `frontend/src/components/TrainingEvolution.tsx`: gráfico SVG de las tres métricas, selector de agrupación, selector de período (4 semanas, 12 semanas por defecto, todo el historial), selector opcional de ejercicio (la carga pasa de volumen a carga máxima), estados de carga/error, mensaje "Sin entrenamientos en este período" y nota de mínimo 2 sesiones con un solo punto; accesible (etiquetas, `aria-label`, lista alternativa de valores). Estilos en `frontend/src/styles/training-evolution.css`.
+- [ ] T065 [US30] Montar `TrainingEvolution` en `frontend/src/components/TrainerStudentDetail.tsx`, junto a `PainReportAnalysis`.
+- [ ] T066 [US30] Ejecutar la suite completa del backend con cobertura, `ruff`, `npm test` y `npm run build`, y validar el escenario 7 de `quickstart.md`.
+
 ## Dependencias
 
-T001 → T002/T003 (en paralelo) → T004 → T005 → T006 → T007/T008/T009 (T007 en paralelo con T006; T008 después de T007 y T005) → T010/T011/T012 → T013 → T014/T015/T016 (T016 en paralelo con T014/T015) → T017 → T018 → T019/T020 → T021/T022 → T023. US-22 (T024–T030), US-28 (T031–T035) y US-32 (T036–T040) son independientes entre sí y de US-20. US-24 (T041–T047) extiende la pantalla de US-22: T041 → T042 → T043 → T044; T045 en paralelo con el backend; T046 después de T043 y T045. US-26 (T048–T056) extiende la pantalla de US-22 y reutiliza la edición de US-14: T048 → T049 → T050 → T051/T052 → T053; T054 en paralelo con el backend; T055 después de T052 y T054.
+T001 → T002/T003 (en paralelo) → T004 → T005 → T006 → T007/T008/T009 (T007 en paralelo con T006; T008 después de T007 y T005) → T010/T011/T012 → T013 → T014/T015/T016 (T016 en paralelo con T014/T015) → T017 → T018 → T019/T020 → T021/T022 → T023. US-22 (T024–T030), US-28 (T031–T035) y US-32 (T036–T040) son independientes entre sí y de US-20. US-24 (T041–T047) extiende la pantalla de US-22: T041 → T042 → T043 → T044; T045 en paralelo con el backend; T046 después de T043 y T045. US-26 (T048–T056) extiende la pantalla de US-22 y reutiliza la edición de US-14: T048 → T049 → T050 → T051/T052 → T053; T054 en paralelo con el backend; T055 después de T052 y T054. US-30 (T057–T066) es independiente de las demás y se monta en el detalle de US-18: T057 → T058 → T059 → T060 → T061; T062 y T063 en paralelo con el backend; T064 después de T062 y T063; T065 después de T064; T066 al final.
 
 ## Oportunidades de paralelización
 
@@ -109,7 +126,8 @@ T001 → T002/T003 (en paralelo) → T004 → T005 → T006 → T007/T008/T009 (
 - T007 puede ejecutarse en paralelo con la finalización de las pruebas del backend una vez estabilizado el contrato.
 - T010, T011 y T012 pueden ejecutarse en paralelo después de completar la integración.
 - T016 puede ejecutarse en paralelo con la implementación del filtro visual.
+- US-30: T061, T062 y T063 pueden ejecutarse en paralelo una vez definido el esquema (T057).
 
 ## MVP
 
-El incremento de US-18 comprende T003–T009 y el incremento de US-19 comprende T014–T017: búsqueda local sobre alumnos activos ya cargados, sin cambios de backend. El incremento de US-20 comprende T018–T023: filtro local por paquete con cupos ocupados, apoyado en `plan_id`/`plan_title` del listado de asignaciones. US-22 comprende T024–T030 (pantalla "Rutinas del día"), US-28 comprende T031–T035 (análisis de molestias en el detalle del alumno), US-32 comprende T036–T040 (riesgo de abandono con alerta y priorización), US-24 comprende T041–T047 (comparación de métricas planificadas, realizadas y previas de una sesión finalizada) y US-26 comprende T048–T056 (ajuste de la próxima sesión desde la sesión finalizada, con marca para el alumno). Las demás historias de la feature permanecen fuera de alcance.
+El incremento de US-18 comprende T003–T009 y el incremento de US-19 comprende T014–T017: búsqueda local sobre alumnos activos ya cargados, sin cambios de backend. El incremento de US-20 comprende T018–T023: filtro local por paquete con cupos ocupados, apoyado en `plan_id`/`plan_title` del listado de asignaciones. US-22 comprende T024–T030 (pantalla "Rutinas del día"), US-28 comprende T031–T035 (análisis de molestias en el detalle del alumno), US-32 comprende T036–T040 (riesgo de abandono con alerta y priorización), US-24 comprende T041–T047 (comparación de métricas planificadas, realizadas y previas de una sesión finalizada) y US-26 comprende T048–T056 (ajuste de la próxima sesión desde la sesión finalizada, con marca para el alumno). US-30 comprende T057–T066 (gráfico de evolución en el detalle del alumno). US-21 y US-29 permanecen fuera de alcance.
