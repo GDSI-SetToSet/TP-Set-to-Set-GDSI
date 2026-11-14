@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: API de resumen del alumno para el entrenador
   version: 1.0.0
-  description: Contrato de US-18 (solo lectura), US-24 (comparación de sesiones) y US-26 (ajuste de la próxima sesión). Las demás historias de monitoreo se documentan en sus propios contratos o se excluyen.
+  description: Contrato de US-18 (solo lectura), US-24 (comparación de sesiones), US-30 (evolución) y US-26 (ajuste de la próxima sesión). Las demás historias de monitoreo se documentan en sus propios contratos o se excluyen.
 paths:
   /api/v1/trainers/me/students:
     get:
@@ -139,6 +139,39 @@ paths:
                     note: {type: string, nullable: true}
                     exercise_ids: {type: array, items: {type: string}}
                     adjusted_at: {type: string, format: date-time}
+  /api/v1/trainers/me/students/{student_id}/evolution:
+    get:
+      summary: "US-30: evolución de carga, repeticiones y series de un alumno (solo sesiones finalizadas)"
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: student_id
+          required: true
+          schema: {type: string}
+        - in: query
+          name: group_by
+          schema: {type: string, enum: [session, week, muscle_group], default: week}
+        - in: query
+          name: period
+          schema: {type: string, enum: [4w, 12w, all], default: 12w}
+        - in: query
+          name: exercise_id
+          description: Con valor, la carga es la carga máxima; sin valor, el volumen (repeticiones × carga)
+          schema: {type: string}
+      responses:
+        '200':
+          description: Series de puntos agregados; `series` vacío si no hay sesiones en el período
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingEvolution'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Parámetro inválido (RFC 7807)
 components:
   securitySchemes:
     bearerAuth:
@@ -158,6 +191,32 @@ components:
           schema:
             $ref: '#/components/schemas/Problem'
   schemas:
+    TrainingEvolution:
+      type: object
+      required: [group_by, period, weight_kind, series]
+      properties:
+        group_by: {type: string, enum: [session, week, muscle_group]}
+        period: {type: string, enum: [4w, 12w, all]}
+        exercise_id: {type: string, nullable: true}
+        weight_kind: {type: string, enum: [max_weight, volume]}
+        series:
+          type: array
+          items:
+            type: object
+            required: [label, points]
+            properties:
+              label: {type: string, nullable: true, description: Grupo muscular en `muscle_group`; null en las demás}
+              points:
+                type: array
+                items:
+                  type: object
+                  required: [key, date, weight_kg, total_reps, sets]
+                  properties:
+                    key: {type: string, description: Id de sesión o lunes ISO de la semana}
+                    date: {type: string, format: date-time}
+                    weight_kg: {type: number}
+                    total_reps: {type: integer}
+                    sets: {type: integer}
     Problem:
       type: object
       required: [type, title, status, detail, instance]

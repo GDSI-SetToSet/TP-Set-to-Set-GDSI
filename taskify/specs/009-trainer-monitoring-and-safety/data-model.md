@@ -61,3 +61,23 @@ US-18 no agrega tablas de base de datos. El modelo de lectura de la API compone 
 3. El precio del paquete mostrado para un alumno activo es el precio acordado en el vínculo.
 4. El perfil, la rutina, la actividad, los objetivos o las zonas protegidas faltantes se representan como datos vacíos/nulos, no mediante valores predeterminados inventados.
 5. US-18 no introduce ninguna operación de escritura.
+
+# Modelo de datos: US-30 — Evolución de entrenamientos
+
+US-30 no agrega tablas ni migraciones; es un modelo de lectura sobre `WorkoutSession` (solo con `finished_at`), `WorkoutSetLog` y `Exercise.target_muscle_group`, dentro de un vínculo ACTIVO del entrenador.
+
+## Respuesta `TrainingEvolution`
+
+- `group_by`: `session` | `week` | `muscle_group`
+- `period`: `4w` | `12w` | `all`
+- `exercise_id`: opcional; con valor, `weight_kind = "max_weight"`, sin valor `"volume"`
+- `series`: lista de `{ label: string | null, points: [...] }`; `label` es el grupo muscular en `muscle_group` y `null` en las otras agrupaciones
+- punto: `{ key, date, weight_kg, total_reps, sets }` donde `key` es el id de sesión o el lunes de la semana (ISO), y `date` el `finished_at` o el lunes
+
+## Invariantes
+
+1. Solo se incluyen sesiones finalizadas del vínculo ACTIVO del entrenador autenticado; ajeno o inactivo devuelve 404.
+2. Los puntos se ordenan cronológicamente.
+3. Con `exercise_id` solo cuentan las series de ese ejercicio; un ejercicio sin series en el período devuelve `series` vacío.
+4. Sin sesiones en el período, `series` es `[]`.
+5. Operación de solo lectura.

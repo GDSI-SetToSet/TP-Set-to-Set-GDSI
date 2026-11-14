@@ -67,6 +67,19 @@ Resultado esperado: no se muestra ningún alumno para la búsqueda inexistente y
 
 - Filtros por paquete: US-20.
 - Mensajería: US-21.
-- Comparaciones avanzadas y gráficos: US-30 (US-24 compara planificado, realizado y sesión previa en "Rutinas del día").
+- Comparaciones avanzadas: US-24 compara planificado, realizado y sesión previa en "Rutinas del día"; el gráfico de evolución es US-30).
 - Generación/revisión/ordenamiento de alertas: US-29.
 - Cálculo del riesgo de abandono: US-32.
+
+## Escenario 7 — Evolución de entrenamientos (US-30)
+
+Prerrequisitos: entrenador con un alumno activo con al menos 3 sesiones finalizadas en semanas distintas.
+
+1. Abrir el detalle del alumno en `/entrenador/alumnos`.
+2. Ver el gráfico "Evolución de entrenamientos" con 12 semanas por defecto.
+3. Alternar la agrupación entre entrenamiento, semana y grupo muscular.
+4. Cambiar el período a 4 semanas y a todo el historial.
+5. Elegir un ejercicio y confirmar que la carga pasa de volumen a carga máxima.
+6. Con un alumno de una sola sesión, ver el punto y la nota de mínimo 2 sesiones; sin sesiones, ver "Sin entrenamientos en este período".
+
+Resultado esperado: solo cuentan sesiones finalizadas; no hay sesiones en curso ni abandonadas. Contrato: `contracts/trainer-student-detail-api.yaml` (`/evolution`). Verificación automática: `pytest backend/tests/test_us30_training_evolution_api.py` y `npm run build` en `frontend`.

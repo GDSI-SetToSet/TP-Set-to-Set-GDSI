@@ -35,3 +35,33 @@
 - Decisión: no implementar el ordenamiento de alertas ni el estado de revisión en el incremento de US-18.
 - Justificación: la especificación actual de la feature asigna la generación de alertas y su ciclo de revisión a US-29. US-18 dejará un punto claro de integración para un futuro campo `unreviewed_alert_count`/priority.
 - Alternativas consideradas: se rechazó inferir el estado de una alerta a partir del texto de una notificación o de la presencia de un reporte porque produciría una semántica de revisión incorrecta.
+
+# Investigación: US-30 — Evolución de entrenamientos
+
+## Cálculo en servidor, un solo endpoint
+
+- Decisión: `GET /api/v1/trainers/me/students/{student_id}/evolution` con `group_by`, `period` y `exercise_id` opcional; devuelve puntos ya agregados.
+- Justificación: las series ya están en `WorkoutSetLog` ligadas a `WorkoutSession`; agregar en servidor evita traer todas las series al cliente y mantiene la autorización por vínculo ACTIVO. El cliente cambia agrupación sin recalcular.
+- Alternativas: agregar en el cliente sobre los logs (rechazado: expone volumen de datos y duplica reglas); una tabla de métricas precalculadas (rechazado: sin migraciones, escala de un entrenador).
+
+## Métricas y reutilización
+
+- Decisión: reutilizar el cálculo de `_performed`/`_number` de US-24 (volumen = repeticiones × carga; repeticiones no numéricas no suman volumen). Carga = máximo de `weight_kg` con `exercise_id`, o volumen sin él. Repeticiones totales = suma de repeticiones numéricas; series = cantidad de logs.
+- Justificación: una sola definición de volumen en toda la feature.
+- Alternativas: reimplementar métricas (rechazado: divergencia con US-24).
+
+## Agrupaciones y período
+
+- Decisión: `session` = un punto por sesión finalizada (por `finished_at`); `week` = semana calendario lunes a domingo en UTC, clave por el lunes; `muscle_group` = una serie por `Exercise.target_muscle_group` con un punto por semana. El período filtra por `finished_at` ≥ ahora − 4/12 semanas; `all` no filtra.
+- Justificación: coincide con el spec; semana en UTC mantiene el criterio de marcas de tiempo UTC del proyecto. Límite conocido: una sesión cerca de la medianoche local puede caer en la semana contigua.
+- Alternativas: semana en horario local del entrenador (rechazado: requiere `utc_offset_minutes` en todas las consultas por una ganancia mínima).
+
+## Gráfico
+
+- Decisión: SVG/CSS propio sin dependencia nueva, como el análisis de US-28.
+- Justificación: no hay librería de gráficos instalada; tres líneas simples no justifican una.
+- Alternativas: Recharts/Chart.js (rechazado: dependencia nueva para un gráfico simple).
+
+## Casos vacíos
+
+- Decisión: el backend devuelve `points: []` sin sesiones y la UI muestra "Sin entrenamientos en este período"; con una sola sesión muestra el punto y la nota de mínimo 2 sesiones (la UI decide con `points.length`).
