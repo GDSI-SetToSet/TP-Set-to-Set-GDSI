@@ -24,6 +24,8 @@ import {
 import { ExerciseAlternativesPanel } from '../components/ExerciseAlternativesPanel';
 import { saveReplacement } from '../services/exerciseAlternativeService';
 import type { ExerciseAlternative } from '../types/exerciseAlternative';
+import { getStudentReviewedPainNotices, markSafetyAlertSeen } from '../services/safetyAlertService';
+import { formatStudentPainReviewedNotice } from '../utils/safetyAlerts.mjs';
 import { RestTimer } from '../components/RestTimer';
 import { getStudentAdjustments } from '../services/sessionAdjustmentService';
 import type { StudentAdjustmentNotice } from '../types/sessionAdjustment';
@@ -164,6 +166,8 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const [adjustments, setAdjustments] = useState<StudentAdjustmentNotice[]>([]);
   const [unseenFeedback, setUnseenFeedback] = useState<EffortFeedback[]>([]);
   const [effortFeedbackError, setEffortFeedbackError] = useState(false);
+  const [reviewedPainNotices, setReviewedPainNotices] = useState<Array<NonNullable<ReturnType<typeof formatStudentPainReviewedNotice>>>>([]);
+  const [painNoticesError, setPainNoticesError] = useState(false);
   const autoFinishTimeout = useRef<number | null>(null);
   const sessionStartedAtMs = sessionMode && sessionTimerState.sessionId === sessionId
     ? sessionTimerState.startedAtMs
@@ -209,6 +213,32 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
         });
       })
       .catch(() => { if (!cancelled) setEffortFeedbackError(true); });
+    return () => { cancelled = true; };
+  }, [sessionMode]);
+
+  // US-29 (CA-5): avisos únicos en próxima sesión exclusivamente para reportes PAIN revisados.
+  useEffect(() => {
+    if (!sessionMode) {
+      setReviewedPainNotices([]);
+      setPainNoticesError(false);
+      return undefined;
+    }
+    let cancelled = false;
+    getStudentReviewedPainNotices()
+      .then((items) => {
+        if (cancelled) return;
+        setPainNoticesError(false);
+        const formatted = items
+          .map((item) => formatStudentPainReviewedNotice(item))
+          .filter((item): item is NonNullable<typeof item> => item !== null);
+        setReviewedPainNotices(formatted);
+        formatted.forEach((notice) => {
+          markSafetyAlertSeen(notice.id).catch(() => undefined);
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setPainNoticesError(true);
+      });
     return () => { cancelled = true; };
   }, [sessionMode]);
 
@@ -675,6 +705,33 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                 <span className="student-routine-session-heading__elapsed" role="timer" aria-label="Tiempo transcurrido del entrenamiento">Tiempo de entrenamiento: {formatClock(elapsedSessionSeconds(clockNow, sessionStartedAtMs))}</span>
               </div>
             </div>}
+            {sessionMode && painNoticesError && (
+              <p className="form-alert" role="status">
+                No pudimos verificar si tu entrenador revisó reportes de dolor anteriores.
+              </p>
+            )}
+            {sessionMode && reviewedPainNotices.length > 0 && (
+              <section className="safety-pain-notice" aria-labelledby="safety-pain-notice-title">
+                <h2 id="safety-pain-notice-title">
+                  {reviewedPainNotices.length === 1
+                    ? 'Tu entrenador revisó tu reporte de dolor'
+                    : 'Tu entrenador revisó tus reportes de dolor'}
+                </h2>
+                <ul className="safety-pain-notice__list">
+                  {reviewedPainNotices.map((notice) => (
+                    <li key={notice.id} className="safety-pain-notice__item">
+                      <strong>{notice.actionLabel}</strong>
+                      {notice.contextText && (
+                        <span className="safety-pain-notice__meta">{notice.contextText}</span>
+                      )}
+                      {notice.trainerNote && (
+                        <p className="safety-pain-notice__note">{notice.trainerNote}</p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             {sessionMode && unseenFeedback.length > 0 && <section className="effort-feedback-notice" aria-labelledby="effort-feedback-notice-title">
               <h2 id="effort-feedback-notice-title">{unseenFeedback.length === 1 ? 'Tu entrenador te dejó una devolución' : 'Tu entrenador te dejó devoluciones'}</h2>
               <EffortFeedbackList items={unseenFeedback} />

@@ -183,6 +183,26 @@ TARGET_CHECK_CONSTRAINTS: tuple[CheckConstraintMigration, ...] = (
         name="ck_workout_sessions_rpe_range",
         expression="rpe IS NULL OR (rpe >= 1 AND rpe <= 10)",
     ),
+    CheckConstraintMigration(
+        table="safety_alerts",
+        name="ck_safety_alerts_type",
+        expression="alert_type IN ('PAIN', 'REPEATED_DISCOMFORT', 'EXCESSIVE_EFFORT')",
+    ),
+    CheckConstraintMigration(
+        table="safety_alerts",
+        name="ck_safety_alerts_status",
+        expression="status IN ('PENDING', 'REVIEWED')",
+    ),
+    CheckConstraintMigration(
+        table="safety_alerts",
+        name="ck_safety_alerts_action",
+        expression="action_taken IS NULL OR action_taken IN ('ADJUSTED_ROUTINE', 'CONTACTED_STUDENT', 'NO_ACTION')",
+    ),
+    CheckConstraintMigration(
+        table="safety_alerts",
+        name="ck_safety_alerts_rpe",
+        expression="rpe IS NULL OR rpe IN (9, 10)",
+    ),
 )
 
 
@@ -611,6 +631,25 @@ def apply_migrations(target_engine: Engine | None = None) -> list[str]:
                         "ON body_map_pain_reports (idempotency_key)"
                     )
                 )
+
+        if "safety_alerts" in existing_tables:
+            existing_sa_idx_names = {i.get("name") for i in inspect(conn).get_indexes("safety_alerts")}
+            if "ix_safety_alerts_trainer_status_created" not in existing_sa_idx_names:
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_safety_alerts_trainer_status_created "
+                        "ON safety_alerts (trainer_id, status, created_at)"
+                    )
+                )
+                applied.append("safety_alerts.ix_safety_alerts_trainer_status_created:index")
+            if "ix_safety_alerts_relationship_status" not in existing_sa_idx_names:
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_safety_alerts_relationship_status "
+                        "ON safety_alerts (relationship_id, status)"
+                    )
+                )
+                applied.append("safety_alerts.ix_safety_alerts_relationship_status:index")
 
     # 5. Migración de restricciones CHECK y UNIQUE en SQLite existente mediante reconstrucción segura de tabla
     if is_sqlite:

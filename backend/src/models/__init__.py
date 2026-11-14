@@ -23,6 +23,7 @@ from backend.src.models.routine_template import (
     RoutineTemplateExercisePrescription,
 )
 from backend.src.models.safe_variant import ExerciseSafeVariant, SafeVariantCase
+from backend.src.models.safety_alert import SafetyAlert
 from backend.src.models.session_adjustment import SessionAdjustment
 from backend.src.models.student_routine import RoutineChangeLog, StudentRoutine
 from backend.src.models.trainer_profile import TrainerProfile
@@ -61,6 +62,7 @@ __all__ = [
     "RoutineTemplateExercise",
     "RoutineTemplateExercisePrescription",
     "SafeVariantCase",
+    "SafetyAlert",
     "SessionAdjustment",
     "StudentProfile",
     "StudentRoutine",

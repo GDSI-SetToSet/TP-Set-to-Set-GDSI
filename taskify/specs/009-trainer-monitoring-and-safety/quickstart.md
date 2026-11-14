@@ -65,8 +65,53 @@ Resultado esperado: no se muestra ningún alumno para la búsqueda inexistente y
 
 ## Verificaciones fuera de alcance
 
-- Filtros por paquete: US-20.
 - Mensajería: US-21.
-- Comparaciones avanzadas y gráficos: US-30 (US-24 compara planificado, realizado y sesión previa en "Rutinas del día").
-- Generación/revisión/ordenamiento de alertas: US-29.
-- Cálculo del riesgo de abandono: US-32.
+- Comparaciones avanzadas y gráficos históricos de cargas: US-30 (US-24 compara planificado, realizado y sesión previa en "Rutinas del día").
+
+---
+
+# Inicio rápido: US-29 — Alertas de seguridad por dolor, molestia repetida o esfuerzo excesivo
+
+## Escenario 7 — Alerta inmediata por dolor (CA-1)
+
+1. Iniciar sesión como alumno activo y comenzar una sesión (`POST /api/v1/students/me/routine-templates/assigned/workout-sessions`).
+2. Registrar un reporte de mapa corporal con `PAIN` en una zona (por ejemplo `Shoulder`) durante un ejercicio (`IN_EXERCISE`) y/o al finalizar la sesión (`POST_SESSION`).
+3. Consultar `GET /api/v1/trainers/me/notifications` y `GET /api/v1/trainers/me/safety-alerts?status=PENDING` como entrenador propietario del vínculo activo.
+
+Resultado esperado: se persiste `SafetyAlert` (`alert_type=PAIN`, `status=PENDING`) con alumno, zona, ejercicio (si aplica) y sesión, además de preservarse la notificación `PAIN_ALERT` de US-61.
+
+## Escenario 8 — Molestia repetida en 2 sesiones consecutivas e interrupción de secuencia (CA-2)
+
+1. **Dos reportes en la misma sesión**: En la Sesión 1 del alumno (iniciada y con actividad), reportar `DISCOMFORT` en `Knee`. Confirmar que **no** genera alerta `REPEATED_DISCOMFORT`. Registrar un segundo reporte `DISCOMFORT` en `Knee` dentro de la misma Sesión 1 y confirmar que ambos cuentan como una sola sesión y tampoco generan alerta.
+2. **Dos sesiones consecutivas**: En la Sesión 2 (siguiente sesión participante cronológica del mismo vínculo), reportar `DISCOMFORT` en `Knee`. Confirmar que se genera `SafetyAlert` (`alert_type=REPEATED_DISCOMFORT`) y notificación `REPEATED_DISCOMFORT_ALERT`.
+3. **Sesión intermedia iniciada, con actividad, finalizada y sin molestia**: En Sesión A reportar `DISCOMFORT` en `Shoulder`; registrar Sesión B (iniciada, con `WorkoutSetLog` o reporte `NORMAL`, finalizada y sin `DISCOMFORT` en `Shoulder`); en Sesión C reportar `DISCOMFORT` en `Shoulder`. Confirmar que Sesión B interrumpe la secuencia y **no** se genera alerta entre A y C.
+4. **Sesión intermedia iniciada, con actividad, sin finalizar y sin molestia**: En Sesión D reportar `DISCOMFORT` en `Back`; iniciar Sesión E y registrar un `WorkoutSetLog` (sin `DISCOMFORT` en `Back` y dejándola sin finalizar, `finished_at=None`); luego iniciar Sesión F y reportar `DISCOMFORT` en `Back`. Confirmar que Sesión E cuenta pese a no estar finalizada, interrumpe la secuencia y **no** se genera alerta entre D y F.
+5. **Sesión creada nunca iniciada y sesión sin actividad registrada**: En Sesión G reportar `DISCOMFORT` en `Ankle`; crear una sesión intermedia nunca iniciada (`started_at=None`) y otra sesión sin `WorkoutSetLog` ni `BodyMapPainReport`; luego iniciar Sesión H y reportar `DISCOMFORT` en `Ankle`. Confirmar que ninguna de esas sesiones vacías/no iniciadas interrumpe la secuencia y que Sesión H **sí** genera `REPEATED_DISCOMFORT` respecto de G. Verificar también que un reporte histórico `POST_SESSION` con `session_id=None` no participa de la secuencia entre sesiones.
+
+## Escenario 9 — Esfuerzo excesivo por RPE 9 o 10 sin duplicados (CA-3)
+
+1. Finalizar una sesión con `rpe = 9` (o registrar `rpe = 10` de manera diferida mediante `PATCH /api/v1/students/me/routine-templates/assigned/workout-sessions/{session_id}/rpe`).
+2. Verificar que se crea una única `SafetyAlert` (`alert_type=EXCESSIVE_EFFORT`, `rpe=9|10`) y su notificación `EXCESSIVE_EFFORT_ALERT`.
+3. Reenviar idempotente del mismo RPE y confirmar que no se crean alertas duplicadas.
+
+## Escenario 10 — Priorización sobre riesgo de abandono y revisión con acción tomada (CA-4)
+
+1. Configurar un alumno activo A con riesgo de abandono (US-32) sin alertas de seguridad, un alumno activo B con al menos una `SafetyAlert` `PENDING`, y un alumno activo C sin alertas ni riesgo.
+2. Consultar `/entrenador/alumnos` y `GET /api/v1/trainers/me/students`. Confirmar el orden: B primero y destacado (US-29), luego A con `"Riesgo de abandono"` (US-32) y luego C.
+3. Hacer clic en la notificación en `NotificationBell` (marcando `Notification.is_read = true`) y verificar que B sigue destacado hasta que se llame a `PATCH /api/v1/trainers/me/safety-alerts/{alert_id}/review` con `action_taken` (`ADJUSTED_ROUTINE`, `CONTACTED_STUDENT` o `NO_ACTION`) y `trainer_note` opcional.
+4. Una vez revisadas todas las alertas de B, confirmar que A vuelve a encabezar el listado por US-32.
+
+## Escenario 11 — Aviso en la próxima sesión del alumno exclusivo para dolor (CA-5)
+
+1. Revisar como entrenador una alerta `PAIN` (con nota y otra sin nota), una alerta `REPEATED_DISCOMFORT` y una alerta `EXCESSIVE_EFFORT`.
+2. Abrir como alumno `/alumno/rutinas/sesion` (`sessionMode`) para iniciar su próxima sesión.
+3. Confirmar que únicamente la alerta `PAIN` revisada se muestra en el banner de sesión (junto con la acción y la nota si fue cargada) y se marca como vista (`POST /api/v1/students/me/safety-alerts/{alert_id}/seen`).
+4. Abrir una segunda sesión posterior y confirmar que el aviso ya consumido no vuelve a mostrarse, y que nunca se emitieron avisos por `REPEATED_DISCOMFORT` ni `EXCESSIVE_EFFORT`.
+
+## Verificaciones de ejecución automatizada de US-29
+
+```bash
+PYTHONPATH=. pytest backend/tests/test_us29_safety_alerts_api.py backend/tests/test_us61_body_map_pain_report_api.py backend/tests/test_us60_rpe_api.py backend/tests/test_us32_abandonment_risk_api.py backend/tests/test_trainer_student_api.py backend/tests/test_database_migrations.py
+ruff check backend
+cd frontend && npm test && npm run build
+```
