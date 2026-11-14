@@ -60,6 +60,14 @@
 - Q: ¿Qué pasa si el alumno está entrenando cuando se guarda el ajuste? → A: El ajuste queda pendiente y se aplica cuando el alumno finaliza la sesión en curso, o cuando inicia una nueva si abandonó la anterior. La sesión en curso no se modifica. Un ajuste nuevo del mismo día reemplaza al anterior.
 - Q: ¿Qué pasa si la rutina cambió o tiene un borrador? → A: No se permite ajustar si la sesión revisada no corresponde a la rutina vigente del alumno, si el día ya no existe o si hay un borrador de US-14 sin confirmar.
 
+### Sesión 2026-11-14 — US-30
+
+- Q: ¿Qué representa cada una de las vistas "por grupo muscular", "por entrenamiento" y "por semana"? → A: Un único gráfico con tres métricas (carga máxima, repeticiones totales y series realizadas) y tres agrupaciones: por entrenamiento (un punto por sesión finalizada, en orden cronológico), por semana (un punto por semana calendario: carga máxima, repeticiones y series sumadas) y por grupo muscular (una línea por grupo muscular con un punto por semana).
+- Q: ¿Qué período de tiempo cubre el gráfico de evolución de un alumno? → A: Un selector de período con 4 semanas, 12 semanas y todo el historial; el valor por defecto es 12 semanas.
+- Q: ¿Dónde ve el entrenador el gráfico de evolución y se puede filtrar por ejercicio? → A: En el detalle del alumno (US-18), con un selector de ejercicio opcional. Con un ejercicio elegido, la carga es la carga máxima; sin ejercicio, la carga se muestra como volumen (repeticiones × carga).
+- Q: ¿Qué ve el entrenador si el alumno no tiene sesiones finalizadas en el período, o tiene una sola? → A: Sin sesiones: mensaje "Sin entrenamientos en este período". Con una sola: se muestra el punto único con una nota de que se necesitan al menos 2 sesiones para ver evolución.
+- Q: ¿Qué sesiones cuentan para el gráfico de evolución? → A: Solo las sesiones finalizadas; las en curso y las abandonadas se excluyen.
+
 ### Límite de alcance de este incremento
 
 Los artefactos de implementación de esta iteración cubren únicamente los escenarios de aceptación 1–3 de US-18. El escenario 4, de priorización de alertas, permanece en la especificación de la feature como dependencia de US-29 y explícitamente no se implementa en este incremento. La búsqueda, el filtrado por paquete, la mensajería, las comparaciones avanzadas, los gráficos, los ajustes de sesiones, el ciclo de vida de las alertas de seguridad y el cálculo del riesgo de abandono siguen perteneciendo a sus respectivas historias de usuario.
@@ -271,7 +279,7 @@ Como entrenador personal,
 
 1. Dado un entrenador con alumnos activos, cuando consulta un alumno en particular, entonces debe poder ver un gráfico de evolución de peso levantado, repeticiones y series realizadas.
 
-2. Dado un entrenador con alumnos activos, cuando consulta las métricas de evolución de entrenamiento de un alumno, entonces debe poder seleccionar el gráfico por grupo muscular, por entrenamiento, o por semana.
+2. Dado un entrenador con alumnos activos, cuando consulta las métricas de evolución de entrenamiento de un alumno, entonces debe poder seleccionar el gráfico por grupo muscular, por entrenamiento, o por semana. Por entrenamiento: un punto por sesión finalizada; por semana: un punto por semana calendario; por grupo muscular: una línea por grupo con un punto por semana. Solo cuentan las sesiones finalizadas. Las métricas son carga máxima, repeticiones totales y series realizadas. El período se elige entre 4 semanas, 12 semanas (por defecto) y todo el historial. Se muestra en el detalle del alumno, con filtro opcional por ejercicio: con ejercicio, la carga es la carga máxima; sin ejercicio, es el volumen (repeticiones × carga). Sin sesiones finalizadas en el período se muestra "Sin entrenamientos en este período"; con una sola, el punto único y una nota que indica que se necesitan al menos 2 sesiones.
 
 
 ---
