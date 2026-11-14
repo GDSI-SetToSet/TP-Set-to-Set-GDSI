@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: API de resumen del alumno para el entrenador
   version: 1.0.0
-  description: Contrato de US-18 (solo lectura) y US-26 (ajuste de la próxima sesión). Las demás historias de monitoreo se documentan en sus propios contratos o se excluyen.
+  description: Contrato de US-18 (solo lectura), US-24 (comparación de sesiones) y US-26 (ajuste de la próxima sesión). Las demás historias de monitoreo se documentan en sus propios contratos o se excluyen.
 paths:
   /api/v1/trainers/me/students:
     get:
@@ -42,6 +42,28 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /api/v1/trainers/me/sessions/{session_id}/comparison:
+    get:
+      summary: "US-24: comparar una sesión finalizada con lo planificado y con la sesión previa del mismo día de rutina"
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Comparación de métricas por ejercicio y por sesión
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionComparison'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: La sesión todavía está en curso (RFC 7807)
   /api/v1/trainers/me/sessions/{session_id}/adjustment:
     parameters:
       - in: path
@@ -178,6 +200,43 @@ components:
             logged_sets: {type: integer}
             last_rpe: {type: number, nullable: true}
             last_tonnage_kg: {type: number, nullable: true}
+    PerformedMetrics:
+      type: object
+      required: [sets_completed, reps, volume_kg, total_duration_seconds]
+      properties:
+        sets_completed: {type: integer}
+        reps: {type: array, items: {type: string}}
+        max_weight_kg: {type: number, nullable: true}
+        volume_kg: {type: number, description: Suma de repeticiones × carga de las series con valores numéricos}
+        total_duration_seconds: {type: integer}
+    ExerciseComparison:
+      type: object
+      required: [exercise_id, exercise_name]
+      properties:
+        exercise_id: {type: string}
+        exercise_name: {type: string}
+        replaced_exercise_name: {type: string, nullable: true, description: Ejercicio planificado que el alumno reemplazó (US-54)}
+        planned:
+          type: object
+          nullable: true
+          properties:
+            sets: {type: integer}
+            reps: {type: string}
+            target_weight_kg: {type: number, nullable: true}
+        performed: {$ref: '#/components/schemas/PerformedMetrics', nullable: true}
+        previous: {$ref: '#/components/schemas/PerformedMetrics', nullable: true}
+    SessionComparison:
+      type: object
+      required: [session, exercises, volume_kg]
+      properties:
+        session: {type: object, description: Igual a DailyRoutineSession}
+        previous_session: {type: object, nullable: true, description: Última sesión finalizada anterior del mismo día de rutina}
+        volume_kg: {type: number}
+        previous_volume_kg: {type: number, nullable: true}
+        exercises:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExerciseComparison'
     AdjustmentView:
       type: object
       required: [id, status, changed_exercise_ids, created_at]

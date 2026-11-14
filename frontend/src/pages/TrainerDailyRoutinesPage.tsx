@@ -1,7 +1,8 @@
-import { ArrowLeft, ChevronDown, ListChecks, RefreshCw, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, BarChart3, ChevronDown, ListChecks, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { SessionAdjustmentPanel } from '../components/SessionAdjustmentPanel';
+import { SessionComparison } from '../components/SessionComparison';
 import { ROUTES } from '../constants/routes';
 import { getTrainerDailyRoutines } from '../services/trainerStudentService';
 import type { DailyRoutineItem } from '../types/trainerStudent';
@@ -24,6 +25,7 @@ function formatTime(value: string): string {
 
 function DailyRoutineDetail({ item }: { item: DailyRoutineItem }) {
   const { session } = item;
+  const [comparing, setComparing] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
   if (!session) {
     return <p className="daily-routines__muted">El alumno todavía no comenzó su entrenamiento en este día.</p>;
@@ -47,18 +49,38 @@ function DailyRoutineDetail({ item }: { item: DailyRoutineItem }) {
         )}
       </dl>
       {item.status === 'FINISHED' && (
-        <button
-          type="button"
-          className="daily-routines__refresh session-adjustment__toggle"
-          aria-pressed={adjusting}
-          onClick={() => setAdjusting((value) => !value)}
-        >
-          {adjusting
-            ? <><ListChecks size={16} aria-hidden="true" /> Ver series registradas</>
-            : <><SlidersHorizontal size={16} aria-hidden="true" /> Ajustar próxima sesión</>}
-        </button>
+        <div className="daily-routines__actions">
+          <button
+            type="button"
+            className="daily-routines__refresh session-comparison__toggle"
+            aria-pressed={comparing}
+            onClick={() => {
+              setAdjusting(false);
+              setComparing((value) => !value);
+            }}
+          >
+            {comparing
+              ? <><ListChecks size={16} aria-hidden="true" /> Ver series registradas</>
+              : <><BarChart3 size={16} aria-hidden="true" /> Comparar métricas</>}
+          </button>
+          <button
+            type="button"
+            className="daily-routines__refresh session-adjustment__toggle"
+            aria-pressed={adjusting}
+            onClick={() => {
+              setComparing(false);
+              setAdjusting((value) => !value);
+            }}
+          >
+            {adjusting
+              ? <><ListChecks size={16} aria-hidden="true" /> Ver series registradas</>
+              : <><SlidersHorizontal size={16} aria-hidden="true" /> Ajustar próxima sesión</>}
+          </button>
+        </div>
       )}
-      {adjusting ? (
+      {comparing ? (
+        <SessionComparison sessionId={session.id} />
+      ) : adjusting ? (
         <SessionAdjustmentPanel sessionId={session.id} />
       ) : item.exercises.length === 0 ? (
         <p className="daily-routines__muted">Todavía no registró series en esta sesión.</p>

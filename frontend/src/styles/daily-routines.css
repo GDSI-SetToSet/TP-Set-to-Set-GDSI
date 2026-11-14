@@ -141,6 +141,26 @@
   .daily-routines__summary li { padding: 10px 8px; }
 }
 
+.daily-routines__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* US-24: comparación de métricas de una sesión finalizada */
+.session-comparison__toggle { margin-bottom: 4px; }
+.session-comparison .daily-routines__session dd small { color: var(--pf-muted); font-weight: 500; }
+.session-comparison__note { color: var(--pf-muted); font-size: .85rem; font-weight: 500; }
+.session-comparison__exercise tbody th { color: var(--pf-label); font-size: .85rem; font-weight: 600; text-transform: none; }
+.session-comparison__hint,
+.session-comparison__delta { display: block; margin-top: 2px; font-size: .75rem; }
+.session-comparison__hint { color: var(--pf-muted); }
+.session-comparison__delta { font-weight: 700; }
+.session-comparison__delta-ref { font-weight: 500; opacity: .8; }
+.session-comparison__delta--up { color: var(--pf-ok-text); }
+.session-comparison__delta--down { color: #9a3412; }
+.session-comparison__delta--same { color: var(--pf-muted); }
+
 /* US-26: ajuste de la próxima sesión */
 .session-adjustment__toggle { margin-bottom: 4px; }
 .session-adjustment__reports {

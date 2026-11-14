@@ -67,6 +67,6 @@ Resultado esperado: no se muestra ningún alumno para la búsqueda inexistente y
 
 - Filtros por paquete: US-20.
 - Mensajería: US-21.
-- Comparaciones avanzadas y gráficos: US-24/US-30.
+- Comparaciones avanzadas y gráficos: US-30 (US-24 compara planificado, realizado y sesión previa en "Rutinas del día").
 - Generación/revisión/ordenamiento de alertas: US-29.
 - Cálculo del riesgo de abandono: US-32.

@@ -44,6 +44,13 @@
 - Q: ¿Desde cuándo se cuentan los días? → A: Desde el último reporte, o desde el inicio del vínculo o la asignación de la rutina si nunca reportó (la fecha más reciente).
 - Q: ¿Cómo recibe la alerta el entrenador? → A: Como notificación `ABANDONMENT_RISK` (una sola vez por período de inactividad), generada al consultar sus notificaciones o el riesgo de sus alumnos. En "Mis alumnos" los alumnos en riesgo aparecen primero con la etiqueta "Riesgo de abandono".
 
+### Sesión 2026-11-13 — US-24
+
+- Q: ¿Contra qué se comparan las métricas de una sesión "Finalizada"? → A: Contra ambas referencias. Por ejercicio se muestra lo planificado en la rutina (series, repeticiones y carga objetivo) frente a lo realizado, y además frente a la sesión anterior.
+- Q: ¿Qué "entrenamientos previos" se usan? → A: La última sesión finalizada anterior del mismo día de rutina (misma rutina y mismo nombre de día) del mismo vínculo. Sin sesión previa, la comparación histórica se muestra vacía.
+- Q: ¿Qué métricas se comparan? → A: Por ejercicio: series realizadas, repeticiones por serie, carga máxima, volumen (repeticiones × carga) y tiempo total de las series. Por sesión: duración, RPE y volumen total. Lo planificado corresponde a la versión vigente de la rutina, porque no se guardan versiones históricas. Si el alumno reemplazó un ejercicio (US-54), lo realizado del reemplazo se compara contra lo planificado del ejercicio original y se indica el reemplazo.
+- Q: ¿Dónde se ve? → A: En "Rutinas del día" (US-22), dentro del detalle de una sesión "Finalizada", mediante la acción "Comparar métricas". Una sesión en curso no se puede comparar.
+
 ### Sesión 2026-11-13 — US-26
 
 - Q: Los días de la rutina no están atados al calendario: ¿qué es la "próxima sesión programada" y qué modifica el ajuste? → A: El mismo día de rutina de la sesión revisada (por ejemplo, "Día A"). El ajuste modifica de forma persistente ese día en la copia de la rutina del alumno, reutilizando la edición de US-14, y queda en el historial de cambios. El alumno ve la marca "Ajustado por tu entrenador" y la nota en los ejercicios ajustados hasta que finaliza una sesión de ese día.
