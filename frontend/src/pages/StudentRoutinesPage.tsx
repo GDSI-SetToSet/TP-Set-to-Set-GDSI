@@ -25,6 +25,9 @@ import { ExerciseAlternativesPanel } from '../components/ExerciseAlternativesPan
 import { saveReplacement } from '../services/exerciseAlternativeService';
 import type { ExerciseAlternative } from '../types/exerciseAlternative';
 import { RestTimer } from '../components/RestTimer';
+import { getStudentAdjustments } from '../services/sessionAdjustmentService';
+import type { StudentAdjustmentNotice } from '../types/sessionAdjustment';
+import { ADJUSTED_LABEL, isAdjustedExercise, noticeForDay } from '../utils/sessionAdjustment.mjs';
 import { ROUTES } from '../constants/routes';
 import {
   createAssignedRoutineWorkoutLog,
@@ -158,6 +161,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const [clockNow, setClockNow] = useState(Date.now());
   const [autoFinishPending, setAutoFinishPending] = useState(false);
   const [effortFeedback, setEffortFeedback] = useState<EffortFeedback[]>([]);
+  const [adjustments, setAdjustments] = useState<StudentAdjustmentNotice[]>([]);
   const [unseenFeedback, setUnseenFeedback] = useState<EffortFeedback[]>([]);
   const [effortFeedbackError, setEffortFeedbackError] = useState(false);
   const autoFinishTimeout = useRef<number | null>(null);
@@ -171,8 +175,10 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       getAssignedRoutineWorkoutLogs().catch(() => []),
       getAssignedRoutineWorkoutSessions().catch(() => []),
       getStudentZoneHistory().catch(() => []),
+      getStudentAdjustments().catch(() => []),
     ])
-      .then(([assigned, logs, sessions, zones]) => {
+      .then(([assigned, logs, sessions, zones, adjusted]) => {
+        setAdjustments(adjusted);
         setRoutine(assigned);
         setSelectedDayId(assigned?.days.some((day) => day.id === requestedDayId) ? requestedDayId ?? '' : assigned?.days[0]?.id ?? '');
         setWorkoutLogs(logs);
@@ -260,6 +266,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const activeModality: RoutineModality = routine?.modality ?? 'GYM';
   const isHomeModality = activeModality === 'HOME';
   const selectedDay = routine?.days.find((day) => day.id === selectedDayId) ?? routine?.days[0];
+  const selectedNotice = noticeForDay(adjustments, selectedDay?.name);
   const totalDuration = selectedDay?.blocks.reduce((total, block) => total + (block.estimated_duration_minutes ?? 0), 0) ?? 0;
   const showCelebration = searchParams.get('completed') === '1';
   const showPrAlertBanner = shouldShowPersonalRecordAlert(prAlertBanner, {
@@ -415,7 +422,16 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       const startedAt = parseSessionTimestamp(session.started_at);
       if (startedAt === null) throw new Error('La sesión no devolvió una fecha de inicio válida.');
       window.localStorage.setItem(`workout-started-at:${session.id}`, String(startedAt));
-      navigate(ROUTES.studentRoutineSession + '?day=' + encodeURIComponent(selectedDay.id) + '&session=' + encodeURIComponent(session.id) + '&startedAt=' + encodeURIComponent(String(startedAt)));
+      // US-26: al iniciar se aplican los ajustes pendientes del entrenador; se recarga la rutina vigente.
+      const [refreshed, adjusted] = await Promise.all([
+        getAssignedStudentRoutine().catch(() => routine),
+        getStudentAdjustments().catch(() => adjustments),
+      ]);
+      const refreshedDay = refreshed?.days.find((day) => day.name === selectedDay.name) ?? selectedDay;
+      if (refreshed) setRoutine(refreshed);
+      setAdjustments(adjusted);
+      setSelectedDayId(refreshedDay.id);
+      navigate(ROUTES.studentRoutineSession + '?day=' + encodeURIComponent(refreshedDay.id) + '&session=' + encodeURIComponent(session.id) + '&startedAt=' + encodeURIComponent(String(startedAt)));
     } catch {
       setLogError('No pudimos iniciar el entrenamiento. Intentá nuevamente.');
     } finally {
@@ -782,6 +798,18 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
               </aside>
             )}
 
+            {selectedNotice && (
+              <aside className="student-routine-adjusted" role="status">
+                <strong>{ADJUSTED_LABEL}</strong>
+                <p>
+                  {selectedNotice.exercise_ids.length === 0
+                    ? 'Tu entrenador revisó tu última sesión de este día y te dejó una nota.'
+                    : `Tu entrenador ajustó ${selectedNotice.exercise_ids.length === 1 ? 'un ejercicio' : `${selectedNotice.exercise_ids.length} ejercicios`} de este día a partir de tu última sesión.`}
+                </p>
+                {selectedNotice.note && <blockquote>{selectedNotice.note}</blockquote>}
+              </aside>
+            )}
+
             {selectedDay?.blocks.map((block) => (
               <section key={block.id} className="student-daily-routine__block">
                 <header>
@@ -800,6 +828,9 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                         <div className="student-routine-exercise__summary">
                           <div className="student-routine-exercise__title-row">
                             <h4>{replacements[item.id]?.name ?? item.exercise.name}</h4>
+                            {isAdjustedExercise(selectedNotice, item.exercise.id) && (
+                              <span className="student-routine-adjusted__badge">{ADJUSTED_LABEL}</span>
+                            )}
                             <span
                               className={`student-routine-exercise__modality-badge ${
                                 isHomeModality

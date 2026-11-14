@@ -141,6 +141,12 @@
   .daily-routines__summary li { padding: 10px 8px; }
 }
 
+.daily-routines__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 /* US-24: comparación de métricas de una sesión finalizada */
 .session-comparison__toggle { margin-bottom: 4px; }
 .session-comparison .daily-routines__session dd small { color: var(--pf-muted); font-weight: 500; }
@@ -154,3 +160,31 @@
 .session-comparison__delta--up { color: var(--pf-ok-text); }
 .session-comparison__delta--down { color: #9a3412; }
 .session-comparison__delta--same { color: var(--pf-muted); }
+
+/* US-26: ajuste de la próxima sesión */
+.session-adjustment__toggle { margin-bottom: 4px; }
+.session-adjustment__reports {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+.session-adjustment__reports section { padding: 12px; border-radius: 10px; background: var(--pf-bg); }
+.session-adjustment__reports h4 { margin: 0 0 6px; color: var(--pf-ink); font-size: .85rem; }
+.session-adjustment__reports ul { margin: 0; padding-left: 18px; font-size: .9rem; }
+.session-adjustment__reports p { margin: 6px 0 0; font-size: .9rem; }
+.session-adjustment__pain { padding: 1px 8px; border-radius: 999px; font-size: .75rem; font-weight: 700; }
+.session-adjustment__pain--pain { background: #fde2e2; color: #8f2020; }
+.session-adjustment__pain--discomfort { background: #fff1d6; color: #7c4a03; }
+.session-adjustment__title { margin: 18px 0 6px; color: var(--pf-ink); font-size: 1rem; }
+.session-adjustment__status { margin: 0 0 10px; color: var(--pf-ok-text); font-weight: 600; }
+.session-adjustment__note { display: flex; flex-direction: column; gap: 6px; color: var(--pf-label); font-weight: 600; }
+.session-adjustment__note textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--pf-input-border);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 16px;
+  resize: vertical;
+}
+.session-adjustment__note textarea:focus { outline: 0; border-color: var(--pf-accent); box-shadow: 0 0 0 3px var(--pf-focus); }

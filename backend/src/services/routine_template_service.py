@@ -363,7 +363,13 @@ def update_student_routine_modality(
 def start_student_workout_session(
     db: Session, user: User, payload: WorkoutSessionStartInput
 ) -> WorkoutSession:
+    from backend.src.services.session_adjustment_service import (
+        apply_pending_adjustments,
+    )
+
     relationship, routine_view = _resolve_student_active_routine(db, user)
+    if apply_pending_adjustments(db, relationship.id):  # US-26: la sesión que esperaban quedó abandonada
+        relationship, routine_view = _resolve_student_active_routine(db, user)
     routine_id = routine_view.id if isinstance(routine_view, RoutineTemplate) else routine_view["id"]
     valid_day_names = {day_name for _, day_name, _, _, _ in _iter_routine_exercises(routine_view)}
     if payload.day_name not in valid_day_names:
@@ -399,10 +405,15 @@ def finish_student_workout_session(
     if session is None:
         raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No encontramos este entrenamiento.")
     if session.finished_at is None:
+        from backend.src.services.session_adjustment_service import (
+            apply_pending_adjustments,
+        )
+
         session.finished_at = utc_now()
         if rpe is not None:
             session.rpe = rpe
         db.commit()
+        apply_pending_adjustments(db, session.relationship_id, session.id)  # US-26
         db.refresh(session)
     else:
         if rpe is not None:

@@ -51,6 +51,15 @@
 - Q: ¿Qué métricas se comparan? → A: Por ejercicio: series realizadas, repeticiones por serie, carga máxima, volumen (repeticiones × carga) y tiempo total de las series. Por sesión: duración, RPE y volumen total. Lo planificado corresponde a la versión vigente de la rutina, porque no se guardan versiones históricas. Si el alumno reemplazó un ejercicio (US-54), lo realizado del reemplazo se compara contra lo planificado del ejercicio original y se indica el reemplazo.
 - Q: ¿Dónde se ve? → A: En "Rutinas del día" (US-22), dentro del detalle de una sesión "Finalizada", mediante la acción "Comparar métricas". Una sesión en curso no se puede comparar.
 
+### Sesión 2026-11-13 — US-26
+
+- Q: Los días de la rutina no están atados al calendario: ¿qué es la "próxima sesión programada" y qué modifica el ajuste? → A: El mismo día de rutina de la sesión revisada (por ejemplo, "Día A"). El ajuste modifica de forma persistente ese día en la copia de la rutina del alumno, reutilizando la edición de US-14, y queda en el historial de cambios. El alumno ve la marca "Ajustado por tu entrenador" y la nota en los ejercicios ajustados hasta que finaliza una sesión de ese día.
+- Q: ¿Qué se puede modificar? → A: Las series, las repeticiones, el descanso y la carga objetivo de los ejercicios del día, y reemplazar un ejercicio por otro de la biblioteca del entrenador. No se agregan ni quitan días o bloques. La nota es opcional (hasta 500 caracteres).
+- Q: ¿Qué información de la sesión se ve al ajustar? → A: Las cargas registradas por ejercicio, el RPE, las molestias y los dolores reportados en el mapa corporal durante esa sesión (US-61) y los pedidos de reemplazo o los ejercicios salteados (US-54).
+- Q: ¿Un ejercicio contraindicado se advierte o se bloquea? → A: Se bloquea, igual que en US-14. La advertencia indica la limitación y la variante segura si existe, y el ajuste no se guarda.
+- Q: ¿Qué pasa si el alumno está entrenando cuando se guarda el ajuste? → A: El ajuste queda pendiente y se aplica cuando el alumno finaliza la sesión en curso, o cuando inicia una nueva si abandonó la anterior. La sesión en curso no se modifica. Un ajuste nuevo del mismo día reemplaza al anterior.
+- Q: ¿Qué pasa si la rutina cambió o tiene un borrador? → A: No se permite ajustar si la sesión revisada no corresponde a la rutina vigente del alumno, si el día ya no existe o si hay un borrador de US-14 sin confirmar.
+
 ### Límite de alcance de este incremento
 
 Los artefactos de implementación de esta iteración cubren únicamente los escenarios de aceptación 1–3 de US-18. El escenario 4, de priorización de alertas, permanece en la especificación de la feature como dependencia de US-29 y explícitamente no se implementa en este incremento. La búsqueda, el filtrado por paquete, la mensajería, las comparaciones avanzadas, los gráficos, los ajustes de sesiones, el ciclo de vida de las alertas de seguridad y el cálculo del riesgo de abandono siguen perteneciendo a sus respectivas historias de usuario.

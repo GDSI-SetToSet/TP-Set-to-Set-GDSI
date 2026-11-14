@@ -1049,3 +1049,27 @@
 .workout-rpe-skip-btn:hover:not(:disabled) {
   background: #f1f5f9;
 }
+
+/* US-26: "Ajustado por tu entrenador" */
+.student-routine-adjusted {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #c7d7fe;
+  border-left: 4px solid #3563b0;
+  border-radius: 12px;
+  background: #eef3ff;
+  color: #1d3f7a;
+}
+.student-routine-adjusted strong { display: block; }
+.student-routine-adjusted p { margin: 4px 0 0; font-size: 14px; }
+.student-routine-adjusted blockquote { margin: 8px 0 0; padding-left: 10px; border-left: 2px solid #9db5ec; font-style: italic; }
+.student-routine-adjusted__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #dbe7fb;
+  color: #1d3f7a;
+  font-size: 12px;
+  font-weight: 800;
+}
