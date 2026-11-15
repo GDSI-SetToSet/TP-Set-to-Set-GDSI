@@ -27,6 +27,7 @@ export const ROUTES = {
   studentMedical: '/alumno/apto-medico',
   studentActivePlans: '/alumno/mis-entrenamientos',
   studentRoutines: '/alumno/rutinas',
+  studentProgress: '/alumno/evolucion',
   studentRoutineSession: '/alumno/rutinas/sesion',
   trainerSearch: '/alumno/buscar-entrenadores',
   trainerPublicDetail: '/entrenadores/:trainerId',
