@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, CircleAlert, Pencil, Search, ShieldAlert, X } from 'lucide-react';
 import { ROUTES } from '../constants/routes';
@@ -66,9 +67,14 @@ interface RoutineAssignmentPanelProps {
   initialEventType?: string;
   onStudentSelect?: (studentId: string) => void;
   selectedStudentId?: string | null;
+  /** Contenido del detalle del alumno seleccionado; se muestra debajo de su fila. */
+  renderStudentDetail?: (studentId: string) => ReactNode;
   safetyRefreshKey?: number;
   onSafetyAlertReviewed?: (studentId: string) => void;
 }
+
+const HIGHLIGHT_MS = 3000;
+const PROGRESS_REFRESH_MS = 60_000;
 
 export function RoutineAssignmentPanel({
   templates,
@@ -79,9 +85,11 @@ export function RoutineAssignmentPanel({
   initialEventType,
   onStudentSelect,
   selectedStudentId,
+  renderStudentDetail,
   safetyRefreshKey = 0,
   onSafetyAlertReviewed,
 }: RoutineAssignmentPanelProps) {
+  const detailRef = useRef<HTMLDivElement>(null);
   const [students, setStudents] = useState<RoutineAssignmentStudent[]>([]);
   const [studentSearch, setStudentSearch] = useState('');
   const [trainerPlans, setTrainerPlans] = useState<TrainingPlan[]>([]);
@@ -114,6 +122,7 @@ export function RoutineAssignmentPanel({
   const [expandedSessionDetails, setExpandedSessionDetails] = useState<Record<string, boolean>>({});
   const [highlightedSessionId, setHighlightedSessionId] = useState<string | null>(null);
   const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null);
+  const [revealedSessionId, setRevealedSessionId] = useState<string | null>(null);
   const [notificationContextMessage, setNotificationContextMessage] = useState('');
   const [progressLoadingFor, setProgressLoadingFor] = useState<string | null>(null);
   const [progressErrorFor, setProgressErrorFor] = useState<string | null>(null);
@@ -249,6 +258,13 @@ export function RoutineAssignmentPanel({
       }
     }
   }, [abandonmentRisks, pendingSafetyAlerts, plansError, riskError, safetyAlertsError, trainerPlans]);
+
+  // Al abrir el detalle se baja hasta él una sola vez (no al terminar de cargar su contenido).
+  useEffect(() => {
+    if (!selectedStudentId) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    detailRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+  }, [selectedStudentId]);
 
   useEffect(() => {
     loadInitialData();
@@ -458,15 +474,40 @@ export function RoutineAssignmentPanel({
     students,
   ]);
 
+  // Baja hasta la sesión/reporte resaltado una sola vez y, pasados unos segundos, quita el resaltado:
+  // el entrenador ya lo está mirando y las actualizaciones automáticas no deben volver a moverle la pantalla.
+  const scrolledKey = useRef<string | null>(null);
   useEffect(() => {
-    if (!openProgressFor || (!highlightedSessionId && !highlightedAlertId)) return;
+    if (highlightedSessionId) setRevealedSessionId(highlightedSessionId);
+  }, [highlightedSessionId]);
+  useEffect(() => {
+    if (!highlightedSessionId && !highlightedAlertId) {
+      scrolledKey.current = null;
+      return undefined;
+    }
+    if (!openProgressFor) return undefined;
+    const key = `${highlightedAlertId ?? ''}:${highlightedSessionId ?? ''}:${highlightedEventId ?? ''}`;
+    if (scrolledKey.current === key) return undefined;
+    let timer: number | undefined;
     const frame = window.requestAnimationFrame(() => {
       const target = (highlightedAlertId ? document.getElementById(`safety-alert-${highlightedAlertId}`) : null)
         ?? (highlightedEventId ? document.getElementById(`routine-event-${highlightedEventId}`) : null)
         ?? (highlightedSessionId ? document.getElementById(`routine-session-${highlightedSessionId}`) : null);
-      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (!target) return; // los datos todavía no llegaron: se reintenta cuando cambien
+      scrolledKey.current = key;
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Solo se quita el resaltado de la sesión/evento; el de la alerta de seguridad persiste hasta que se revise.
+      if (!highlightedAlertId) {
+        timer = window.setTimeout(() => {
+          setHighlightedSessionId(null);
+          setHighlightedEventId(null);
+        }, HIGHLIGHT_MS);
+      }
     });
-    return () => window.cancelAnimationFrame(frame);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
   }, [highlightedAlertId, highlightedEventId, highlightedSessionId, openProgressFor, progressByRelationship, safetyAlertsByStudent, sessionsByRelationship, zoneReportsByStudent]);
 
   const approvedAIRoutines = (studentId: string) => aiRoutines.filter((item) => item.student_id === studentId && item.status === 'APPROVED');
@@ -508,7 +549,7 @@ export function RoutineAssignmentPanel({
       }
     };
     void refreshProgress();
-    const interval = window.setInterval(() => void refreshProgress(), 3000);
+    const interval = window.setInterval(() => void refreshProgress(), PROGRESS_REFRESH_MS);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
@@ -598,7 +639,7 @@ export function RoutineAssignmentPanel({
   function visibleSessionsFor(relationshipId: string): WorkoutSession[] {
     const sessions = sessionsByRelationship[relationshipId] ?? [];
     const recentSessions = sessions.slice(0, 5);
-    const focusedSession = sessions.find((session) => session.id === highlightedSessionId);
+    const focusedSession = sessions.find((session) => session.id === (highlightedSessionId ?? revealedSessionId));
     return focusedSession && !recentSessions.some((session) => session.id === focusedSession.id)
       ? [...recentSessions, focusedSession]
       : recentSessions;
@@ -713,15 +754,7 @@ export function RoutineAssignmentPanel({
               {visibleStudents.map((student) => (
             <div className="routine-assignment__row" key={student.relationship_id}>
               <div className="routine-assignment__student">
-                <button
-                  type="button"
-                  className="routine-assignment__student-link"
-                  aria-expanded={selectedStudentId === student.student_id}
-                  aria-controls={`student-detail-${student.student_id}`}
-                  onClick={() => onStudentSelect?.(student.student_id)}
-                >
-                  {student.student_name}
-                </button>
+                <strong className="routine-assignment__student-name">{student.student_name}</strong>
                 {(pendingAlertsByRelationship.get(student.relationship_id)?.count ?? 0) > 0 && (
                   <button
                     type="button"
@@ -748,25 +781,26 @@ export function RoutineAssignmentPanel({
                   <button
                     type="button"
                     className="routine-assignment__attention routine-assignment__attention--report"
-                    title="Indicador informativo: no hay un estado de revisión persistido para estos reportes."
+                    title="Ver la sesión con molestias reportadas. Indicador informativo: no hay un estado de revisión persistido para estos reportes."
                     onClick={() => focusStudentEvent(
                       student,
                       reportsWithDiscomfort(student.student_id)[0]?.session_id,
                     )}
                   >
-                    Molestias reportadas
+                    Molestias reportadas ({reportsWithDiscomfort(student.student_id).length})
                   </button>
                 )}
                 {attentionLoaded && pendingFeedbackSessions(student.relationship_id).length > 0 && (
                   <button
                     type="button"
                     className="routine-assignment__attention routine-assignment__attention--feedback"
+                    title="Ver la sesión sin devolución"
                     onClick={() => focusStudentEvent(
                       student,
                       pendingFeedbackSessions(student.relationship_id)[0]?.id,
                     )}
                   >
-                    Devolución pendiente
+                    Devolución pendiente ({pendingFeedbackSessions(student.relationship_id).length})
                   </button>
                 )}
               </div>
@@ -815,6 +849,16 @@ export function RoutineAssignmentPanel({
                   <button
                     type="button"
                     className="profile-save routine-assignment__progress-toggle"
+                    aria-expanded={selectedStudentId === student.student_id}
+                    aria-controls={`student-detail-${student.student_id}`}
+                    onClick={() => onStudentSelect?.(student.student_id)}
+                  >
+                    {selectedStudentId === student.student_id ? 'Ocultar detalle del alumno' : 'Ver detalle del alumno'}
+                    <ChevronDown size={16} aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className="profile-save routine-assignment__progress-toggle"
                     aria-expanded={openProgressFor === student.relationship_id}
                     onClick={() => {
                       setHighlightedSessionId(null);
@@ -823,11 +867,16 @@ export function RoutineAssignmentPanel({
                       setOpenProgressFor((current) => current === student.relationship_id ? null : student.relationship_id);
                     }}
                   >
-                    {openProgressFor === student.relationship_id ? 'Ocultar progreso' : 'Ver progreso del alumno'}
+                    {openProgressFor === student.relationship_id ? 'Ocultar sesiones y RPE' : 'Ver sesiones y RPE'}
                     <ChevronDown size={16} aria-hidden="true" />
                   </button>
                 </div>
               </div>
+              {selectedStudentId === student.student_id && renderStudentDetail && (
+                <div id={`student-detail-${student.student_id}`} ref={detailRef} className="routine-assignment__detail">
+                  {renderStudentDetail(student.student_id)}
+                </div>
+              )}
               {openProgressFor === student.relationship_id && <div className="routine-assignment__progress" aria-label={`Progreso de ${student.student_name}`}>
                 <SafetyAlertListSection
                   studentName={student.student_name}
@@ -851,7 +900,7 @@ export function RoutineAssignmentPanel({
                 />
                 <div className="routine-assignment__progress-heading">
                   <strong>Sesiones y Esfuerzo (RPE)</strong>
-                  <span>{progressLoadingFor === student.relationship_id ? 'Actualizando…' : 'Actualización automática'}</span>
+                  <span>{progressLoadingFor === student.relationship_id ? 'Actualizando…' : 'Se actualiza cada minuto'}</span>
                 </div>
                 {(sessionsByRelationship[student.relationship_id] ?? []).length === 0 ? (
                   <p className="plan-empty routine-assignment__empty">Todavía no hay sesiones finalizadas.</p>

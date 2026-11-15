@@ -157,3 +157,40 @@ US-18 no agrega tablas de base de datos. El modelo de lectura de la API compone 
 
 - **Creación de tabla nueva**: `safety_alerts` es creada automáticamente por `Base.metadata.create_all` al iniciar la aplicación una vez que `SafetyAlert` se registra en `backend/src/models/__init__.py` y se importa en `backend/src/main.py` (mismo mecanismo usado en US-26 con `session_adjustments`).
 - **Verificación idempotente**: Validar y reforzar `backend/src/core/migrations.py` (y `backend/tests/test_database_migrations.py`) para asegurar que bases de datos SQLite/PostgreSQL existentes sin la tabla `safety_alerts` creen la tabla, restricciones e índices de forma aditiva e idempotente sin pérdida de datos previos.
+
+---
+
+# Modelo de datos: US-30 — Progreso del alumno
+
+US-30 no agrega tablas ni migraciones; es un modelo de lectura sobre `WorkoutSession` (solo con `finished_at`), `WorkoutSetLog`, `Exercise.target_muscle_group`, `PersonalRecord` (US-59), `EffortFeedback` (US-64), `ExerciseReplacementLog` (US-54) y la rutina vigente del alumno, dentro de un vínculo ACTIVO del entrenador.
+
+## Respuesta `TrainingEvolution`
+
+- `period`: `{ key: 4w | 12w | all, start, end }` (fechas ISO; `start` es el lunes inicial); `group_by`: `session` | `week`; `muscle_group`: filtro opcional; `muscle_groups`: grupos de todo el historial; `has_sessions`
+- `summary`:
+  - `progress`: `{ improving, with_data, status }`
+  - `adherence`: `{ completed_sessions, scheduled_sessions, pct, sets_completion_pct, status }`
+  - `effort`: `{ avg_rpe_last_4, trend: rising | stable | falling, message_key, status }`
+  - `to_review`: `{ count, status }`
+- `exercises[]`: `{ exercise_id, name, muscle_group, metric: max_weight | max_reps | none, start, current, change_pct, last_improvement: { date, is_pr }, status, points[] }`; `status`: `progressing` | `stalled` | `declined` | `unchanged` | `few_data` | `no_metric`; punto: `{ key, period_start, period_end, weight, reps, target_weight, rpe, is_pr, is_partial }`
+- `adherence[]`: `{ period_start, period_end, scheduled, completed, is_partial }` por semana
+- `most_skipped[]`: `{ exercise_id, name, completion_pct, skip_count, main_reason: replacement_requested | null }`
+- `rpe[]`: `{ key, period_start, period_end, rpe, has_report, trainer_feedback, is_partial }`
+- `sets_by_muscle_group[]`: `{ muscle_group, avg_completed_per_week, avg_scheduled_per_week }`
+- `to_review[]`: `{ type, exercise_id, label }`
+
+## Reglas de cálculo
+
+1. Solo sesiones finalizadas del vínculo ACTIVO; ajeno o inactivo devuelve 404. El período se alinea a semanas calendario (lunes a domingo, UTC); 4 o 12 semanas incluyen la semana en curso.
+2. La semana en curso (`is_partial`) se grafica pero no entra en estados, porcentajes ni tendencias.
+3. Métrica por sesión y ejercicio: la mejor serie con repeticiones numéricas (más peso y, a igual peso, más repeticiones); sin carga, más repeticiones; sin repeticiones numéricas: `no_metric`.
+4. Estado (semanas completas, en este orden): menos de 2 sesiones → `few_data`; valor actual ≤ 90 % del máximo de las 3 semanas anteriores → `declined`; mejora en las últimas 3 semanas completas → `progressing`; sin mejora y con al menos 3 sesiones en esas semanas → `stalled`; si no, `unchanged`. Mejora: supera el mejor valor anterior.
+5. Con `few_data` el inicio y el actual se calculan con todas las sesiones del período; el cambio porcentual es nulo.
+6. `is_pr` solo marca la sesión del récord vigente: `PersonalRecord` guarda un único récord por alumno y ejercicio, no un historial.
+7. Sesiones programadas por semana = días de la rutina vigente (criterio de US-32), desde la asignación; una semana completa suma `min(completadas, programadas)`. Cumplimiento de series = series registradas (sin superar lo programado por ejercicio, contando el reemplazo elegido) sobre las programadas de la versión vigente de la rutina.
+8. Ejercicios más salteados: los 3 con cumplimiento menor al 70 %.
+9. Esfuerzo: promedio de RPE de las últimas 4 sesiones con reporte (semanas completas), tendencia contra las 4 anteriores (±0,5 es estable). Mensaje por precedencia: esfuerzo excesivo (algún RPE ≥ 9) → fatiga (carga no sube y RPE sube) → exigir más (promedio < 6) → progreso con esfuerzo en aumento → progreso con margen. La carga "sube" si `progress.status` es verde.
+10. Semáforos: progreso verde ≥ 50 %, amarillo 25–49 %; adherencia verde ≥ 80 %, amarillo 60–79 %; esfuerzo verde con promedio 6–8, rojo con promedio ≥ 9 o fatiga; para revisar verde 0, amarillo 1–2, rojo ≥ 3. Los umbrales son constantes del servicio.
+11. `to_review` en orden: ejercicios que bajaron, estancados, fatiga o esfuerzo excesivo, ejercicios salteados y semanas sin entrenar (últimas 2 completas). `to_review.count` es la cantidad de puntos de la lista.
+12. Series semanales por grupo: promedio de series registradas por semana completa; programadas = series de todos los días de la rutina vigente (cada día una vez por semana).
+13. Operación de solo lectura.

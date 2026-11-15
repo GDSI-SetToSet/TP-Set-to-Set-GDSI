@@ -96,3 +96,33 @@
 - **Decisión**: Todas las consultas, conteos (`unreviewed_alert_count`), revisiones y cálculos de consecutividad filtran obligatoriamente por `TrainingRelationship.status == "ACTIVE"` y `TrainingRelationship.trainer_id == trainer_profile.id` en el servidor (Principio III de la Constitución). Ante una terminación o cambio de entrenador (`status = "TERMINATED"`), el entrenador saliente pierde acceso inmediato a las alertas del alumno, y el nuevo vínculo (`relationship_id` distinto) inicia sin heredar sesiones ni secuencias previas de molestias. Además, la columna única `dedup_key` en `safety_alerts` respalda en base de datos la idempotencia ante condiciones de carrera y reintentos.
 - **Justificación**: Garantiza privacidad de datos sensibles de salud, previene escalamiento de privilegios (IDOR) y mantiene la integridad estadística ante concurrencia en SQLite y PostgreSQL.
 - **Alternativas consideradas**: Filtrar por `student_id` únicamente; rechazada porque violaría el Principio III al mezclar historiales clínicos entre distintos entrenadores o vínculos cerrados.
+
+---
+
+# Investigación: US-30 — Progreso del alumno
+
+## Un solo endpoint de lectura, calculado en el servidor
+
+- Decisión: `GET /api/v1/trainers/me/students/{student_id}/evolution?period=&group_by=&muscle_group=` devuelve las cuatro secciones ya calculadas (progresión por ejercicio, adherencia, RPE y puntos a revisar). Sin tablas ni migraciones.
+- Justificación: el cliente no recalcula reglas de negocio, estados ni zonas horarias, y la autorización por vínculo ACTIVO queda en un solo lugar.
+- Alternativas: calcular en el cliente sobre los logs (rechazado: duplica reglas y expone todo el historial); tabla de métricas precalculadas (rechazado: sin migraciones, escala de un entrenador).
+
+## Qué se descarta y por qué
+
+- Decisión: se elimina el volumen total y el gráfico de repeticiones y series totales, y el selector de ejercicio.
+- Justificación: sumar kilos de ejercicios distintos engaña (cambiar un ejercicio pesado por uno liviano baja el volumen aunque el alumno progrese) y los totales reflejan cómo está armada la rutina, no el rendimiento. El tonelaje sigue en el resumen de sesión (US-63).
+
+## Datos disponibles y sus límites
+
+- Récords (🏆): `PersonalRecord` guarda un único registro vigente por alumno y ejercicio, no un historial; solo se marca la sesión del récord actual.
+- Sesiones programadas: los días de la rutina no están atados al calendario (US-22), así que se aproximan con los días por semana de la rutina vigente, igual que US-32. Si la rutina cambió, las semanas pasadas se miden con la vigente.
+- Series programadas: salen de la versión vigente de la rutina (no se guardan versiones históricas, igual que US-24).
+- Motivo de un ejercicio salteado: `ExerciseReplacementLog` no tiene motivo ni bandera de salto; el único motivo disponible es el pedido de reemplazo.
+- Alternativas: modelar un calendario de sesiones programadas (rechazado: fuera del alcance de US-30).
+
+## Reglas
+
+- Semana calendario de lunes a domingo en UTC (límite conocido: una sesión cerca de la medianoche local puede caer en la semana contigua). La semana en curso no entra en estados, porcentajes ni tendencias.
+- Orden de estados: pocos datos → bajó → progresando → estancado → sin cambios; "mejora" es superar el mejor valor anterior. Ejercicios con repeticiones no numéricas ("45 seg", "al fallo") quedan como "Sin métrica".
+- Mensaje de esfuerzo: precedencia explícita para evitar solapamientos (ver `data-model.md`). Umbrales como constantes del módulo, sin sistema de configuración.
+- Sin botón "Ajustar próxima sesión": US-26 parte de una sesión finalizada y vive en "Rutinas del día"; enlazarlo exigiría elegir sesión y preseleccionar ejercicio.

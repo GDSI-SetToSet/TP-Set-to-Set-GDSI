@@ -2,9 +2,12 @@ import { api } from './api';
 import type {
   AbandonmentRiskItem,
   DailyRoutineItem,
+  EvolutionGrouping,
+  EvolutionPeriod,
   SessionComparison,
   TrainerStudentDetail,
   TrainerStudentListItem,
+  TrainingEvolution,
 } from '../types/trainerStudent';
 
 const STUDENTS_PATH = '/api/v1/trainers/me/students';
@@ -36,5 +39,15 @@ export async function getSessionComparison(sessionId: string): Promise<SessionCo
 /** US-32: riesgo de abandono de los alumnos activos (en riesgo primero). */
 export async function getAbandonmentRisk(): Promise<AbandonmentRiskItem[]> {
   const { data } = await api.get<AbandonmentRiskItem[]>('/api/v1/trainers/me/abandonment-risk');
+  return data;
+}
+
+export async function getTrainingEvolution(
+  studentId: string,
+  params: { groupBy: EvolutionGrouping; period: EvolutionPeriod; muscleGroup?: string },
+): Promise<TrainingEvolution> {
+  const { data } = await api.get<TrainingEvolution>(`${STUDENTS_PATH}/${studentId}/evolution`, {
+    params: { group_by: params.groupBy, period: params.period, muscle_group: params.muscleGroup || undefined },
+  });
   return data;
 }

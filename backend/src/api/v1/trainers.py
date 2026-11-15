@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -28,6 +28,7 @@ from backend.src.schemas.trainer_student import (
     SessionComparison,
     TrainerStudentDetail,
     TrainerStudentListItem,
+    TrainingEvolution,
 )
 from backend.src.services.abandonment_risk_service import list_abandonment_risk
 from backend.src.services.daily_routine_tracking_service import list_daily_routines
@@ -56,6 +57,7 @@ from backend.src.services.trainer_student_service import (
     get_trainer_student_detail,
     list_trainer_students,
 )
+from backend.src.services.training_evolution_service import get_training_evolution
 
 router = APIRouter(prefix=f"{API_V1_PREFIX}/trainers", tags=["trainers"])
 CurrentUser = Annotated[User, Depends(get_current_user)]
@@ -127,6 +129,22 @@ def own_students_abandonment_risk(user: CurrentUser, db: DbDep) -> list[Abandonm
     """US-32: alumnos activos con su riesgo de abandono (en riesgo primero)."""
     try:
         return list_abandonment_risk(db, user)
+    except TrainerStudentError as error:
+        handle_student_error(error)
+
+
+@router.get("/me/students/{student_id}/evolution", response_model=TrainingEvolution)
+def own_student_training_evolution(
+    student_id: str,
+    user: CurrentUser,
+    db: DbDep,
+    period: Literal["4w", "12w", "all"] = "12w",
+    group_by: Literal["session", "week"] = "week",
+    muscle_group: str | None = None,
+) -> TrainingEvolution:
+    """US-30: progreso del alumno (progresión, adherencia, esfuerzo y puntos a revisar)."""
+    try:
+        return get_training_evolution(db, user, student_id, period, group_by, muscle_group)
     except TrainerStudentError as error:
         handle_student_error(error)
 

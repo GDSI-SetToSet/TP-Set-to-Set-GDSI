@@ -144,38 +144,38 @@ export function TrainerStudentsPage() {
             selectedStudentId={selectedStudentId}
             safetyRefreshKey={safetyRefreshKey}
             onSafetyAlertReviewed={handleSafetyAlertReviewed}
+            renderStudentDetail={(studentId) => (
+              <>
+                {detailLoading && <p role="status">Cargando detalle del alumno…</p>}
+                {detailError && (
+                  <div className="form-alert" role="alert">
+                    <p>{detailError}</p>
+                    <button
+                      type="button"
+                      className="profile-save"
+                      onClick={() => retryStudentDetail(studentId)}
+                    >
+                      Reintentar
+                    </button>
+                  </div>
+                )}
+                {studentDetail && studentDetail.profile.id === studentId && (
+                  <TrainerStudentDetail
+                    key={studentDetail.profile.id}
+                    detail={studentDetail}
+                    onClose={() => {
+                      selectedStudentIdRef.current = null;
+                      detailTrackerRef.current.invalidate('detail');
+                      setSelectedStudentId(null);
+                      setDetailLoading(false);
+                    }}
+                    safetyRefreshKey={safetyRefreshKey}
+                    onSafetyAlertReviewed={handleSafetyAlertReviewed}
+                  />
+                )}
+              </>
+            )}
           />
-        )}
-        {selectedStudentId && (
-          <div id={`student-detail-${selectedStudentId}`} className="trainer-student-detail-container">
-            {detailLoading && <p role="status">Cargando detalle del alumno…</p>}
-            {detailError && (
-              <div className="form-alert" role="alert">
-                <p>{detailError}</p>
-                <button
-                  type="button"
-                  className="profile-save"
-                  onClick={() => retryStudentDetail(selectedStudentId)}
-                >
-                  Reintentar
-                </button>
-              </div>
-            )}
-            {studentDetail && studentDetail.profile.id === selectedStudentId && (
-              <TrainerStudentDetail
-                key={studentDetail.profile.id}
-                detail={studentDetail}
-                onClose={() => {
-                  selectedStudentIdRef.current = null;
-                  detailTrackerRef.current.invalidate('detail');
-                  setSelectedStudentId(null);
-                  setDetailLoading(false);
-                }}
-                safetyRefreshKey={safetyRefreshKey}
-                onSafetyAlertReviewed={handleSafetyAlertReviewed}
-              />
-            )}
-          </div>
         )}
       </section>
     </main>

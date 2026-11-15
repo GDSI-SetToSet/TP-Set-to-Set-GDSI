@@ -861,6 +861,29 @@ WORKOUT_HISTORY_DEMO_DATA: list[dict[str, Any]] = [
 ]
 
 
+# Historial de varias semanas para que el gráfico de evolución (US-30) tenga datos: una sesión por semana
+# y por día de rutina, con carga progresiva. Para cada ejercicio: (nombre, repeticiones, carga inicial, aumento semanal).
+EVOLUTION_WEEKS = 8
+EVOLUTION_HISTORY_DEMO_DATA: list[dict[str, Any]] = [
+    {
+        "student_key": "student_tomas",
+        "trainer_key": "trainer_gonzalo",
+        "skip_weeks": [5],  # una semana sin entrenar, para ver el hueco en adherencia
+        "days": [
+            {"day_name": "Día 1 - Fuerza", "exercises": [("Sentadilla Goblet", "8", 20.0, 1.0), ("Swing con Kettlebell", "15", 12.0, 1.0)]},
+        ],
+    },
+    {
+        "student_key": "student_valentina",
+        "trainer_key": "trainer_lucas",
+        "days": [
+            {"day_name": "Día 1 - Pierna", "exercises": [("Sentadilla con Barra", "8", 25.0, 2.5)]},
+            {"day_name": "Día 2 - Empuje", "exercises": [("Press de Banca", "8", 35.0, 2.5), ("Remo con Barra", "8", 30.0, 0.0)]},  # sin aumento: queda "Estancado"
+        ],
+    },
+]
+
+
 def _seed_routines(
     db: Session,
     trainer_map: dict[str, TrainerProfile],
@@ -1039,6 +1062,108 @@ def _build_ai_routine(
             for day in template.days
         ],
     )
+
+
+def _seed_evolution_history(
+    db: Session,
+    trainer_map: dict[str, TrainerProfile],
+    student_map: dict[str, StudentProfile],
+    stats: dict[str, int],
+    now: datetime,
+) -> None:
+    """US-30: sesiones semanales anteriores a la historia reciente. Se omite si el alumno ya tiene sesiones de más de una semana."""
+    for data in EVOLUTION_HISTORY_DEMO_DATA:
+        trainer = trainer_map[data["trainer_key"]]
+        student = student_map[data["student_key"]]
+        # Como en el resto del seed, los contadores salen del guion aunque no se inserte (idempotencia).
+        for day_data in data["days"]:
+            stats["workout_sessions"] += EVOLUTION_WEEKS
+            stats["workout_set_logs"] += sum(
+                len(day_data["exercises"]) * (3 if week < EVOLUTION_WEEKS // 2 else 4) for week in range(EVOLUTION_WEEKS)
+            )
+        relationship = db.scalar(
+            select(TrainingRelationship).where(
+                TrainingRelationship.trainer_id == trainer.id,
+                TrainingRelationship.student_id == student.id,
+                TrainingRelationship.status == "ACTIVE",
+            )
+        )
+        if relationship is None or not relationship.initial_routine_id:
+            continue
+        if db.scalar(
+            select(WorkoutSession.id).where(
+                WorkoutSession.relationship_id == relationship.id,
+                WorkoutSession.started_at < now - timedelta(days=7),
+            ).limit(1)
+        ):
+            continue
+        source_id = relationship.initial_routine_id
+        student_routine = db.scalar(select(StudentRoutine).where(StudentRoutine.relationship_id == relationship.id))
+        is_copy = bool(
+            student_routine
+            and student_routine.status != "UNASSIGNED"
+            and student_routine.source_kind == "GENERIC"
+            and student_routine.source_template_id == source_id
+        )
+        routine_id = student_routine.id if is_copy else source_id
+        routine = student_routine if is_copy else db.get(AssignedRoutine, source_id) or db.get(RoutineTemplate, source_id)
+        if routine is None:
+            continue
+        exercise_by_name = {
+            exercise.name: exercise
+            for exercise in db.scalars(
+                select(Exercise).where(Exercise.trainer_id == trainer.id, Exercise.deleted_at.is_(None))
+            )
+        }
+        for day_index, day_data in enumerate(data["days"]):
+            if is_copy:  # la copia del alumno guarda los días como diccionarios
+                day = next((item for item in routine.days if item["name"] == day_data["day_name"]), None)
+                scheduled = {entry["exercise_id"] for block in day["blocks"] for entry in block["exercises"]} if day else set()
+            else:
+                day = next((item for item in routine.days if item.name == day_data["day_name"]), None)
+                scheduled = {item.exercise_id for block in day.blocks for item in block.exercises} if day else set()
+            exercises = [
+                (exercise_by_name[name], reps, base, step)
+                for name, reps, base, step in day_data["exercises"]
+                if name in exercise_by_name and exercise_by_name[name].id in scheduled
+            ]
+            if not exercises:
+                continue  # la rutina fue editada: prevalece sobre el guion de datos ficticios
+            for week in range(EVOLUTION_WEEKS):
+                if week in data.get("skip_weeks", []):
+                    continue
+                started_at = now - timedelta(days=9 + 7 * (EVOLUTION_WEEKS - 1 - week) + day_index * 2, hours=1)
+                finished_at = started_at + timedelta(minutes=45)
+                session = WorkoutSession(
+                    student_id=student.id,
+                    relationship_id=relationship.id,
+                    routine_id=routine_id,
+                    day_name=day_data["day_name"],
+                    modality="GYM",
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    rpe=6 + week % 3,
+                )
+                db.add(session)
+                db.flush()
+                for exercise, reps, base, step in exercises:
+                    for set_number in range(1, (3 if week < EVOLUTION_WEEKS // 2 else 4) + 1):
+                        db.add(
+                            WorkoutSetLog(
+                                student_id=student.id,
+                                relationship_id=relationship.id,
+                                routine_id=routine_id,
+                                day_name=day_data["day_name"],
+                                exercise_id=exercise.id,
+                                exercise_name=exercise.name,
+                                modality="GYM",
+                                set_number=set_number,
+                                reps_completed=reps,
+                                weight_kg=Decimal(str(base + step * week)),
+                                session_id=session.id,
+                                recorded_at=finished_at,
+                            )
+                        )
 
 
 def _seed_workout_history(
@@ -1711,6 +1836,7 @@ def seed_demo_data(
     # 4. Sembrar Ejercicios y Rutinas (requieren los vínculos activos)
     _seed_routines(db, trainer_map, student_map, stats, now)
     _seed_workout_history(db, trainer_map, student_map, stats, now)
+    _seed_evolution_history(db, trainer_map, student_map, stats, now)
 
     db.commit()
 

@@ -66,7 +66,7 @@ Resultado esperado: no se muestra ningún alumno para la búsqueda inexistente y
 ## Verificaciones fuera de alcance
 
 - Mensajería: US-21.
-- Comparaciones avanzadas y gráficos históricos de cargas: US-30 (US-24 compara planificado, realizado y sesión previa en "Rutinas del día").
+- Comparaciones avanzadas: US-24 compara planificado, realizado y sesión previa en "Rutinas del día"; el gráfico de evolución es US-30).
 
 ---
 
@@ -115,3 +115,22 @@ PYTHONPATH=. pytest backend/tests/test_us29_safety_alerts_api.py backend/tests/t
 ruff check backend
 cd frontend && npm test && npm run build
 ```
+
+---
+
+# Inicio rápido: US-30 — Progreso del alumno
+
+## Escenario 12 — Progreso del alumno (US-30)
+
+Prerrequisitos: entrenador con un alumno activo con rutina y varias semanas de sesiones finalizadas (el seed demo carga a Tomás y Valentina).
+
+1. Abrir el detalle del alumno desde `/entrenador/alumnos` con "Ver detalle del alumno".
+2. Ver "Progreso de {alumno}", el rango de fechas junto al período y los cuatro indicadores (Progreso, Adherencia, Esfuerzo, Para revisar), cada uno con color y texto.
+3. En "¿Está progresando?": la tabla ordena Bajó, Estancado y Progresando; tocar una fila abre su gráfico con el peso objetivo punteado, los récords destacados, el tooltip y la semana en curso hueca con "en curso".
+4. En "¿Está entrenando lo que le programé?": barras de sesiones programadas y realizadas por semana, semanas sin sesiones resaltadas y los ejercicios más salteados.
+5. En "¿Cómo le está costando?": el mensaje, el gráfico de RPE con la banda 6–8 y huecos en las sesiones sin reporte.
+6. En "¿Qué tengo que ajustar?": la lista de puntos a revisar (o "Nada para ajustar por ahora") y las series semanales por grupo muscular contra las programadas.
+7. Cambiar Período, Agrupar y Grupo muscular, y confirmar que todo se actualiza; un grupo sin ejercicios muestra "No hay ejercicios de {grupo} en este período".
+8. Un alumno sin sesiones muestra "{nombre} todavía no registró entrenamientos".
+
+Resultado esperado: solo cuentan sesiones finalizadas y la semana en curso no altera estados ni porcentajes. Contrato: `contracts/trainer-student-detail-api.yaml` (`/evolution`). Verificación automática: `pytest backend/tests/test_us30_training_evolution_api.py` y `npm test` / `npm run build` en `frontend`.
