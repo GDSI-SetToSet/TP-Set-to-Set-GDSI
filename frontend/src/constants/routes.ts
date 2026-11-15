@@ -46,6 +46,8 @@ export function trainerNotificationPath(notification: Pick<
 >): string {
   if (
     notification.type !== 'PAIN_ALERT'
+    && notification.type !== 'REPEATED_DISCOMFORT_ALERT'
+    && notification.type !== 'EXCESSIVE_EFFORT_ALERT'
     && notification.type !== 'PERSONAL_RECORD'
     && notification.type !== 'PROTECTED_ZONES_UPDATED'
     && notification.type !== 'ABANDONMENT_RISK'
@@ -63,7 +65,12 @@ export function trainerNotificationPath(notification: Pick<
   }
   if (
     notification.related_entity_id
-    && (notification.type === 'PAIN_ALERT' || notification.type === 'PERSONAL_RECORD')
+    && (
+      notification.type === 'PAIN_ALERT'
+      || notification.type === 'REPEATED_DISCOMFORT_ALERT'
+      || notification.type === 'EXCESSIVE_EFFORT_ALERT'
+      || notification.type === 'PERSONAL_RECORD'
+    )
   ) {
     params.set('eventId', notification.related_entity_id);
     params.set('eventType', notification.type);
