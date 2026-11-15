@@ -81,7 +81,7 @@ components:
             properties:
               date: { type: string, format: date }
               weight_kg: { type: number }
-              reps: { type: integer }
+              reps: { type: string, description: Repeticiones tal como se registraron }
               is_pr: { type: boolean }
     WeeklyVolume:
       type: object
@@ -106,7 +106,7 @@ components:
         exercise_id: { type: string }
         exercise_name: { type: string }
         weight_kg: { type: number }
-        reps: { type: integer }
+        reps: { type: string, description: Repeticiones tal como se registraron }
         achieved_at: { type: string, format: date-time }
         previous_weight_kg: { type: number, nullable: true }
         is_initial: { type: boolean }

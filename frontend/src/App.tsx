@@ -26,6 +26,7 @@ import { TrainerSearchPage } from './pages/TrainerSearchPage';
 import { TrainerPublicDetailPage } from './pages/TrainerPublicDetailPage';
 import { TrainerRequestPage } from './pages/TrainerRequestPage';
 import { StudentActivePlansPage } from './pages/StudentActivePlansPage';
+import { StudentProgressPage } from './pages/StudentProgressPage';
 import { StudentRoutinesPage } from './pages/StudentRoutinesPage';
 
 function ProtectedRoute({ children, role }: { children: JSX.Element; role: UserRole }) {
@@ -73,6 +74,7 @@ export default function App() {
       <Route path={ROUTES.studentMedical} element={<ProtectedRoute role={USER_ROLES.student}><MedicalClearancePage /></ProtectedRoute>} />
       <Route path={ROUTES.studentRoutines} element={<ProtectedRoute role={USER_ROLES.student}><StudentRoutinesPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentRoutineSession} element={<ProtectedRoute role={USER_ROLES.student}><StudentRoutinesPage sessionMode /></ProtectedRoute>} />
+      <Route path={ROUTES.studentProgress} element={<ProtectedRoute role={USER_ROLES.student}><StudentProgressPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentActivePlans} element={<ProtectedRoute role={USER_ROLES.student}><StudentActivePlansPage /></ProtectedRoute>} />
     </Routes>
   );

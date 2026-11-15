@@ -1,14 +1,14 @@
 # Investigación: US-65
 
 ## D1 — Historial de PRs derivado de las series, no de `PersonalRecord`
-- **Decisión**: calcular el historial recorriendo los `WorkoutSetLog` con peso > 0 del alumno, por ejercicio y en orden de `recorded_at`; una serie es PR si su peso supera **estrictamente** el máximo acumulado previo del mismo ejercicio. La primera serie con peso de un ejercicio es el PR inicial (`is_initial = true`, coherente con `is_initial_pr` de US-59).
+- **Decisión** (consulta acotada solo por `student_id`, sin filtrar por vínculo ni sesión finalizada, para que el historial sobreviva a un cambio de entrenador): calcular el historial recorriendo los `WorkoutSetLog` con peso > 0 del alumno, por ejercicio y en orden de `recorded_at`; una serie es PR si su peso supera **estrictamente** el máximo acumulado previo del mismo ejercicio. La primera serie con peso de un ejercicio es el PR inicial (`is_initial = true`, coherente con `is_initial_pr` de US-59).
 - **Rationale**: `PersonalRecord` tiene unicidad (alumno, ejercicio) y se sobrescribe, así que solo conserva el último récord; la spec pide lista cronológica con fecha de cada PR. Derivar evita migración y el caso de logs borrados (el delete de US-59 ya recalcula el vigente; el historial derivado se corrige solo).
 - **Alternativas**: tabla `personal_record_history` (migración + backfill + doble escritura: descartada); leer solo `PersonalRecord` (pierde el historial).
 - **Orden**: ascendente por fecha ("cronológicamente", escenario 5).
 - **Empates**: mismo peso que el máximo previo no es PR; si dos series de una misma sesión empatan en `recorded_at`, desempata `set_number`.
 
 ## D2 — "Serie de trabajo completada"
-- `WorkoutSetLog` no tiene bandera de calentamiento ni de "completada": un log existe solo si la serie se registró. Se consideran todas las series registradas con `weight_kg > 0` y `reps_completed` numérico. Series sin peso o con repeticiones no numéricas ("45 seg", "al fallo") se excluyen del volumen y de los PRs (FR-001b). Si en el futuro se agrega calentamiento, se filtra en un único punto del servicio.
+- `WorkoutSetLog` no tiene bandera de calentamiento ni de "completada": un log existe solo si la serie se registró. Reglas separadas: **PR y puntos de carga** cuentan toda serie registrada con `weight_kg > 0` (FR-001a: sin importar las repeticiones; coincide con US-59, que ya notifica un PR aunque las reps sean "al fallo"); **volumen** exige además `reps_completed` numérico, por lo que "45 seg" o "al fallo" no suman kilaje (FR-001b). Por eso `reps` se expone como el texto registrado. Series sin peso se excluyen de todo. Si en el futuro se agrega calentamiento, se filtra en un único punto del servicio.
 
 ## D3 — Volumen y semanas
 - Volumen semanal = Σ(`weight_kg` × reps). Semana lunes–domingo UTC. Se devuelve **una entrada por semana del rango**, con 0 para semanas sin series (escenario 3). La semana actual se marca `is_partial = true`.

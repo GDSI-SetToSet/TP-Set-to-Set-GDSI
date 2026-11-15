@@ -1,7 +1,16 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -23,6 +32,8 @@ from backend.src.schemas.student_health import (
     HealthQuestionnaireInput,
     HealthQuestionnaireResponse,
 )
+from backend.src.schemas.student_progress import StudentProgress
+from backend.src.services.student_progress_service import get_student_progress
 from backend.src.services.student_service import (
     StudentProfileError,
     get_clearance_for_download,
@@ -62,6 +73,21 @@ def handle_error(error: StudentProfileError) -> None:
 def own_profile(user: CurrentUser, db: DbDep) -> StudentProfileResponse:
     try:
         return profile_response(get_or_create_profile(db, user), db)
+    except StudentProfileError as error:
+        handle_error(error)
+
+
+@router.get("/me/progress", response_model=StudentProgress, response_model_by_alias=True)
+def own_progress(
+    user: CurrentUser,
+    db: DbDep,
+    exercise_id: str | None = None,
+    muscle_group: str | None = None,
+    from_: Annotated[date | None, Query(alias="from")] = None,
+    to: date | None = None,
+) -> StudentProgress:
+    try:
+        return get_student_progress(db, user, exercise_id, muscle_group, from_, to)
     except StudentProfileError as error:
         handle_error(error)
 
