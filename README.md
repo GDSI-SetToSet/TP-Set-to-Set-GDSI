@@ -55,7 +55,7 @@ Los archivos de configuración y las especificaciones compartidas forman parte d
 
 - **Autenticación (`001`):** `/login`, `/registro`, `/olvide-mi-contrasena`, `/restablecer-contrasena`, `/inicio`
 - **Entrenador (`002` / `004` / `005` / `006` / `009`):** `/entrenador/inicio`, `/entrenador/perfil`, `/entrenador/paquetes`, `/entrenador/ejercicios`, `/entrenador/rutinas`, `/entrenador/rutinas/generar-ia`, `/entrenador/alumnos`, `/entrenador/alumnos/:studentId/rutina`, `/entrenador/rutinas-del-dia`, `/entrenador/solicitudes`, `/entrenador/solicitudes/:requestId`
-- **Alumno (`003` / `004` / `005`):** `/alumno/inicio`, `/alumno/perfil`, `/alumno/salud`, `/alumno/zonas-a-proteger`, `/alumno/apto-medico`, `/alumno/buscar-entrenadores`, `/entrenadores/:trainerId`, `/entrenadores/:trainerId/solicitar`, `/alumno/mis-solicitudes`, `/alumno/mis-entrenamientos`, `/alumno/rutinas`
+- **Alumno (`003` / `004` / `005`):** `/alumno/inicio`, `/alumno/perfil`, `/alumno/salud`, `/alumno/zonas-a-proteger`, `/alumno/apto-medico`, `/alumno/buscar-entrenadores`, `/entrenadores/:trainerId`, `/entrenadores/:trainerId/solicitar`, `/alumno/mis-solicitudes`, `/alumno/mis-entrenamientos`, `/alumno/rutinas`, `/alumno/evolucion`
 
 ### Endpoints principales de la API (`backend/src/api/v1/`)
 

@@ -49,7 +49,7 @@ description: "Lista de tareas de US-65 de la feature 010"
 
 - [ ] T016 Ejecutar `ruff check backend` y `pytest --cov=backend/src` y confirmar cobertura ≥ 90 % sin romper pruebas previas (Principio VI).
 - [ ] T017 Ejecutar `npm run build` en `frontend/` sin errores.
-- [ ] T018 Recorrer manualmente `specs/010-progress-and-gamification/quickstart.md` (7 pasos) contra los escenarios de aceptación de la spec.
+- [X] T018 Recorrer manualmente `specs/010-progress-and-gamification/quickstart.md` (7 pasos) contra los escenarios de aceptación de la spec.
 - [ ] T019 Ejecutar `/speckit-analyze` y `/speckit-converge` sobre US-65 y confirmar que no hay requisitos faltantes ni referencias a US-67/US-68.
 
 ## Dependencias y orden
