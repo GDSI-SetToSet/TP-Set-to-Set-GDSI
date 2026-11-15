@@ -141,7 +141,7 @@ paths:
                     adjusted_at: {type: string, format: date-time}
   /api/v1/trainers/me/students/{student_id}/evolution:
     get:
-      summary: "US-30: evolución de carga, repeticiones y series de un alumno (solo sesiones finalizadas)"
+      summary: "US-30: progreso del alumno (progresión por ejercicio, adherencia, esfuerzo y puntos a revisar)"
       security:
         - bearerAuth: []
       parameters:
@@ -150,18 +150,18 @@ paths:
           required: true
           schema: {type: string}
         - in: query
-          name: group_by
-          schema: {type: string, enum: [session, week, muscle_group], default: week}
-        - in: query
           name: period
           schema: {type: string, enum: [4w, 12w, all], default: 12w}
         - in: query
-          name: exercise_id
-          description: Con valor, la carga es la carga máxima; sin valor, el volumen (repeticiones × carga)
+          name: group_by
+          schema: {type: string, enum: [session, week], default: week}
+        - in: query
+          name: muscle_group
+          description: Filtra la tabla de ejercicios y las series semanales por grupo muscular
           schema: {type: string}
       responses:
         '200':
-          description: Series de puntos agregados; `series` vacío si no hay sesiones en el período
+          description: Solo sesiones finalizadas; la semana en curso (`is_partial`) no entra en estados, porcentajes ni tendencias
           content:
             application/json:
               schema:
@@ -191,32 +191,141 @@ components:
           schema:
             $ref: '#/components/schemas/Problem'
   schemas:
+    TrafficLight:
+      type: string
+      enum: [green, yellow, red]
+      nullable: true
+    SetResult:
+      type: object
+      properties:
+        weight: {type: number, nullable: true, description: Nulo sin carga (peso corporal)}
+        reps: {type: integer, nullable: true}
     TrainingEvolution:
       type: object
-      required: [group_by, period, weight_kind, series]
+      required: [period, group_by, muscle_groups, has_sessions, summary, exercises, adherence, most_skipped, rpe, sets_by_muscle_group, to_review]
       properties:
-        group_by: {type: string, enum: [session, week, muscle_group]}
-        period: {type: string, enum: [4w, 12w, all]}
-        exercise_id: {type: string, nullable: true}
-        weight_kind: {type: string, enum: [max_weight, volume]}
-        series:
+        period:
+          type: object
+          required: [key, end]
+          properties:
+            key: {type: string, enum: [4w, 12w, all]}
+            start: {type: string, format: date, nullable: true, description: Lunes inicial (semanas calendario)}
+            end: {type: string, format: date}
+        group_by: {type: string, enum: [session, week]}
+        muscle_group: {type: string, nullable: true}
+        muscle_groups: {type: array, items: {type: string}, description: Grupos de todo el historial, para el filtro}
+        has_sessions: {type: boolean}
+        summary:
+          type: object
+          required: [progress, adherence, effort, to_review]
+          properties:
+            progress:
+              type: object
+              properties:
+                improving: {type: integer}
+                with_data: {type: integer}
+                status: {$ref: '#/components/schemas/TrafficLight'}
+            adherence:
+              type: object
+              properties:
+                completed_sessions: {type: integer}
+                scheduled_sessions: {type: integer}
+                pct: {type: integer, nullable: true}
+                sets_completion_pct: {type: integer, nullable: true}
+                status: {$ref: '#/components/schemas/TrafficLight'}
+            effort:
+              type: object
+              properties:
+                avg_rpe_last_4: {type: number, nullable: true}
+                trend: {type: string, enum: [rising, stable, falling], nullable: true}
+                message_key: {type: string, enum: [excessive_effort, fatigue, room_for_more, progressing_effort_rising, progressing_with_margin], nullable: true}
+                status: {$ref: '#/components/schemas/TrafficLight'}
+            to_review:
+              type: object
+              properties:
+                count: {type: integer}
+                status: {$ref: '#/components/schemas/TrafficLight'}
+        exercises:
           type: array
           items:
             type: object
-            required: [label, points]
             properties:
-              label: {type: string, nullable: true, description: Grupo muscular en `muscle_group`; null en las demás}
+              exercise_id: {type: string}
+              name: {type: string}
+              muscle_group: {type: string}
+              metric: {type: string, enum: [max_weight, max_reps, none]}
+              start: {$ref: '#/components/schemas/SetResult'}
+              current: {$ref: '#/components/schemas/SetResult'}
+              change_pct: {type: number, nullable: true}
+              last_improvement:
+                type: object
+                nullable: true
+                properties:
+                  date: {type: string, format: date}
+                  is_pr: {type: boolean, description: Solo la sesión del récord vigente (US-59 guarda un único récord)}
+              status: {type: string, enum: [progressing, stalled, declined, unchanged, few_data, no_metric]}
               points:
                 type: array
                 items:
                   type: object
-                  required: [key, date, weight_kg, total_reps, sets]
                   properties:
-                    key: {type: string, description: Id de sesión o lunes ISO de la semana}
-                    date: {type: string, format: date-time}
-                    weight_kg: {type: number}
-                    total_reps: {type: integer}
-                    sets: {type: integer}
+                    key: {type: string}
+                    period_start: {type: string, format: date}
+                    period_end: {type: string, format: date}
+                    weight: {type: number, nullable: true}
+                    reps: {type: integer, nullable: true}
+                    target_weight: {type: number, nullable: true}
+                    rpe: {type: integer, nullable: true}
+                    is_pr: {type: boolean}
+                    is_partial: {type: boolean}
+        adherence:
+          type: array
+          items:
+            type: object
+            properties:
+              period_start: {type: string, format: date}
+              period_end: {type: string, format: date}
+              scheduled: {type: integer}
+              completed: {type: integer}
+              is_partial: {type: boolean}
+        most_skipped:
+          type: array
+          items:
+            type: object
+            properties:
+              exercise_id: {type: string}
+              name: {type: string}
+              completion_pct: {type: integer}
+              skip_count: {type: integer}
+              main_reason: {type: string, enum: [replacement_requested], nullable: true}
+        rpe:
+          type: array
+          items:
+            type: object
+            properties:
+              key: {type: string}
+              period_start: {type: string, format: date}
+              period_end: {type: string, format: date}
+              rpe: {type: number, nullable: true}
+              has_report: {type: boolean}
+              trainer_feedback: {type: string, nullable: true}
+              is_partial: {type: boolean}
+        sets_by_muscle_group:
+          type: array
+          items:
+            type: object
+            properties:
+              muscle_group: {type: string}
+              avg_completed_per_week: {type: number}
+              avg_scheduled_per_week: {type: number}
+        to_review:
+          type: array
+          items:
+            type: object
+            properties:
+              type: {type: string, enum: [exercise_declined, exercise_stalled, fatigue, excessive_effort, exercise_skipped, week_without_training]}
+              exercise_id: {type: string, nullable: true}
+              label: {type: string}
     Problem:
       type: object
       required: [type, title, status, detail, instance]

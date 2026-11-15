@@ -36,32 +36,30 @@
 - Justificación: la especificación actual de la feature asigna la generación de alertas y su ciclo de revisión a US-29. US-18 dejará un punto claro de integración para un futuro campo `unreviewed_alert_count`/priority.
 - Alternativas consideradas: se rechazó inferir el estado de una alerta a partir del texto de una notificación o de la presencia de un reporte porque produciría una semántica de revisión incorrecta.
 
-# Investigación: US-30 — Evolución de entrenamientos
+# Investigación: US-30 — Progreso del alumno
 
-## Cálculo en servidor, un solo endpoint
+## Un solo endpoint de lectura, calculado en el servidor
 
-- Decisión: `GET /api/v1/trainers/me/students/{student_id}/evolution` con `group_by`, `period` y `exercise_id` opcional; devuelve puntos ya agregados.
-- Justificación: las series ya están en `WorkoutSetLog` ligadas a `WorkoutSession`; agregar en servidor evita traer todas las series al cliente y mantiene la autorización por vínculo ACTIVO. El cliente cambia agrupación sin recalcular.
-- Alternativas: agregar en el cliente sobre los logs (rechazado: expone volumen de datos y duplica reglas); una tabla de métricas precalculadas (rechazado: sin migraciones, escala de un entrenador).
+- Decisión: `GET /api/v1/trainers/me/students/{student_id}/evolution?period=&group_by=&muscle_group=` devuelve las cuatro secciones ya calculadas (progresión por ejercicio, adherencia, RPE y puntos a revisar). Sin tablas ni migraciones.
+- Justificación: el cliente no recalcula reglas de negocio, estados ni zonas horarias, y la autorización por vínculo ACTIVO queda en un solo lugar.
+- Alternativas: calcular en el cliente sobre los logs (rechazado: duplica reglas y expone todo el historial); tabla de métricas precalculadas (rechazado: sin migraciones, escala de un entrenador).
 
-## Métricas y reutilización
+## Qué se descarta y por qué
 
-- Decisión: reutilizar el cálculo de `_performed`/`_number` de US-24 (volumen = repeticiones × carga; repeticiones no numéricas no suman volumen). Carga = máximo de `weight_kg` con `exercise_id`, o volumen sin él. Repeticiones totales = suma de repeticiones numéricas; series = cantidad de logs.
-- Justificación: una sola definición de volumen en toda la feature.
-- Alternativas: reimplementar métricas (rechazado: divergencia con US-24).
+- Decisión: se elimina el volumen total y el gráfico de repeticiones y series totales, y el selector de ejercicio.
+- Justificación: sumar kilos de ejercicios distintos engaña (cambiar un ejercicio pesado por uno liviano baja el volumen aunque el alumno progrese) y los totales reflejan cómo está armada la rutina, no el rendimiento. El tonelaje sigue en el resumen de sesión (US-63).
 
-## Agrupaciones y período
+## Datos disponibles y sus límites
 
-- Decisión: `session` = un punto por sesión finalizada (por `finished_at`); `week` = semana calendario lunes a domingo en UTC, clave por el lunes; `muscle_group` = una serie por `Exercise.target_muscle_group` con un punto por semana. El período filtra por `finished_at` ≥ ahora − 4/12 semanas; `all` no filtra.
-- Justificación: coincide con el spec; semana en UTC mantiene el criterio de marcas de tiempo UTC del proyecto. Límite conocido: una sesión cerca de la medianoche local puede caer en la semana contigua.
-- Alternativas: semana en horario local del entrenador (rechazado: requiere `utc_offset_minutes` en todas las consultas por una ganancia mínima).
+- Récords (🏆): `PersonalRecord` guarda un único registro vigente por alumno y ejercicio, no un historial; solo se marca la sesión del récord actual.
+- Sesiones programadas: los días de la rutina no están atados al calendario (US-22), así que se aproximan con los días por semana de la rutina vigente, igual que US-32. Si la rutina cambió, las semanas pasadas se miden con la vigente.
+- Series programadas: salen de la versión vigente de la rutina (no se guardan versiones históricas, igual que US-24).
+- Motivo de un ejercicio salteado: `ExerciseReplacementLog` no tiene motivo ni bandera de salto; el único motivo disponible es el pedido de reemplazo.
+- Alternativas: modelar un calendario de sesiones programadas (rechazado: fuera del alcance de US-30).
 
-## Gráfico
+## Reglas
 
-- Decisión: SVG/CSS propio sin dependencia nueva, como el análisis de US-28.
-- Justificación: no hay librería de gráficos instalada; tres líneas simples no justifican una.
-- Alternativas: Recharts/Chart.js (rechazado: dependencia nueva para un gráfico simple).
-
-## Casos vacíos
-
-- Decisión: el backend devuelve `points: []` sin sesiones y la UI muestra "Sin entrenamientos en este período"; con una sola sesión muestra el punto y la nota de mínimo 2 sesiones (la UI decide con `points.length`).
+- Semana calendario de lunes a domingo en UTC (límite conocido: una sesión cerca de la medianoche local puede caer en la semana contigua). La semana en curso no entra en estados, porcentajes ni tendencias.
+- Orden de estados: pocos datos → bajó → progresando → estancado → sin cambios; "mejora" es superar el mejor valor anterior. Ejercicios con repeticiones no numéricas ("45 seg", "al fallo") quedan como "Sin métrica".
+- Mensaje de esfuerzo: precedencia explícita para evitar solapamientos (ver `data-model.md`). Umbrales como constantes del módulo, sin sistema de configuración.
+- Sin botón "Ajustar próxima sesión": US-26 parte de una sesión finalizada y vive en "Rutinas del día"; enlazarlo exigiría elegir sesión y preseleccionar ejercicio.

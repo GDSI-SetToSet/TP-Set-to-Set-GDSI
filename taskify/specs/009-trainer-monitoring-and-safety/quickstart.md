@@ -71,15 +71,39 @@ Resultado esperado: no se muestra ningún alumno para la búsqueda inexistente y
 - Generación/revisión/ordenamiento de alertas: US-29.
 - Cálculo del riesgo de abandono: US-32.
 
+## Escenario 7 — Progreso del alumno (US-30)
+
+Prerrequisitos: entrenador con un alumno activo con rutina y varias semanas de sesiones finalizadas (el seed demo carga a Tomás y Valentina).
+
+1. Abrir el detalle del alumno desde `/entrenador/alumnos` con "Ver detalle del alumno".
+2. Ver "Progreso de {alumno}", el rango de fechas junto al período y los cuatro indicadores (Progreso, Adherencia, Esfuerzo, Para revisar), cada uno con color y texto.
+3. En "¿Está progresando?": la tabla ordena Bajó, Estancado y Progresando; tocar una fila abre su gráfico con el peso objetivo punteado, los récords destacados, el tooltip y la semana en curso hueca con "en curso".
+4. En "¿Está entrenando lo que le programé?": barras de sesiones programadas y realizadas por semana, semanas sin sesiones resaltadas y los ejercicios más salteados.
+5. En "¿Cómo le está costando?": el mensaje, el gráfico de RPE con la banda 6–8 y huecos en las sesiones sin reporte.
+6. En "¿Qué tengo que ajustar?": la lista de puntos a revisar (o "Nada para ajustar por ahora") y las series semanales por grupo muscular contra las programadas.
+7. Cambiar Período, Agrupar y Grupo muscular, y confirmar que todo se actualiza; un grupo sin ejercicios muestra "No hay ejercicios de {grupo} en este período".
+8. Un alumno sin sesiones muestra "{nombre} todavía no registró entrenamientos".
+
+Resultado esperado: solo cuentan sesiones finalizadas y la semana en curso no altera estados ni porcentajes. Contrato: `contracts/trainer-student-detail-api.yaml` (`/evolution`). Verificación automática: `pytest backend/tests/test_us30_training_evolution_api.py` y `npm test` / `npm run build` en `frontend`.
+
+## Verificaciones fuera de alcance
+
+- Filtros por paquete: US-20.
+- Mensajería: US-21.
+- Comparaciones avanzadas: US-24 compara planificado, realizado y sesión previa en "Rutinas del día"; el gráfico de evolución es US-30).
+- Generación/revisión/ordenamiento de alertas: US-29.
+- Cálculo del riesgo de abandono: US-32.
+
 ## Escenario 7 — Evolución de entrenamientos (US-30)
 
 Prerrequisitos: entrenador con un alumno activo con al menos 3 sesiones finalizadas en semanas distintas.
 
 1. Abrir el detalle del alumno en `/entrenador/alumnos`.
-2. Ver el gráfico "Evolución de entrenamientos" con 12 semanas por defecto.
+2. Ver "Progreso de {alumno}" con 12 semanas por defecto, el rango de fechas junto al selector y los indicadores arriba (volumen de la última semana completa, variación, días desde la última sesión y constancia).
 3. Alternar la agrupación entre entrenamiento, semana y grupo muscular.
 4. Cambiar el período a 4 semanas y a todo el historial.
-5. Elegir un ejercicio y confirmar que la carga pasa de volumen a carga máxima.
-6. Con un alumno de una sola sesión, ver el punto y la nota de mínimo 2 sesiones; sin sesiones, ver "Sin entrenamientos en este período".
+5. Elegir un ejercicio y confirmar que el gráfico principal pasa a peso máximo.
+6. Con un alumno de una sola sesión, ver el valor como indicador; sin sesiones en el período, "Sin entrenamientos en este período"; sin ninguna sesión, "Este alumno todavía no registró entrenamientos".
+7. Pasar el mouse por un punto para ver el tooltip ("14–20 sep · 1020 kg"); la semana en curso va punteada, con punto hueco y "en curso". Por grupo muscular se ven barras.
 
 Resultado esperado: solo cuentan sesiones finalizadas; no hay sesiones en curso ni abandonadas. Contrato: `contracts/trainer-student-detail-api.yaml` (`/evolution`). Verificación automática: `pytest backend/tests/test_us30_training_evolution_api.py` y `npm run build` en `frontend`.

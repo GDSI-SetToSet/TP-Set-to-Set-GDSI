@@ -87,14 +87,14 @@ export function TrainerStudentsPage() {
             initialEventType={searchParams.get('eventType') ?? undefined}
             onStudentSelect={selectStudent}
             selectedStudentId={selectedStudentId}
+            renderStudentDetail={() => (
+              <>
+                {detailLoading && <p role="status">Cargando detalle del alumno…</p>}
+                {detailError && <p className="form-alert" role="alert">{detailError}</p>}
+                {studentDetail && <TrainerStudentDetail detail={studentDetail} onClose={() => setSelectedStudentId(null)} />}
+              </>
+            )}
           />
-        )}
-        {selectedStudentId && (
-          <div id={`student-detail-${selectedStudentId}`} className="trainer-student-detail-container">
-            {detailLoading && <p role="status">Cargando detalle del alumno…</p>}
-            {detailError && <p className="form-alert" role="alert">{detailError}</p>}
-            {studentDetail && <TrainerStudentDetail detail={studentDetail} onClose={() => setSelectedStudentId(null)} />}
-          </div>
         )}
       </section>
     </main>

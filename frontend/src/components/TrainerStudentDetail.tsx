@@ -1,6 +1,7 @@
 import { Activity, CalendarDays, ChevronUp, Dumbbell, Package, ShieldAlert, Target, UserRound } from 'lucide-react';
 import type { TrainerStudentDetail as TrainerStudentDetailModel } from '../types/trainerStudent';
 import { PainReportAnalysis } from './PainReportAnalysis';
+import { TrainingEvolution } from './TrainingEvolution';
 
 interface TrainerStudentDetailProps {
   detail: TrainerStudentDetailModel;
@@ -82,6 +83,7 @@ export function TrainerStudentDetail({ detail, onClose }: TrainerStudentDetailPr
           <p>Última sesión: {formatDate(detail.metrics.last_session_at)}</p>
           <p>Tonelaje de la última sesión: {detail.metrics.last_tonnage_kg !== null ? `${detail.metrics.last_tonnage_kg} kg` : 'Sin datos'}</p>
         </article>
+        <TrainingEvolution studentId={detail.profile.id} studentName={fullName} />
         <PainReportAnalysis studentId={detail.profile.id} />
       </div>
     </section>

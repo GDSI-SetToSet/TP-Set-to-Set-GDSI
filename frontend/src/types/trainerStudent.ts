@@ -130,3 +130,110 @@ export interface AbandonmentRiskItem {
   missed_trainings: number;
   last_report_at: string | null;
 }
+
+export type EvolutionGrouping = 'session' | 'week';
+export type EvolutionPeriod = '4w' | '12w' | 'all';
+export type TrafficLight = 'green' | 'yellow' | 'red' | null;
+export type ExerciseStatus = 'progressing' | 'stalled' | 'declined' | 'unchanged' | 'few_data' | 'no_metric';
+export type EffortMessageKey =
+  | 'excessive_effort'
+  | 'fatigue'
+  | 'room_for_more'
+  | 'progressing_effort_rising'
+  | 'progressing_with_margin';
+
+export interface SetResult { weight: number | null; reps: number | null }
+
+export interface ExercisePoint {
+  key: string;
+  period_start: string;
+  period_end: string;
+  weight: number | null;
+  reps: number | null;
+  target_weight: number | null;
+  rpe: number | null;
+  is_pr: boolean;
+  is_partial: boolean;
+}
+
+export interface ExerciseProgress {
+  exercise_id: string;
+  name: string;
+  muscle_group: string;
+  metric: 'max_weight' | 'max_reps' | 'none';
+  start: SetResult | null;
+  current: SetResult | null;
+  change_pct: number | null;
+  last_improvement: { date: string; is_pr: boolean } | null;
+  status: ExerciseStatus;
+  points: ExercisePoint[];
+}
+
+export interface AdherenceWeek {
+  period_start: string;
+  period_end: string;
+  scheduled: number;
+  completed: number;
+  is_partial: boolean;
+}
+
+export interface MostSkipped {
+  exercise_id: string;
+  name: string;
+  completion_pct: number;
+  skip_count: number;
+  main_reason: 'replacement_requested' | null;
+}
+
+export interface RpePoint {
+  key: string;
+  period_start: string;
+  period_end: string;
+  rpe: number | null;
+  has_report: boolean;
+  trainer_feedback: string | null;
+  is_partial: boolean;
+}
+
+export interface MuscleGroupSets {
+  muscle_group: string;
+  avg_completed_per_week: number;
+  avg_scheduled_per_week: number;
+}
+
+export interface ReviewItem {
+  type: 'exercise_declined' | 'exercise_stalled' | 'fatigue' | 'excessive_effort' | 'exercise_skipped' | 'week_without_training';
+  exercise_id: string | null;
+  label: string;
+}
+
+export interface TrainingEvolution {
+  period: { key: EvolutionPeriod; start: string | null; end: string };
+  group_by: EvolutionGrouping;
+  muscle_group: string | null;
+  muscle_groups: string[];
+  has_sessions: boolean;
+  summary: {
+    progress: { improving: number; with_data: number; status: TrafficLight };
+    adherence: {
+      completed_sessions: number;
+      scheduled_sessions: number;
+      pct: number | null;
+      sets_completion_pct: number | null;
+      status: TrafficLight;
+    };
+    effort: {
+      avg_rpe_last_4: number | null;
+      trend: 'rising' | 'stable' | 'falling' | null;
+      message_key: EffortMessageKey | null;
+      status: TrafficLight;
+    };
+    to_review: { count: number; status: TrafficLight };
+  };
+  exercises: ExerciseProgress[];
+  adherence: AdherenceWeek[];
+  most_skipped: MostSkipped[];
+  rpe: RpePoint[];
+  sets_by_muscle_group: MuscleGroupSets[];
+  to_review: ReviewItem[];
+}

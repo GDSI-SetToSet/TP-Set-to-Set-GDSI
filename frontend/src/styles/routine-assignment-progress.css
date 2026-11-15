@@ -206,7 +206,7 @@
   padding-bottom: 10px;
 }
 .routine-assignment__student > strong { color: var(--pf-ink); }
-.routine-assignment__student-link {
+.routine-assignment__student-name {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -218,17 +218,13 @@
   font-size: 17px;
   font-weight: 800;
   text-align: left;
-  cursor: pointer;
 }
-.routine-assignment__student-link:hover { color: #172b50; }
-.routine-assignment__student-link:focus-visible {
-  outline: 3px solid #60a5fa;
-  outline-offset: 3px;
-}
-.trainer-student-detail-container {
-  margin-top: 24px;
+.routine-assignment__detail {
+  grid-column: 1 / -1;
+  min-width: 0;
+  scroll-margin-top: 16px;
+  padding-top: 16px;
   border-top: 1px solid #e6ebf3;
-  padding-top: 24px;
 }
 .trainer-student-detail__grid {
   display: grid;
@@ -328,7 +324,7 @@
 }
 .routine-assignment__attention--risk { border-color: #f0b4ac; background: #fff1ef; color: #9f2a1f; cursor: default; }
 .routine-assignment__attention--feedback { border-color: #b6d6ee; background: #eef7fc; color: #175c83; }
-.routine-assignment__attention:hover { filter: brightness(0.97); }
+.routine-assignment__attention:hover:not(.routine-assignment__attention--risk) { filter: brightness(0.97); }
 .routine-assignment__attention:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
 .routine-assignment__progress {
   grid-column: 1 / -1;
