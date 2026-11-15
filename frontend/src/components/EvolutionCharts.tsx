@@ -201,3 +201,35 @@ export function SetsByGroupChart({ groups, ariaLabel }: { groups: MuscleGroupSet
     </Frame>
   );
 }
+
+type Swatch = 'line' | 'dashed' | 'dotted' | 'dot' | 'hollow' | 'ring' | 'bar-gray' | 'bar-blue' | 'bar-red' | 'bar-partial' | 'band' | 'cross' | 'mark';
+
+function SwatchIcon({ kind }: { kind: Swatch }) {
+  const common = { width: 28, height: 14, viewBox: '0 0 28 14', 'aria-hidden': true, className: 'training-evolution__swatch' } as const;
+  return (
+    <svg {...common}>
+      {kind === 'line' && <line x1="2" y1="7" x2="26" y2="7" stroke={BLUE} strokeWidth="2" />}
+      {kind === 'dashed' && <><line x1="2" y1="7" x2="17" y2="7" stroke={BLUE} strokeWidth="2" strokeDasharray="5 4" /><circle cx="22" cy="7" r="3.5" fill="#fff" stroke={BLUE} strokeWidth="2" /></>}
+      {kind === 'dotted' && <line x1="2" y1="7" x2="26" y2="7" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="2 4" />}
+      {kind === 'dot' && <circle cx="14" cy="7" r="4" fill={BLUE} stroke={BLUE} strokeWidth="2" />}
+      {kind === 'hollow' && <circle cx="14" cy="7" r="4" fill="#fff" stroke={BLUE} strokeWidth="2" />}
+      {kind === 'ring' && <><circle cx="14" cy="7" r="6" fill="none" stroke={GOLD} strokeWidth="2" /><circle cx="14" cy="7" r="3" fill={BLUE} /></>}
+      {kind === 'bar-gray' && <rect x="8" y="1" width="12" height="12" fill="#e2e8f0" />}
+      {kind === 'bar-blue' && <rect x="8" y="1" width="12" height="12" fill={BLUE} />}
+      {kind === 'bar-red' && <rect x="8" y="1" width="12" height="12" fill="#e2e8f0" stroke={RED} strokeWidth="1.5" />}
+      {kind === 'bar-partial' && <rect x="8" y="1" width="12" height="12" fill="#e2e8f0" stroke="#64748b" strokeWidth="1.5" strokeDasharray="4 3" />}
+      {kind === 'band' && <rect x="2" y="2" width="24" height="10" fill="#dcfce7" />}
+      {kind === 'cross' && <text x="14" y="11" textAnchor="middle" fontSize="12" fill="#475569">×</text>}
+      {kind === 'mark' && <line x1="14" y1="0" x2="14" y2="14" stroke={GOLD} strokeWidth="3" />}
+    </svg>
+  );
+}
+
+/** Leyenda con la muestra dibujada igual que en el gráfico: línea continua, entrecortada, punteada, puntos, barras… */
+export function Legend({ items }: { items: [Swatch, string][] }) {
+  return (
+    <ul className="training-evolution__legend">
+      {items.map(([kind, text]) => <li key={text}><SwatchIcon kind={kind} />{text}</li>)}
+    </ul>
+  );
+}

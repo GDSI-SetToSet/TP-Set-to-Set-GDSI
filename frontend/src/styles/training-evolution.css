@@ -1,6 +1,6 @@
 .training-evolution { grid-column: 1 / -1; }
-.training-evolution__controls { display: flex; flex-wrap: wrap; gap: 8px 12px; margin: 8px 0 12px; }
-.training-evolution__controls label { display: grid; gap: 4px; color: #475569; font-size: .85rem; font-weight: 600; }
+.training-evolution__controls { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; margin: 8px 0 12px; }
+.training-evolution__controls label { display: grid; align-content: start; gap: 4px; color: #475569; font-size: .85rem; font-weight: 600; }
 .training-evolution__controls small { color: #64748b; font-weight: 500; }
 .training-evolution__controls select {
   min-height: 40px;
@@ -61,3 +61,5 @@
 .training-evolution__card:hover { box-shadow: 0 2px 8px rgb(15 23 42 / .12); }
 @media (prefers-reduced-motion: reduce) { .training-evolution__card { transition: none; } }
 @media (max-width: 640px) { .training-evolution__controls label { flex: 1 1 140px; } .training-evolution__controls select { width: 100%; } }
+.training-evolution__swatch { flex: none; }
+.training-evolution__legend li { min-height: 20px; }

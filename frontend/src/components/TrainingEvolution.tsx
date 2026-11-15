@@ -20,7 +20,7 @@ import {
   sortByStatus,
   statusCounts,
 } from '../utils/trainingEvolution.mjs';
-import { AdherenceChart, ExerciseChart, RpeChart, SetsByGroupChart } from './EvolutionCharts';
+import { AdherenceChart, ExerciseChart, Legend, RpeChart, SetsByGroupChart } from './EvolutionCharts';
 import '../styles/training-evolution.css';
 
 const ICON = { green: Check, yellow: AlertTriangle, red: X };
@@ -168,7 +168,10 @@ export function TrainingEvolution({ studentId, studentName }: { studentId: strin
                 <ExerciseChart points={current.points} groupBy={groupBy} kind={current.metric as 'max_weight' | 'max_reps'}
                   ariaLabel={`${current.name}: de ${formatSet(current.start)} a ${formatSet(current.current)}, ${STATUS_LABELS[current.status]}`} />
                 <Values head={['Fecha', 'Serie', 'Objetivo (kg)', 'RPE']} rows={current.points.map((p) => [formatRange(p.period_start, groupBy === 'session' ? p.period_start : p.period_end), current.metric === 'max_weight' ? formatSet({ weight: p.weight, reps: p.reps }) : `${p.reps} reps`, p.target_weight ?? '—', p.rpe ?? '—'])} />
-                <ul className="training-evolution__legend"><li>● mejor serie</li><li>◌ peso objetivo (punteado)</li><li><Trophy {...icon} /> récord personal</li><li>○ semana en curso</li></ul>
+                <Legend items={[
+                  ['line', 'Mejor serie de cada período'], ['dot', 'Período completo'], ['dashed', 'Período en curso: todavía incompleto'],
+                  ['dotted', 'Peso objetivo programado'], ['ring', 'Récord personal vigente'],
+                ]} />
               </figure>
             )}
           </>
@@ -186,7 +189,9 @@ export function TrainingEvolution({ studentId, studentName }: { studentId: strin
           <figcaption>Sesiones por semana</figcaption>
           <AdherenceChart weeks={data.adherence} ariaLabel={`Adherencia: ${summary.adherence.completed_sessions} de ${summary.adherence.scheduled_sessions} sesiones programadas`} />
           <Values head={['Semana', 'Realizadas', 'Programadas']} rows={data.adherence.map((w) => [formatRange(w.period_start, w.period_end) + (w.is_partial ? ' (en curso)' : ''), w.completed, w.scheduled])} />
-          <ul className="training-evolution__legend"><li>▮ realizadas</li><li>▯ programadas</li><li>rojo: semana sin entrenar</li></ul>
+          <Legend items={[
+            ['bar-blue', 'Sesiones realizadas'], ['bar-gray', 'Sesiones programadas'], ['bar-red', 'Semana sin entrenar'], ['bar-partial', 'Semana en curso'],
+          ]} />
         </figure>
         {data.most_skipped.length > 0 && (
           <>
@@ -206,7 +211,9 @@ export function TrainingEvolution({ studentId, studentName }: { studentId: strin
             <figcaption>RPE por {groupBy === 'week' ? 'semana' : 'entrenamiento'}</figcaption>
             <RpeChart points={data.rpe} groupBy={groupBy} ariaLabel={`RPE promedio de las últimas sesiones: ${summary.effort.avg_rpe_last_4 ?? 'sin datos'}`} />
             <Values head={['Fecha', 'RPE', 'Devolución']} rows={data.rpe.map((p) => [formatRange(p.period_start, groupBy === 'session' ? p.period_start : p.period_end), p.has_report ? formatNumber(p.rpe as number) : 'sin reporte', p.trainer_feedback ?? '—'])} />
-            <ul className="training-evolution__legend"><li>banda verde: RPE 6–8 recomendado</li><li>× sin reporte</li></ul>
+            <Legend items={[
+              ['line', 'RPE (esfuerzo percibido)'], ['band', 'Zona recomendada: RPE 6–8'], ['cross', 'Sesión sin reporte'], ['hollow', 'Período en curso'],
+            ]} />
           </figure>
         )}
       </section>
@@ -222,7 +229,7 @@ export function TrainingEvolution({ studentId, studentName }: { studentId: strin
           <figure>
             <figcaption>Series por semana y grupo muscular (hechas / programadas)</figcaption>
             <SetsByGroupChart groups={data.sets_by_muscle_group} ariaLabel="Series semanales completadas contra programadas por grupo muscular" />
-            <ul className="training-evolution__legend"><li>▮ promedio hecho</li><li>| programado</li></ul>
+            <Legend items={[['bar-blue', 'Series hechas por semana (promedio)'], ['mark', 'Series programadas por semana']]} />
           </figure>
         )}
       </section>

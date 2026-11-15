@@ -137,6 +137,7 @@ description: "Lista de tareas de US-18, US-19, US-20, US-22, US-24, US-26, US-28
 - [X] T081 [US30] Frontend: eliminar los gráficos, indicadores y tabla anteriores y el selector de ejercicio; estados especiales y accesibilidad; estilos en `frontend/src/styles/training-evolution.css`.
 - [X] T082 [US30] Actualizar el seed demo para mostrar estados distintos (ejercicio estancado y una semana sin entrenar) en `backend/scripts/seed_demo.py`.
 - [X] T083 [US30] Ejecutar `pytest` (US-30 y seed), `ruff`, `npm test` y `npm run build`, y repetir el cálculo contra la base real para Tomás y Valentina.
+- [X] T084 [US30] Frontend: leyenda con muestras dibujadas (línea continua, entrecortada, punteada, puntos, anillo, barras, banda) en cada gráfico (`frontend/src/components/EvolutionCharts.tsx`) y documentar el enfoque por preguntas y la lectura de los gráficos en `spec.md`.
 
 ## Dependencias
 
