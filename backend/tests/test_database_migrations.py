@@ -1133,3 +1133,125 @@ def test_migration_adds_and_backfills_routine_assigned_at_without_losing_history
     with engine.connect() as conn:
         rows_after = dict(conn.execute(text("SELECT id, routine_assigned_at FROM training_relationships")).fetchall())
         assert rows_after == rows
+
+
+def test_migration_creates_safety_alerts_preserves_notifications_and_is_idempotent():
+    """US-29: crea tabla e índices de safety_alerts sin alterar notifications previas y de forma idempotente."""
+    engine = make_legacy_engine()
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE users (
+                id VARCHAR(36) PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                role VARCHAR(16) NOT NULL,
+                is_active BOOLEAN NOT NULL DEFAULT 1,
+                failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+                locked_until DATETIME,
+                created_at DATETIME NOT NULL
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE trainer_profiles (
+                id VARCHAR(36) PRIMARY KEY,
+                user_id VARCHAR(36) UNIQUE NOT NULL,
+                full_name VARCHAR(100),
+                status VARCHAR(16) NOT NULL DEFAULT 'DRAFT',
+                max_students INTEGER NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE student_profiles (
+                id VARCHAR(36) PRIMARY KEY,
+                user_id VARCHAR(36) UNIQUE NOT NULL,
+                status VARCHAR(16) NOT NULL DEFAULT 'DRAFT',
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE training_relationships (
+                id VARCHAR(36) PRIMARY KEY,
+                student_id VARCHAR(36) NOT NULL,
+                trainer_id VARCHAR(36) NOT NULL,
+                plan_id VARCHAR(36) NOT NULL,
+                agreed_monthly_price NUMERIC(10, 2) NOT NULL,
+                agreed_currency VARCHAR(3) NOT NULL,
+                status VARCHAR(16) NOT NULL,
+                start_date DATE NOT NULL,
+                routine_assigned_at DATETIME
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE notifications (
+                id VARCHAR(36) PRIMARY KEY,
+                recipient_id VARCHAR(36) NOT NULL,
+                type VARCHAR(40) NOT NULL,
+                title VARCHAR(150) NOT NULL,
+                message TEXT NOT NULL,
+                related_entity_type VARCHAR(40),
+                related_entity_id VARCHAR(36),
+                related_student_id VARCHAR(36),
+                related_session_id VARCHAR(36),
+                is_read BOOLEAN NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL,
+                read_at DATETIME
+            )
+        """))
+        conn.execute(text("""
+            INSERT INTO notifications (
+                id, recipient_id, type, title, message, related_entity_type,
+                related_entity_id, related_student_id, is_read, created_at
+            ) VALUES (
+                'notif-existing-pain', 'trainer-u1', 'PAIN_ALERT', 'Alerta de dolor reportado',
+                'Alumno reportó dolor', 'BODY_MAP_PAIN_REPORT', 'rep-1', 'st-1', 0, '2026-03-01 10:00:00'
+            )
+        """))
+
+    apply_migrations(engine)
+
+    inspector = inspect(engine)
+    assert "safety_alerts" in set(inspector.get_table_names())
+    cols = {c["name"] for c in inspector.get_columns("safety_alerts")}
+    assert {
+        "id",
+        "relationship_id",
+        "trainer_id",
+        "student_id",
+        "session_id",
+        "report_id",
+        "exercise_id",
+        "alert_type",
+        "zone",
+        "rpe",
+        "dedup_key",
+        "status",
+        "action_taken",
+        "trainer_note",
+        "created_at",
+        "reviewed_at",
+        "student_seen_at",
+    }.issubset(cols)
+    idx_names = {i.get("name") for i in inspector.get_indexes("safety_alerts")}
+    assert "ix_safety_alerts_trainer_status_created" in idx_names
+    assert "ix_safety_alerts_relationship_status" in idx_names
+
+    # Verifica preservación intacta de notifications y comportamiento idempotente
+    with engine.connect() as conn:
+        notif_row = conn.execute(
+            text("SELECT type, related_entity_type, related_entity_id FROM notifications WHERE id = 'notif-existing-pain'")
+        ).one()
+        assert notif_row == ("PAIN_ALERT", "BODY_MAP_PAIN_REPORT", "rep-1")
+
+    re_applied = apply_migrations(engine)
+    assert re_applied == []
+
+    # Verifica recuperación aditiva si existía la tabla safety_alerts sin índices
+    with engine.begin() as conn:
+        conn.execute(text("DROP INDEX IF EXISTS ix_safety_alerts_trainer_status_created"))
+    recovered = apply_migrations(engine)
+    assert "safety_alerts.ix_safety_alerts_trainer_status_created:index" in recovered
+    assert apply_migrations(engine) == []
+    engine.dispose()

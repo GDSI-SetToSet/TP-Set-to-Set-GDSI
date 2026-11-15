@@ -14,6 +14,12 @@ from backend.src.models.assigned_routine import (
 )
 from backend.src.models.body_map_report import BodyMapPainReport, BodyMapPainReportZone
 from backend.src.models.exercise import Exercise
+from backend.src.models.routine_template import (
+    RoutineTemplateBlock,
+    RoutineTemplateDay,
+    RoutineTemplateExercise,
+)
+from backend.src.models.student_routine import StudentRoutine
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.user import User
 from backend.src.models.workout_log import WorkoutSession, WorkoutSetLog
@@ -159,6 +165,61 @@ def _build_report_response(
     )
 
 
+def _is_exercise_in_session_routine_day(
+    db: Session, session: WorkoutSession, exercise_id: str
+) -> bool:
+    """Verifica si el ejercicio integra el día programado en rutina asignada, plantilla o copia del alumno."""
+    if not session.routine_id:
+        return False
+
+    in_assigned = (
+        db.scalar(
+            select(AssignedRoutineExercise.id)
+            .join(AssignedRoutineBlock, AssignedRoutineExercise.block_id == AssignedRoutineBlock.id)
+            .join(AssignedRoutineDay, AssignedRoutineBlock.day_id == AssignedRoutineDay.id)
+            .where(
+                AssignedRoutineDay.routine_id == session.routine_id,
+                AssignedRoutineDay.name == session.day_name,
+                AssignedRoutineExercise.exercise_id == exercise_id,
+            )
+            .limit(1)
+        )
+        is not None
+    )
+    if in_assigned:
+        return True
+
+    in_template = (
+        db.scalar(
+            select(RoutineTemplateExercise.id)
+            .join(RoutineTemplateBlock, RoutineTemplateExercise.block_id == RoutineTemplateBlock.id)
+            .join(RoutineTemplateDay, RoutineTemplateBlock.day_id == RoutineTemplateDay.id)
+            .where(
+                RoutineTemplateDay.template_id == session.routine_id,
+                RoutineTemplateDay.name == session.day_name,
+                RoutineTemplateExercise.exercise_id == exercise_id,
+            )
+            .limit(1)
+        )
+        is not None
+    )
+    if in_template:
+        return True
+
+    student_routine = db.get(StudentRoutine, session.routine_id)
+    if student_routine is None or student_routine.status == "UNASSIGNED":
+        return False
+
+    for day in student_routine.days or []:
+        if day.get("name") != session.day_name:
+            continue
+        for block in day.get("blocks") or []:
+            for entry in block.get("exercises") or []:
+                if entry.get("exercise_id") == exercise_id:
+                    return True
+    return False
+
+
 def _is_equivalent_payload(existing: BodyMapPainReport, payload: BodyMapReportCreate) -> bool:
     if existing.context != payload.context:
         return False
@@ -244,17 +305,9 @@ def create_body_map_report(
 
     # Validación de pertenencia del ejercicio a la sesión asignada o ejecutada (H04)
     if payload.context == "IN_EXERCISE" and session and exercise:
-        is_in_routine_day = db.scalar(
-            select(AssignedRoutineExercise.id)
-            .join(AssignedRoutineBlock, AssignedRoutineExercise.block_id == AssignedRoutineBlock.id)
-            .join(AssignedRoutineDay, AssignedRoutineBlock.day_id == AssignedRoutineDay.id)
-            .where(
-                AssignedRoutineDay.routine_id == session.routine_id,
-                AssignedRoutineDay.name == session.day_name,
-                AssignedRoutineExercise.exercise_id == payload.exercise_id,
-            )
-            .limit(1)
-        ) is not None
+        is_in_routine_day = _is_exercise_in_session_routine_day(
+            db, session, payload.exercise_id
+        )
 
         is_in_session_logs = db.scalar(
             select(WorkoutSetLog.id)
@@ -342,8 +395,14 @@ def create_body_map_report(
                 )
                 db.add(zone_record)
                 report.zones.append(zone_record)
+            db.flush()
 
-            # 7. Disparo de alerta al entrenador ante dolor (PAIN)
+            # 7. Disparo de alerta al entrenador ante dolor (PAIN) y evaluación US-29 (CA-1 / CA-2)
+            from backend.src.services.safety_alert_service import (
+                create_pain_alerts_for_report,
+                evaluate_repeated_discomfort_alerts,
+            )
+
             pain_zones = [z.zone for z in payload.zones if z.intensity == "PAIN"]
             if pain_zones and relationship and relationship.trainer and relationship_id == relationship.id:
                 trainer_user_id = relationship.trainer.user_id
@@ -379,6 +438,27 @@ def create_body_map_report(
                     related_student_id=report.student_id,
                     related_session_id=report.session_id,
                     commit=False,
+                )
+
+            if relationship and relationship.trainer and relationship_id == relationship.id:
+                create_pain_alerts_for_report(
+                    db,
+                    report=report,
+                    relationship=relationship,
+                    student=profile,
+                    session=session,
+                    exercise=exercise,
+                    now=now,
+                )
+                evaluate_repeated_discomfort_alerts(
+                    db,
+                    report=report,
+                    relationship=relationship,
+                    student=profile,
+                    student_user=user,
+                    session=session,
+                    exercise=exercise,
+                    now=now,
                 )
             db.flush()
     except IntegrityError:

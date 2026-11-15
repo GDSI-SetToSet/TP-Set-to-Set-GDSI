@@ -23,6 +23,7 @@ from backend.src.models import (  # noqa: F401
     RoutineTemplateBlock,
     RoutineTemplateDay,
     RoutineTemplateExercise,
+    SafetyAlert,
     TrainerProfile,
     TrainingPlan,
     TrainingRelationship,

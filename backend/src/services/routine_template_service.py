@@ -405,20 +405,31 @@ def finish_student_workout_session(
     if session is None:
         raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No encontramos este entrenamiento.")
     if session.finished_at is None:
+        from backend.src.services.safety_alert_service import (
+            create_excessive_effort_alert,
+        )
         from backend.src.services.session_adjustment_service import (
             apply_pending_adjustments,
         )
 
         session.finished_at = utc_now()
         if rpe is not None:
+            previous_rpe = session.rpe
             session.rpe = rpe
+            if previous_rpe is None:
+                create_excessive_effort_alert(db, session)
         db.commit()
         apply_pending_adjustments(db, session.relationship_id, session.id)  # US-26
         db.refresh(session)
     else:
         if rpe is not None:
             if session.rpe is None:
+                from backend.src.services.safety_alert_service import (
+                    create_excessive_effort_alert,
+                )
+
                 session.rpe = rpe
+                create_excessive_effort_alert(db, session)
                 db.commit()
                 db.refresh(session)
             elif session.rpe != rpe:
@@ -456,7 +467,10 @@ def update_student_workout_session_rpe(
             status.HTTP_409_CONFLICT,
             "Este entrenamiento ya cuenta con un reporte de esfuerzo percibido registrado.",
         )
+    from backend.src.services.safety_alert_service import create_excessive_effort_alert
+
     session.rpe = rpe
+    create_excessive_effort_alert(db, session)
     db.commit()
     db.refresh(session)
     return session
