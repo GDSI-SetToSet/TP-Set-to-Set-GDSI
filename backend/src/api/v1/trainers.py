@@ -8,6 +8,11 @@ from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.user import User
+from backend.src.schemas.safety_alert import (
+    SafetyAlertReviewRequest,
+    SafetyAlertStatus,
+    SafetyAlertView,
+)
 from backend.src.schemas.trainer import (
     TrainerProfileResponse,
     TrainerProfileUpdate,
@@ -26,6 +31,12 @@ from backend.src.schemas.trainer_student import (
 )
 from backend.src.services.abandonment_risk_service import list_abandonment_risk
 from backend.src.services.daily_routine_tracking_service import list_daily_routines
+from backend.src.services.safety_alert_service import (
+    SafetyAlertError,
+    list_trainer_safety_alerts,
+    list_trainer_student_safety_alerts,
+    review_safety_alert,
+)
 from backend.src.services.session_comparison_service import compare_session
 from backend.src.services.trainer_service import (
     TrainerProfileError,
@@ -71,6 +82,13 @@ def handle_error(error: TrainerProfileError) -> None:
 
 def handle_student_error(error: TrainerStudentError) -> None:
     raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+
+
+def handle_safety_alert_error(error: SafetyAlertError) -> None:
+    detail: str | dict[str, object] = error.detail
+    if error.errors is not None:
+        detail = {"detail": error.detail, "errors": error.errors}
+    raise HTTPException(status_code=error.status_code, detail=detail) from error
 
 
 @router.get("/me/students", response_model=list[TrainerStudentListItem])
@@ -121,6 +139,58 @@ def own_active_student_detail(
         return get_trainer_student_detail(db, user, student_id)
     except TrainerStudentError as error:
         handle_student_error(error)
+
+
+@router.get("/me/safety-alerts", response_model=list[SafetyAlertView])
+def own_safety_alerts(
+    user: CurrentUser,
+    db: DbDep,
+    status_filter: Annotated[SafetyAlertStatus | None, Query(alias="status")] = None,
+    student_id: Annotated[str | None, Query()] = None,
+) -> list[SafetyAlertView]:
+    """US-29: lista alertas de seguridad de los vínculos ACTIVE del entrenador."""
+    try:
+        return list_trainer_safety_alerts(
+            db,
+            user,
+            status_filter=status_filter,
+            student_id=student_id,
+        )
+    except SafetyAlertError as error:
+        handle_safety_alert_error(error)
+
+
+@router.get("/me/students/{student_id}/safety-alerts", response_model=list[SafetyAlertView])
+def own_active_student_safety_alerts(
+    student_id: str,
+    user: CurrentUser,
+    db: DbDep,
+    status_filter: Annotated[SafetyAlertStatus | None, Query(alias="status")] = None,
+) -> list[SafetyAlertView]:
+    """US-29: lista alertas de seguridad de un alumno activo específico."""
+    try:
+        return list_trainer_student_safety_alerts(
+            db,
+            user,
+            student_id,
+            status_filter=status_filter,
+        )
+    except SafetyAlertError as error:
+        handle_safety_alert_error(error)
+
+
+@router.patch("/me/safety-alerts/{alert_id}/review", response_model=SafetyAlertView)
+def review_own_safety_alert(
+    alert_id: str,
+    payload: SafetyAlertReviewRequest,
+    user: CurrentUser,
+    db: DbDep,
+) -> SafetyAlertView:
+    """US-29 (CA-4): marca una alerta de seguridad como revisada con acción tomada y nota opcional."""
+    try:
+        return review_safety_alert(db, user, alert_id, payload)
+    except SafetyAlertError as error:
+        handle_safety_alert_error(error)
 
 
 @router.get("/me/profile", response_model=TrainerProfileResponse)

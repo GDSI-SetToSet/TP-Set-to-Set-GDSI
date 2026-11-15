@@ -455,3 +455,199 @@
   .routine-assignment__actions-buttons { width: 100%; }
   .routine-assignment__actions-buttons .profile-save { flex: 1 1 auto; }
 }
+
+/* US-29: alertas de seguridad para el entrenador */
+.routine-assignment__attention--safety {
+  min-height: 44px;
+  padding: 6px 12px;
+  border-color: #c2410c;
+  background: #fff7ed;
+  color: #9a3412;
+}
+.routine-assignment__attention--safety:hover {
+  background: #ffedd5;
+}
+.safety-alerts-panel {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid #f0b4ac;
+  border-radius: 12px;
+  background: #fffafa;
+}
+.safety-alerts-panel__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #7f1d1d;
+}
+.safety-alerts-panel__heading strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.safety-alerts-panel__list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.safety-alerts-panel__item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e4eaf2;
+  border-left: 4px solid #c2410c;
+  border-radius: 10px;
+  background: #fff;
+}
+.safety-alerts-panel__item--reviewed {
+  border-left-color: #246a47;
+  background: #f8fbf9;
+}
+.safety-alerts-panel__item--highlighted {
+  box-shadow: 0 0 0 3px #fed7aa;
+}
+.safety-alerts-panel__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+  font-size: 0.85rem;
+}
+.safety-alerts-panel__type,
+.safety-alerts-panel__status {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.safety-alerts-panel__type--pain { background: #fee2e2; color: #991b1b; }
+.safety-alerts-panel__type--repeated_discomfort { background: #fef3c7; color: #92400e; }
+.safety-alerts-panel__type--excessive_effort { background: #ffedd5; color: #9a3412; }
+.safety-alerts-panel__status--pending { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.safety-alerts-panel__status--reviewed { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+.safety-alerts-panel__detail {
+  margin: 0;
+  color: #1e293b;
+  font-weight: 600;
+}
+.safety-alerts-panel__review-box {
+  display: grid;
+  gap: 10px;
+}
+.safety-alerts-panel__actions {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.safety-alerts-panel__actions legend {
+  margin-bottom: 6px;
+  color: #1e293b;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.safety-alerts-panel__action-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.safety-alerts-panel__option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #1e293b;
+  cursor: pointer;
+}
+.safety-alerts-panel__option.is-selected {
+  border-color: #246a47;
+  background: #e9f5ed;
+  font-weight: 700;
+}
+.safety-alerts-panel__note {
+  display: grid;
+  gap: 4px;
+  color: #1e293b;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.safety-alerts-panel__note textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 400;
+  resize: vertical;
+}
+.safety-alerts-panel__counter {
+  justify-self: end;
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+.safety-alerts-panel__hint {
+  margin: 0;
+  color: #334155;
+  font-size: 0.85rem;
+}
+.safety-alerts-panel__submit,
+.safety-alerts-panel__retry {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid #1f5c3d;
+  border-radius: 10px;
+  background: #246a47;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  justify-self: start;
+}
+.safety-alerts-panel__submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.safety-alerts-panel__reviewed-summary {
+  display: grid;
+  gap: 4px;
+  color: #1e293b;
+}
+.safety-alerts-panel__reviewed-summary p {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+.safety-alerts-panel__reviewed-note {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #eef5f0;
+  color: #173c2c;
+}
+.safety-alerts-panel__seen-state {
+  color: #475569;
+  font-size: 0.82rem;
+}
+.trainer-student-detail__safety-indicators {
+  margin-top: 10px;
+  color: #9a3412;
+}
+.trainer-student-detail__safety-alerts {
+  grid-column: span 2;
+}
+@media (max-width: 700px) {
+  .trainer-student-detail__safety-alerts { grid-column: auto; }
+}

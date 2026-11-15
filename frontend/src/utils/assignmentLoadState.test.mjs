@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   LOAD_PLANS_ERROR,
   LOAD_RISK_ERROR,
+  LOAD_SAFETY_ALERTS_ERROR,
   LOAD_STUDENTS_ERROR,
   applyAuxiliaryRetry,
   resolveAssignmentLoadResults,
@@ -64,4 +65,24 @@ test('permite reintentar consultas auxiliares fallidas manteniendo las exitosas'
   assert.equal(afterFullRetry.trainerPlans.length, 1);
   assert.equal(afterFullRetry.abandonmentRisks.length, 1);
   assert.equal(afterFullRetry.riskError, '');
+});
+
+test('informa y reintenta fallas al cargar alertas de seguridad pendientes (US-29)', () => {
+  const initial = resolveAssignmentLoadResults(
+    { status: 'fulfilled', value: [{ relationship_id: 'r1', student_name: 'Ana' }] },
+    { status: 'fulfilled', value: [] },
+    { status: 'fulfilled', value: [] },
+    { status: 'rejected', reason: new Error('safety alerts unavailable') },
+  );
+  assert.deepEqual(initial.safetyAlerts, []);
+  assert.equal(initial.safetyAlertsError, LOAD_SAFETY_ALERTS_ERROR);
+
+  const afterRetry = applyAuxiliaryRetry(
+    initial,
+    null,
+    null,
+    { status: 'fulfilled', value: [{ id: 'sa-1', relationship_id: 'r1', status: 'PENDING' }] },
+  );
+  assert.equal(afterRetry.safetyAlerts.length, 1);
+  assert.equal(afterRetry.safetyAlertsError, '');
 });

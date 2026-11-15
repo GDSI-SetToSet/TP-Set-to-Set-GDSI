@@ -65,8 +65,21 @@ def _assignment_map(db: Session, user: User) -> dict[str, dict[str, str | int | 
     return {str(item["relationship_id"]): item for item in assignments}
 
 
+def _utc_epoch_seconds(value) -> float:
+    from datetime import datetime
+
+    if value is None:
+        return 0.0
+    if getattr(value, "tzinfo", None) is not None:
+        return value.timestamp()
+    return (value - datetime(1970, 1, 1)).total_seconds()
+
+
 def list_trainer_students(db: Session, user: User) -> list[TrainerStudentListItem]:
     from backend.src.services.abandonment_risk_service import list_abandonment_risk
+    from backend.src.services.safety_alert_service import (
+        unreviewed_alert_summary_by_relationship,
+    )
 
     trainer = _trainer_profile(db, user)
     rows = db.execute(
@@ -82,7 +95,12 @@ def list_trainer_students(db: Session, user: User) -> list[TrainerStudentListIte
     assignments = _assignment_map(db, user)
     risks = list_abandonment_risk(db, user, notify=False)
     risk_order = {item.relationship_id: index for index, item in enumerate(risks) if item.at_risk}
+    unreviewed_summary = unreviewed_alert_summary_by_relationship(
+        db,
+        [relationship.id for relationship, _, _ in rows],
+    )
     result: list[TrainerStudentListItem] = []
+    alpha_key_by_rel: dict[str, tuple[str, str, str, str]] = {}
     for relationship, student, student_user in rows:
         sessions = db.scalar(
             select(WorkoutSession.id)
@@ -93,31 +111,61 @@ def list_trainer_students(db: Session, user: User) -> list[TrainerStudentListIte
             .limit(1)
         )
         assignment = assignments.get(relationship.id, {})
+        unreviewed_count, _ = unreviewed_summary.get(relationship.id, (0, None))
+        full_name = (
+            " ".join(part for part in (student.first_name, student.last_name) if part).strip()
+            or student_user.email
+        )
+        alpha_key_by_rel[relationship.id] = (
+            (student.last_name or "").strip().lower(),
+            (student.first_name or "").strip().lower(),
+            full_name.lower(),
+            relationship.id,
+        )
         result.append(
             TrainerStudentListItem(
                 relationship_id=relationship.id,
                 student_id=student.id,
-                full_name=" ".join(
-                    part for part in (student.first_name, student.last_name) if part
-                ).strip()
-                or student_user.email,
+                full_name=full_name,
                 profile_status=student.status,
                 package_title=relationship.plan.title if relationship.plan else None,
                 routine_name=assignment.get("routine_name"),
                 has_activity=sessions is not None,
+                unreviewed_alert_count=unreviewed_count,
             )
         )
-    result.sort(
-        key=lambda item: (0, risk_order[item.relationship_id])
-        if item.relationship_id in risk_order
-        else (1, 0)
-    )
+
+    def _sort_key(
+        item: TrainerStudentListItem,
+    ) -> tuple[int, int | float, float, int, tuple[str, str, str, str]]:
+        pending_count, latest_created_at = unreviewed_summary.get(item.relationship_id, (0, None))
+        alpha_key = alpha_key_by_rel[item.relationship_id]
+        if pending_count > 0:
+            return (
+                0,
+                -pending_count,
+                -_utc_epoch_seconds(latest_created_at),
+                risk_order.get(item.relationship_id, 10**9),
+                alpha_key,
+            )
+        if item.relationship_id in risk_order:
+            return (
+                1,
+                risk_order[item.relationship_id],
+                0.0,
+                0,
+                alpha_key,
+            )
+        return (2, 0, 0.0, 0, alpha_key)
+
+    result.sort(key=_sort_key)
     return result
 
 
 def get_trainer_student_detail(
     db: Session, user: User, student_id: str
 ) -> TrainerStudentDetail:
+    from backend.src.services.safety_alert_service import student_safety_indicators
     trainer = _trainer_profile(db, user)
     relationship = _active_relationship(db, trainer.id, student_id)
     profile = db.get(StudentProfile, student_id)
@@ -178,7 +226,7 @@ def get_trainer_student_detail(
         ),
         limitations=TrainerStudentLimitations(
             protected_zones=[zone.body_area for zone in profile.protected_zones],
-            safety_indicators=[],
+            safety_indicators=student_safety_indicators(db, relationship.id),
         ),
         routine=(
             TrainerStudentRoutine(
