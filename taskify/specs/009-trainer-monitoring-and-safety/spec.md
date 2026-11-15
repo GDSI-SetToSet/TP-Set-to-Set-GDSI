@@ -284,8 +284,8 @@ Como entrenador personal,
 ### Historia de usuario 10 - [US-30: ver métricas de evolución de entrenamientos] (Prioridad: P2, Estimación: 4 SP)
 
 Como entrenador personal,
- quiero ver un gráfico de evolución de los entrenamientos de mis alumnos mostrando pesos levantados, repeticiones y series realizadas,
- para evaluar el avance y evolución de los entrenamientos de mis alumnos
+ quiero ver la evolución de los entrenamientos de mis alumnos (pesos levantados por ejercicio, adherencia, esfuerzo percibido y series completadas) organizada según lo que necesito saber: si progresan, si entrenan lo que les programé, cómo les cuesta y qué debo ajustar,
+ para evaluar el avance de mis alumnos y decidir si hay que ajustar sus rutinas
 
 **Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
@@ -297,6 +297,16 @@ Como entrenador personal,
 
 2. Dado un entrenador con alumnos activos, cuando consulta las métricas de evolución de entrenamiento de un alumno, entonces debe poder seleccionar el gráfico por grupo muscular, por entrenamiento, o por semana. El eje temporal se agrupa por entrenamiento (un punto por sesión finalizada) o por semana (un punto por semana calendario); el grupo muscular filtra la tabla de ejercicios y se grafica en las series semanales por grupo. Solo cuentan las sesiones finalizadas. El período se elige entre 4 semanas, 12 semanas (por defecto) y todo el historial, alineado a semanas calendario. Se muestra en el detalle del alumno. Ver la sesión de clarificaciones 2026-11-16.
 
+
+3. Dado un entrenador que consulta el progreso de un alumno con sesiones finalizadas, cuando mira la sección "¿Está progresando?", entonces ve una tabla con cada ejercicio (peso o repeticiones de inicio y actual, cambio porcentual, estado y última mejora) ordenada de modo que los ejercicios que bajaron y los estancados aparezcan primero, y puede elegir un ejercicio para ver su gráfico con el peso objetivo programado y los récords personales destacados. El estado es "Progresando", "Estancado", "Bajó", "Sin cambios", "Pocos datos" (menos de 2 sesiones) o "Sin métrica" (repeticiones no numéricas), y se calcula solo con semanas completas.
+
+4. Dado un entrenador que consulta el progreso de un alumno, cuando mira la sección "¿Está entrenando lo que le programé?", entonces ve las sesiones realizadas contra las programadas por semana (con las semanas sin entrenar resaltadas), el porcentaje de adherencia, el porcentaje de series completadas respecto de lo programado y los ejercicios más salteados. La semana en curso se muestra marcada como "en curso" y no entra en porcentajes ni estados.
+
+5. Dado un entrenador que consulta el progreso de un alumno, cuando mira la sección "¿Cómo le está costando?", entonces ve un mensaje que combina la carga con el esfuerzo percibido (esfuerzo excesivo, posible fatiga, se puede exigir más, progresa con esfuerzo en aumento o progresa con margen) y un gráfico del RPE con la zona recomendada (6–8) y huecos en las sesiones sin reporte.
+
+6. Dado un entrenador que consulta el progreso de un alumno, cuando mira la sección "¿Qué tengo que ajustar?", entonces ve una lista automática de puntos a revisar (ejercicios que bajaron o están estancados, fatiga o esfuerzo excesivo, ejercicios salteados y semanas sin entrenar) y las series semanales por grupo muscular contra las programadas. Cada punto, salvo las semanas sin entrenar, ofrece un enlace a "Rutinas del día" para ajustar la rutina (US-26). Si no hay puntos, se indica "Nada para ajustar por ahora".
+
+7. Dado un entrenador que consulta el progreso de un alumno, cuando el alumno no tiene sesiones finalizadas, tiene una sola sesión, no reportó esfuerzo o el grupo muscular elegido no tiene ejercicios en el período, entonces se informa cada caso con un mensaje específico en lugar de gráficos vacíos. Los cuatro indicadores del encabezado (Progreso, Adherencia, Esfuerzo y Para revisar) resumen cada sección con un color y un texto, y llevan a la sección al tocarlos.
 
 ---
 
