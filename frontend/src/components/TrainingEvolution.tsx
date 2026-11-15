@@ -1,5 +1,7 @@
 import { AlertTriangle, ArrowRight, Check, TrendingDown, TrendingUp, Trophy, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '../constants/routes';
 import { getTrainingEvolution } from '../services/trainerStudentService';
 import type { EvolutionGrouping, EvolutionPeriod, TrafficLight, TrainingEvolution as Evolution } from '../types/trainerStudent';
 import {
@@ -222,7 +224,7 @@ export function TrainingEvolution({ studentId, studentName }: { studentId: strin
         <h4 id={`evo-review-h-${studentId}`}>¿Qué tengo que ajustar?</h4>
         {data.to_review.length === 0 ? <p><Check {...icon} /> Nada para ajustar por ahora</p> : (
           <ul className="training-evolution__review">{data.to_review.map((item, index) => (
-            <li key={`${item.type}-${item.exercise_id ?? index}-${index}`}><span className="training-evolution__badge">{REVIEW_HINT[item.type]}</span> {item.label}</li>
+            <li key={`${item.type}-${item.exercise_id ?? index}-${index}`}><span className="training-evolution__badge">{REVIEW_HINT[item.type]}</span> {item.label}{item.type !== 'week_without_training' && <>{' '}<Link className="training-evolution__link" to={ROUTES.trainerDailyRoutines}>Ajustar en Rutinas del día</Link></>}</li>
           ))}</ul>
         )}
         {data.sets_by_muscle_group.length > 0 && (
