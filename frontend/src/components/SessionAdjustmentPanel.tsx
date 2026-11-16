@@ -96,6 +96,13 @@ export function SessionAdjustmentPanel({ sessionId }: { sessionId: string }) {
 
   useEffect(() => {
     let active = true;
+    setContext(null);
+    setBlocks([]);
+    setNote('');
+    setLoadError('');
+    setError('');
+    setProblems([]);
+    setMessage('');
     Promise.all([getSessionAdjustment(sessionId), getExercises().catch(() => [])])
       .then(([loaded, exercises]) => {
         if (!active) return;
@@ -123,7 +130,7 @@ export function SessionAdjustmentPanel({ sessionId }: { sessionId: string }) {
 
   const update = (b: number, e: number, change: Partial<AdjustmentEntry>) => {
     setMessage('');
-    setProblems((current) => current.filter((problem) => !entryError([problem], b, e)));
+    setProblems((current) => current.filter((problem) => !entryError([problem], b, e, 0)));
     setBlocks((current) => current.map((block, bi) => (bi !== b ? block : {
       ...block,
       exercises: block.exercises.map((entry, ei) => (ei !== e ? entry : { ...entry, ...change })),
@@ -180,7 +187,7 @@ export function SessionAdjustmentPanel({ sessionId }: { sessionId: string }) {
             <div className="rt-block" key={`${block.name}-${b}`}>
               <h3>{block.name}<small>{block.exercises.length} ejercicios</small></h3>
               {block.exercises.map((entry, e) => {
-                const failure = entryError(problems, b, e);
+                const failure = entryError(problems, b, e, 0);
                 const id = `adj-${sessionId}-${b}-${e}`;
                 return (
                   <div className={`rt-row${failure ? ' rt-row--invalid' : ''}`} key={`${b}-${e}`}>

@@ -39,9 +39,19 @@ export function toAdjustmentInput(blocks, note) {
 }
 
 /** Error del backend para un ejercicio (los campos llegan como `days.N.blocks.B.exercises.E...`). */
-export function entryError(errors, blockIndex, exerciseIndex) {
-  const path = `blocks.${blockIndex}.exercises.${exerciseIndex}`;
-  return errors.find((error) => error.field.includes(`${path}.`) || error.field.endsWith(path))?.message;
+export function entryError(errors, blockIndex, exerciseIndex, dayIndex = undefined) {
+  const blockPath = `blocks.${blockIndex}.exercises.${exerciseIndex}`;
+  return errors.find((error) => {
+    const { field } = error;
+    if (typeof dayIndex === 'number') {
+      const scopedPrefix = `days.${dayIndex}.${blockPath}`;
+      return field === scopedPrefix
+        || field.startsWith(`${scopedPrefix}.`)
+        || field === blockPath
+        || field.startsWith(`${blockPath}.`);
+    }
+    return field.includes(`${blockPath}.`) || field.endsWith(blockPath);
+  })?.message;
 }
 
 export function adjustmentStatusMessage(adjustment) {
@@ -58,4 +68,32 @@ export function noticeForDay(notices, dayName) {
 
 export function isAdjustedExercise(notice, exerciseId) {
   return Boolean(notice?.exercise_ids.includes(exerciseId));
+}
+
+/**
+ * Resuelve los valores iniciales del borrador de serie para un ejercicio.
+ * Si el entrenador ajustó este ejercicio (US-26), prioriza la prescripción actualizada sobre logs previos (DEF-05).
+ */
+export function resolveInitialSetDraft(item, previousLog, options = {}) {
+  const { isAdjusted = false, isHomeModality = false, nextSet = 1 } = options;
+  const hasTargetWeight = item.target_weight_kg !== null && item.target_weight_kg !== undefined;
+  if (isAdjusted) {
+    return {
+      setNumber: String(nextSet),
+      repsCompleted: item.reps,
+      weightKg: hasTargetWeight ? String(item.target_weight_kg) : isHomeModality ? '0' : '',
+    };
+  }
+  const defaultWeight = previousLog?.weight_kg !== null && previousLog?.weight_kg !== undefined
+    ? String(previousLog.weight_kg)
+    : isHomeModality
+      ? '0'
+      : hasTargetWeight
+        ? String(item.target_weight_kg)
+        : '';
+  return {
+    setNumber: String(nextSet),
+    repsCompleted: previousLog?.reps_completed ?? item.reps,
+    weightKg: defaultWeight,
+  };
 }

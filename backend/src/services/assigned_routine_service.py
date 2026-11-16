@@ -18,7 +18,7 @@ from backend.src.models.protected_zone import ProtectedZone
 from backend.src.models.routine_template import RoutineTemplate
 from backend.src.models.student_profile import StudentProfile
 from backend.src.models.training_relationship import TrainingRelationship
-from backend.src.models.user import User
+from backend.src.models.user import User, new_id
 from backend.src.schemas.assigned_routine import (
     ActiveStudentResponse,
     AssignedRoutineUpdateInput,
@@ -317,6 +317,7 @@ def approve_assigned_routine(db: Session, user: User, routine_id: str) -> Assign
 
     relationship.initial_routine_id = routine.id
     relationship.routine_assigned_at = now
+    relationship.routine_assignment_id = new_id()
 
     from backend.src.services.student_routine_service import sync_assigned_routine
 

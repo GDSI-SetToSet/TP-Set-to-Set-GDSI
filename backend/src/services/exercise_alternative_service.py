@@ -1,13 +1,14 @@
 from datetime import timedelta
 
 from fastapi import status
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from backend.src.models.exercise import Exercise
 from backend.src.models.exercise_replacement_log import ExerciseReplacementLog
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.user import User
+from backend.src.models.workout_log import WorkoutSession
 from backend.src.schemas.exercise_alternative import ReplacementInput
 from backend.src.services import routine_template_service as routines
 from backend.src.services import safe_variant_service as safe
@@ -84,42 +85,113 @@ def record_replacement(db: Session, user: User, payload: ReplacementInput) -> Ex
             )
         if valid[chosen]["variant"]:  # la alternativa es de riesgo para el alumno: se hace su variante segura
             chosen = valid[chosen]["variant"]["exercise_id"]
-    today = utc_now().date()
-    log = db.scalar(
-        select(ExerciseReplacementLog).where(
-            ExerciseReplacementLog.student_id == relationship.student_id,
-            ExerciseReplacementLog.routine_id == routine_id,
-            ExerciseReplacementLog.day_name == payload.day_name,
-            ExerciseReplacementLog.session_date == today,
-            ExerciseReplacementLog.original_exercise_id == original.id,
+    now = utc_now()
+    today = now.date()
+    target_session_id: str | None = None
+    if payload.session_id:
+        active_session = db.scalar(
+            select(WorkoutSession).where(
+                WorkoutSession.id == payload.session_id,
+                WorkoutSession.student_id == relationship.student_id,
+                WorkoutSession.relationship_id == relationship.id,
+            )
         )
-    )
+        if active_session is None:
+            raise ExerciseError(status.HTTP_404_NOT_FOUND, "No encontramos este entrenamiento.")
+        target_session_id = active_session.id
+    else:
+        active_session = db.scalar(
+            select(WorkoutSession)
+            .where(
+                WorkoutSession.student_id == relationship.student_id,
+                WorkoutSession.relationship_id == relationship.id,
+                WorkoutSession.routine_id == routine_id,
+                WorkoutSession.day_name == payload.day_name,
+                WorkoutSession.finished_at.is_(None),
+            )
+            .order_by(WorkoutSession.started_at.desc())
+        )
+        if active_session is not None:
+            target_session_id = active_session.id
+
+    log: ExerciseReplacementLog | None = None
+    if target_session_id is not None:
+        log = db.scalar(
+            select(ExerciseReplacementLog).where(
+                ExerciseReplacementLog.session_id == target_session_id,
+                ExerciseReplacementLog.original_exercise_id == original.id,
+            )
+        )
+        if log is None:
+            log = db.scalar(
+                select(ExerciseReplacementLog).where(
+                    ExerciseReplacementLog.student_id == relationship.student_id,
+                    ExerciseReplacementLog.routine_id == routine_id,
+                    ExerciseReplacementLog.day_name == payload.day_name,
+                    ExerciseReplacementLog.session_date == today,
+                    ExerciseReplacementLog.original_exercise_id == original.id,
+                    ExerciseReplacementLog.session_id.is_(None),
+                )
+            )
+    else:
+        log = db.scalar(
+            select(ExerciseReplacementLog).where(
+                ExerciseReplacementLog.student_id == relationship.student_id,
+                ExerciseReplacementLog.routine_id == routine_id,
+                ExerciseReplacementLog.day_name == payload.day_name,
+                ExerciseReplacementLog.session_date == today,
+                ExerciseReplacementLog.original_exercise_id == original.id,
+                ExerciseReplacementLog.session_id.is_(None),
+            )
+        )
+
     if log is None:  # select-then-update: portable entre SQLite y PostgreSQL
         log = ExerciseReplacementLog(
             student_id=relationship.student_id,
+            session_id=target_session_id,
             routine_id=routine_id,
             day_name=payload.day_name,
             session_date=today,
             original_exercise_id=original.id,
         )
         db.add(log)
+    elif target_session_id is not None:
+        log.session_id = target_session_id
     log.replacement_exercise_id = chosen
-    log.updated_at = utc_now()
+    log.updated_at = now
     db.commit()
     db.refresh(log)
     return log
 
 
-def is_replacement_today(db: Session, student_id: str, routine_id: str, day_name: str, exercise_id: str) -> Exercise | None:
+def is_replacement_today(
+    db: Session,
+    student_id: str,
+    routine_id: str,
+    day_name: str,
+    exercise_id: str,
+    session_id: str | None = None,
+) -> Exercise | None:
     """Ejercicio elegido hoy (o ayer UTC) como reemplazo (permite registrar series con el ejercicio realmente realizado)."""
     today = utc_now().date()  # ayer UTC también vale: en Argentina el día UTC cambia a las 21:00
+    legacy_match = and_(
+        ExerciseReplacementLog.routine_id == routine_id,
+        ExerciseReplacementLog.day_name == day_name,
+        ExerciseReplacementLog.session_date.in_([today, today - timedelta(days=1)]),
+    )
+    session_filter = (
+        or_(
+            ExerciseReplacementLog.session_id == session_id,
+            and_(ExerciseReplacementLog.session_id.is_(None), legacy_match),
+        )
+        if session_id is not None
+        else legacy_match
+    )
     found = db.scalar(
         select(ExerciseReplacementLog.id).where(
             ExerciseReplacementLog.student_id == student_id,
-            ExerciseReplacementLog.routine_id == routine_id,
-            ExerciseReplacementLog.day_name == day_name,
-            ExerciseReplacementLog.session_date.in_([today, today - timedelta(days=1)]),
             ExerciseReplacementLog.replacement_exercise_id == exercise_id,
+            session_filter,
         )
     )
     return db.get(Exercise, exercise_id) if found else None

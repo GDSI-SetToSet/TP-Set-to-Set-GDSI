@@ -7,6 +7,7 @@ import {
   isAdjustedExercise,
   noticeForDay,
   painIntensityLabel,
+  resolveInitialSetDraft,
   toAdjustmentInput,
 } from './sessionAdjustment.mjs';
 
@@ -59,4 +60,32 @@ test('marca de ajuste para el alumno', () => {
 test('painIntensityLabel', () => {
   assert.equal(painIntensityLabel('PAIN'), 'Dolor');
   assert.equal(painIntensityLabel('DISCOMFORT'), 'Molestia');
+});
+
+test('DEF-06: entryError filtra por dayIndex cuando se especifica', () => {
+  const errors = [{ field: 'days.1.blocks.0.exercises.0.exercise_id', message: 'Contraindicado en día 2' }];
+  assert.equal(entryError(errors, 0, 0, 0), undefined);
+  assert.equal(entryError(errors, 0, 0, 1), 'Contraindicado en día 2');
+});
+
+test('DEF-05: resolveInitialSetDraft prioriza prescripción ajustada sobre registro previo', () => {
+  const adjustedItem = { reps: '12', target_weight_kg: 17.5 };
+  const prevLog = { reps_completed: '8', weight_kg: 10 };
+
+  assert.deepEqual(
+    resolveInitialSetDraft(adjustedItem, prevLog, { isAdjusted: true, isHomeModality: false, nextSet: 1 }),
+    { setNumber: '1', repsCompleted: '12', weightKg: '17.5' },
+  );
+
+  // Sin ajuste, mantiene referencia del registro anterior salvo en modalidad Casa/Viaje con peso null
+  assert.deepEqual(
+    resolveInitialSetDraft(adjustedItem, prevLog, { isAdjusted: false, isHomeModality: false, nextSet: 2 }),
+    { setNumber: '2', repsCompleted: '8', weightKg: '10' },
+  );
+
+  // Sin registro previo y en modalidad Casa/Viaje
+  assert.deepEqual(
+    resolveInitialSetDraft({ reps: '15', target_weight_kg: null }, undefined, { isAdjusted: true, isHomeModality: true, nextSet: 1 }),
+    { setNumber: '1', repsCompleted: '15', weightKg: '0' },
+  );
 });

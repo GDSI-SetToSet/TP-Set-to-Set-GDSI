@@ -126,7 +126,7 @@ class PerformedMetrics(BaseModel):
     reps: list[str]
     max_weight_kg: float | None = None
     volume_kg: float
-    total_duration_seconds: int
+    total_duration_seconds: int | None = None
 
 
 class ExerciseComparison(BaseModel):
@@ -143,6 +143,7 @@ class SessionComparison(BaseModel):
 
     session: DailyRoutineSession
     previous_session: DailyRoutineSession | None = None
+    planned_duration_seconds: int | None = None
     volume_kg: float
     previous_volume_kg: float | None = None
     exercises: list[ExerciseComparison]

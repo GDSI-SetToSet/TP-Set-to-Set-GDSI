@@ -98,7 +98,7 @@ export interface PerformedMetrics {
   reps: string[];
   max_weight_kg: number | null;
   volume_kg: number;
-  total_duration_seconds: number;
+  total_duration_seconds: number | null;
 }
 
 export interface ExerciseComparison {
@@ -114,6 +114,7 @@ export interface ExerciseComparison {
 export interface SessionComparison {
   session: DailyRoutineSession;
   previous_session: DailyRoutineSession | null;
+  planned_duration_seconds: number | null;
   volume_kg: number;
   previous_volume_kg: number | null;
   exercises: ExerciseComparison[];

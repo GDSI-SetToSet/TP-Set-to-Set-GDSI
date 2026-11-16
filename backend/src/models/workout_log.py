@@ -2,7 +2,15 @@ from datetime import datetime
 from decimal import Decimal
 from typing import ClassVar
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.src.core.database import Base
@@ -61,3 +69,15 @@ class WorkoutSetLog(Base):
     is_personal_record: ClassVar[bool] = False
     is_initial_pr: ClassVar[bool] = False
     pr_previous_weight_kg: ClassVar[float | None] = None
+
+
+class WorkoutSessionSnapshot(Base):
+    """Snapshot inmutable del plan vigente y del vínculo de asignación al iniciar una sesión (US-24 / US-26)."""
+
+    __tablename__ = "workout_session_snapshots"
+
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("workout_sessions.id", ondelete="CASCADE"), primary_key=True
+    )
+    routine_assignment_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
+    planned_blocks: Mapped[list] = mapped_column(JSON, nullable=False)

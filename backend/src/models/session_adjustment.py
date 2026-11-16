@@ -32,6 +32,7 @@ class SessionAdjustment(Base):
     trainer_id: Mapped[str] = mapped_column(String(36), nullable=False)
     day_name: Mapped[str] = mapped_column(String(100), nullable=False)
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    baseline_blocks: Mapped[list | None] = mapped_column(JSON, nullable=True)
     blocks: Mapped[list] = mapped_column(JSON, nullable=False)
     changed_exercise_ids: Mapped[list] = mapped_column(JSON, nullable=False)
     status: Mapped[str] = mapped_column(String(16), default="PENDING", nullable=False)

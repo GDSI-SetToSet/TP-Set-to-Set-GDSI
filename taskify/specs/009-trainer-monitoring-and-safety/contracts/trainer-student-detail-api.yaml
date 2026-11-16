@@ -427,7 +427,7 @@ components:
         reps: {type: array, items: {type: string}}
         max_weight_kg: {type: number, nullable: true}
         volume_kg: {type: number, description: Suma de repeticiones × carga de las series con valores numéricos}
-        total_duration_seconds: {type: integer}
+        total_duration_seconds: {type: integer, nullable: true}
     ExerciseComparison:
       type: object
       required: [exercise_id, exercise_name]
@@ -450,6 +450,7 @@ components:
       properties:
         session: {type: object, description: Igual a DailyRoutineSession}
         previous_session: {type: object, nullable: true, description: Última sesión finalizada anterior del mismo día de rutina}
+        planned_duration_seconds: {type: integer, nullable: true, description: Duración estimada total en segundos de los bloques planificados de la sesión}
         volume_kg: {type: number}
         previous_volume_kg: {type: number, nullable: true}
         exercises:
