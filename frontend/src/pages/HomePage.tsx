@@ -15,6 +15,7 @@ import {
   Sparkles,
   UserRound,
   Users,
+  Wallet,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
@@ -49,6 +50,7 @@ export function HomePage() {
         { label: 'Rutina con IA', description: 'Generá una rutina adaptada con IA para un alumno.', to: ROUTES.trainerGenerateAIRoutine, icon: <Sparkles size={20} /> },
         { label: 'Mis alumnos', description: 'Consultá tus alumnos activos y asignales rutinas.', to: ROUTES.trainerStudents, icon: <Users size={20} />, count: activeStudentsCount, countLabel: 'alumnos activos' },
         { label: 'Rutinas del día', description: 'Seguí en vivo el entrenamiento de hoy de tus alumnos.', to: ROUTES.trainerDailyRoutines, icon: <CalendarCheck size={20} /> },
+        { label: 'Suscripciones', description: 'Registrá pagos y controlá quién está al día.', to: ROUTES.trainerSubscriptions, icon: <Wallet size={20} /> },
         { label: 'Mis ejercicios', description: 'Administrá los ejercicios de tu biblioteca.', to: ROUTES.trainerExercises, icon: <Activity size={20} /> },
         { label: 'Mis paquetes', description: 'Gestioná tus propuestas de entrenamiento.', to: ROUTES.trainerPlans, icon: <Package size={20} /> },
         { label: 'Solicitudes', description: 'Revisá las solicitudes para entrenar con vos.', to: ROUTES.trainerRequests, icon: <Inbox size={20} />, count: pendingRequestsCount, countLabel: 'solicitudes pendientes' },

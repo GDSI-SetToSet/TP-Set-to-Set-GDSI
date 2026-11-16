@@ -8,6 +8,14 @@ from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.user import User
+from backend.src.schemas.informal_payment import (
+    PaymentCreate,
+    PaymentHistory,
+    PaymentMutationResult,
+    PaymentVoidRequest,
+    SubscriptionStatus,
+    SubscriptionSummary,
+)
 from backend.src.schemas.safety_alert import (
     SafetyAlertReviewRequest,
     SafetyAlertStatus,
@@ -32,6 +40,13 @@ from backend.src.schemas.trainer_student import (
 )
 from backend.src.services.abandonment_risk_service import list_abandonment_risk
 from backend.src.services.daily_routine_tracking_service import list_daily_routines
+from backend.src.services.informal_payment_service import (
+    PaymentError,
+    get_payment_history,
+    list_subscriptions,
+    register_payment,
+    void_payment,
+)
 from backend.src.services.safety_alert_service import (
     SafetyAlertError,
     list_trainer_safety_alerts,
@@ -113,6 +128,60 @@ def own_students_daily_routines(
         return list_daily_routines(db, user, day or date.today(), utc_offset_minutes)
     except TrainerStudentError as error:
         handle_student_error(error)
+
+
+LocalDate = Annotated[date | None, Query(alias="date", description="Fecha local del entrenador (hoy).")]
+
+
+@router.get("/me/subscriptions", response_model=list[SubscriptionSummary])
+def own_students_subscriptions(
+    user: CurrentUser,
+    db: DbDep,
+    day: LocalDate = None,
+    subscription_status: Annotated[SubscriptionStatus | None, Query(alias="status")] = None,
+) -> list[SubscriptionSummary]:
+    """US-34: estado de la suscripción de cada alumno activo (vencidas primero)."""
+    try:
+        return list_subscriptions(db, user, day or date.today(), subscription_status)
+    except PaymentError as error:
+        handle_error(error)
+
+
+@router.get("/me/students/{student_id}/payments", response_model=PaymentHistory)
+def own_student_payment_history(
+    student_id: str, user: CurrentUser, db: DbDep, day: LocalDate = None
+) -> PaymentHistory:
+    """US-34: suscripción e historial completo de pagos del alumno, incluidos los anulados."""
+    try:
+        return get_payment_history(db, user, student_id, day or date.today())
+    except PaymentError as error:
+        handle_error(error)
+
+
+@router.post(
+    "/me/students/{student_id}/payments",
+    response_model=PaymentMutationResult,
+    status_code=status.HTTP_201_CREATED,
+)
+def own_student_register_payment(
+    student_id: str, payload: PaymentCreate, user: CurrentUser, db: DbDep, day: LocalDate = None
+) -> PaymentMutationResult:
+    """US-34: registra un pago recibido por fuera de la app y extiende el vencimiento."""
+    try:
+        return register_payment(db, user, student_id, payload, day or date.today())
+    except PaymentError as error:
+        handle_error(error)
+
+
+@router.post("/me/payments/{payment_id}/void", response_model=PaymentMutationResult)
+def own_student_void_payment(
+    payment_id: str, payload: PaymentVoidRequest, user: CurrentUser, db: DbDep, day: LocalDate = None
+) -> PaymentMutationResult:
+    """US-34: anula un pago con motivo obligatorio; los pagos nunca se eliminan."""
+    try:
+        return void_payment(db, user, payment_id, payload.reason, day or date.today())
+    except PaymentError as error:
+        handle_error(error)
 
 
 @router.get("/me/sessions/{session_id}/comparison", response_model=SessionComparison)
