@@ -25,7 +25,11 @@ from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.user import User, new_id
-from backend.src.models.workout_log import WorkoutSession, WorkoutSessionSnapshot, WorkoutSetLog
+from backend.src.models.workout_log import (
+    WorkoutSession,
+    WorkoutSessionSnapshot,
+    WorkoutSetLog,
+)
 from backend.src.schemas.routine_template import (
     RoutineModalityUpdate,
     RoutineTemplateInput,

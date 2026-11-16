@@ -332,7 +332,7 @@ def test_historical_abandoned_session_does_not_keep_new_adjustment_pending(clien
 
 def test_successive_adjustments_and_note_edits_preserve_changed_exercise_ids(client, monkeypatch):
     """DEF-04: editar la nota o hacer ajustes sucesivos conserva changed_exercise_ids acumulados."""
-    api, _, trainer, student, ex_a, relationship_id, _, _ = setup(client, monkeypatch)
+    api, _, trainer, student, ex_a, _relationship_id, _, _ = setup(client, monkeypatch)
     ex_b = create_exercise(api, trainer, "Prensa")
 
     # Armar rutina con A y B el Día 1
@@ -510,8 +510,10 @@ def test_concurrent_save_adjustment_and_finish_session_sqlite_file(tmp_path):
     import threading
     from concurrent.futures import ThreadPoolExecutor
     from decimal import Decimal
+
     from sqlalchemy import create_engine, event
     from sqlalchemy.orm import sessionmaker
+
     from backend.src.core.database import Base
     from backend.src.core.security import hash_password
     from backend.src.models.exercise import Exercise, VideoPlatform
@@ -557,20 +559,20 @@ def test_concurrent_save_adjustment_and_finish_session_sqlite_file(tmp_path):
             st = StudentProfile(id=new_id(), user_id=st_user.id, first_name="Lucía", last_name="Test", status="PUBLISHED", fitness_goals=[], created_at=base_now, updated_at=base_now)
             db.add_all([tr, st])
             db.flush()
-            plan = TrainingPlan(id=new_id(), trainer_id=tr.id, title="Plan", monthly_price=Decimal("100"), currency="USD", is_active=True, created_at=base_now, updated_at=base_now)
+            plan = TrainingPlan(id=new_id(), trainer_id=tr.id, title="Plan", monthly_price=Decimal(100), currency="USD", is_active=True, created_at=base_now, updated_at=base_now)
             ex = Exercise(id=new_id(), trainer_id=tr.id, name="Sentadilla", description="Piernas", category="FUERZA", target_muscle_group="Piernas", equipment_needed="Barra", contraindicated_zones=[], video_platform=VideoPlatform.NONE, created_at=base_now, updated_at=base_now)
             db.add_all([plan, ex])
             db.flush()
             tpl = RoutineTemplate(
                 id=new_id(), trainer_id=tr.id, name="Rutina", duration_weeks=4, intensity="MEDIA", created_at=base_now, updated_at=base_now,
                 days=[RoutineTemplateDay(name="Día 1", order_index=1, blocks=[RoutineTemplateBlock(name="Principal", order_index=1, exercises=[
-                    RoutineTemplateExercise(exercise_id=ex.id, order_index=1, sets=3, reps="8", rest_seconds=60, prescription=RoutineTemplateExercisePrescription(target_weight_kg=Decimal("10")))
+                    RoutineTemplateExercise(exercise_id=ex.id, order_index=1, sets=3, reps="8", rest_seconds=60, prescription=RoutineTemplateExercisePrescription(target_weight_kg=Decimal(10)))
                 ])])],
             )
             db.add(tpl)
             db.flush()
             rel = TrainingRelationship(
-                id=new_id(), student_id=st.id, trainer_id=tr.id, plan_id=plan.id, agreed_monthly_price=Decimal("100"), agreed_currency="USD",
+                id=new_id(), student_id=st.id, trainer_id=tr.id, plan_id=plan.id, agreed_monthly_price=Decimal(100), agreed_currency="USD",
                 status="ACTIVE", start_date=date(2026, 11, 1), initial_routine_id=tpl.id, routine_assignment_id=new_id(), routine_assigned_at=base_now,
             )
             db.add(rel)
@@ -592,7 +594,7 @@ def test_concurrent_save_adjustment_and_finish_session_sqlite_file(tmp_path):
 
             barrier = threading.Barrier(2)
 
-            def _trainer_save():
+            def _trainer_save(iteration=iteration, barrier=barrier):
                 with SessionLocal() as tdb:
                     tu = tdb.get(User, tr_user_id)
                     barrier.wait(timeout=5)
@@ -604,7 +606,7 @@ def test_concurrent_save_adjustment_and_finish_session_sqlite_file(tmp_path):
                         }),
                     )
 
-            def _student_finish():
+            def _student_finish(active_id=active_id, barrier=barrier):
                 with SessionLocal() as sdb:
                     su = sdb.get(User, st_user_id)
                     barrier.wait(timeout=5)
@@ -635,7 +637,7 @@ def test_concurrent_save_adjustment_and_finish_session_sqlite_file(tmp_path):
 
             barrier = threading.Barrier(2)
 
-            def _trainer_save_start():
+            def _trainer_save_start(iteration=iteration, barrier=barrier):
                 with SessionLocal() as tdb:
                     tu = tdb.get(User, tr_user_id)
                     barrier.wait(timeout=5)
@@ -647,7 +649,7 @@ def test_concurrent_save_adjustment_and_finish_session_sqlite_file(tmp_path):
                         }),
                     )
 
-            def _student_start():
+            def _student_start(barrier=barrier):
                 with SessionLocal() as sdb:
                     su = sdb.get(User, st_user_id)
                     barrier.wait(timeout=5)

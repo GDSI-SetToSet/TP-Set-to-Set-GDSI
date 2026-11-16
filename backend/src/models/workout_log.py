@@ -2,7 +2,15 @@ from datetime import datetime
 from decimal import Decimal
 from typing import ClassVar
 
-from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.src.core.database import Base

@@ -13,7 +13,11 @@ from backend.src.models.routine_template import RoutineTemplate
 from backend.src.models.student_routine import StudentRoutine
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.user import User
-from backend.src.models.workout_log import WorkoutSession, WorkoutSessionSnapshot, WorkoutSetLog
+from backend.src.models.workout_log import (
+    WorkoutSession,
+    WorkoutSessionSnapshot,
+    WorkoutSetLog,
+)
 from backend.src.schemas.trainer_student import (
     ExerciseComparison,
     PerformedMetrics,

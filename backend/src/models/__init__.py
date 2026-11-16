@@ -31,7 +31,11 @@ from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.training_request import TrainingRequest
 from backend.src.models.user import PasswordResetToken, User, UserSession
-from backend.src.models.workout_log import WorkoutSession, WorkoutSessionSnapshot, WorkoutSetLog
+from backend.src.models.workout_log import (
+    WorkoutSession,
+    WorkoutSessionSnapshot,
+    WorkoutSetLog,
+)
 
 from .health_questionnaire import HealthQuestionnaire
 from .protected_zone import ProtectedZone

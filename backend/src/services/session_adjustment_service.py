@@ -4,10 +4,10 @@ El ajuste reescribe ese día en la copia de la rutina del alumno (como una edici
 Si el alumno está entrenando, queda pendiente para no alterar la sesión en curso.
 """
 
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from copy import deepcopy
-import threading
 
 from fastapi import status
 from sqlalchemy import func, select
@@ -25,7 +25,11 @@ from backend.src.models.session_adjustment import SessionAdjustment
 from backend.src.models.student_routine import RoutineChangeLog, StudentRoutine
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.user import User
-from backend.src.models.workout_log import WorkoutSession, WorkoutSessionSnapshot, WorkoutSetLog
+from backend.src.models.workout_log import (
+    WorkoutSession,
+    WorkoutSessionSnapshot,
+    WorkoutSetLog,
+)
 from backend.src.schemas.session_adjustment import (
     AdjustmentBlock,
     AdjustmentEntry,
