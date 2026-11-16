@@ -160,6 +160,7 @@
 .session-comparison__delta--up { color: var(--pf-ok-text); }
 .session-comparison__delta--down { color: #9a3412; }
 .session-comparison__delta--same { color: var(--pf-muted); }
+.session-comparison__delta--neutral { color: var(--pf-muted); }
 
 /* US-26: ajuste de la próxima sesión */
 .session-adjustment__toggle { margin-bottom: 4px; }

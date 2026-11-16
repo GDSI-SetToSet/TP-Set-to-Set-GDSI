@@ -5,6 +5,7 @@ import type { AlternativesResponse, ExerciseAlternative } from '../types/exercis
 interface Props {
   exerciseId: string;
   dayName: string;
+  sessionId?: string | null;
   chosen: ExerciseAlternative | null;
   /** null = volver al ejercicio original; la elección vale solo para la sesión en curso. */
   onChosen: (alternative: ExerciseAlternative | null) => void;
@@ -12,7 +13,7 @@ interface Props {
 }
 
 /** US-54: el alumno pide alternativas del mismo grupo muscular y elige una o saltea el ejercicio. */
-export function ExerciseAlternativesPanel({ exerciseId, dayName, chosen, onChosen, onSkip }: Props) {
+export function ExerciseAlternativesPanel({ exerciseId, dayName, sessionId, chosen, onChosen, onSkip }: Props) {
   const [result, setResult] = useState<AlternativesResponse | null>(null);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState('');
@@ -37,7 +38,12 @@ export function ExerciseAlternativesPanel({ exerciseId, dayName, chosen, onChose
     setError('');
     setBusy(true);
     try {
-      await saveReplacement({ day_name: dayName, original_exercise_id: exerciseId, replacement_exercise_id: alternative?.exercise_id ?? null });
+      await saveReplacement({
+        day_name: dayName,
+        original_exercise_id: exerciseId,
+        replacement_exercise_id: alternative?.exercise_id ?? null,
+        session_id: sessionId ?? null,
+      });
       // con variante segura, lo que el alumno hace (y registra) es la variante
       onChosen(alternative?.variant ? { ...alternative, exercise_id: alternative.variant.exercise_id, name: alternative.variant.name, variant: null } : alternative);
       setOpen(false);

@@ -41,3 +41,56 @@ export function formatKg(value) {
   if (!isNumber(value)) return '—';
   return `${value.toLocaleString('es-AR', NUMBER_FORMAT)} kg`;
 }
+
+/** Diferencia firmada de duración (`+5 min`, `−30 s`, `Sin cambios`); null si falta alguno de los valores. */
+export function formatDurationDelta(currentSeconds, referenceSeconds) {
+  if (!isNumber(currentSeconds) || !isNumber(referenceSeconds)) return null;
+  const delta = Math.round(currentSeconds - referenceSeconds);
+  if (delta === 0) return 'Sin cambios';
+  const sign = delta > 0 ? '+' : '−';
+  const abs = Math.abs(delta);
+  const hours = Math.floor(abs / 3600);
+  const minutes = Math.floor((abs % 3600) / 60);
+  const secs = abs % 60;
+  if (hours > 0) return `${sign}${hours} h ${String(minutes).padStart(2, '0')} min`;
+  if (minutes > 0) return secs ? `${sign}${minutes} min ${secs} s` : `${sign}${minutes} min`;
+  return `${sign}${secs} s`;
+}
+
+/** Tono neutro para deltas temporales: tardar menos no implica caída de rendimiento ni carga. */
+export function durationDeltaTone(currentSeconds, referenceSeconds) {
+  if (!isNumber(currentSeconds) || !isNumber(referenceSeconds)) return null;
+  return 'neutral';
+}
+
+/**
+ * Clasifica un ítem de SessionComparison distinguiendo:
+ * - 'replaced': ejercicio planificado y reemplazado en la sesión actual
+ * - 'planned': ejercicio planificado normalmente
+ * - 'unplanned': ejercicio realizado fuera de lo planificado
+ * - 'replaced_from_previous': ejercicio de la sesión previa reemplazado en esta sesión
+ * - 'previous_only': ejercicio presente únicamente en la sesión previa
+ */
+export function classifyComparisonExercise(exercise, allExercises = []) {
+  if (exercise?.replaced_exercise_name) return 'replaced';
+  if (exercise?.planned) return 'planned';
+  if (exercise?.performed) return 'unplanned';
+  const replacedOriginalNames = new Set(
+    (allExercises ?? []).map((item) => item?.replaced_exercise_name).filter(Boolean),
+  );
+  if (exercise?.previous && replacedOriginalNames.has(exercise.exercise_name)) {
+    return 'replaced_from_previous';
+  }
+  if (exercise?.previous) return 'previous_only';
+  return 'planned';
+}
+
+/** Subtítulo descriptivo según la clasificación del ejercicio en comparación; null si es planificado estándar. */
+export function exerciseNoteLabel(exercise, allExercises = []) {
+  const kind = classifyComparisonExercise(exercise, allExercises);
+  if (kind === 'replaced') return `reemplazó a ${exercise.replaced_exercise_name}`;
+  if (kind === 'unplanned') return 'fuera de lo planificado';
+  if (kind === 'replaced_from_previous') return 'reemplazado en esta sesión';
+  if (kind === 'previous_only') return 'solo en sesión previa';
+  return null;
+}

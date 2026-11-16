@@ -29,7 +29,12 @@ import { formatStudentPainReviewedNotice } from '../utils/safetyAlerts.mjs';
 import { RestTimer } from '../components/RestTimer';
 import { getStudentAdjustments } from '../services/sessionAdjustmentService';
 import type { StudentAdjustmentNotice } from '../types/sessionAdjustment';
-import { ADJUSTED_LABEL, isAdjustedExercise, noticeForDay } from '../utils/sessionAdjustment.mjs';
+import {
+  ADJUSTED_LABEL,
+  isAdjustedExercise,
+  noticeForDay,
+  resolveInitialSetDraft,
+} from '../utils/sessionAdjustment.mjs';
 import { ROUTES } from '../constants/routes';
 import {
   createAssignedRoutineWorkoutLog,
@@ -191,7 +196,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       })
       .catch(() => setError('No pudimos cargar tu rutina. Intentá nuevamente.'))
       .finally(() => setLoading(false));
-  }, [requestedDayId]);
+  }, [requestedDayId, sessionMode]);
 
   // US-64: devoluciones del entrenador. Al abrir una sesión se muestran las no vistas y se marcan como vistas.
   useEffect(() => {
@@ -392,14 +397,11 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     let nextSet = 1;
     while (nextSet <= item.sets && recordedSetNumbers.has(nextSet)) nextSet += 1;
     const previousLog = getPreviousLog(item);
-    const defaultWeight = previousLog?.weight_kg !== null && previousLog?.weight_kg !== undefined
-      ? String(previousLog.weight_kg)
-      : isHomeModality ? '0' : item.target_weight_kg !== null ? String(item.target_weight_kg) : '';
-    return {
-      setNumber: String(nextSet),
-      repsCompleted: previousLog?.reps_completed ?? item.reps,
-      weightKg: defaultWeight,
-    };
+    return resolveInitialSetDraft(item, previousLog, {
+      isAdjusted: isAdjustedExercise(selectedNotice, item.exercise.id),
+      isHomeModality,
+      nextSet,
+    });
   };
 
   const updateDraftField = (item: RoutineExercise, field: keyof SetLogDraft, value: string) => {
@@ -460,6 +462,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       const refreshedDay = refreshed?.days.find((day) => day.name === selectedDay.name) ?? selectedDay;
       if (refreshed) setRoutine(refreshed);
       setAdjustments(adjusted);
+      setLogDrafts({});
       setSelectedDayId(refreshedDay.id);
       navigate(ROUTES.studentRoutineSession + '?day=' + encodeURIComponent(refreshedDay.id) + '&session=' + encodeURIComponent(session.id) + '&startedAt=' + encodeURIComponent(String(startedAt)));
     } catch {
@@ -919,6 +922,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                           <ExerciseAlternativesPanel
                             exerciseId={item.exercise.id}
                             dayName={selectedDay?.name ?? ''}
+                            sessionId={sessionMode ? sessionId : null}
                             chosen={replacements[item.id] ?? null}
                             onChosen={(alt) => setReplacements((current) => {
                               const { [item.id]: _removed, ...rest } = current;
@@ -1249,6 +1253,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                         day_name: selectedDay.name,
                         original_exercise_id: targetExercise.exercise.id,
                         replacement_exercise_id: variantExercise.exercise_id,
+                        session_id: sessionId,
                       }).catch(() => {});
                     }
                     setReplacements((current) => ({
@@ -1273,6 +1278,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                         day_name: selectedDay.name,
                         original_exercise_id: targetExercise.exercise.id,
                         replacement_exercise_id: null,
+                        session_id: sessionId,
                       }).catch(() => {});
                     }
                     setSkipped((current) => [...current, targetExercise.id]);

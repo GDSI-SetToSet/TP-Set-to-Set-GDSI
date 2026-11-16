@@ -22,6 +22,7 @@ class StudentRoutine(Base):
     )
     source_template_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     source_kind: Mapped[str] = mapped_column(String(16), default="GENERIC", nullable=False)
+    routine_assignment_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     duration_weeks: Mapped[int] = mapped_column(Integer, nullable=False)
     intensity: Mapped[str] = mapped_column(String(16), nullable=False)

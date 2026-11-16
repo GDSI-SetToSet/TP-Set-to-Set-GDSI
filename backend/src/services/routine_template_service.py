@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from backend.src.core.constants import VALIDATION_ERROR_MESSAGE
 from backend.src.models.assigned_routine import AssignedRoutine
 from backend.src.models.exercise import Exercise
+from backend.src.models.exercise_replacement_log import ExerciseReplacementLog
 from backend.src.models.notification import Notification
 from backend.src.models.personal_record import PersonalRecord
 from backend.src.models.routine_template import (
@@ -23,8 +24,8 @@ from backend.src.models.student_routine import StudentRoutine
 from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.training_relationship import TrainingRelationship
-from backend.src.models.user import User
-from backend.src.models.workout_log import WorkoutSession, WorkoutSetLog
+from backend.src.models.user import User, new_id
+from backend.src.models.workout_log import WorkoutSession, WorkoutSessionSnapshot, WorkoutSetLog
 from backend.src.schemas.routine_template import (
     RoutineModalityUpdate,
     RoutineTemplateInput,
@@ -360,84 +361,206 @@ def update_student_routine_modality(
     return routine_view
 
 
+def _snapshot_day_blocks(routine_view: RoutineTemplate | dict, day_name: str) -> list[dict[str, Any]]:
+    """Serializa los bloques planificados del día para conservarlos inmutables al iniciar la sesión."""
+    is_template = isinstance(routine_view, RoutineTemplate)
+    days = routine_view.days if is_template else routine_view["days"]
+    target_day = next(
+        (d for d in days if (d.name if is_template else d["name"]) == day_name),
+        None,
+    )
+    if target_day is None:
+        return []
+    blocks = target_day.blocks if is_template else target_day["blocks"]
+    serialized: list[dict[str, Any]] = []
+    for block in blocks:
+        if is_template:
+            exercises = [
+                {
+                    "id": entry.id,
+                    "exercise_id": entry.exercise_id,
+                    "sets": entry.sets,
+                    "reps": entry.reps,
+                    "rest_seconds": entry.rest_seconds,
+                    "target_weight_kg": float(entry.target_weight_kg) if entry.target_weight_kg is not None else None,
+                }
+                for entry in block.exercises
+            ]
+            serialized.append(
+                {
+                    "id": block.id,
+                    "name": block.name,
+                    "estimated_duration_minutes": block.estimated_duration_minutes,
+                    "exercises": exercises,
+                }
+            )
+        else:
+            exercises = [
+                {
+                    "id": entry.get("id"),
+                    "exercise_id": entry["exercise"].id,
+                    "sets": entry["sets"],
+                    "reps": entry["reps"],
+                    "rest_seconds": entry["rest_seconds"],
+                    "target_weight_kg": float(entry["target_weight_kg"])
+                    if entry.get("target_weight_kg") is not None
+                    else None,
+                }
+                for entry in block["exercises"]
+            ]
+            serialized.append(
+                {
+                    "id": block.get("id"),
+                    "name": block["name"],
+                    "estimated_duration_minutes": block.get("estimated_duration_minutes"),
+                    "exercises": exercises,
+                }
+            )
+    return serialized
+
+
 def start_student_workout_session(
     db: Session, user: User, payload: WorkoutSessionStartInput
 ) -> WorkoutSession:
     from backend.src.services.session_adjustment_service import (
         apply_pending_adjustments,
+        relationship_write_lock,
     )
 
-    relationship, routine_view = _resolve_student_active_routine(db, user)
-    if apply_pending_adjustments(db, relationship.id):  # US-26: la sesión que esperaban quedó abandonada
-        relationship, routine_view = _resolve_student_active_routine(db, user)
-    routine_id = routine_view.id if isinstance(routine_view, RoutineTemplate) else routine_view["id"]
-    valid_day_names = {day_name for _, day_name, _, _, _ in _iter_routine_exercises(routine_view)}
-    if payload.day_name not in valid_day_names:
-        raise RoutineTemplateError(VALIDATION_ERROR_STATUS, "El día no pertenece a tu rutina activa.")
+    user_id = user.id
+    relationship, _ = _resolve_student_active_routine(db, user)
+    relationship_id = relationship.id
+    with relationship_write_lock(db, relationship_id, refresh_snapshot=True):
+        reloaded_user = db.get(User, user_id)
+        if reloaded_user is None:
+            raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No tenés una rutina activa asignada.")
+        locked_rel = db.scalar(
+            select(TrainingRelationship).where(TrainingRelationship.id == relationship_id).with_for_update()
+        )
+        relationship, routine_view = _resolve_student_active_routine(db, reloaded_user)
+        if locked_rel is not None:
+            relationship = locked_rel
+        if apply_pending_adjustments(db, relationship.id, commit=False):  # US-26: la sesión que esperaban quedó abandonada
+            relationship, routine_view = _resolve_student_active_routine(db, reloaded_user)
+        routine_id = routine_view.id if isinstance(routine_view, RoutineTemplate) else routine_view["id"]
+        valid_day_names = {day_name for _, day_name, _, _, _ in _iter_routine_exercises(routine_view)}
+        if payload.day_name not in valid_day_names:
+            raise RoutineTemplateError(VALIDATION_ERROR_STATUS, "El día no pertenece a tu rutina activa.")
 
-    session = WorkoutSession(
-        student_id=relationship.student_id,
-        relationship_id=relationship.id,
-        routine_id=routine_id,
-        day_name=payload.day_name,
-        modality=relationship.routine_modality or "GYM",
-        started_at=utc_now(),
-    )
-    db.add(session)
-    db.commit()
-    db.refresh(session)
-    return session
+        assignment_id = relationship.routine_assignment_id
+        if not isinstance(routine_view, RoutineTemplate):
+            sr = db.get(StudentRoutine, routine_id)
+            if sr is not None:
+                assignment_id = assignment_id or sr.routine_assignment_id or new_id()
+                if sr.routine_assignment_id != assignment_id:
+                    sr.routine_assignment_id = assignment_id
+        if assignment_id is None:
+            assignment_id = new_id()
+        if relationship.routine_assignment_id != assignment_id:
+            relationship.routine_assignment_id = assignment_id
+
+        now = utc_now()
+        session = WorkoutSession(
+            student_id=relationship.student_id,
+            relationship_id=relationship.id,
+            routine_id=routine_id,
+            day_name=payload.day_name,
+            modality=relationship.routine_modality or "GYM",
+            started_at=now,
+        )
+        db.add(session)
+        db.flush()
+
+        db.add(
+            WorkoutSessionSnapshot(
+                session_id=session.id,
+                routine_assignment_id=assignment_id,
+                planned_blocks=_snapshot_day_blocks(routine_view, payload.day_name),
+            )
+        )
+
+        # Asociar reemplazos hechos antes de presionar "Iniciar sesión" en el mismo día
+        unassigned_repls = db.scalars(
+            select(ExerciseReplacementLog).where(
+                ExerciseReplacementLog.student_id == relationship.student_id,
+                ExerciseReplacementLog.routine_id == routine_id,
+                ExerciseReplacementLog.day_name == payload.day_name,
+                ExerciseReplacementLog.session_date == now.date(),
+                ExerciseReplacementLog.session_id.is_(None),
+            )
+        ).all()
+        for repl in unassigned_repls:
+            repl.session_id = session.id
+
+        db.commit()
+        db.refresh(session)
+        return session
 
 
 def finish_student_workout_session(
     db: Session, user: User, session_id: str, rpe: int | None = None
 ) -> WorkoutSession:
     profile = get_student_profile(db, user)
-    # MED-01: Bloqueo pesimista para serializar concurrencia y prevenir carreras
-    session = db.scalar(
-        select(WorkoutSession)
-        .where(
+    rel_id = db.scalar(
+        select(WorkoutSession.relationship_id).where(
             WorkoutSession.id == session_id,
             WorkoutSession.student_id == profile.id,
         )
-        .with_for_update()
     )
-    if session is None:
+    if rel_id is None:
         raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No encontramos este entrenamiento.")
-    if session.finished_at is None:
-        from backend.src.services.safety_alert_service import (
-            create_excessive_effort_alert,
-        )
-        from backend.src.services.session_adjustment_service import (
-            apply_pending_adjustments,
-        )
 
-        session.finished_at = utc_now()
-        if rpe is not None:
-            previous_rpe = session.rpe
-            session.rpe = rpe
-            if previous_rpe is None:
-                create_excessive_effort_alert(db, session)
-        db.commit()
-        apply_pending_adjustments(db, session.relationship_id, session.id)  # US-26
-        db.refresh(session)
-    else:
-        if rpe is not None:
-            if session.rpe is None:
-                from backend.src.services.safety_alert_service import (
-                    create_excessive_effort_alert,
-                )
+    from backend.src.services.session_adjustment_service import (
+        apply_pending_adjustments,
+        relationship_write_lock,
+    )
 
+    with relationship_write_lock(db, rel_id, refresh_snapshot=True):
+        db.scalar(
+            select(TrainingRelationship.id).where(TrainingRelationship.id == rel_id).with_for_update()
+        )
+        # MED-01: Bloqueo pesimista para serializar concurrencia y prevenir carreras
+        session = db.scalar(
+            select(WorkoutSession)
+            .where(
+                WorkoutSession.id == session_id,
+                WorkoutSession.student_id == profile.id,
+            )
+            .with_for_update()
+        )
+        if session is None:
+            raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No encontramos este entrenamiento.")
+        if session.finished_at is None:
+            from backend.src.services.safety_alert_service import (
+                create_excessive_effort_alert,
+            )
+
+            session.finished_at = utc_now()
+            if rpe is not None:
+                previous_rpe = session.rpe
                 session.rpe = rpe
-                create_excessive_effort_alert(db, session)
-                db.commit()
-                db.refresh(session)
-            elif session.rpe != rpe:
-                raise RoutineTemplateError(
-                    status.HTTP_409_CONFLICT,
-                    "Este entrenamiento ya cuenta con un reporte de esfuerzo percibido registrado.",
-                )
-    return session
+                if previous_rpe is None:
+                    create_excessive_effort_alert(db, session)
+            apply_pending_adjustments(db, session.relationship_id, session.id, commit=False)  # US-26
+            db.commit()
+            db.refresh(session)
+        else:
+            if rpe is not None:
+                if session.rpe is None:
+                    from backend.src.services.safety_alert_service import (
+                        create_excessive_effort_alert,
+                    )
+
+                    session.rpe = rpe
+                    create_excessive_effort_alert(db, session)
+                    db.commit()
+                    db.refresh(session)
+                elif session.rpe != rpe:
+                    raise RoutineTemplateError(
+                        status.HTTP_409_CONFLICT,
+                        "Este entrenamiento ya cuenta con un reporte de esfuerzo percibido registrado.",
+                    )
+        return session
 
 
 def update_student_workout_session_rpe(
@@ -489,7 +612,14 @@ def create_student_workout_log(
             is_replacement_today,
         )
 
-        exercise = is_replacement_today(db, relationship.student_id, routine_id, payload.day_name, payload.exercise_id)
+        exercise = is_replacement_today(
+            db,
+            relationship.student_id,
+            routine_id,
+            payload.day_name,
+            payload.exercise_id,
+            session_id=payload.session_id,
+        )
     if exercise is None:
         raise RoutineTemplateError(
             VALIDATION_ERROR_STATUS,
@@ -978,8 +1108,12 @@ def assign_routine_to_student(
     relationship.initial_routine_id = routine_template_id
     if routine_template_id is None:
         relationship.routine_assigned_at = None
-    elif previous_routine_id != routine_template_id or relationship.routine_assigned_at is None:
-        relationship.routine_assigned_at = utc_now()
+        relationship.routine_assignment_id = None
+    else:
+        if previous_routine_id != routine_template_id or relationship.routine_assigned_at is None:
+            relationship.routine_assigned_at = utc_now()
+        if previous_routine_id != routine_template_id or relationship.routine_assignment_id is None:
+            relationship.routine_assignment_id = new_id()
     if routine is None or (relationship.routine_modality == "HOME" and not _routine_supports_home(routine)):
         relationship.routine_modality = "GYM"
     db.commit()

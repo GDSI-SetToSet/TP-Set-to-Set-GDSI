@@ -13,7 +13,7 @@ from backend.src.models.routine_template import RoutineTemplate
 from backend.src.models.student_routine import StudentRoutine
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.user import User
-from backend.src.models.workout_log import WorkoutSession, WorkoutSetLog
+from backend.src.models.workout_log import WorkoutSession, WorkoutSessionSnapshot, WorkoutSetLog
 from backend.src.schemas.trainer_student import (
     ExerciseComparison,
     PerformedMetrics,
@@ -66,6 +66,59 @@ def _planned_entries(db: Session, routine_id: str, day_name: str) -> list[dict]:
     return []
 
 
+def _planned_from_blocks(blocks: list[dict]) -> tuple[list[dict], int | None]:
+    entries = [
+        {
+            "exercise_id": entry["exercise_id"],
+            "sets": entry["sets"],
+            "reps": entry["reps"],
+            "target_weight_kg": entry.get("target_weight_kg"),
+        }
+        for block in blocks
+        for entry in block.get("exercises", [])
+    ]
+    minutes = [
+        block.get("estimated_duration_minutes")
+        for block in blocks
+        if block.get("estimated_duration_minutes") is not None
+    ]
+    planned_duration = sum(int(m) * 60 for m in minutes) if minutes else None
+    return entries, planned_duration
+
+
+def _planned_day_snapshot(db: Session, routine_id: str, day_name: str) -> tuple[list[dict], int | None]:
+    """Resuelve ejercicios y duración planificada desde la rutina vigente (fallback sin snapshot)."""
+    student_routine = db.get(StudentRoutine, routine_id)
+    if student_routine is not None:
+        for day in student_routine.days:
+            if day["name"] == day_name:
+                return _planned_from_blocks(day["blocks"])
+        return [], None
+    source = db.get(RoutineTemplate, routine_id) or db.get(AssignedRoutine, routine_id)
+    if source is None:
+        return [], None
+    for day in source.days:
+        if day.name == day_name:
+            entries = [
+                {
+                    "exercise_id": entry.exercise_id,
+                    "sets": entry.sets,
+                    "reps": entry.reps,
+                    "target_weight_kg": entry.target_weight_kg,
+                }
+                for block in day.blocks
+                for entry in block.exercises
+            ]
+            minutes = [
+                block.estimated_duration_minutes
+                for block in day.blocks
+                if block.estimated_duration_minutes is not None
+            ]
+            planned_duration = sum(int(m) * 60 for m in minutes) if minutes else None
+            return entries, planned_duration
+    return [], None
+
+
 def _number(value: object) -> Decimal | None:
     try:
         return Decimal(str(value).strip().replace(",", "."))
@@ -76,6 +129,7 @@ def _number(value: object) -> Decimal | None:
 def _performed(logs: list[WorkoutSetLog]) -> PerformedMetrics:
     ordered = sorted(logs, key=lambda log: (log.set_number, log.recorded_at))
     weights = [log.weight_kg for log in ordered if log.weight_kg is not None]
+    durations = [log.duration_seconds for log in ordered if log.duration_seconds is not None]
     volume = Decimal(0)
     for log in ordered:
         reps = _number(log.reps_completed)
@@ -86,7 +140,7 @@ def _performed(logs: list[WorkoutSetLog]) -> PerformedMetrics:
         reps=[log.reps_completed for log in ordered],
         max_weight_kg=float(max(weights)) if weights else None,
         volume_kg=float(volume),
-        total_duration_seconds=sum(log.duration_seconds or 0 for log in ordered),
+        total_duration_seconds=sum(durations) if durations else None,
     )
 
 
@@ -121,10 +175,11 @@ def _owned_session(db: Session, user: User, session_id: str) -> WorkoutSession:
 def _replacements(db: Session, session: WorkoutSession) -> dict[str, str]:
     """original → reemplazo elegido por el alumno durante la sesión (US-54)."""
     dates = {session.started_at.date(), session.finished_at.date()}
-    return {
+    resolved: dict[str, str] = {
         log.original_exercise_id: log.replacement_exercise_id
         for log in db.scalars(
             select(ExerciseReplacementLog).where(
+                ExerciseReplacementLog.session_id.is_(None),
                 ExerciseReplacementLog.student_id == session.student_id,
                 ExerciseReplacementLog.routine_id == session.routine_id,
                 ExerciseReplacementLog.day_name == session.day_name,
@@ -133,25 +188,53 @@ def _replacements(db: Session, session: WorkoutSession) -> dict[str, str]:
             )
         )
     }
+    for log in db.scalars(
+        select(ExerciseReplacementLog).where(
+            ExerciseReplacementLog.session_id == session.id,
+            ExerciseReplacementLog.replacement_exercise_id.is_not(None),
+        )
+    ):
+        resolved[log.original_exercise_id] = log.replacement_exercise_id
+    return resolved
 
 
 def compare_session(db: Session, user: User, session_id: str) -> SessionComparison:
     session = _owned_session(db, user, session_id)
-    previous = db.scalar(
-        select(WorkoutSession)
-        .where(
-            WorkoutSession.relationship_id == session.relationship_id,
-            WorkoutSession.routine_id == session.routine_id,
-            WorkoutSession.day_name == session.day_name,
-            WorkoutSession.finished_at.is_not(None),
-            WorkoutSession.started_at < session.started_at,
+    snapshot = db.get(WorkoutSessionSnapshot, session.id)
+    assignment_id = snapshot.routine_assignment_id if snapshot is not None else None
+    if assignment_id is not None:
+        previous = db.scalar(
+            select(WorkoutSession)
+            .join(WorkoutSessionSnapshot, WorkoutSessionSnapshot.session_id == WorkoutSession.id)
+            .where(
+                WorkoutSession.relationship_id == session.relationship_id,
+                WorkoutSessionSnapshot.routine_assignment_id == assignment_id,
+                WorkoutSession.day_name == session.day_name,
+                WorkoutSession.finished_at.is_not(None),
+                WorkoutSession.started_at < session.started_at,
+            )
+            .order_by(WorkoutSession.started_at.desc())
+            .limit(1)
         )
-        .order_by(WorkoutSession.started_at.desc())
-        .limit(1)
-    )
+    else:
+        previous = db.scalar(
+            select(WorkoutSession)
+            .where(
+                WorkoutSession.relationship_id == session.relationship_id,
+                WorkoutSession.routine_id == session.routine_id,
+                WorkoutSession.day_name == session.day_name,
+                WorkoutSession.finished_at.is_not(None),
+                WorkoutSession.started_at < session.started_at,
+            )
+            .order_by(WorkoutSession.started_at.desc())
+            .limit(1)
+        )
     current_logs = _logs_by_exercise(db, session)
     previous_logs = _logs_by_exercise(db, previous) if previous else {}
-    planned = _planned_entries(db, session.routine_id, session.day_name)
+    if snapshot is not None:
+        planned, planned_duration_seconds = _planned_from_blocks(snapshot.planned_blocks)
+    else:
+        planned, planned_duration_seconds = _planned_day_snapshot(db, session.routine_id, session.day_name)
     replacements = _replacements(db, session)
 
     names = {
@@ -194,7 +277,7 @@ def compare_session(db: Session, user: User, session_id: str) -> SessionComparis
                 previous=metrics(previous_logs, performed_id),
             )
         )
-    # Ejercicios realizados fuera de lo planificado (p. ej. la rutina cambió después de la sesión).
+    # Ejercicios realizados fuera de lo planificado (p. ej. reemplazos adicionales o ejercicios históricos).
     for exercise_id in current_logs:
         if exercise_id not in seen:
             seen.add(exercise_id)
@@ -206,6 +289,17 @@ def compare_session(db: Session, user: User, session_id: str) -> SessionComparis
                     previous=metrics(previous_logs, exercise_id),
                 )
             )
+    for exercise_id in previous_logs:
+        if exercise_id not in seen:
+            seen.add(exercise_id)
+            exercises.append(
+                ExerciseComparison(
+                    exercise_id=exercise_id,
+                    exercise_name=names.get(exercise_id, ""),
+                    performed=None,
+                    previous=metrics(previous_logs, exercise_id),
+                )
+            )
 
     def total(logs: dict[str, list[WorkoutSetLog]]) -> float:
         return sum((_performed(items).volume_kg for items in logs.values()), 0.0)
@@ -213,6 +307,7 @@ def compare_session(db: Session, user: User, session_id: str) -> SessionComparis
     return SessionComparison(
         session=session_view(session),
         previous_session=session_view(previous) if previous else None,
+        planned_duration_seconds=planned_duration_seconds,
         volume_kg=total(current_logs),
         previous_volume_kg=total(previous_logs) if previous else None,
         exercises=exercises,

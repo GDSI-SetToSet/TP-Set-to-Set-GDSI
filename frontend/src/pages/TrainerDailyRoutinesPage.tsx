@@ -1,5 +1,5 @@
 import { ArrowLeft, BarChart3, ChevronDown, ListChecks, RefreshCw, SlidersHorizontal } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { SessionAdjustmentPanel } from '../components/SessionAdjustmentPanel';
 import { SessionComparison } from '../components/SessionComparison';
@@ -27,6 +27,12 @@ function DailyRoutineDetail({ item }: { item: DailyRoutineItem }) {
   const { session } = item;
   const [comparing, setComparing] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
+
+  useEffect(() => {
+    setComparing(false);
+    setAdjusting(false);
+  }, [session?.id, item.status]);
+
   if (!session) {
     return <p className="daily-routines__muted">El alumno todavía no comenzó su entrenamiento en este día.</p>;
   }
@@ -78,9 +84,9 @@ function DailyRoutineDetail({ item }: { item: DailyRoutineItem }) {
           </button>
         </div>
       )}
-      {comparing ? (
+      {comparing && item.status === 'FINISHED' ? (
         <SessionComparison sessionId={session.id} />
-      ) : adjusting ? (
+      ) : adjusting && item.status === 'FINISHED' ? (
         <SessionAdjustmentPanel sessionId={session.id} />
       ) : item.exercises.length === 0 ? (
         <p className="daily-routines__muted">Todavía no registró series en esta sesión.</p>
@@ -119,14 +125,24 @@ export function TrainerDailyRoutinesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
+  const loadRequestIdRef = useRef(0);
 
   const load = useCallback((selectedDate: string) => {
+    const requestId = ++loadRequestIdRef.current;
     setLoading(true);
     setError('');
     getTrainerDailyRoutines(selectedDate)
-      .then((loaded) => setItems(sortDailyRoutines(loaded)))
-      .catch(() => setError('No pudimos cargar las rutinas del día. Intentá nuevamente.'))
-      .finally(() => setLoading(false));
+      .then((loaded) => {
+        if (loadRequestIdRef.current === requestId) setItems(sortDailyRoutines(loaded));
+      })
+      .catch(() => {
+        if (loadRequestIdRef.current === requestId) {
+          setError('No pudimos cargar las rutinas del día. Intentá nuevamente.');
+        }
+      })
+      .finally(() => {
+        if (loadRequestIdRef.current === requestId) setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
@@ -208,7 +224,10 @@ export function TrainerDailyRoutinesPage() {
                   </button>
                   {open && (
                     <div id={detailId} className="daily-routines__row-body">
-                      <DailyRoutineDetail item={item} />
+                      <DailyRoutineDetail
+                        key={`${item.relationship_id}-${item.session?.id ?? 'none'}-${item.status}`}
+                        item={item}
+                      />
                     </div>
                   )}
                 </li>

@@ -2,7 +2,16 @@ import { useEffect, useState } from 'react';
 import { getSessionComparison } from '../services/trainerStudentService';
 import type { ExerciseComparison, SessionComparison as Comparison } from '../types/trainerStudent';
 import { formatDuration } from '../utils/dailyRoutineFormat.mjs';
-import { deltaTone, formatDelta, formatKg, formatReps, setsCompliance } from '../utils/sessionComparison.mjs';
+import {
+  deltaTone,
+  durationDeltaTone,
+  exerciseNoteLabel,
+  formatDelta,
+  formatDurationDelta,
+  formatKg,
+  formatReps,
+  setsCompliance,
+} from '../utils/sessionComparison.mjs';
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
@@ -24,17 +33,38 @@ function Delta({ current, reference, unit = '', label }: {
   );
 }
 
-function ExerciseRow({ exercise, hasPrevious }: { exercise: ExerciseComparison; hasPrevious: boolean }) {
+function DurationDelta({ current, reference, label }: {
+  current: number | null | undefined;
+  reference: number | null | undefined;
+  label: string;
+}) {
+  const text = formatDurationDelta(current, reference);
+  const tone = durationDeltaTone(current, reference);
+  if (!text || !tone) return null;
+  return (
+    <span className={`session-comparison__delta session-comparison__delta--${tone}`}>
+      {text} <span className="session-comparison__delta-ref">{label}</span>
+    </span>
+  );
+}
+
+function ExerciseRow({
+  exercise,
+  allExercises,
+  hasPrevious,
+}: {
+  exercise: ExerciseComparison;
+  allExercises: ExerciseComparison[];
+  hasPrevious: boolean;
+}) {
   const { planned, performed, previous } = exercise;
   const compliance = setsCompliance(exercise);
+  const noteLabel = exerciseNoteLabel(exercise, allExercises);
   return (
     <div className="daily-routines__exercise session-comparison__exercise">
       <h3>
         {exercise.exercise_name}
-        {exercise.replaced_exercise_name && (
-          <small className="session-comparison__note"> · reemplazó a {exercise.replaced_exercise_name}</small>
-        )}
-        {!planned && <small className="session-comparison__note"> · fuera de lo planificado</small>}
+        {noteLabel && <small className="session-comparison__note"> · {noteLabel}</small>}
       </h3>
       <div className="daily-routines__table-wrap">
         <table>
@@ -51,7 +81,7 @@ function ExerciseRow({ exercise, hasPrevious }: { exercise: ExerciseComparison; 
               <th scope="row">Series</th>
               <td>{planned ? planned.sets : '—'}</td>
               <td>
-                {performed?.sets_completed ?? 0}
+                {performed ? performed.sets_completed : (planned ? 0 : '—')}
                 {compliance && <span className="session-comparison__hint">{compliance}</span>}
               </td>
               {hasPrevious && (
@@ -96,7 +126,16 @@ function ExerciseRow({ exercise, hasPrevious }: { exercise: ExerciseComparison; 
               <th scope="row">Tiempo de series</th>
               <td>—</td>
               <td>{performed ? formatDuration(performed.total_duration_seconds) : '—'}</td>
-              {hasPrevious && <td>{previous ? formatDuration(previous.total_duration_seconds) : '—'}</td>}
+              {hasPrevious && (
+                <td>
+                  {previous ? formatDuration(previous.total_duration_seconds) : '—'}
+                  <DurationDelta
+                    current={performed?.total_duration_seconds}
+                    reference={previous?.total_duration_seconds}
+                    label="vs previa"
+                  />
+                </td>
+              )}
             </tr>
           </tbody>
         </table>
@@ -135,8 +174,13 @@ export function SessionComparison({ sessionId }: { sessionId: string }) {
           <dt>Duración</dt>
           <dd>
             {formatDuration(session.duration_seconds)}
-            {previous && <small> (previa {formatDuration(previous.duration_seconds)})</small>}
+            {comparison.planned_duration_seconds !== null && comparison.planned_duration_seconds !== undefined && (
+              <small> · plan {formatDuration(comparison.planned_duration_seconds)}</small>
+            )}
+            {previous && <small> · previa {formatDuration(previous.duration_seconds)}</small>}
           </dd>
+          <DurationDelta current={session.duration_seconds} reference={comparison.planned_duration_seconds} label="vs plan" />
+          <DurationDelta current={session.duration_seconds} reference={previous?.duration_seconds} label="vs previa" />
         </div>
         <div>
           <dt>RPE</dt>
@@ -152,7 +196,12 @@ export function SessionComparison({ sessionId }: { sessionId: string }) {
         <p className="daily-routines__muted">No hay ejercicios planificados ni registrados para comparar.</p>
       ) : (
         comparison.exercises.map((exercise) => (
-          <ExerciseRow key={exercise.exercise_id} exercise={exercise} hasPrevious={Boolean(previous)} />
+          <ExerciseRow
+            key={exercise.exercise_id}
+            exercise={exercise}
+            allExercises={comparison.exercises}
+            hasPrevious={Boolean(previous)}
+          />
         ))
       )}
     </section>

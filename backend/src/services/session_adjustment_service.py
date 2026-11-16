@@ -4,10 +4,13 @@ El ajuste reescribe ese día en la copia de la rutina del alumno (como una edici
 Si el alumno está entrenando, queda pendiente para no alterar la sesión en curso.
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from copy import deepcopy
+import threading
 
 from fastapi import status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.src.core.constants import (
@@ -22,7 +25,7 @@ from backend.src.models.session_adjustment import SessionAdjustment
 from backend.src.models.student_routine import RoutineChangeLog, StudentRoutine
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.user import User
-from backend.src.models.workout_log import WorkoutSession, WorkoutSetLog
+from backend.src.models.workout_log import WorkoutSession, WorkoutSessionSnapshot, WorkoutSetLog
 from backend.src.schemas.session_adjustment import (
     AdjustmentBlock,
     AdjustmentEntry,
@@ -64,6 +67,26 @@ DRAFT_PENDING_MESSAGE = (
 )
 NO_CHANGES_MESSAGE = "No hiciste cambios: modificá algún ejercicio o agregá una nota."
 NO_MATERIALS_MESSAGE = '"{name}" no tiene alternativa "Sin materiales"'
+
+_RELATIONSHIP_LOCKS_GUARD = threading.Lock()
+_RELATIONSHIP_LOCKS: dict[str, threading.RLock] = {}
+
+
+@contextmanager
+def relationship_write_lock(db: Session, relationship_id: str, *, refresh_snapshot: bool = False) -> Iterator[None]:
+    """Serializa transiciones críticas por vínculo dentro del proceso (p. ej. SQLite sin FOR UPDATE)."""
+    with _RELATIONSHIP_LOCKS_GUARD:
+        lock = _RELATIONSHIP_LOCKS.setdefault(relationship_id, threading.RLock())
+    with lock:
+        # En SQLite, lecturas previas (p. ej. autenticación) dejan un snapshot antiguo; refrescarlo solo en entrada externa.
+        if (
+            refresh_snapshot
+            and db.bind is not None
+            and db.bind.dialect.name == "sqlite"
+            and not (db.new or db.dirty or db.deleted)
+        ):
+            db.rollback()
+        yield
 
 
 def _owned_finished_session(db: Session, user: User, session_id: str) -> tuple[WorkoutSession, TrainingRelationship]:
@@ -109,22 +132,40 @@ def _adjustable_routine(db: Session, relationship: TrainingRelationship, persist
         return routine
     if persist:
         try:
-            return ensure_routine(db, relationship)
+            return ensure_routine(db, relationship, commit=False)
         except RoutineTemplateError:
             return None
     source = _assignable_source(db, relationship.initial_routine_id)
     if source is None or source.trainer_id != relationship.trainer_id:
         return None
-    transient = StudentRoutine(relationship_id=relationship.id, draft_version=0)
+    transient = StudentRoutine(
+        relationship_id=relationship.id,
+        routine_assignment_id=relationship.routine_assignment_id,
+        draft_version=0,
+    )
     _seed(transient, source)
     return transient
 
 
 def _blocked_reason(
-    routine: StudentRoutine | None, relationship: TrainingRelationship, session: WorkoutSession
+    db: Session,
+    routine: StudentRoutine | None,
+    relationship: TrainingRelationship,
+    session: WorkoutSession,
 ) -> str | None:
-    # Antes de crearse la copia, la sesión referencia la rutina asignada (relationship.initial_routine_id).
-    if routine is None or session.routine_id not in {routine.id, relationship.initial_routine_id}:
+    snapshot = db.get(WorkoutSessionSnapshot, session.id)
+    same_assignment = (
+        snapshot is not None
+        and snapshot.routine_assignment_id is not None
+        and routine is not None
+        and relationship.routine_assignment_id is not None
+        and snapshot.routine_assignment_id == relationship.routine_assignment_id
+        and routine.routine_assignment_id in {None, relationship.routine_assignment_id}
+    )
+    if snapshot is not None and snapshot.routine_assignment_id is not None and not same_assignment:
+        return STALE_ROUTINE_MESSAGE
+    # Compatibilidad con sesiones previas al snapshot: antes de crearse la copia, referencian initial_routine_id.
+    if not same_assignment and (routine is None or session.routine_id not in {routine.id, relationship.initial_routine_id}):
         return STALE_ROUTINE_MESSAGE
     if _day_index(routine, session.day_name) is None:
         return MISSING_DAY_MESSAGE
@@ -151,20 +192,16 @@ def _live_adjustment(db: Session, relationship_id: str, day_name: str) -> Sessio
 
 
 def _trained_since(db: Session, adjustment: SessionAdjustment) -> bool:
-    return (
-        db.scalar(
-            select(WorkoutSession.id)
-            .where(
-                WorkoutSession.relationship_id == adjustment.relationship_id,
-                WorkoutSession.routine_id == adjustment.student_routine_id,
-                WorkoutSession.day_name == adjustment.day_name,
-                WorkoutSession.finished_at.is_not(None),
-                WorkoutSession.started_at >= adjustment.applied_at,
-            )
-            .limit(1)
-        )
-        is not None
+    query = select(WorkoutSession.id).where(
+        WorkoutSession.relationship_id == adjustment.relationship_id,
+        WorkoutSession.routine_id == adjustment.student_routine_id,
+        WorkoutSession.day_name == adjustment.day_name,
+        WorkoutSession.finished_at.is_not(None),
+        WorkoutSession.started_at >= adjustment.applied_at,
     )
+    if adjustment.source_session_id:
+        query = query.where(WorkoutSession.id != adjustment.source_session_id)
+    return db.scalar(query.limit(1)) is not None
 
 
 def _adjustment_view(adjustment: SessionAdjustment) -> AdjustmentView:
@@ -191,7 +228,7 @@ def _exercise_names(db: Session, ids: set[str]) -> dict[str, str]:
 def get_adjustment_context(db: Session, user: User, session_id: str) -> SessionAdjustmentContext:
     session, relationship = _owned_finished_session(db, user, session_id)
     routine = _adjustable_routine(db, relationship, persist=False)
-    reason = _blocked_reason(routine, relationship, session)
+    reason = _blocked_reason(db, routine, relationship, session)
 
     logs = list(
         db.scalars(
@@ -230,9 +267,10 @@ def get_adjustment_context(db: Session, user: User, session_id: str) -> SessionA
         if zone.intensity != "NORMAL"
     ]
 
-    replacement_logs = list(
+    legacy_repls = list(
         db.scalars(
             select(ExerciseReplacementLog).where(
+                ExerciseReplacementLog.session_id.is_(None),
                 ExerciseReplacementLog.student_id == session.student_id,
                 ExerciseReplacementLog.routine_id == session.routine_id,
                 ExerciseReplacementLog.day_name == session.day_name,
@@ -240,6 +278,15 @@ def get_adjustment_context(db: Session, user: User, session_id: str) -> SessionA
             )
         )
     )
+    session_repls = list(
+        db.scalars(
+            select(ExerciseReplacementLog).where(ExerciseReplacementLog.session_id == session.id)
+        )
+    )
+    repls_by_exercise: dict[str, ExerciseReplacementLog] = {log.original_exercise_id: log for log in legacy_repls}
+    for log in session_repls:
+        repls_by_exercise[log.original_exercise_id] = log
+    replacement_logs = list(repls_by_exercise.values())
 
     live = _live_adjustment(db, relationship.id, session.day_name)
     if routine is not None and reason in (None, DRAFT_PENDING_MESSAGE):
@@ -308,17 +355,28 @@ def _changed_ids(before: list[dict], after: list[dict]) -> list[str]:
     return changed
 
 
-def _validate(db: Session, relationship: TrainingRelationship, routine: StudentRoutine, days: list[dict]) -> None:
-    retained = {entry["exercise_id"] for day in routine.days for block in day["blocks"] for entry in block["exercises"]}
-    exercises = _validate_draft_content(db, relationship, days, retained)
+def _validate(
+    db: Session,
+    relationship: TrainingRelationship,
+    routine: StudentRoutine,
+    day_name: str,
+    blocks: list[dict],
+) -> None:
+    day_idx = _day_index(routine, day_name)
+    retained = (
+        {entry["exercise_id"] for block in routine.days[day_idx]["blocks"] for entry in block["exercises"]}
+        if day_idx is not None
+        else set()
+    )
+    day_scope = [{"name": day_name, "blocks": blocks}]
+    exercises = _validate_draft_content(db, relationship, day_scope, retained)
     if routine.has_no_materials_alternative:
         errors = [
             {
-                "field": f"days.{di}.blocks.{bi}.exercises.{ei}.exercise_id",
+                "field": f"days.0.blocks.{bi}.exercises.{ei}.exercise_id",
                 "message": NO_MATERIALS_MESSAGE.format(name=exercises[entry["exercise_id"]].name),
             }
-            for di, day in enumerate(days)
-            for bi, block in enumerate(day["blocks"])
+            for bi, block in enumerate(blocks)
             for ei, entry in enumerate(block["exercises"])
             if entry["exercise_id"] not in retained and not exercises[entry["exercise_id"]].has_no_materials_alternative
         ]
@@ -326,13 +384,34 @@ def _validate(db: Session, relationship: TrainingRelationship, routine: StudentR
             raise RoutineTemplateError(422, VALIDATION_ERROR_MESSAGE, errors)
 
 
-def _apply(db: Session, adjustment: SessionAdjustment) -> None:
+def _apply(db: Session, adjustment: SessionAdjustment) -> bool:
     relationship = db.get(TrainingRelationship, adjustment.relationship_id)
-    routine = _adjustable_routine(db, relationship, persist=True) if relationship else None
-    index = _day_index(routine, adjustment.day_name) if routine is not None else None
-    if index is None:
+    if relationship is None:
         adjustment.status = SUPERSEDED
-        return
+        return False
+    source_snapshot = (
+        db.get(WorkoutSessionSnapshot, adjustment.source_session_id)
+        if adjustment.source_session_id
+        else None
+    )
+    if (
+        source_snapshot is not None
+        and source_snapshot.routine_assignment_id is not None
+        and relationship.routine_assignment_id is not None
+        and source_snapshot.routine_assignment_id != relationship.routine_assignment_id
+    ):
+        adjustment.status = SUPERSEDED
+        return False
+    routine = _adjustable_routine(db, relationship, persist=True)
+    index = _day_index(routine, adjustment.day_name) if routine is not None else None
+    if index is None or routine.draft is not None:
+        adjustment.status = SUPERSEDED
+        return False
+    try:
+        _validate(db, relationship, routine, adjustment.day_name, adjustment.blocks)
+    except RoutineTemplateError:
+        adjustment.status = SUPERSEDED
+        return False
     adjustment.student_routine_id = routine.id
     days = deepcopy(routine.days)
     days[index]["blocks"] = deepcopy(adjustment.blocks)
@@ -366,81 +445,124 @@ def _apply(db: Session, adjustment: SessionAdjustment) -> None:
         previous.status = SUPERSEDED
     adjustment.status = APPLIED
     adjustment.applied_at = now
+    return True
+
+
+def _active_in_progress_session_id(db: Session, relationship_id: str) -> str | None:
+    """Devuelve una sesión en curso real; ignora sesiones abandonadas anteriores al último entrenamiento finalizado."""
+    latest_finished_at = db.scalar(
+        select(func.max(WorkoutSession.finished_at)).where(
+            WorkoutSession.relationship_id == relationship_id,
+            WorkoutSession.finished_at.is_not(None),
+        )
+    )
+    query = select(WorkoutSession.id).where(
+        WorkoutSession.relationship_id == relationship_id,
+        WorkoutSession.finished_at.is_(None),
+    )
+    if latest_finished_at is not None:
+        query = query.where(WorkoutSession.started_at >= latest_finished_at)
+    return db.scalar(query.order_by(WorkoutSession.started_at.desc()).limit(1))
 
 
 def save_adjustment(db: Session, user: User, session_id: str, payload: AdjustmentInput) -> AdjustmentView:
-    session, relationship = _owned_finished_session(db, user, session_id)
-    in_progress = db.scalar(
-        select(WorkoutSession.id)
-        .where(WorkoutSession.relationship_id == relationship.id, WorkoutSession.finished_at.is_(None))
-        .order_by(WorkoutSession.started_at.desc())
-        .limit(1)
-    )
-    routine = _adjustable_routine(db, relationship, persist=in_progress is None)
-    reason = _blocked_reason(routine, relationship, session)
-    if reason is not None:
-        raise RoutineTemplateError(status.HTTP_409_CONFLICT, reason)
-
-    index = _day_index(routine, session.day_name)
-    blocks = [block.model_dump() for block in payload.blocks]
-    days = deepcopy(routine.days)
-    days[index]["blocks"] = blocks
-    _validate(db, relationship, routine, days)
-
-    changed = _changed_ids(routine.days[index]["blocks"], blocks)
-    if not changed and payload.note is None:
-        raise RoutineTemplateError(422, NO_CHANGES_MESSAGE)
-
-    for pending in db.scalars(
-        select(SessionAdjustment).where(
-            SessionAdjustment.relationship_id == relationship.id,
-            SessionAdjustment.day_name == session.day_name,
-            SessionAdjustment.status == PENDING,
+    user_id = user.id
+    _, initial_rel = _owned_finished_session(db, user, session_id)
+    relationship_id = initial_rel.id
+    with relationship_write_lock(db, relationship_id, refresh_snapshot=True):
+        reloaded_user = db.get(User, user_id)
+        if reloaded_user is None:
+            raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, NOT_FOUND_MESSAGE)
+        locked_rel = db.scalar(
+            select(TrainingRelationship).where(TrainingRelationship.id == relationship_id).with_for_update()
         )
-    ):
-        pending.status = SUPERSEDED
+        session, relationship = _owned_finished_session(db, reloaded_user, session_id)
+        if locked_rel is not None:
+            relationship = locked_rel
 
-    adjustment = SessionAdjustment(
-        relationship_id=relationship.id,
-        student_routine_id=routine.id,  # None si la copia se crea al aplicar
-        source_session_id=session.id,
-        blocking_session_id=in_progress,
-        trainer_id=relationship.trainer_id,
-        day_name=session.day_name,
-        note=payload.note,
-        blocks=blocks,
-        changed_exercise_ids=changed,
-        status=PENDING,
-        created_at=utc_now(),
-    )
-    db.add(adjustment)
-    db.flush()
-    if in_progress is None:
-        _apply(db, adjustment)
-    db.commit()
-    db.refresh(adjustment)
-    return _adjustment_view(adjustment)
+        in_progress = _active_in_progress_session_id(db, relationship.id)
+        routine = _adjustable_routine(db, relationship, persist=in_progress is None)
+        reason = _blocked_reason(db, routine, relationship, session)
+        if reason is not None:
+            raise RoutineTemplateError(status.HTTP_409_CONFLICT, reason)
+
+        index = _day_index(routine, session.day_name)
+        blocks = [block.model_dump() for block in payload.blocks]
+        _validate(db, relationship, routine, session.day_name, blocks)
+
+        live = _live_adjustment(db, relationship.id, session.day_name)
+        baseline = (
+            deepcopy(live.baseline_blocks)
+            if live is not None and live.baseline_blocks is not None
+            else deepcopy(routine.days[index]["blocks"])
+        )
+        changed = _changed_ids(baseline, blocks)
+        note_changed = payload.note is not None and (live is None or payload.note != live.note)
+        if not changed and not note_changed:
+            raise RoutineTemplateError(422, NO_CHANGES_MESSAGE)
+
+        for pending in db.scalars(
+            select(SessionAdjustment).where(
+                SessionAdjustment.relationship_id == relationship.id,
+                SessionAdjustment.day_name == session.day_name,
+                SessionAdjustment.status == PENDING,
+            )
+        ):
+            pending.status = SUPERSEDED
+
+        adjustment = SessionAdjustment(
+            relationship_id=relationship.id,
+            student_routine_id=routine.id,  # None si la copia se crea al aplicar
+            source_session_id=session.id,
+            blocking_session_id=in_progress,
+            trainer_id=relationship.trainer_id,
+            day_name=session.day_name,
+            note=payload.note,
+            baseline_blocks=baseline,
+            blocks=blocks,
+            changed_exercise_ids=changed,
+            status=PENDING,
+            created_at=utc_now(),
+        )
+        db.add(adjustment)
+        db.flush()
+        if in_progress is None:
+            _apply(db, adjustment)
+        db.commit()
+        db.refresh(adjustment)
+        return _adjustment_view(adjustment)
 
 
-def apply_pending_adjustments(db: Session, relationship_id: str, finished_session_id: str | None = None) -> bool:
+def apply_pending_adjustments(
+    db: Session,
+    relationship_id: str,
+    finished_session_id: str | None = None,
+    *,
+    commit: bool = True,
+) -> bool:
     """Aplica los ajustes que esperaban el fin de una sesión.
 
     Al finalizar una sesión se aplican los que esperaban esa sesión; al iniciar una nueva, todos
     (si el alumno empieza otra, la sesión que bloqueaba quedó abandonada).
     """
-    query = select(SessionAdjustment).where(
-        SessionAdjustment.relationship_id == relationship_id, SessionAdjustment.status == PENDING
-    )
-    if finished_session_id is not None:
-        query = query.where(SessionAdjustment.blocking_session_id == finished_session_id)
-    pending = list(db.scalars(query.order_by(SessionAdjustment.created_at)))
-    if not pending:
-        return False
-    for adjustment in pending:
-        _apply(db, adjustment)
-        db.flush()
-    db.commit()
-    return True
+    with relationship_write_lock(db, relationship_id, refresh_snapshot=commit):
+        db.scalar(select(TrainingRelationship.id).where(TrainingRelationship.id == relationship_id).with_for_update())
+        query = select(SessionAdjustment).where(
+            SessionAdjustment.relationship_id == relationship_id, SessionAdjustment.status == PENDING
+        )
+        if finished_session_id is not None:
+            query = query.where(SessionAdjustment.blocking_session_id == finished_session_id)
+        pending = list(db.scalars(query.order_by(SessionAdjustment.created_at)))
+        if not pending:
+            return False
+        applied_any = False
+        for adjustment in pending:
+            if _apply(db, adjustment):
+                applied_any = True
+            db.flush()
+        if commit:
+            db.commit()
+        return applied_any
 
 
 def list_student_adjustments(db: Session, user: User) -> list[StudentAdjustmentNotice]:
