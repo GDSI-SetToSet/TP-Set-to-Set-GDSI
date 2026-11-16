@@ -8,11 +8,13 @@ import {
   FileText,
   Inbox,
   LogOut,
+  MessageSquare,
   Package,
   Search,
   TrendingUp,
   Shield,
   Sparkles,
+  Stethoscope,
   UserRound,
   Users,
 } from 'lucide-react';
@@ -21,7 +23,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { USER_ROLES } from '../constants/auth';
 import { useAuth } from '../context/AuthContext';
-import { homePath, ROUTES, trainerNotificationPath } from '../constants/routes';
+import { homePath, ROUTES, studentNotificationPath, trainerNotificationPath } from '../constants/routes';
 import { getActivePlans, getTrainerRequests } from '../services/discoveryService';
 import { getRoutineAssignments } from '../services/routineTemplateService';
 import type { ActivePlansResponse, NotificationItem } from '../types/discovery';
@@ -49,6 +51,8 @@ export function HomePage() {
         { label: 'Rutina con IA', description: 'Generá una rutina adaptada con IA para un alumno.', to: ROUTES.trainerGenerateAIRoutine, icon: <Sparkles size={20} /> },
         { label: 'Mis alumnos', description: 'Consultá tus alumnos activos y asignales rutinas.', to: ROUTES.trainerStudents, icon: <Users size={20} />, count: activeStudentsCount, countLabel: 'alumnos activos' },
         { label: 'Rutinas del día', description: 'Seguí en vivo el entrenamiento de hoy de tus alumnos.', to: ROUTES.trainerDailyRoutines, icon: <CalendarCheck size={20} /> },
+        { label: 'Mensajes', description: 'Conversá con tus alumnos y coordiná cambios.', to: ROUTES.trainerMessages, icon: <MessageSquare size={20} /> },
+        { label: 'Consultas técnicas', description: 'Respondé las dudas de tus alumnos sobre ejercicios.', to: ROUTES.trainerTechnicalQueries, icon: <Stethoscope size={20} /> },
         { label: 'Mis ejercicios', description: 'Administrá los ejercicios de tu biblioteca.', to: ROUTES.trainerExercises, icon: <Activity size={20} /> },
         { label: 'Mis paquetes', description: 'Gestioná tus propuestas de entrenamiento.', to: ROUTES.trainerPlans, icon: <Package size={20} /> },
         { label: 'Solicitudes', description: 'Revisá las solicitudes para entrenar con vos.', to: ROUTES.trainerRequests, icon: <Inbox size={20} />, count: pendingRequestsCount, countLabel: 'solicitudes pendientes' },
@@ -56,6 +60,7 @@ export function HomePage() {
     : [
         { label: 'Rutina del día', description: 'Consultá los ejercicios y bloques asignados.', to: ROUTES.studentRoutines, icon: <Dumbbell size={20} />, featured: true },
         { label: 'Mi evolución', description: 'Seguí tus cargas, volumen semanal y récords.', to: ROUTES.studentProgress, icon: <TrendingUp size={20} /> },
+        { label: 'Mensajes', description: 'Escribile a tu entrenador y resolvé dudas.', to: ROUTES.studentMessages, icon: <MessageSquare size={20} /> },
         { label: 'Mis entrenadores', description: 'Revisá tus vínculos de entrenamiento.', to: ROUTES.studentActivePlans, icon: <Users size={20} />, count: activeLinksCount, countLabel: 'entrenadores activos' },
         { label: 'Buscar entrenadores', description: 'Encontrá un entrenador para empezar.', to: ROUTES.trainerSearch, icon: <Search size={20} /> },
         { label: 'Cuestionario de salud', description: healthQuestionnaireCompleted === false ? 'Es necesario completarlo para que tu entrenador diseñe una rutina segura.' : 'Actualizá la información de salud.', to: ROUTES.studentHealth, icon: <ClipboardList size={20} />, warning: healthQuestionnaireCompleted === false },
@@ -140,7 +145,7 @@ export function HomePage() {
 
   async function handleNotificationClick(notification: NotificationItem) {
     if (user?.role === USER_ROLES.student) {
-      navigate(notification.type === 'EFFORT_FEEDBACK' ? ROUTES.studentRoutines : ROUTES.studentActivePlans);
+      navigate(studentNotificationPath(notification));
     } else if (user?.role === USER_ROLES.trainer) {
       if (notification.type === 'PROTECTED_ZONES_UPDATED' && notification.related_student_id) {
         const studentId = notification.related_student_id;

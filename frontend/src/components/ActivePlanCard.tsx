@@ -1,4 +1,6 @@
 import { Calendar, CheckCircle2, Clock, Dumbbell, Mail, MessageSquare, Phone, UserCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '../constants/routes';
 import type { ActivePlanResponse } from '../types/discovery';
 
 interface ActivePlanCardProps {
@@ -61,6 +63,14 @@ export function ActivePlanCard({ plan, onRoutineClick }: ActivePlanCardProps) {
                   </span>
                 )}
               </div>
+            )}
+            {!isPending && plan.relationship_id && (
+              <Link
+                className="active-plan-card__message-link"
+                to={`${ROUTES.studentMessages}?relationshipId=${encodeURIComponent(plan.relationship_id)}`}
+              >
+                <MessageSquare size={15} aria-hidden="true" /> Enviar mensaje
+              </Link>
             )}
           </div>
         </section>

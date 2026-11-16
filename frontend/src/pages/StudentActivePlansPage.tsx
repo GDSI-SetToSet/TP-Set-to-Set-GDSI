@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ActivePlanCard } from '../components/ActivePlanCard';
 import { NotificationBell } from '../components/NotificationBell';
-import { ROUTES } from '../constants/routes';
+import { ROUTES, studentNotificationPath } from '../constants/routes';
 import { getActivePlans } from '../services/discoveryService';
 import type { ActivePlansResponse, NotificationItem } from '../types/discovery';
 
@@ -30,7 +30,7 @@ export function StudentActivePlansPage() {
   }, [loadActivePlans]);
 
   function handleNotificationClick(notification: NotificationItem) {
-    navigate(notification.type === 'EFFORT_FEEDBACK' ? ROUTES.studentRoutines : ROUTES.studentActivePlans);
+    navigate(studentNotificationPath(notification));
   }
 
   return (

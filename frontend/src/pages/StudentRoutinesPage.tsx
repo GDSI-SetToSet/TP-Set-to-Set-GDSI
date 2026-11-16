@@ -22,6 +22,10 @@ import {
   type SessionTimerState,
 } from './studentRoutineSessionState.mjs';
 import { ExerciseAlternativesPanel } from '../components/ExerciseAlternativesPanel';
+import { ExerciseQueriesPanel } from '../components/ExerciseQueriesPanel';
+import { TechnicalNoteNotice } from '../components/TechnicalNoteNotice';
+import { acknowledgeTechnicalNote, getPendingTechnicalNotes, listConversations } from '../services/conversationService';
+import type { TechnicalNoteView } from '../types/conversation';
 import { saveReplacement } from '../services/exerciseAlternativeService';
 import type { ExerciseAlternative } from '../types/exerciseAlternative';
 import { getStudentReviewedPainNotices, markSafetyAlertSeen } from '../services/safetyAlertService';
@@ -168,6 +172,9 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const [clockNow, setClockNow] = useState(Date.now());
   const [autoFinishPending, setAutoFinishPending] = useState(false);
   const [effortFeedback, setEffortFeedback] = useState<EffortFeedback[]>([]);
+  // US-62: conversación del vínculo de la rutina y notas técnicas fijadas pendientes de confirmar.
+  const [queryRelationshipId, setQueryRelationshipId] = useState<string | null>(null);
+  const [technicalNotes, setTechnicalNotes] = useState<TechnicalNoteView[]>([]);
   const [adjustments, setAdjustments] = useState<StudentAdjustmentNotice[]>([]);
   const [unseenFeedback, setUnseenFeedback] = useState<EffortFeedback[]>([]);
   const [effortFeedbackError, setEffortFeedbackError] = useState(false);
@@ -197,6 +204,35 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       .catch(() => setError('No pudimos cargar tu rutina. Intentá nuevamente.'))
       .finally(() => setLoading(false));
   }, [requestedDayId, sessionMode]);
+
+  // US-62: la consulta técnica viaja por la conversación del vínculo con el entrenador de esta rutina.
+  const routineTrainerId = routine?.trainer_id ?? null;
+  useEffect(() => {
+    if (!routineTrainerId) return undefined;
+    let cancelled = false;
+    listConversations()
+      .then((items) => {
+        if (cancelled) return;
+        const match = items.find((item) => item.trainer_id === routineTrainerId && item.can_send);
+        setQueryRelationshipId(match?.relationship_id ?? null);
+        if (match) {
+          getPendingTechnicalNotes()
+            .then((notes) => { if (!cancelled) setTechnicalNotes(notes.filter((note) => note.relationship_id === match.relationship_id)); })
+            .catch(() => undefined);
+        }
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [routineTrainerId]);
+
+  function pendingNotesFor(exerciseId: string): TechnicalNoteView[] {
+    return technicalNotes.filter((note) => note.exercise_id === exerciseId);
+  }
+
+  async function handleAcknowledgeNote(noteId: string) {
+    await acknowledgeTechnicalNote(noteId, sessionMode ? sessionId : null);
+    setTechnicalNotes((current) => current.filter((note) => note.id !== noteId));
+  }
 
   // US-64: devoluciones del entrenador. Al abrir una sesión se muestran las no vistas y se marcan como vistas.
   useEffect(() => {
@@ -995,8 +1031,20 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                             )}
                           </dl>
                         )}
+                        {sessionMode && (
+                          <TechnicalNoteNotice notes={pendingNotesFor(item.exercise.id)} onAcknowledge={handleAcknowledgeNote} />
+                        )}
+                        {queryRelationshipId && (
+                          <ExerciseQueriesPanel
+                            relationshipId={queryRelationshipId}
+                            exerciseId={item.exercise.id}
+                            exerciseName={item.exercise.name}
+                            sets={item.sets}
+                            sessionId={sessionMode ? sessionId : null}
+                          />
+                        )}
                         {(replacements[item.id] || !blockedExerciseIds.includes(item.exercise.id)) && <div className="student-routine-exercise__logger">
-                        {sessionMode && !blockedExerciseIds.includes(item.exercise.id) && !activeSet && !finishedSet && !activeRest && <div className="student-routine-exercise__session-actions"><button type="button" className="student-routine-exercise__log-btn" disabled={getRecordedSetCount(item) >= item.sets} onClick={() => handleStartSet(item)}>{getRecordedSetCount(item) >= item.sets ? 'Series completadas' : 'Iniciar serie'}</button></div>}
+                        {sessionMode && !blockedExerciseIds.includes(item.exercise.id) && pendingNotesFor(item.exercise.id).length === 0 && !activeSet && !finishedSet && !activeRest && <div className="student-routine-exercise__session-actions"><button type="button" className="student-routine-exercise__log-btn" disabled={getRecordedSetCount(item) >= item.sets} onClick={() => handleStartSet(item)}>{getRecordedSetCount(item) >= item.sets ? 'Series completadas' : 'Iniciar serie'}</button></div>}
                         {sessionMode && activeSet?.exerciseId === item.id && <div className="student-routine-exercise__session-actions">
                           <span className="student-routine-exercise__elapsed-clock" role="timer" aria-label="Duración de la serie">{formatClock(activeSetSeconds)}</span>
                           <button type="button" className="student-routine-exercise__log-btn" onClick={() => handleFinishSet(item)}>Finalizar serie</button>

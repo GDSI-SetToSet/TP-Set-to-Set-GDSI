@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, CalendarDays, ChevronUp, Dumbbell, Package, ShieldAlert, Target, UserRound } from 'lucide-react';
+import { Activity, CalendarDays, ChevronUp, Dumbbell, MessageSquare, Package, ShieldAlert, Target, UserRound } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '../constants/routes';
 import { getTrainerStudentSafetyAlerts } from '../services/safetyAlertService';
 import type { SafetyAlertView } from '../types/safetyAlert';
 import type { TrainerStudentDetail as TrainerStudentDetailModel } from '../types/trainerStudent';
@@ -105,6 +107,14 @@ export function TrainerStudentDetail({
           <p>{detail.relationship.package_title || 'Sin paquete informado'}</p>
           <p>{detail.relationship.agreed_monthly_price.toLocaleString('es-AR')} {detail.relationship.agreed_currency} por mes</p>
           <p><CalendarDays size={15} aria-hidden="true" /> Desde: {formatDate(detail.relationship.start_date)}</p>
+          <p>
+            <Link
+              className="trainer-student-detail__message-link"
+              to={`${ROUTES.trainerMessages}?relationshipId=${encodeURIComponent(detail.relationship.id)}`}
+            >
+              <MessageSquare size={15} aria-hidden="true" /> Enviar mensaje
+            </Link>
+          </p>
         </article>
         <article>
           <h3><Target size={18} aria-hidden="true" />Objetivos</h3>
