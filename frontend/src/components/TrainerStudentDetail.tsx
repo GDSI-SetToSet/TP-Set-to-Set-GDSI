@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, CalendarDays, ChevronUp, Dumbbell, MessageSquare, Package, ShieldAlert, Target, UserRound, Wallet } from 'lucide-react';
+import { Activity, CalendarDays, ChevronUp, Dumbbell, MessageSquare, Package, ShieldAlert, Target, UserMinus, UserRound, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { getTrainerStudentSafetyAlerts } from '../services/safetyAlertService';
 import type { SafetyAlertView } from '../types/safetyAlert';
-import type { TrainerStudentDetail as TrainerStudentDetailModel } from '../types/trainerStudent';
+import type { StudentTerminationResult, TrainerStudentDetail as TrainerStudentDetailModel } from '../types/trainerStudent';
+import { StudentTerminationDialog } from './StudentTerminationDialog';
 import { createScopedRequestTracker, executeStudentSafetyAlertsRequest } from '../utils/safetyAlerts.mjs';
 import { PainReportAnalysis } from './PainReportAnalysis';
 import { TrainingEvolution } from './TrainingEvolution';
@@ -15,6 +16,8 @@ interface TrainerStudentDetailProps {
   onClose: () => void;
   safetyRefreshKey?: number;
   onSafetyAlertReviewed?: (studentId: string) => void;
+  /** US-35: se llama después de dar de baja al alumno. */
+  onTerminated?: (result: StudentTerminationResult, studentName: string) => void;
 }
 
 function formatDate(value: string | null): string {
@@ -40,7 +43,9 @@ export function TrainerStudentDetail({
   onClose,
   safetyRefreshKey = 0,
   onSafetyAlertReviewed,
+  onTerminated,
 }: TrainerStudentDetailProps) {
+  const [terminating, setTerminating] = useState(false);
   const fullName = [detail.profile.first_name, detail.profile.last_name].filter(Boolean).join(' ') || 'Alumno';
   const [safetyAlerts, setSafetyAlerts] = useState<SafetyAlertView[]>([]);
   const [safetyLoading, setSafetyLoading] = useState(true);
@@ -92,7 +97,23 @@ export function TrainerStudentDetail({
           Ocultar detalles
         </button>
         <p>Información del perfil, paquete contratado, objetivos, limitaciones, rutina y actividad.</p>
+        {onTerminated && (
+          <button type="button" className="trainer-student-detail__terminate" onClick={() => setTerminating(true)}>
+            <UserMinus size={16} aria-hidden="true" /> Dar de baja
+          </button>
+        )}
       </div>
+      {terminating && onTerminated && (
+        <StudentTerminationDialog
+          studentId={detail.profile.id}
+          studentName={fullName}
+          onClose={() => setTerminating(false)}
+          onTerminated={(result) => {
+            setTerminating(false);
+            onTerminated(result, fullName);
+          }}
+        />
+      )}
 
       <div className="trainer-student-detail__grid">
         <article>
