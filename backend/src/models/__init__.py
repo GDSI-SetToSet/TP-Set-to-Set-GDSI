@@ -8,6 +8,7 @@ from backend.src.models.body_map_report import (
     BodyMapPainReport,
     BodyMapPainReportZone,
 )
+from backend.src.models.conversation import ConversationMessage, TechnicalNote
 from backend.src.models.effort_feedback import EffortFeedback
 from backend.src.models.exercise import Exercise
 from backend.src.models.exercise_replacement_log import ExerciseReplacementLog
@@ -49,6 +50,7 @@ __all__ = [
     "AssignedRoutineExercise",
     "BodyMapPainReport",
     "BodyMapPainReportZone",
+    "ConversationMessage",
     "EffortFeedback",
     "Exercise",
     "ExerciseReplacementLog",
@@ -72,6 +74,7 @@ __all__ = [
     "SessionAdjustment",
     "StudentProfile",
     "StudentRoutine",
+    "TechnicalNote",
     "TrainerProfile",
     "TrainingPlan",
     "TrainingRelationship",

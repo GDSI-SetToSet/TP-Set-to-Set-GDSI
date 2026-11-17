@@ -8,6 +8,7 @@ from backend.src.api.errors import register_exception_handlers
 from backend.src.api.v1.assigned_routines import router as assigned_routines_router
 from backend.src.api.v1.auth import router as auth_router
 from backend.src.api.v1.body_map_reports import router as body_map_reports_router
+from backend.src.api.v1.conversations import router as conversations_router
 from backend.src.api.v1.discovery import router as discovery_router
 from backend.src.api.v1.exercise_alternatives import (
     router as exercise_alternatives_router,
@@ -89,6 +90,7 @@ def create_app(create_tables: bool = True) -> FastAPI:
     register_exception_handlers(app)
     app.include_router(auth_router)
     app.include_router(trainers_router)
+    app.include_router(conversations_router)
     app.include_router(students_router)
     app.include_router(discovery_router)
     app.include_router(exercises_router)

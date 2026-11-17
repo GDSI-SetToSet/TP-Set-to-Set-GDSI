@@ -14,6 +14,8 @@ import { StudentRoutineEditPage } from './pages/StudentRoutineEditPage';
 import { TrainerStudentsPage } from './pages/TrainerStudentsPage';
 import { TrainerDailyRoutinesPage } from './pages/TrainerDailyRoutinesPage';
 import { TrainerSubscriptionsPage } from './pages/TrainerSubscriptionsPage';
+import { MessagesPage } from './pages/MessagesPage';
+import { TrainerTechnicalQueriesPage } from './pages/TrainerTechnicalQueriesPage';
 import { TrainerProfileEditPage } from './pages/TrainerProfileEditPage';
 import { TrainerPlansManagementPage } from './pages/TrainerPlansManagementPage';
 import { TrainerRequestsInboxPage } from './pages/TrainerRequestsInboxPage';
@@ -62,6 +64,8 @@ export default function App() {
       <Route path={ROUTES.trainerStudents} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerStudentsPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerDailyRoutines} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerDailyRoutinesPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerSubscriptions} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerSubscriptionsPage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerMessages} element={<ProtectedRoute role={USER_ROLES.trainer}><MessagesPage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerTechnicalQueries} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerTechnicalQueriesPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerStudentRoutine} element={<ProtectedRoute role={USER_ROLES.trainer}><StudentRoutineEditPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerRequests} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerRequestsInboxPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerRequestDetail} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerRequestDetailPage /></ProtectedRoute>} />
@@ -77,6 +81,7 @@ export default function App() {
       <Route path={ROUTES.studentRoutines} element={<ProtectedRoute role={USER_ROLES.student}><StudentRoutinesPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentRoutineSession} element={<ProtectedRoute role={USER_ROLES.student}><StudentRoutinesPage sessionMode /></ProtectedRoute>} />
       <Route path={ROUTES.studentProgress} element={<ProtectedRoute role={USER_ROLES.student}><StudentProgressPage /></ProtectedRoute>} />
+      <Route path={ROUTES.studentMessages} element={<ProtectedRoute role={USER_ROLES.student}><MessagesPage /></ProtectedRoute>} />
       <Route path={ROUTES.studentActivePlans} element={<ProtectedRoute role={USER_ROLES.student}><StudentActivePlansPage /></ProtectedRoute>} />
     </Routes>
   );

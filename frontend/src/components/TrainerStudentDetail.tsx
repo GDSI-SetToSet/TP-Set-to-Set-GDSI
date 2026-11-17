@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, CalendarDays, ChevronUp, Dumbbell, Package, ShieldAlert, Target, UserRound, Wallet } from 'lucide-react';
+import { Activity, CalendarDays, ChevronUp, Dumbbell, MessageSquare, Package, ShieldAlert, Target, UserRound, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { getTrainerStudentSafetyAlerts } from '../services/safetyAlertService';
@@ -113,6 +113,14 @@ export function TrainerStudentDetail({
               to={`${ROUTES.trainerSubscriptions}?studentId=${encodeURIComponent(detail.profile.id)}`}
             >
               <Wallet size={15} aria-hidden="true" /> Pagos y vencimiento
+            </Link>
+          </p>
+          <p>
+            <Link
+              className="trainer-student-detail__message-link"
+              to={`${ROUTES.trainerMessages}?relationshipId=${encodeURIComponent(detail.relationship.id)}`}
+            >
+              <MessageSquare size={15} aria-hidden="true" /> Enviar mensaje
             </Link>
           </p>
         </article>
