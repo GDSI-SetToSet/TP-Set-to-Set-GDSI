@@ -29,6 +29,7 @@ from backend.src.api.v1.session_adjustments import (
 )
 from backend.src.api.v1.student_routines import router as student_routines_router
 from backend.src.api.v1.students import router as students_router
+from backend.src.api.v1.subscriptions import router as subscriptions_router
 from backend.src.api.v1.trainers import router as trainers_router
 from backend.src.core.config import API_TITLE, API_VERSION, CORS_ALLOWED_ORIGINS
 from backend.src.core.database import Base, engine
@@ -93,6 +94,7 @@ def create_app(create_tables: bool = True) -> FastAPI:
     app.include_router(trainers_router)
     app.include_router(conversations_router)
     app.include_router(achievements_router)
+    app.include_router(subscriptions_router)
     app.include_router(students_router)
     app.include_router(discovery_router)
     app.include_router(exercises_router)

@@ -12,6 +12,7 @@ from backend.src.schemas.informal_payment import (
     PaymentCreate,
     PaymentHistory,
     PaymentMutationResult,
+    PaymentRejectRequest,
     PaymentVoidRequest,
     SubscriptionStatus,
     SubscriptionSummary,
@@ -45,9 +46,11 @@ from backend.src.services.abandonment_risk_service import list_abandonment_risk
 from backend.src.services.daily_routine_tracking_service import list_daily_routines
 from backend.src.services.informal_payment_service import (
     PaymentError,
+    confirm_payment,
     get_payment_history,
     list_subscriptions,
     register_payment,
+    reject_payment,
     void_payment,
 )
 from backend.src.services.safety_alert_service import (
@@ -185,6 +188,28 @@ def own_student_void_payment(
     """US-34: anula un pago con motivo obligatorio; los pagos nunca se eliminan."""
     try:
         return void_payment(db, user, payment_id, payload.reason, day or date.today())
+    except PaymentError as error:
+        handle_error(error)
+
+
+@router.post("/me/payments/{payment_id}/confirm", response_model=PaymentMutationResult)
+def own_student_confirm_payment(
+    payment_id: str, user: CurrentUser, db: DbDep, day: LocalDate = None
+) -> PaymentMutationResult:
+    """US-71 escenario 6: confirma un pago informado por el alumno; extiende el vencimiento."""
+    try:
+        return confirm_payment(db, user, payment_id, day or date.today())
+    except PaymentError as error:
+        handle_error(error)
+
+
+@router.post("/me/payments/{payment_id}/reject", response_model=PaymentMutationResult)
+def own_student_reject_payment(
+    payment_id: str, payload: PaymentRejectRequest, user: CurrentUser, db: DbDep, day: LocalDate = None
+) -> PaymentMutationResult:
+    """US-71 escenario 6: rechaza un pago informado indicando el motivo."""
+    try:
+        return reject_payment(db, user, payment_id, payload.reason, day or date.today())
     except PaymentError as error:
         handle_error(error)
 

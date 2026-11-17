@@ -1433,6 +1433,26 @@ def test_apply_migrations_creates_achievement_tables_idempotently():
     assert "uq_student_achievements_student_code" in uniques
 
 
+def test_apply_migrations_adds_us71_payment_columns_keeping_trainer_source():
+    """US-71: columnas de confirmación y comprobante sobre la tabla de US-34; los pagos existentes quedan como TRAINER."""
+    engine = make_legacy_engine()
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE informal_payments (id VARCHAR(36) PRIMARY KEY, status VARCHAR(24))"))
+        conn.execute(text("INSERT INTO informal_payments VALUES ('p1', 'CONFIRMADO')"))
+
+    apply_migrations(engine)
+    apply_migrations(engine)
+
+    cols = {c["name"] for c in inspect(engine).get_columns("informal_payments")}
+    for col in (
+        "source", "confirmed_by_user_id", "confirmed_at", "rejected_by_user_id", "rejected_at",
+        "rejection_reason", "receipt_path", "receipt_filename", "receipt_mime_type", "receipt_size",
+    ):
+        assert col in cols
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT id, source FROM informal_payments")).all() == [("p1", "TRAINER")]
+
+
 def test_apply_migrations_adds_termination_category_idempotently():
     """US-35: la migración agrega termination_category a training_relationships sin perder filas."""
     engine = make_legacy_engine()
