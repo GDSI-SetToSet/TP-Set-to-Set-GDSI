@@ -51,6 +51,7 @@ function messagesPath(base: string, relationshipId: string | null | undefined): 
 
 export function studentNotificationPath(notification: Pick<NotificationItem, 'type' | 'related_entity_id'>): string {
   if (notification.type === 'NEW_MESSAGE') return messagesPath(ROUTES.studentMessages, notification.related_entity_id);
+  // US-35: la baja lleva a "Mis entrenadores" (por defecto).
   return notification.type === 'EFFORT_FEEDBACK' ? ROUTES.studentRoutines : ROUTES.studentActivePlans;
 }
 

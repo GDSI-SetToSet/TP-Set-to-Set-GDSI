@@ -246,6 +246,13 @@ TARGET_COLUMNS: tuple[ColumnMigration, ...] = (
         nullable=True,
     ),
     ColumnMigration(
+        table="training_relationships",
+        column="termination_category",
+        sqlite_type="VARCHAR(24)",
+        postgres_type="VARCHAR(24)",
+        nullable=True,
+    ),
+    ColumnMigration(
         table="student_routines",
         column="routine_assignment_id",
         sqlite_type="VARCHAR(36)",

@@ -32,6 +32,13 @@
 - Q: ¿Cómo ve el entrenador la "misma alerta" (escenario 4)? → A: Un aviso en su inicio con la cantidad de suscripciones vencidas y de pagos por confirmar, que lleva a "Suscripciones". Ahí cada alumno muestra sus pagos informados pendientes.
 - Q: ¿Qué historial ve el alumno (escenario 5)? → A: Todos sus pagos del vínculo con su estado (confirmado, pendiente, rechazado con motivo o anulado con motivo).
 
+### Sesión 2026-11-17 — US-35
+
+- Q: ¿Cómo se indica la razón de la baja? → A: Con una categoría obligatoria ("Falta de pago", "Razones personales" u "Otro motivo") y un detalle de hasta 500 caracteres, obligatorio solo con "Otro motivo".
+- Q: ¿Qué se le informa al alumno? → A: Recibe una notificación "Tu entrenador {nombre} finalizó tu suscripción" con la categoría y el detalle. El formulario le avisa al entrenador que el alumno verá el motivo.
+- Q: ¿Qué cambia al dar de baja? → A: El vínculo pasa a `TERMINATED` con fecha de baja, categoría y detalle. Se libera el cupo, el alumno sale de "Mis alumnos" y de "Suscripciones" (no genera vencimientos), el entrenador pierde el acceso a sus datos de salud (Principio III), la rutina deja de estar disponible para el alumno y el chat queda en modo lectura (US-21). Los pagos y mensajes no se borran.
+- Q: ¿Se puede deshacer? → A: No. Para volver a entrenar, el alumno envía una nueva solicitud (flujo de US-48 y US-07).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-34: Registrar pagos y controlar el estado de las suscripciones] (Priority: P1, Estimación: 4 SP)
