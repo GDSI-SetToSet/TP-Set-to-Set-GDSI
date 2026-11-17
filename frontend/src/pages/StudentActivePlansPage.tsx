@@ -1,33 +1,71 @@
-import { ArrowLeft, Inbox, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Inbox, RefreshCw, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ActivePlanCard } from '../components/ActivePlanCard';
 import { NotificationBell } from '../components/NotificationBell';
+import { PaymentFormDialog } from '../components/PaymentFormDialog';
+import { PaymentHistory } from '../components/PaymentHistory';
 import { ROUTES, studentNotificationPath } from '../constants/routes';
 import { getActivePlans } from '../services/discoveryService';
+import { getStudentPaymentHistory, listStudentSubscriptions } from '../services/paymentService';
 import type { ActivePlansResponse, NotificationItem } from '../types/discovery';
+import type { PaymentHistory as PaymentHistoryData, SubscriptionSummary } from '../types/payment';
+import '../styles/subscriptions.css';
 
 export function StudentActivePlansPage() {
   const navigate = useNavigate();
   const [activePlans, setActivePlans] = useState<ActivePlansResponse>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // US-71: suscripción de cada vínculo, pago informado e historial (`?payments=<relationshipId>`).
+  const [subscriptions, setSubscriptions] = useState<SubscriptionSummary[]>([]);
+  const [reporting, setReporting] = useState<SubscriptionSummary | null>(null);
+  const [history, setHistory] = useState<PaymentHistoryData | null>(null);
+  const [notice, setNotice] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const historyId = searchParams.get('payments');
+
+  const loadSubscriptions = useCallback(async () => {
+    try {
+      setSubscriptions(await listStudentSubscriptions());
+    } catch {
+      setSubscriptions([]);
+    }
+  }, []);
 
   const loadActivePlans = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       setActivePlans(await getActivePlans());
+      void loadSubscriptions();
     } catch {
       setError('No pudimos cargar tus entrenamientos. Intentá nuevamente.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadSubscriptions]);
 
   useEffect(() => {
     void loadActivePlans();
   }, [loadActivePlans]);
+
+  const loadHistory = useCallback(async (relationshipId: string) => {
+    try {
+      setHistory(await getStudentPaymentHistory(relationshipId));
+    } catch {
+      setHistory(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (historyId) void loadHistory(historyId);
+    else setHistory(null);
+  }, [historyId, loadHistory]);
+
+  function subscriptionFor(relationshipId: string | null | undefined): SubscriptionSummary | null {
+    return subscriptions.find((item) => item.relationship_id === relationshipId) ?? null;
+  }
 
   function handleNotificationClick(notification: NotificationItem) {
     navigate(studentNotificationPath(notification));
@@ -82,11 +120,43 @@ export function StudentActivePlansPage() {
                 key={plan.relationship_id ?? plan.request_id ?? plan.trainer?.id ?? index}
                 plan={plan}
                 onRoutineClick={() => navigate(ROUTES.studentRoutines)}
+                subscription={subscriptionFor(plan.relationship_id)}
+                onReportPayment={() => setReporting(subscriptionFor(plan.relationship_id))}
+                onShowPayments={() => plan.relationship_id && setSearchParams({ payments: plan.relationship_id })}
               />
             ))}
           </div>
         )}
+        {notice && <p className="form-alert form-alert--success" role="status">{notice}</p>}
       </section>
+
+      {historyId && history && (
+        <div className="profile-card subscriptions__history">
+          <button type="button" className="subscriptions__close" onClick={() => setSearchParams({})} aria-label="Cerrar historial de pagos">
+            <X size={18} aria-hidden="true" />
+          </button>
+          <PaymentHistory
+            viewer="student"
+            history={history}
+            onRegister={() => setReporting(history.subscription)}
+            onChanged={() => void loadHistory(historyId)}
+          />
+        </div>
+      )}
+
+      {reporting && (
+        <PaymentFormDialog
+          mode="student"
+          subscription={reporting}
+          onClose={() => setReporting(null)}
+          onSaved={(result) => {
+            setReporting(null);
+            setNotice(`Pago informado a ${result.subscription.trainer_name}. Queda pendiente hasta que lo confirme.`);
+            void loadSubscriptions();
+            if (historyId === result.subscription.relationship_id) void loadHistory(historyId);
+          }}
+        />
+      )}
     </main>
   );
 }

@@ -142,6 +142,10 @@ class SubscriptionSummary(BaseModel):
     days_until_due: int
     status: SubscriptionStatus
     last_payment_on: date | None
+    # US-71
+    trainer_id: str = ""
+    trainer_name: str = ""
+    pending_payment_count: int = 0
 
 
 class PaymentView(BaseModel):
@@ -160,6 +164,15 @@ class PaymentView(BaseModel):
     void_reason: str | None
     replaces_payment_id: str | None
     replaced_by_payment_id: str | None
+    # US-71: origen, confirmación o rechazo y comprobante
+    source: Literal["TRAINER", "STUDENT"] = "TRAINER"
+    confirmed_by_name: str | None = None
+    confirmed_at: datetime | None = None
+    rejected_by_name: str | None = None
+    rejected_at: datetime | None = None
+    rejection_reason: str | None = None
+    has_receipt: bool = False
+    receipt_filename: str | None = None
 
 
 class PaymentHistory(BaseModel):
@@ -170,3 +183,18 @@ class PaymentHistory(BaseModel):
 class PaymentMutationResult(BaseModel):
     subscription: SubscriptionSummary
     payment: PaymentView
+
+
+REJECTION_REASON_MESSAGE = "Indicá el motivo del rechazo (entre 5 y 500 caracteres)."
+
+
+class PaymentRejectRequest(BaseModel):
+    reason: str | None = Field(default=None, validate_default=True)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def validate_reason(cls, value: object) -> str:
+        value = value.strip() if isinstance(value, str) else ""
+        if not VOID_REASON_MIN_LENGTH <= len(value) <= VOID_REASON_MAX_LENGTH:
+            raise ValueError(REJECTION_REASON_MESSAGE)
+        return value

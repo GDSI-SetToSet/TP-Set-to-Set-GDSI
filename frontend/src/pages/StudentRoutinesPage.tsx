@@ -26,6 +26,10 @@ import { ExerciseQueriesPanel } from '../components/ExerciseQueriesPanel';
 import { TechnicalNoteNotice } from '../components/TechnicalNoteNotice';
 import { acknowledgeTechnicalNote, getPendingTechnicalNotes, listConversations } from '../services/conversationService';
 import type { TechnicalNoteView } from '../types/conversation';
+import { listStudentSubscriptions } from '../services/paymentService';
+import type { SubscriptionSummary } from '../types/payment';
+import { formatIsoDate } from '../utils/subscriptionFormat';
+import '../styles/subscriptions.css';
 import { saveReplacement } from '../services/exerciseAlternativeService';
 import type { ExerciseAlternative } from '../types/exerciseAlternative';
 import { getStudentReviewedPainNotices, markSafetyAlertSeen } from '../services/safetyAlertService';
@@ -207,6 +211,16 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
 
   // US-62: la consulta técnica viaja por la conversación del vínculo con el entrenador de esta rutina.
   const routineTrainerId = routine?.trainer_id ?? null;
+  // US-71 (FR-006): con la suscripción vencida, la rutina queda bloqueada hasta que el entrenador confirme un pago.
+  const [routineSubscription, setRoutineSubscription] = useState<SubscriptionSummary | null>(null);
+  useEffect(() => {
+    if (!routineTrainerId) return undefined;
+    let cancelled = false;
+    listStudentSubscriptions()
+      .then((items) => { if (!cancelled) setRoutineSubscription(items.find((item) => item.trainer_id === routineTrainerId) ?? null); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [routineTrainerId]);
   useEffect(() => {
     if (!routineTrainerId) return undefined;
     let cancelled = false;
@@ -333,6 +347,34 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   }, [sessionMode, sessionId, selectedDayId]);
 
   if (loading) return <main className="loading-screen"><span className="loading-mark" /> Cargando tu rutina…</main>;
+  if (routineSubscription?.status === 'VENCIDA') {
+    return (
+      <main className="profile-shell">
+        <header className="profile-header">
+          <Link to={ROUTES.studentHome} className="profile-back"><ArrowLeft size={18} /> Volver al inicio</Link>
+        </header>
+        <section className="profile-card routine-locked" role="alert" aria-labelledby="routine-locked-title">
+          <div className="profile-heading">
+            <span>RUTINA BLOQUEADA</span>
+            <h1 id="routine-locked-title">Tu suscripción está vencida</h1>
+            <p>
+              Venció el {formatIsoDate(routineSubscription.due_date)}. Para volver a entrenar, informá tu pago a {routineSubscription.trainer_name}
+              {' '}y esperá a que lo confirme. Tu historial, tu evolución y tus mensajes siguen disponibles.
+            </p>
+            {routineSubscription.pending_payment_count > 0 && (
+              <p className="routine-locked__pending">Ya informaste un pago: falta que tu entrenador lo confirme.</p>
+            )}
+          </div>
+          <div className="routine-locked__actions">
+            <Link to={`${ROUTES.studentActivePlans}?payments=${encodeURIComponent(routineSubscription.relationship_id)}`} className="profile-cta">
+              Informar pago
+            </Link>
+            <Link to={ROUTES.studentProgress} className="plan-cancel">Ver mi evolución</Link>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   const activeModality: RoutineModality = routine?.modality ?? 'GYM';
   const isHomeModality = activeModality === 'HOME';

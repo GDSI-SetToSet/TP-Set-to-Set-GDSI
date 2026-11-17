@@ -20,6 +20,10 @@ export interface SubscriptionSummary {
   days_until_due: number;
   status: SubscriptionStatus;
   last_payment_on: string | null;
+  /** US-71 */
+  trainer_id: string;
+  trainer_name: string;
+  pending_payment_count: number;
 }
 
 export interface PaymentView {
@@ -38,6 +42,15 @@ export interface PaymentView {
   void_reason: string | null;
   replaces_payment_id: string | null;
   replaced_by_payment_id: string | null;
+  /** US-71: origen, confirmación o rechazo y comprobante. */
+  source: 'TRAINER' | 'STUDENT';
+  confirmed_by_name: string | null;
+  confirmed_at: string | null;
+  rejected_by_name: string | null;
+  rejected_at: string | null;
+  rejection_reason: string | null;
+  has_receipt: boolean;
+  receipt_filename: string | null;
 }
 
 export interface PaymentHistory {

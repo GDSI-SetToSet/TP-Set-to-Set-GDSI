@@ -21,6 +21,17 @@
 - Q: ¿Qué incluye y qué no incluye US-34 respecto del estado "Vencida"? → A: US-34 calcula y muestra el estado al entrenador. Las alertas al alumno y al entrenador, y el bloqueo de la "Rutina del día" con la suscripción vencida (FR-006, Decisión Alternativa A), pertenecen a US-71.
 - Q: ¿Cuándo una suscripción está "Por vencer" o "Vencida"? → A: "Por vencer" cuando faltan entre 0 y 5 días para el vencimiento (el día del vencimiento todavía está cubierto); "Vencida" desde el día siguiente al vencimiento. El "hoy" es la fecha local del entrenador.
 
+### Sesión 2026-11-17 — US-71
+
+- Q: ¿Dónde ve el alumno su suscripción (escenarios 1 y 4)? → A: En "Mis entrenadores", en la tarjeta de cada vínculo activo: paquete, vencimiento, estado y acceso a "Informar pago" y al historial. Un alumno con dos entrenadores ve una suscripción por vínculo.
+- Q: ¿Qué es la "alerta" al abrir la aplicación (escenario 2)? → A: Un aviso destacado en el inicio del alumno cuando alguna suscripción está "Por vencer" (0 a 5 días) o "Vencida", con la fecha resaltada y el acceso a "Informar pago". No hay notificaciones push.
+- Q: ¿Qué es el comprobante? → A: Un archivo opcional (PDF, JPG o PNG de hasta 10 MB) en almacenamiento privado, como el apto médico (US-43). Solo lo descargan el alumno y su entrenador.
+- Q: ¿Qué datos informa el alumno (escenario 3)? → A: Los mismos que carga el entrenador en US-34: fecha, monto, medio, meses (1 a 12) y nota opcional, más el comprobante. El pago queda "Pendiente de confirmación", no extiende el vencimiento y el entrenador recibe una notificación.
+- Q: ¿Qué pasa al confirmar o rechazar (escenario 6)? → A: Confirmar lo pasa a "Confirmado", extiende el vencimiento y registra quién y cuándo. Rechazar exige un motivo (5 a 500 caracteres) y lo pasa a "Rechazado". En los dos casos el alumno recibe una notificación. Un pago pendiente o rechazado no se anula.
+- Q: ¿Cómo se aplica el bloqueo con la suscripción vencida (FR-006)? → A: El alumno no puede iniciar sesiones nuevas (el servidor responde 409) y la "Rutina del día" muestra un aviso de bloqueo con "Informar pago" en lugar de la rutina. Conserva su historial, su evolución y los mensajes. El bloqueo se levanta solo cuando el entrenador confirma un pago; un pago informado pendiente no desbloquea.
+- Q: ¿Cómo ve el entrenador la "misma alerta" (escenario 4)? → A: Un aviso en su inicio con la cantidad de suscripciones vencidas y de pagos por confirmar, que lleva a "Suscripciones". Ahí cada alumno muestra sus pagos informados pendientes.
+- Q: ¿Qué historial ve el alumno (escenario 5)? → A: Todos sus pagos del vínculo con su estado (confirmado, pendiente, rechazado con motivo o anulado con motivo).
+
 ### Sesión 2026-11-17 — US-35
 
 - Q: ¿Cómo se indica la razón de la baja? → A: Con una categoría obligatoria ("Falta de pago", "Razones personales" u "Otro motivo") y un detalle de hasta 500 caracteres, obligatorio solo con "Otro motivo".

@@ -16,6 +16,8 @@ from fastapi import UploadFile
 
 # Base configurable: relativa a la raíz del proceso (donde se lanza uvicorn)
 UPLOADS_DIR = Path("backend/uploads/medical_clearances")
+# US-71: comprobantes de pagos informados por el alumno, con las mismas reglas.
+RECEIPTS_DIR = Path("backend/uploads/payment_receipts")
 
 ALLOWED_MIME_TYPES: frozenset[str] = frozenset(
     {"application/pdf", "image/jpeg", "image/png"}
@@ -65,7 +67,7 @@ def sanitize_filename(filename: str | None) -> str:
     return cleaned
 
 
-async def save_upload(student_id: str, file: UploadFile) -> tuple[str, int]:
+async def save_upload(student_id: str, file: UploadFile, base: Path | None = None) -> tuple[str, int]:
     """Valida y persiste el archivo en disco.
 
     Returns:
@@ -99,14 +101,16 @@ async def save_upload(student_id: str, file: UploadFile) -> tuple[str, int]:
     if any(content.startswith(sig) for sig in DANGEROUS_SIGNATURES):
         raise StorageError("Archivo no permitido: contiene ejecutables o scripts no autorizados.")
 
+    # La base se resuelve en cada llamada (no como valor por defecto) para respetar UPLOADS_DIR parcheado.
+    root = base if base is not None else UPLOADS_DIR
     safe_student_dir = sanitize_filename(student_id)
-    base_dir = UPLOADS_DIR.resolve()
-    dest_dir = (UPLOADS_DIR / safe_student_dir).resolve()
+    base_dir = root.resolve()
+    dest_dir = (root / safe_student_dir).resolve()
     if not dest_dir.is_relative_to(base_dir):
         raise StorageError("Ruta de almacenamiento inválida.")
 
     safe_name = f"{uuid.uuid4().hex}_{sanitize_filename(file.filename)}"
-    dest_path = UPLOADS_DIR / safe_student_dir / safe_name
+    dest_path = root / safe_student_dir / safe_name
     if not dest_path.resolve().is_relative_to(base_dir):
         raise StorageError("Ruta de almacenamiento inválida.")
 
@@ -119,19 +123,23 @@ async def save_upload(student_id: str, file: UploadFile) -> tuple[str, int]:
     return str(dest_path), len(content)
 
 
-def open_upload(file_path: str) -> Path:
+def open_upload(
+    file_path: str,
+    base: Path | None = None,
+    not_found: str = "El archivo del certificado no se encontró en el servidor.",
+) -> Path:
     """Devuelve el Path canónico verificando que el archivo existe dentro del directorio permitido.
 
     Raises:
         StorageError: si el archivo no se encuentra en disco, es un symlink o apunta fuera de UPLOADS_DIR.
     """
     if not file_path or "\x00" in file_path:
-        raise StorageError("El archivo del certificado no se encontró en el servidor.")
+        raise StorageError(not_found)
     path = Path(file_path)
     if path.is_symlink():
-        raise StorageError("El archivo del certificado no se encontró en el servidor.")
-    resolved_base = UPLOADS_DIR.resolve()
+        raise StorageError(not_found)
+    resolved_base = (base if base is not None else UPLOADS_DIR).resolve()
     resolved_path = path.resolve()
     if not resolved_path.is_relative_to(resolved_base) or not resolved_path.is_file():
-        raise StorageError("El archivo del certificado no se encontró en el servidor.")
+        raise StorageError(not_found)
     return resolved_path
