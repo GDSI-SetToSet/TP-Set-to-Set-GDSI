@@ -18,6 +18,15 @@
 - Q: ¿Qué series se suman en el volumen semanal? → A: Solo series de trabajo completadas con peso: Σ(kg × reps); calentamiento y ejercicios sin peso quedan excluidos.
 - Q: ¿Qué rango de fechas se muestra por defecto en el gráfico de evolución? → A: Últimas 12 semanas.
 
+### Session 2026-11-17 — US-68
+
+- Q: ¿Qué son las "sesiones semanales acordadas"? → A: La cantidad de días de la rutina vigente del alumno, el mismo criterio de "sesiones programadas" que US-30 y US-32 (una rutina de 3 días equivale a 3 sesiones por semana). Una sesión cuenta cuando está finalizada. Sin rutina asignada no hay racha.
+- Q: ¿Qué es una semana? → A: De lunes a domingo en UTC, como en US-65 y US-30. Se cuentan desde la semana en que se asignó la rutina; las semanas anteriores no suman ni cortan.
+- Q: ¿Cuándo suma o corta la semana en curso? → A: Solo al terminar. Mientras tanto se muestra el avance ("2 de 3 sesiones esta semana") y la semana en curso nunca corta la racha.
+- Q: ¿Qué es la racha actual y la máxima? → A: La actual son las semanas consecutivas cumplidas hasta la última semana terminada; la máxima, la serie más larga del historial. Se calculan a partir de las sesiones finalizadas, sin guardarse.
+- Q: ¿Cuándo llega el mensaje de aliento (escenario 2)? → A: Al abrir el alumno la aplicación después de una semana no cumplida que cortó una racha de al menos una semana: una notificación por cada racha cortada (no se repite).
+- Q: ¿Dónde se ve (escenarios 3 y 4)? → A: El alumno la ve en el inicio, en el acceso a "Rutina del día", y en "Mi evolución". El entrenador, en el detalle del alumno en "Mis alumnos".
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-65: Evolución de cargas, volumen semanal y récords personales (PRs)] (Priority: P2, Estimación: 5 SP)

@@ -51,8 +51,11 @@ function messagesPath(base: string, relationshipId: string | null | undefined): 
 
 export function studentNotificationPath(notification: Pick<NotificationItem, 'type' | 'related_entity_id'>): string {
   if (notification.type === 'NEW_MESSAGE') return messagesPath(ROUTES.studentMessages, notification.related_entity_id);
-  // US-35: la baja lleva a "Mis entrenadores" (por defecto).
-  return notification.type === 'EFFORT_FEEDBACK' ? ROUTES.studentRoutines : ROUTES.studentActivePlans;
+  // US-35: la baja (SUBSCRIPTION_TERMINATED) lleva a "Mis entrenadores" (por defecto).
+  // US-68: el mensaje de aliento por racha cortada lleva a la rutina del día.
+  return notification.type === 'EFFORT_FEEDBACK' || notification.type === 'STREAK_RESET'
+    ? ROUTES.studentRoutines
+    : ROUTES.studentActivePlans;
 }
 
 export function trainerNotificationPath(notification: Pick<
