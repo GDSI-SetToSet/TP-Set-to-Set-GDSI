@@ -238,3 +238,22 @@ export interface TrainingEvolution {
   sets_by_muscle_group: MuscleGroupSets[];
   to_review: ReviewItem[];
 }
+
+/** US-35: baja del alumno. */
+export type TerminationCategory = 'FALTA_DE_PAGO' | 'RAZONES_PERSONALES' | 'OTRO';
+
+export interface StudentTerminationPayload {
+  category: TerminationCategory;
+  detail?: string | null;
+}
+
+export interface StudentTerminationResult {
+  relationship_id: string;
+  student_id: string;
+  status: 'TERMINATED';
+  end_date: string;
+  terminated_at: string;
+  category: TerminationCategory;
+  detail: string | null;
+  available_slots: number;
+}

@@ -1,11 +1,14 @@
 import { api } from './api';
 import type { TrainingStreak } from '../types/studentProgress';
+import { localDateInputValue } from '../utils/dailyRoutineFormat.mjs';
 import type {
   AbandonmentRiskItem,
   DailyRoutineItem,
   EvolutionGrouping,
   EvolutionPeriod,
   SessionComparison,
+  StudentTerminationPayload,
+  StudentTerminationResult,
   TrainerStudentDetail,
   TrainerStudentListItem,
   TrainingEvolution,
@@ -56,5 +59,18 @@ export async function getTrainingEvolution(
 /** US-68: racha del alumno activo. */
 export async function getTrainerStudentStreak(studentId: string): Promise<TrainingStreak> {
   const { data } = await api.get<TrainingStreak>(`${STUDENTS_PATH}/${encodeURIComponent(studentId)}/streak`);
+  return data;
+}
+
+/** US-35: da de baja al alumno con el motivo indicado (fecha local del entrenador). */
+export async function terminateStudent(
+  studentId: string,
+  payload: StudentTerminationPayload,
+): Promise<StudentTerminationResult> {
+  const { data } = await api.post<StudentTerminationResult>(
+    `${STUDENTS_PATH}/${encodeURIComponent(studentId)}/termination`,
+    payload,
+    { params: { date: localDateInputValue() } },
+  );
   return data;
 }

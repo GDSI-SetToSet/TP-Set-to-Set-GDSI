@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 class TrainerStudentListItem(BaseModel):
@@ -282,3 +282,50 @@ class TrainingEvolution(BaseModel):
     rpe: list[RpePoint]
     sets_by_muscle_group: list[MuscleGroupSets]
     to_review: list[ReviewItem]
+
+
+# US-35: baja del alumno ---------------------------------------------------------------------
+
+TerminationCategory = Literal["FALTA_DE_PAGO", "RAZONES_PERSONALES", "OTRO"]
+TERMINATION_CATEGORIES = ("FALTA_DE_PAGO", "RAZONES_PERSONALES", "OTRO")
+TERMINATION_CATEGORY_LABELS = {
+    "FALTA_DE_PAGO": "Falta de pago",
+    "RAZONES_PERSONALES": "Razones personales",
+    "OTRO": "Otro motivo",
+}
+TERMINATION_DETAIL_MAX = 500
+TERMINATION_CATEGORY_MESSAGE = "Elegí el motivo de la baja."
+TERMINATION_DETAIL_MESSAGE = "Contá el motivo de la baja (hasta 500 caracteres)."
+
+
+class StudentTerminationRequest(BaseModel):
+    category: str | None = Field(default=None, validate_default=True)
+    # validate_default: el detalle se valida aunque no venga, para exigirlo con "Otro motivo".
+    detail: str | None = Field(default=None, validate_default=True)
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def validate_category(cls, value: object) -> str:
+        text = value.strip().upper() if isinstance(value, str) else ""
+        if text not in TERMINATION_CATEGORIES:
+            raise ValueError(TERMINATION_CATEGORY_MESSAGE)
+        return text
+
+    @field_validator("detail", mode="before")
+    @classmethod
+    def validate_detail(cls, value: object, info: ValidationInfo) -> str | None:
+        text = value.strip() if isinstance(value, str) else ""
+        if len(text) > TERMINATION_DETAIL_MAX or (info.data.get("category") == "OTRO" and not text):
+            raise ValueError(TERMINATION_DETAIL_MESSAGE)
+        return text or None
+
+
+class StudentTerminationResult(BaseModel):
+    relationship_id: str
+    student_id: str
+    status: Literal["TERMINATED"]
+    end_date: date
+    terminated_at: datetime
+    category: TerminationCategory
+    detail: str | None
+    available_slots: int

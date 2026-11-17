@@ -53,6 +53,7 @@ export function studentNotificationPath(notification: Pick<NotificationItem, 'ty
   if (notification.type === 'NEW_MESSAGE') return messagesPath(ROUTES.studentMessages, notification.related_entity_id);
   // US-67: logros y felicitaciones llevan a "Mi evolución", donde está la sección de logros.
   if (notification.type === 'ACHIEVEMENT_UNLOCKED' || notification.type === 'CONGRATULATION') return ROUTES.studentProgress;
+  // US-35: la baja (SUBSCRIPTION_TERMINATED) lleva a "Mis entrenadores" (por defecto).
   // US-68: el mensaje de aliento por racha cortada lleva a la rutina del día.
   return notification.type === 'EFFORT_FEEDBACK' || notification.type === 'STREAK_RESET'
     ? ROUTES.studentRoutines
