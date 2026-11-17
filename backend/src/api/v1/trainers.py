@@ -21,6 +21,7 @@ from backend.src.schemas.safety_alert import (
     SafetyAlertStatus,
     SafetyAlertView,
 )
+from backend.src.schemas.student_progress import TrainingStreak
 from backend.src.schemas.trainer import (
     TrainerProfileResponse,
     TrainerProfileUpdate,
@@ -54,6 +55,7 @@ from backend.src.services.safety_alert_service import (
     review_safety_alert,
 )
 from backend.src.services.session_comparison_service import compare_session
+from backend.src.services.streak_service import get_trainer_student_streak
 from backend.src.services.trainer_service import (
     TrainerProfileError,
     archive_plan,
@@ -198,6 +200,15 @@ def own_students_abandonment_risk(user: CurrentUser, db: DbDep) -> list[Abandonm
     """US-32: alumnos activos con su riesgo de abandono (en riesgo primero)."""
     try:
         return list_abandonment_risk(db, user)
+    except TrainerStudentError as error:
+        handle_student_error(error)
+
+
+@router.get("/me/students/{student_id}/streak", response_model=TrainingStreak)
+def own_student_training_streak(student_id: str, user: CurrentUser, db: DbDep) -> TrainingStreak:
+    """US-68: racha actual y máxima del alumno activo."""
+    try:
+        return get_trainer_student_streak(db, user, student_id)
     except TrainerStudentError as error:
         handle_student_error(error)
 

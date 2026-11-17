@@ -9,6 +9,9 @@ import { createScopedRequestTracker, executeStudentSafetyAlertsRequest } from '.
 import { PainReportAnalysis } from './PainReportAnalysis';
 import { TrainingEvolution } from './TrainingEvolution';
 import { SafetyAlertListSection } from './SafetyAlertListSection';
+import { StreakCard } from './StreakCard';
+import { getTrainerStudentStreak } from '../services/trainerStudentService';
+import type { TrainingStreak } from '../types/studentProgress';
 
 interface TrainerStudentDetailProps {
   detail: TrainerStudentDetailModel;
@@ -42,6 +45,14 @@ export function TrainerStudentDetail({
   onSafetyAlertReviewed,
 }: TrainerStudentDetailProps) {
   const fullName = [detail.profile.first_name, detail.profile.last_name].filter(Boolean).join(' ') || 'Alumno';
+  // US-68: racha actual y máxima del alumno.
+  const [streak, setStreak] = useState<TrainingStreak | null>(null);
+  useEffect(() => {
+    let active = true;
+    setStreak(null);
+    getTrainerStudentStreak(detail.profile.id).then((loaded) => { if (active) setStreak(loaded); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [detail.profile.id]);
   const [safetyAlerts, setSafetyAlerts] = useState<SafetyAlertView[]>([]);
   const [safetyLoading, setSafetyLoading] = useState(true);
   const [safetyError, setSafetyError] = useState('');
@@ -155,6 +166,7 @@ export function TrainerStudentDetail({
         </article>
         <article className="trainer-student-detail__metrics">
           <h3><Activity size={18} aria-hidden="true" />Métricas</h3>
+          {streak && <StreakCard streak={streak} perspective="trainer" />}
           <div className="trainer-student-detail__metric-list">
             <div><strong>{detail.metrics.finished_sessions}</strong><span>Sesiones finalizadas</span></div>
             <div><strong>{detail.metrics.logged_sets}</strong><span>Series registradas</span></div>

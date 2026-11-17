@@ -1,0 +1,24 @@
+/* US-68: racha de constancia. Contraste ≥ 4.5:1; el estado se comunica con texto. */
+.streak-card {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid #f0c9a0;
+  border-radius: 14px;
+  background: #fff7ee;
+  color: #4a2a08;
+}
+.streak-card--empty { display: flex; gap: 10px; align-items: center; border-color: #dfe6dd; background: #f6f8f5; color: #3d5047; }
+.streak-card p { margin: 0; }
+.streak-card__main { display: flex; gap: 12px; align-items: center; }
+.streak-card__flame { color: #8a6a4a; }
+.streak-card__flame--on { color: #c2410c; }
+.streak-card__value { font-size: 1.5rem; font-weight: 800; line-height: 1.1; }
+.streak-card__label { font-size: .85rem; }
+.streak-card__stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.streak-card__stats div { padding: 8px 10px; border-radius: 10px; background: #fff; }
+.streak-card__stats dt { font-size: .78rem; }
+.streak-card__stats dd { margin: 2px 0 0; font-weight: 700; }
+.streak-card__hint { font-size: .85rem; }
+.home-action__streak { display: inline-flex; gap: 4px; align-items: center; margin-top: 4px; color: inherit; font-size: .8rem; font-weight: 700; }

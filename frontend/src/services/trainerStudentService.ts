@@ -1,4 +1,5 @@
 import { api } from './api';
+import type { TrainingStreak } from '../types/studentProgress';
 import type {
   AbandonmentRiskItem,
   DailyRoutineItem,
@@ -49,5 +50,11 @@ export async function getTrainingEvolution(
   const { data } = await api.get<TrainingEvolution>(`${STUDENTS_PATH}/${studentId}/evolution`, {
     params: { group_by: params.groupBy, period: params.period, muscle_group: params.muscleGroup || undefined },
   });
+  return data;
+}
+
+/** US-68: racha del alumno activo. */
+export async function getTrainerStudentStreak(studentId: string): Promise<TrainingStreak> {
+  const { data } = await api.get<TrainingStreak>(`${STUDENTS_PATH}/${encodeURIComponent(studentId)}/streak`);
   return data;
 }
