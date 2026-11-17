@@ -60,6 +60,12 @@ export function trainerNotificationPath(notification: Pick<
 >): string {
   if (notification.type === 'NEW_MESSAGE') return messagesPath(ROUTES.trainerMessages, notification.related_entity_id);
   if (notification.type === 'TECHNICAL_QUERY') return ROUTES.trainerTechnicalQueries;
+  // US-71: el pago informado lleva al historial del alumno en Suscripciones.
+  if (notification.type === 'PAYMENT_REPORTED') {
+    return notification.related_student_id
+      ? `${ROUTES.trainerSubscriptions}?studentId=${encodeURIComponent(notification.related_student_id)}`
+      : ROUTES.trainerSubscriptions;
+  }
   if (
     notification.type !== 'PAIN_ALERT'
     && notification.type !== 'REPEATED_DISCOMFORT_ALERT'
