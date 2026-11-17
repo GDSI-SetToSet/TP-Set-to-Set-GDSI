@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, CalendarDays, ChevronUp, Dumbbell, MessageSquare, Package, ShieldAlert, Target, UserRound } from 'lucide-react';
+import { Activity, CalendarDays, ChevronUp, Dumbbell, MessageSquare, Package, ShieldAlert, Target, UserRound, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { getTrainerStudentSafetyAlerts } from '../services/safetyAlertService';
@@ -107,6 +107,14 @@ export function TrainerStudentDetail({
           <p>{detail.relationship.package_title || 'Sin paquete informado'}</p>
           <p>{detail.relationship.agreed_monthly_price.toLocaleString('es-AR')} {detail.relationship.agreed_currency} por mes</p>
           <p><CalendarDays size={15} aria-hidden="true" /> Desde: {formatDate(detail.relationship.start_date)}</p>
+          <p>
+            <Link
+              className="trainer-student-detail__payments-link"
+              to={`${ROUTES.trainerSubscriptions}?studentId=${encodeURIComponent(detail.profile.id)}`}
+            >
+              <Wallet size={15} aria-hidden="true" /> Pagos y vencimiento
+            </Link>
+          </p>
           <p>
             <Link
               className="trainer-student-detail__message-link"

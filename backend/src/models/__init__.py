@@ -12,6 +12,7 @@ from backend.src.models.conversation import ConversationMessage, TechnicalNote
 from backend.src.models.effort_feedback import EffortFeedback
 from backend.src.models.exercise import Exercise
 from backend.src.models.exercise_replacement_log import ExerciseReplacementLog
+from backend.src.models.informal_payment import InformalPayment
 from backend.src.models.medical_clearance import MedicalClearance
 from backend.src.models.notification import Notification
 from backend.src.models.personal_record import PersonalRecord
@@ -55,6 +56,7 @@ __all__ = [
     "ExerciseReplacementLog",
     "ExerciseSafeVariant",
     "HealthQuestionnaire",
+    "InformalPayment",
     "MedicalClearance",
     "Notification",
     "PasswordResetToken",

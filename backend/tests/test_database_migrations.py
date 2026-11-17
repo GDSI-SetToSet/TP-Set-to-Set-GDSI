@@ -1388,3 +1388,32 @@ def test_sprint5_us24_us26_schema_migrations_and_lineage_backfill(tmp_path):
     # Idempotencia en segunda ejecución
     assert apply_migrations(engine) == []
     engine.dispose()
+
+
+def test_apply_migrations_creates_informal_payments_table_idempotently():
+    """US-34: la migración crea informal_payments con sus constraints en una base existente y es idempotente."""
+    engine = make_legacy_engine()
+    create_legacy_database(engine)
+    assert "informal_payments" not in inspect(engine).get_table_names()
+
+    apply_migrations(engine)
+    apply_migrations(engine)
+
+    inspector = inspect(engine)
+    assert "informal_payments" in inspector.get_table_names()
+    cols = {c["name"] for c in inspector.get_columns("informal_payments")}
+    for col in (
+        "relationship_id", "paid_on", "amount", "currency", "method", "months_covered", "status",
+        "registered_by_user_id", "voided_at", "voided_by_user_id", "void_reason", "replaces_payment_id",
+    ):
+        assert col in cols
+    checks = {c["name"] for c in inspector.get_check_constraints("informal_payments")}
+    assert {
+        "ck_informal_payments_amount",
+        "ck_informal_payments_method",
+        "ck_informal_payments_months",
+        "ck_informal_payments_status",
+        "ck_informal_payments_void_fields",
+    } <= checks
+    uniques = {u["name"] for u in inspector.get_unique_constraints("informal_payments")}
+    assert "uq_informal_payments_replaces" in uniques

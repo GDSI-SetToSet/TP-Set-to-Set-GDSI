@@ -1,0 +1,203 @@
+openapi: 3.0.3
+info:
+  title: API de pagos informales y suscripciones (entrenador)
+  version: 1.0.0
+  description: >
+    Contrato de US-34. Solo el entrenador autenticado con vínculo activo con el alumno accede.
+    Rol alumno → 403; sin token → 401. No existe operación de borrado de pagos (Constitución, Principio IV).
+paths:
+  /api/v1/trainers/me/subscriptions:
+    get:
+      summary: Suscripciones de los alumnos activos del entrenador (escenario 1)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/LocalDate'
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/SubscriptionStatus' }
+          description: Filtra por estado (opcional)
+      responses:
+        '200':
+          description: Ordenadas VENCIDA → POR_VENCER → AL_DIA y por vencimiento ascendente. Lista vacía si no hay alumnos activos.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/SubscriptionSummary' } }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+  /api/v1/trainers/me/students/{student_id}/payments:
+    parameters:
+      - { in: path, name: student_id, required: true, schema: { type: string } }
+    get:
+      summary: Suscripción e historial completo de pagos del alumno, incluidos los anulados (escenario 5)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/LocalDate'
+      responses:
+        '200':
+          description: Historial por paid_on descendente y created_at descendente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentHistory' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      summary: Registrar un pago recibido por fuera de la app (escenarios 2, 3 y 6)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/LocalDate'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PaymentCreate' }
+      responses:
+        '201':
+          description: Pago CONFIRMADO; la suscripción devuelta ya tiene el vencimiento extendido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentMutationResult' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409':
+          description: replaces_payment_id ya fue reemplazado por otro pago.
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+        '422':
+          description: >
+            Campos faltantes o inválidos, informados todos juntos en errors[] (escenario 3).
+            También se devuelve si replaces_payment_id no existe, es de otro vínculo o no está ANULADO.
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+  /api/v1/trainers/me/payments/{payment_id}/void:
+    parameters:
+      - { in: path, name: payment_id, required: true, schema: { type: string } }
+    post:
+      summary: Anular un pago con motivo obligatorio (escenarios 5 y 6)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/LocalDate'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200':
+          description: Pago ANULADO; la suscripción devuelta ya no cuenta sus meses.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentMutationResult' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404':
+          description: El pago no existe o pertenece a un vínculo de otro entrenador (no se revela cuál).
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+        '409':
+          description: El pago ya estaba anulado.
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+        '422': { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+  parameters:
+    LocalDate:
+      in: query
+      name: date
+      schema: { type: string, format: date }
+      description: Fecha local del entrenador ("hoy") para calcular el estado y validar que paid_on no sea futura. Por defecto, la fecha del servidor.
+  responses:
+    Problem:
+      description: Error RFC 7807 (application/problem+json)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, detail, instance]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        errors:
+          type: array
+          items:
+            type: object
+            properties: { field: { type: string }, message: { type: string } }
+    SubscriptionStatus:
+      type: string
+      enum: [AL_DIA, POR_VENCER, VENCIDA]
+    PaymentMethod:
+      type: string
+      enum: [EFECTIVO, TRANSFERENCIA, OTRO]
+    PaymentStatus:
+      type: string
+      enum: [PENDIENTE_CONFIRMACION, CONFIRMADO, RECHAZADO, ANULADO]
+      description: US-34 solo produce CONFIRMADO y ANULADO.
+    SubscriptionSummary:
+      type: object
+      required: [relationship_id, student_id, student_name, plan_id, plan_title, agreed_monthly_price, currency, start_date, months_paid, due_date, days_until_due, status, last_payment_on]
+      properties:
+        relationship_id: { type: string }
+        student_id: { type: string }
+        student_name: { type: string }
+        plan_id: { type: string }
+        plan_title: { type: string }
+        agreed_monthly_price: { type: string, example: '25000.00', description: Decimal serializado }
+        currency: { type: string, example: ARS }
+        start_date: { type: string, format: date }
+        months_paid: { type: integer, minimum: 0 }
+        due_date: { type: string, format: date }
+        days_until_due: { type: integer, description: Negativo si está vencida }
+        status: { $ref: '#/components/schemas/SubscriptionStatus' }
+        last_payment_on: { type: string, format: date, nullable: true }
+    PaymentCreate:
+      type: object
+      required: [paid_on, amount, method, months_covered]
+      properties:
+        paid_on: { type: string, format: date, description: No posterior a "hoy" }
+        amount: { type: string, example: '25000.00', description: '> 0 y ≤ 9999999.99, 2 decimales' }
+        method: { $ref: '#/components/schemas/PaymentMethod' }
+        months_covered: { type: integer, minimum: 1, maximum: 12 }
+        note: { type: string, maxLength: 500, nullable: true }
+        replaces_payment_id:
+          type: string
+          nullable: true
+          description: Pago ANULADO del mismo vínculo que este registro corrige
+    PaymentView:
+      type: object
+      required: [id, paid_on, amount, currency, method, months_covered, status, registered_by_name, created_at]
+      properties:
+        id: { type: string }
+        paid_on: { type: string, format: date }
+        amount: { type: string }
+        currency: { type: string }
+        method: { $ref: '#/components/schemas/PaymentMethod' }
+        months_covered: { type: integer }
+        status: { $ref: '#/components/schemas/PaymentStatus' }
+        note: { type: string, nullable: true }
+        registered_by_name: { type: string }
+        created_at: { type: string, format: date-time }
+        voided_at: { type: string, format: date-time, nullable: true }
+        voided_by_name: { type: string, nullable: true }
+        void_reason: { type: string, nullable: true }
+        replaces_payment_id: { type: string, nullable: true }
+        replaced_by_payment_id: { type: string, nullable: true }
+    PaymentHistory:
+      type: object
+      required: [subscription, payments]
+      properties:
+        subscription: { $ref: '#/components/schemas/SubscriptionSummary' }
+        payments: { type: array, items: { $ref: '#/components/schemas/PaymentView' } }
+    PaymentMutationResult:
+      type: object
+      required: [subscription, payment]
+      properties:
+        subscription: { $ref: '#/components/schemas/SubscriptionSummary' }
+        payment: { $ref: '#/components/schemas/PaymentView' }

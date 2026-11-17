@@ -13,6 +13,7 @@ import { RoutineTemplatesPage } from './pages/RoutineTemplatesPage';
 import { StudentRoutineEditPage } from './pages/StudentRoutineEditPage';
 import { TrainerStudentsPage } from './pages/TrainerStudentsPage';
 import { TrainerDailyRoutinesPage } from './pages/TrainerDailyRoutinesPage';
+import { TrainerSubscriptionsPage } from './pages/TrainerSubscriptionsPage';
 import { MessagesPage } from './pages/MessagesPage';
 import { TrainerTechnicalQueriesPage } from './pages/TrainerTechnicalQueriesPage';
 import { TrainerProfileEditPage } from './pages/TrainerProfileEditPage';
@@ -62,6 +63,7 @@ export default function App() {
       <Route path={ROUTES.trainerGenerateAIRoutine} element={<ProtectedRoute role={USER_ROLES.trainer}><GenerateAIRoutinePage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerStudents} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerStudentsPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerDailyRoutines} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerDailyRoutinesPage /></ProtectedRoute>} />
+      <Route path={ROUTES.trainerSubscriptions} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerSubscriptionsPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerMessages} element={<ProtectedRoute role={USER_ROLES.trainer}><MessagesPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerTechnicalQueries} element={<ProtectedRoute role={USER_ROLES.trainer}><TrainerTechnicalQueriesPage /></ProtectedRoute>} />
       <Route path={ROUTES.trainerStudentRoutine} element={<ProtectedRoute role={USER_ROLES.trainer}><StudentRoutineEditPage /></ProtectedRoute>} />
