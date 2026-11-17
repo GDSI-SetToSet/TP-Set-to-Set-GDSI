@@ -7,6 +7,7 @@ from sqlalchemy.pool import StaticPool
 from backend.src.core.database import Base, get_db
 from backend.src.main import create_app
 from backend.src.models import (  # noqa: F401
+    AchievementCongratulation,
     AssignedRoutine,
     AssignedRoutineBlock,
     AssignedRoutineDay,
@@ -25,6 +26,7 @@ from backend.src.models import (  # noqa: F401
     RoutineTemplateDay,
     RoutineTemplateExercise,
     SafetyAlert,
+    StudentAchievement,
     TechnicalNote,
     TrainerProfile,
     TrainingPlan,

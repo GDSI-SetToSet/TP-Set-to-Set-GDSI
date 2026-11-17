@@ -1,3 +1,4 @@
+from backend.src.models.achievement import AchievementCongratulation, StudentAchievement
 from backend.src.models.assigned_routine import (
     AssignedRoutine,
     AssignedRoutineBlock,
@@ -44,6 +45,7 @@ from .protected_zone import ProtectedZone
 from .student_profile import StudentProfile
 
 __all__ = [
+    "AchievementCongratulation",
     "AssignedRoutine",
     "AssignedRoutineBlock",
     "AssignedRoutineDay",
@@ -72,6 +74,7 @@ __all__ = [
     "SafeVariantCase",
     "SafetyAlert",
     "SessionAdjustment",
+    "StudentAchievement",
     "StudentProfile",
     "StudentRoutine",
     "TechnicalNote",

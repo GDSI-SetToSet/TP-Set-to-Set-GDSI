@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.src.api.errors import register_exception_handlers
+from backend.src.api.v1.achievements import router as achievements_router
 from backend.src.api.v1.assigned_routines import router as assigned_routines_router
 from backend.src.api.v1.auth import router as auth_router
 from backend.src.api.v1.body_map_reports import router as body_map_reports_router
@@ -92,6 +93,7 @@ def create_app(create_tables: bool = True) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(trainers_router)
     app.include_router(conversations_router)
+    app.include_router(achievements_router)
     app.include_router(subscriptions_router)
     app.include_router(students_router)
     app.include_router(discovery_router)

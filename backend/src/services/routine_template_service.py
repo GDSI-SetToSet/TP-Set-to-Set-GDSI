@@ -555,6 +555,11 @@ def finish_student_workout_session(
             apply_pending_adjustments(db, session.relationship_id, session.id, commit=False)  # US-26
             db.commit()
             db.refresh(session)
+            # US-67: los logros que alcanza esta sesión (nunca impiden finalizarla).
+            from backend.src.services.achievement_service import evaluate_after_session
+
+            evaluate_after_session(db, session)
+            db.refresh(session)
         else:
             if rpe is not None:
                 if session.rpe is None:

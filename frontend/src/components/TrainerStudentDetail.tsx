@@ -11,6 +11,7 @@ import { PainReportAnalysis } from './PainReportAnalysis';
 import { TrainingEvolution } from './TrainingEvolution';
 import { SafetyAlertListSection } from './SafetyAlertListSection';
 import { StreakCard } from './StreakCard';
+import { TrainerAchievements } from './TrainerAchievements';
 import { getTrainerStudentStreak } from '../services/trainerStudentService';
 import type { TrainingStreak } from '../types/studentProgress';
 
@@ -185,6 +186,7 @@ export function TrainerStudentDetail({
           <h3><Dumbbell size={18} aria-hidden="true" />Rutina vigente</h3>
           <p>{detail.routine?.name || 'Sin rutina asignada.'}</p>
         </article>
+        <TrainerAchievements studentId={detail.profile.id} />
         <article className="trainer-student-detail__metrics">
           <h3><Activity size={18} aria-hidden="true" />Métricas</h3>
           {streak && <StreakCard streak={streak} perspective="trainer" />}

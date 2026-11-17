@@ -22,6 +22,7 @@ import {
   type SessionTimerState,
 } from './studentRoutineSessionState.mjs';
 import { ExerciseAlternativesPanel } from '../components/ExerciseAlternativesPanel';
+import { CongratulationBanner } from '../components/CongratulationBanner';
 import { ExerciseQueriesPanel } from '../components/ExerciseQueriesPanel';
 import { TechnicalNoteNotice } from '../components/TechnicalNoteNotice';
 import { acknowledgeTechnicalNote, getPendingTechnicalNotes, listConversations } from '../services/conversationService';
@@ -746,6 +747,8 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
             {startingWorkout ? 'Iniciando…' : 'Comenzar rutina'}
           </button>}
         </div>
+
+        {sessionMode && <CongratulationBanner />}
 
         {error ? (
           <p className="form-alert" role="alert">{error}</p>

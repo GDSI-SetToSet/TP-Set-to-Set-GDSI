@@ -1,10 +1,13 @@
 import { ArrowLeft, Trophy } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AchievementsSection } from '../components/AchievementsSection';
 import { StreakCard } from '../components/StreakCard';
 import { LoadChart, VolumeChart } from '../components/StudentProgressCharts';
 import { ROUTES } from '../constants/routes';
+import { getStudentAchievements } from '../services/achievementService';
 import { getStudentProgress, getStudentStreak } from '../services/studentProgressService';
+import type { AchievementsOverview } from '../types/achievement';
 import type { ProgressFilters, StudentProgress, TrainingStreak } from '../types/studentProgress';
 import { formatNumber } from '../utils/trainingEvolution.mjs';
 import '../styles/training-evolution.css';
@@ -18,10 +21,12 @@ export function StudentProgressPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [streak, setStreak] = useState<TrainingStreak | null>(null);
+  const [achievements, setAchievements] = useState<AchievementsOverview | null>(null);
 
   useEffect(() => {
     let active = true;
     getStudentStreak().then((loaded) => { if (active) setStreak(loaded); }).catch(() => undefined);
+    getStudentAchievements().then((loaded) => { if (active) setAchievements(loaded); }).catch(() => undefined);
     return () => { active = false; };
   }, []);
 
@@ -61,6 +66,7 @@ export function StudentProgressPage() {
           <p>Mirá cómo avanzan tus cargas, tu volumen semanal y tus récords personales.</p>
         </div>
         {streak && <StreakCard streak={streak} />}
+        {achievements && <AchievementsSection overview={achievements} />}
 
         <div className="training-evolution__controls">
           <label>Ejercicio
