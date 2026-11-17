@@ -37,3 +37,11 @@ def subscription_status(due_date: date, today: date) -> tuple[str, int]:
     if days_until_due <= DUE_SOON_DAYS:
         return "POR_VENCER", days_until_due
     return "AL_DIA", days_until_due
+
+
+def current_date() -> date:
+    """"Hoy" del servidor para reglas que no reciben la fecha local del cliente (bloqueo de FR-006).
+
+    Es una función aparte para que las pruebas puedan simular otra fecha.
+    """
+    return date.today()

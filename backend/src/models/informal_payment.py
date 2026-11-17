@@ -80,6 +80,17 @@ class InformalPayment(Base):
     replaces_payment_id: Mapped[str | None] = mapped_column(
         ForeignKey("informal_payments.id"), nullable=True
     )
+    # US-71: origen del registro y circuito de confirmación de pagos informados por el alumno.
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="TRAINER", server_default="TRAINER")
+    confirmed_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rejected_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    receipt_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    receipt_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    receipt_mime_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    receipt_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 @event.listens_for(InformalPayment, "before_delete")

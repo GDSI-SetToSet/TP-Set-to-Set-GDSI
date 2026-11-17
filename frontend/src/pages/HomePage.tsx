@@ -33,6 +33,7 @@ import { streakSummary } from '../components/StreakCard';
 import { getStudentStreak } from '../services/studentProgressService';
 import type { TrainingStreak } from '../types/studentProgress';
 import '../styles/streak.css';
+import { SubscriptionAlert } from '../components/SubscriptionAlert';
 import { getOwnHealthQuestionnaire } from '../services/studentHealthService';
 import '../styles/health-questionnaire.css';
 
@@ -227,6 +228,7 @@ export function HomePage() {
         <h1>{greeting}</h1>
         <p>Ingresaste como <strong>{user?.email}</strong>.</p>
         <div className="role-badge">{isTrainer ? 'Entrenador/a' : 'Alumno/a'}</div>
+        {user && <SubscriptionAlert role={isTrainer ? 'TRAINER' : 'STUDENT'} />}
         <section className="home-actions" aria-labelledby="home-actions-title">
           <div className="home-actions__heading">
             <h2 id="home-actions-title">Accesos rápidos</h2>
