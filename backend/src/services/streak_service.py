@@ -67,20 +67,34 @@ def compute_streak(
     return StreakResult(current, longest, this_week, broken)
 
 
+def streak_reached_on(
+    weekly_target: int, first_week: date, done_by_week: dict[date, int], current_monday: date, weeks: int
+) -> date | None:
+    """US-67: día en que la racha llegó por primera vez a `weeks` semanas (lunes que sigue a la última cumplida)."""
+    if weekly_target <= 0 or weeks <= 0:
+        return None
+    run = 0
+    week = monday(first_week)
+    while week < current_monday:
+        run = run + 1 if done_by_week.get(week, 0) >= weekly_target else 0
+        if run >= weeks:
+            return week + timedelta(weeks=1)
+        week += timedelta(weeks=1)
+    return None
+
+
 def _now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
 
 
-def _relationship_streak(db: Session, relationship: TrainingRelationship) -> tuple[TrainingStreak, StreakResult | None]:
+def relationship_week_data(
+    db: Session, relationship: TrainingRelationship
+) -> tuple[int, date, dict[date, int]] | None:
+    """Objetivo semanal, primera semana y sesiones finalizadas por semana; None sin rutina asignada."""
     now = _now()
-    current_monday = monday(now.date())
     weekly, assigned_at, _ = _weekly_trainings(db, relationship, now)
     if weekly <= 0:
-        empty = TrainingStreak(
-            has_routine=False, weekly_target=0, current_weeks=0, max_weeks=0,
-            this_week_sessions=0, week_start=current_monday,
-        )
-        return empty, None
+        return None
     first_week = monday(assigned_at.date() if assigned_at else relationship.start_date)
     done_by_week: dict[date, int] = defaultdict(int)
     finished = db.scalars(
@@ -92,6 +106,19 @@ def _relationship_streak(db: Session, relationship: TrainingRelationship) -> tup
     for finished_at in finished:
         moment = finished_at.astimezone(UTC).replace(tzinfo=None) if finished_at.tzinfo else finished_at
         done_by_week[monday(moment.date())] += 1
+    return weekly, first_week, done_by_week
+
+
+def _relationship_streak(db: Session, relationship: TrainingRelationship) -> tuple[TrainingStreak, StreakResult | None]:
+    current_monday = monday(_now().date())
+    data = relationship_week_data(db, relationship)
+    if data is None:
+        empty = TrainingStreak(
+            has_routine=False, weekly_target=0, current_weeks=0, max_weeks=0,
+            this_week_sessions=0, week_start=current_monday,
+        )
+        return empty, None
+    weekly, first_week, done_by_week = data
     result = compute_streak(weekly, first_week, done_by_week, current_monday)
     view = TrainingStreak(
         has_routine=True,
@@ -104,7 +131,7 @@ def _relationship_streak(db: Session, relationship: TrainingRelationship) -> tup
     return view, result
 
 
-def _student_routine_relationship(db: Session, profile: StudentProfile) -> TrainingRelationship | None:
+def student_routine_relationship(db: Session, profile: StudentProfile) -> TrainingRelationship | None:
     """Vínculo activo con rutina asignada (el alumno entrena una rutina a la vez)."""
     relationships = db.scalars(
         select(TrainingRelationship)
@@ -148,7 +175,7 @@ def get_student_streak(db: Session, user: User) -> TrainingStreak:
         raise TrainerStudentError(403, "Esta acción está disponible solo para alumnos.")
     current_monday = monday(_now().date())
     profile = user.student_profile
-    relationship = _student_routine_relationship(db, profile) if profile else None
+    relationship = student_routine_relationship(db, profile) if profile else None
     if relationship is None:
         return TrainingStreak(
             has_routine=False, weekly_target=0, current_weeks=0, max_weeks=0,
