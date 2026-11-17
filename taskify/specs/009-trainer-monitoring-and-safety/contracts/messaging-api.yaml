@@ -1,0 +1,205 @@
+openapi: 3.0.3
+info:
+  title: API de mensajes entrenador–alumno y consultas técnicas
+  version: 1.0.0
+  description: >
+    Contrato de US-21 y US-62. La conversación es el vínculo de entrenamiento ({relationship_id}).
+    Solo las dos partes del vínculo acceden (terceros → 404). Enviar requiere vínculo ACTIVE (409).
+paths:
+  /api/v1/conversations:
+    get:
+      summary: Conversaciones del usuario autenticado (vínculos activos y terminados con mensajes)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Ordenadas por último mensaje (sin mensajes, al final).
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ConversationSummary' } } } }
+        '401': { $ref: '#/components/responses/Problem' }
+  /api/v1/conversations/{relationship_id}/messages:
+    parameters: [{ $ref: '#/components/parameters/RelationshipId' }]
+    get:
+      summary: Historial completo de la conversación (US-21 escenario 3)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ConversationDetail' } } } }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      summary: Enviar un mensaje; el entrenador puede responder una consulta y fijarla como nota técnica
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, minLength: 1, maxLength: 2000 }
+                reply_to_message_id: { type: string, nullable: true, description: 'Solo entrenador; consulta técnica del mismo vínculo' }
+                pin_as_technical_note: { type: boolean, default: false, description: 'Solo con reply_to_message_id' }
+      responses:
+        '201': { description: Mensaje creado, content: { application/json: { schema: { $ref: '#/components/schemas/MessageView' } } } }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { description: 'El alumno intentó responder una consulta', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: 'Vínculo no activo (US-21 escenario 4)', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '422': { $ref: '#/components/responses/Problem' }
+  /api/v1/conversations/{relationship_id}/read:
+    parameters: [{ $ref: '#/components/parameters/RelationshipId' }]
+    post:
+      summary: Marca como leídos los mensajes recibidos y la notificación NEW_MESSAGE de la conversación
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: OK }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/conversations/{relationship_id}/technical-queries:
+    parameters: [{ $ref: '#/components/parameters/RelationshipId' }]
+    post:
+      summary: El alumno crea una consulta técnica sobre un ejercicio (US-62 escenario 1)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [exercise_id, body]
+              properties:
+                exercise_id: { type: string }
+                body: { type: string, minLength: 1, maxLength: 2000 }
+                session_id: { type: string, nullable: true, description: 'Sesión propia del alumno en este vínculo' }
+                set_number: { type: integer, minimum: 1, maximum: 50, nullable: true }
+      responses:
+        '201': { description: Consulta creada, content: { application/json: { schema: { $ref: '#/components/schemas/MessageView' } } } }
+        '403': { description: 'Rol entrenador', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /api/v1/conversations/{relationship_id}/exercises/{exercise_id}/technical-queries:
+    parameters:
+      - { $ref: '#/components/parameters/RelationshipId' }
+      - { in: path, name: exercise_id, required: true, schema: { type: string } }
+    get:
+      summary: Historial de consultas y respuestas de un ejercicio (US-62 escenario 4)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Cronológico, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ExerciseQueryThread' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/trainers/me/technical-queries:
+    get:
+      summary: Bandeja de consultas pendientes agrupadas por alumno (US-62 escenario 2)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/PendingQueriesGroup' } } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+  /api/v1/students/me/technical-notes:
+    get:
+      summary: Notas técnicas fijadas pendientes de confirmar (US-62 escenario 3)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/TechnicalNoteView' } } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+  /api/v1/students/me/technical-notes/{note_id}/acknowledge:
+    post:
+      summary: El alumno confirma la nota ("Entendido") al iniciar el ejercicio
+      security: [{ bearerAuth: [] }]
+      parameters: [{ in: path, name: note_id, required: true, schema: { type: string } }]
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { session_id: { type: string, nullable: true } } } } }
+      responses:
+        '200': { description: 'Confirmada (idempotente)', content: { application/json: { schema: { $ref: '#/components/schemas/TechnicalNoteView' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+  parameters:
+    RelationshipId: { in: path, name: relationship_id, required: true, schema: { type: string } }
+  responses:
+    Problem:
+      description: Error RFC 7807
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, detail, instance]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        errors: { type: array, items: { type: object, properties: { field: { type: string }, message: { type: string } } } }
+    ExerciseRef:
+      type: object
+      properties: { id: { type: string, nullable: true }, name: { type: string } }
+    LastMessage:
+      type: object
+      nullable: true
+      properties:
+        body: { type: string }
+        created_at: { type: string, format: date-time }
+        is_mine: { type: boolean }
+        kind: { type: string, enum: [TEXT, TECHNICAL_QUERY] }
+    ConversationSummary:
+      type: object
+      properties:
+        relationship_id: { type: string }
+        status: { type: string, enum: [ACTIVE, TERMINATED] }
+        can_send: { type: boolean }
+        counterpart_name: { type: string }
+        counterpart_role: { type: string, enum: [TRAINER, STUDENT] }
+        trainer_id: { type: string }
+        student_id: { type: string }
+        plan_title: { type: string, nullable: true }
+        unread_count: { type: integer }
+        last_message: { $ref: '#/components/schemas/LastMessage' }
+    NoteRef:
+      type: object
+      nullable: true
+      properties: { id: { type: string }, acknowledged_at: { type: string, format: date-time, nullable: true } }
+    MessageView:
+      type: object
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [TEXT, TECHNICAL_QUERY] }
+        body: { type: string }
+        sender_role: { type: string, enum: [TRAINER, STUDENT] }
+        sender_name: { type: string }
+        is_mine: { type: boolean }
+        created_at: { type: string, format: date-time }
+        read_at: { type: string, format: date-time, nullable: true }
+        exercise: { allOf: [{ $ref: '#/components/schemas/ExerciseRef' }], nullable: true }
+        session_id: { type: string, nullable: true }
+        set_number: { type: integer, nullable: true }
+        reply_to_message_id: { type: string, nullable: true }
+        is_answered: { type: boolean }
+        technical_note: { $ref: '#/components/schemas/NoteRef' }
+    ConversationDetail:
+      type: object
+      properties:
+        conversation: { $ref: '#/components/schemas/ConversationSummary' }
+        messages: { type: array, items: { $ref: '#/components/schemas/MessageView' } }
+    PendingQueriesGroup:
+      type: object
+      properties:
+        student_id: { type: string }
+        student_name: { type: string }
+        relationship_id: { type: string }
+        queries: { type: array, items: { $ref: '#/components/schemas/MessageView' } }
+    ExerciseQueryThread:
+      type: object
+      properties:
+        query: { $ref: '#/components/schemas/MessageView' }
+        replies: { type: array, items: { $ref: '#/components/schemas/MessageView' } }
+    TechnicalNoteView:
+      type: object
+      properties:
+        id: { type: string }
+        relationship_id: { type: string }
+        exercise_id: { type: string, nullable: true }
+        exercise_name: { type: string }
+        body: { type: string }
+        trainer_name: { type: string }
+        created_at: { type: string, format: date-time }
+        acknowledged_at: { type: string, format: date-time, nullable: true }

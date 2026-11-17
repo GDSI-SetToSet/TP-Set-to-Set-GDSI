@@ -17,6 +17,8 @@ export const ROUTES = {
   trainerGenerateAIRoutine: '/entrenador/rutinas/generar-ia',
   trainerStudents: '/entrenador/alumnos',
   trainerDailyRoutines: '/entrenador/rutinas-del-dia',
+  trainerMessages: '/entrenador/mensajes',
+  trainerTechnicalQueries: '/entrenador/consultas',
   trainerStudentRoutine: '/entrenador/alumnos/:studentId/rutina',
   trainerRequests: '/entrenador/solicitudes',
   trainerRequestDetail: '/entrenador/solicitudes/:requestId',
@@ -28,6 +30,7 @@ export const ROUTES = {
   studentActivePlans: '/alumno/mis-entrenamientos',
   studentRoutines: '/alumno/rutinas',
   studentProgress: '/alumno/evolucion',
+  studentMessages: '/alumno/mensajes',
   studentRoutineSession: '/alumno/rutinas/sesion',
   trainerSearch: '/alumno/buscar-entrenadores',
   trainerPublicDetail: '/entrenadores/:trainerId',
@@ -40,10 +43,22 @@ export function homePath(role: UserRole): string {
   return role === USER_ROLES.trainer ? ROUTES.trainerHome : ROUTES.studentHome;
 }
 
+/** US-21: la notificación de mensajes lleva a la conversación del vínculo. */
+function messagesPath(base: string, relationshipId: string | null | undefined): string {
+  return relationshipId ? `${base}?relationshipId=${encodeURIComponent(relationshipId)}` : base;
+}
+
+export function studentNotificationPath(notification: Pick<NotificationItem, 'type' | 'related_entity_id'>): string {
+  if (notification.type === 'NEW_MESSAGE') return messagesPath(ROUTES.studentMessages, notification.related_entity_id);
+  return notification.type === 'EFFORT_FEEDBACK' ? ROUTES.studentRoutines : ROUTES.studentActivePlans;
+}
+
 export function trainerNotificationPath(notification: Pick<
   NotificationItem,
   'type' | 'related_student_id' | 'related_session_id' | 'related_entity_id'
 >): string {
+  if (notification.type === 'NEW_MESSAGE') return messagesPath(ROUTES.trainerMessages, notification.related_entity_id);
+  if (notification.type === 'TECHNICAL_QUERY') return ROUTES.trainerTechnicalQueries;
   if (
     notification.type !== 'PAIN_ALERT'
     && notification.type !== 'REPEATED_DISCOMFORT_ALERT'
