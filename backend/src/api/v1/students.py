@@ -1,7 +1,16 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -14,6 +23,7 @@ from backend.src.schemas.protected_zone import (
     ProtectedZonesResponse,
     ProtectedZonesUpdate,
 )
+from backend.src.schemas.safety_alert import StudentPainAlertReviewedNotice
 from backend.src.schemas.student import (
     StudentGoalsResponse,
     StudentProfileResponse,
@@ -23,6 +33,13 @@ from backend.src.schemas.student_health import (
     HealthQuestionnaireInput,
     HealthQuestionnaireResponse,
 )
+from backend.src.schemas.student_progress import StudentProgress
+from backend.src.services.safety_alert_service import (
+    SafetyAlertError,
+    list_student_reviewed_pain_notices,
+    mark_safety_alert_seen,
+)
+from backend.src.services.student_progress_service import get_student_progress
 from backend.src.services.student_service import (
     StudentProfileError,
     get_clearance_for_download,
@@ -58,10 +75,32 @@ def handle_error(error: StudentProfileError) -> None:
     raise HTTPException(status_code=error.status_code, detail=detail) from error
 
 
+def handle_safety_alert_error(error: SafetyAlertError) -> None:
+    detail: str | dict[str, object] = error.detail
+    if error.errors is not None:
+        detail = {"detail": error.detail, "errors": error.errors}
+    raise HTTPException(status_code=error.status_code, detail=detail) from error
+
+
 @router.get("/me/profile", response_model=StudentProfileResponse)
 def own_profile(user: CurrentUser, db: DbDep) -> StudentProfileResponse:
     try:
         return profile_response(get_or_create_profile(db, user), db)
+    except StudentProfileError as error:
+        handle_error(error)
+
+
+@router.get("/me/progress", response_model=StudentProgress, response_model_by_alias=True)
+def own_progress(
+    user: CurrentUser,
+    db: DbDep,
+    exercise_id: str | None = None,
+    muscle_group: str | None = None,
+    from_: Annotated[date | None, Query(alias="from")] = None,
+    to: date | None = None,
+) -> StudentProgress:
+    try:
+        return get_student_progress(db, user, exercise_id, muscle_group, from_, to)
     except StudentProfileError as error:
         handle_error(error)
 
@@ -129,6 +168,34 @@ async def upload_own_medical_clearance(
         return MedicalClearanceResponse.model_validate(clearance)
     except StudentProfileError as error:
         handle_error(error)
+
+
+@router.get(
+    "/me/safety-alerts/reviewed-notices",
+    response_model=list[StudentPainAlertReviewedNotice],
+)
+def own_reviewed_pain_alert_notices(
+    user: CurrentUser, db: DbDep
+) -> list[StudentPainAlertReviewedNotice]:
+    """US-29 (CA-5): avisos de reportes de dolor revisados y pendientes de ver en la próxima sesión."""
+    try:
+        return list_student_reviewed_pain_notices(db, user)
+    except SafetyAlertError as error:
+        handle_safety_alert_error(error)
+
+
+@router.post(
+    "/me/safety-alerts/{alert_id}/seen",
+    response_model=StudentPainAlertReviewedNotice,
+)
+def mark_own_safety_alert_notice_seen(
+    alert_id: str, user: CurrentUser, db: DbDep
+) -> StudentPainAlertReviewedNotice:
+    """US-29 (CA-5): registra la visualización única de un aviso de dolor revisado."""
+    try:
+        return mark_safety_alert_seen(db, user, alert_id)
+    except SafetyAlertError as error:
+        handle_safety_alert_error(error)
 
 
 @router.get("/{student_id}/medical-clearance/download")

@@ -1001,3 +1001,390 @@ def test_sqlite_migration_preserves_foreign_key_integrity_and_passes_fk_check():
     with engine.connect() as conn:
         remaining_zones = conn.execute(text("SELECT COUNT(*) FROM body_map_pain_report_zones WHERE report_id = 'rep-fk-1'")).scalar()
         assert remaining_zones == 0
+
+
+def test_migration_adds_and_backfills_routine_assigned_at_without_losing_history():
+    from backend.src.core.migrations import TARGET_COLUMNS
+
+    col_def = next(c for c in TARGET_COLUMNS if c.table == "training_relationships" and c.column == "routine_assigned_at")
+    assert col_def.sqlite_type == "DATETIME"
+    assert col_def.postgres_type == "TIMESTAMP WITH TIME ZONE"
+    assert col_def.nullable is True
+
+    engine = make_legacy_engine()
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE training_relationships (
+                id VARCHAR(36) PRIMARY KEY,
+                trainer_id VARCHAR(36) NOT NULL,
+                student_id VARCHAR(36) NOT NULL,
+                plan_id VARCHAR(36) NOT NULL,
+                agreed_monthly_price NUMERIC(10, 2) NOT NULL,
+                agreed_currency VARCHAR(8) NOT NULL,
+                status VARCHAR(16) NOT NULL,
+                start_date DATE NOT NULL,
+                initial_routine_id VARCHAR(36)
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE student_routines (
+                id VARCHAR(36) PRIMARY KEY,
+                relationship_id VARCHAR(36) UNIQUE NOT NULL,
+                source_template_id VARCHAR(36),
+                source_kind VARCHAR(16) NOT NULL,
+                name VARCHAR(150) NOT NULL,
+                duration_weeks INTEGER NOT NULL,
+                intensity VARCHAR(16) NOT NULL,
+                has_no_materials_alternative BOOLEAN NOT NULL DEFAULT 0,
+                desired_weekly_volume INTEGER,
+                days JSON NOT NULL,
+                draft JSON,
+                draft_version INTEGER NOT NULL DEFAULT 0,
+                status VARCHAR(16) NOT NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE assigned_routines (
+                id VARCHAR(36) PRIMARY KEY,
+                trainer_id VARCHAR(36) NOT NULL,
+                student_id VARCHAR(36) NOT NULL,
+                template_id VARCHAR(36),
+                name VARCHAR(150) NOT NULL,
+                duration_weeks INTEGER NOT NULL,
+                intensity VARCHAR(16) NOT NULL,
+                has_no_materials_alternative BOOLEAN NOT NULL DEFAULT 0,
+                status VARCHAR(16) NOT NULL,
+                adaptation_summary TEXT,
+                approved_at DATETIME,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE workout_sessions (
+                id VARCHAR(36) PRIMARY KEY,
+                student_id VARCHAR(36) NOT NULL,
+                relationship_id VARCHAR(36) NOT NULL,
+                routine_id VARCHAR(36) NOT NULL,
+                day_name VARCHAR(100) NOT NULL,
+                modality VARCHAR(16) NOT NULL,
+                started_at DATETIME NOT NULL,
+                finished_at DATETIME,
+                rpe INTEGER
+            )
+        """))
+
+        # Vínculos históricos en distintos estados
+        conn.execute(text("""
+            INSERT INTO training_relationships
+            (id, trainer_id, student_id, plan_id, agreed_monthly_price, agreed_currency, status, start_date, initial_routine_id)
+            VALUES
+            ('rel-sr', 'tr-1', 'st-1', 'pl-1', 10000, 'ARS', 'ACTIVE', '2026-01-01', 'tpl-1'),
+            ('rel-ar', 'tr-1', 'st-2', 'pl-1', 10000, 'ARS', 'ACTIVE', '2026-01-01', 'ar-1'),
+            ('rel-ws', 'tr-1', 'st-3', 'pl-1', 10000, 'ARS', 'ACTIVE', '2026-01-01', 'tpl-2'),
+            ('rel-tpl-only', 'tr-1', 'st-4', 'pl-1', 10000, 'ARS', 'ACTIVE', '2026-01-01', 'tpl-3'),
+            ('rel-none', 'tr-1', 'st-5', 'pl-1', 10000, 'ARS', 'ACTIVE', '2026-01-01', NULL)
+        """))
+        conn.execute(text("""
+            INSERT INTO student_routines
+            (id, relationship_id, source_template_id, source_kind, name, duration_weeks, intensity, has_no_materials_alternative, days, draft_version, status, created_at, updated_at)
+            VALUES
+            ('sr-1', 'rel-sr', 'tpl-1', 'GENERIC', 'Rutina SR', 4, 'MEDIA', 0, '[]', 0, 'ACTIVE', '2026-02-10 10:00:00', '2026-02-10 10:00:00')
+        """))
+        conn.execute(text("""
+            INSERT INTO assigned_routines
+            (id, trainer_id, student_id, template_id, name, duration_weeks, intensity, has_no_materials_alternative, status, approved_at, created_at, updated_at)
+            VALUES
+            ('ar-1', 'tr-1', 'st-2', NULL, 'Rutina IA', 4, 'MEDIA', 0, 'APPROVED', '2026-02-15 12:00:00', '2026-02-14 09:00:00', '2026-02-15 12:00:00')
+        """))
+        conn.execute(text("""
+            INSERT INTO workout_sessions
+            (id, student_id, relationship_id, routine_id, day_name, modality, started_at, finished_at, rpe)
+            VALUES
+            ('ws-1', 'st-3', 'rel-ws', 'tpl-2', 'Día 1', 'GYM', '2026-02-20 09:00:00', '2026-02-20 10:00:00', 7),
+            ('ws-old-other', 'st-4', 'rel-tpl-only', 'tpl-old', 'Día 1', 'GYM', '2026-01-10 09:00:00', '2026-01-10 10:00:00', 8)
+        """))
+
+    applied = apply_migrations(engine)
+    assert "training_relationships.routine_assigned_at" in applied
+    assert "training_relationships.routine_assigned_at:backfill" in applied
+
+    cols = {c["name"]: c for c in inspect(engine).get_columns("training_relationships")}
+    assert "routine_assigned_at" in cols
+    assert cols["routine_assigned_at"]["nullable"] is True
+
+    with engine.connect() as conn:
+        rows = dict(conn.execute(text("SELECT id, routine_assigned_at FROM training_relationships")).fetchall())
+        assert str(rows["rel-sr"]).startswith("2026-02-10 10:00:00")
+        assert str(rows["rel-ar"]).startswith("2026-02-15 12:00:00")
+        assert str(rows["rel-ws"]).startswith("2026-02-20 09:00:00")
+        assert rows["rel-tpl-only"] is not None
+        assert rows["rel-none"] is None
+        # No destruye sesiones ni StudentRoutine existentes
+        assert conn.execute(text("SELECT COUNT(*) FROM workout_sessions")).scalar() == 2
+        assert str(conn.execute(text("SELECT created_at FROM student_routines WHERE id = 'sr-1'")).scalar()).startswith("2026-02-10 10:00:00")
+
+    # Idempotencia: una segunda ejecución no reaplica ni altera fechas ya migradas
+    second = apply_migrations(engine)
+    assert "training_relationships.routine_assigned_at" not in second
+    assert "training_relationships.routine_assigned_at:backfill" not in second
+    with engine.connect() as conn:
+        rows_after = dict(conn.execute(text("SELECT id, routine_assigned_at FROM training_relationships")).fetchall())
+        assert rows_after == rows
+
+
+def test_migration_creates_safety_alerts_preserves_notifications_and_is_idempotent():
+    """US-29: crea tabla e índices de safety_alerts sin alterar notifications previas y de forma idempotente."""
+    engine = make_legacy_engine()
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE users (
+                id VARCHAR(36) PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                role VARCHAR(16) NOT NULL,
+                is_active BOOLEAN NOT NULL DEFAULT 1,
+                failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+                locked_until DATETIME,
+                created_at DATETIME NOT NULL
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE trainer_profiles (
+                id VARCHAR(36) PRIMARY KEY,
+                user_id VARCHAR(36) UNIQUE NOT NULL,
+                full_name VARCHAR(100),
+                status VARCHAR(16) NOT NULL DEFAULT 'DRAFT',
+                max_students INTEGER NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE student_profiles (
+                id VARCHAR(36) PRIMARY KEY,
+                user_id VARCHAR(36) UNIQUE NOT NULL,
+                status VARCHAR(16) NOT NULL DEFAULT 'DRAFT',
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE training_relationships (
+                id VARCHAR(36) PRIMARY KEY,
+                student_id VARCHAR(36) NOT NULL,
+                trainer_id VARCHAR(36) NOT NULL,
+                plan_id VARCHAR(36) NOT NULL,
+                agreed_monthly_price NUMERIC(10, 2) NOT NULL,
+                agreed_currency VARCHAR(3) NOT NULL,
+                status VARCHAR(16) NOT NULL,
+                start_date DATE NOT NULL,
+                routine_assigned_at DATETIME
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE notifications (
+                id VARCHAR(36) PRIMARY KEY,
+                recipient_id VARCHAR(36) NOT NULL,
+                type VARCHAR(40) NOT NULL,
+                title VARCHAR(150) NOT NULL,
+                message TEXT NOT NULL,
+                related_entity_type VARCHAR(40),
+                related_entity_id VARCHAR(36),
+                related_student_id VARCHAR(36),
+                related_session_id VARCHAR(36),
+                is_read BOOLEAN NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL,
+                read_at DATETIME
+            )
+        """))
+        conn.execute(text("""
+            INSERT INTO notifications (
+                id, recipient_id, type, title, message, related_entity_type,
+                related_entity_id, related_student_id, is_read, created_at
+            ) VALUES (
+                'notif-existing-pain', 'trainer-u1', 'PAIN_ALERT', 'Alerta de dolor reportado',
+                'Alumno reportó dolor', 'BODY_MAP_PAIN_REPORT', 'rep-1', 'st-1', 0, '2026-03-01 10:00:00'
+            )
+        """))
+
+    apply_migrations(engine)
+
+    inspector = inspect(engine)
+    assert "safety_alerts" in set(inspector.get_table_names())
+    cols = {c["name"] for c in inspector.get_columns("safety_alerts")}
+    assert {
+        "id",
+        "relationship_id",
+        "trainer_id",
+        "student_id",
+        "session_id",
+        "report_id",
+        "exercise_id",
+        "alert_type",
+        "zone",
+        "rpe",
+        "dedup_key",
+        "status",
+        "action_taken",
+        "trainer_note",
+        "created_at",
+        "reviewed_at",
+        "student_seen_at",
+    }.issubset(cols)
+    idx_names = {i.get("name") for i in inspector.get_indexes("safety_alerts")}
+    assert "ix_safety_alerts_trainer_status_created" in idx_names
+    assert "ix_safety_alerts_relationship_status" in idx_names
+
+    # Verifica preservación intacta de notifications y comportamiento idempotente
+    with engine.connect() as conn:
+        notif_row = conn.execute(
+            text("SELECT type, related_entity_type, related_entity_id FROM notifications WHERE id = 'notif-existing-pain'")
+        ).one()
+        assert notif_row == ("PAIN_ALERT", "BODY_MAP_PAIN_REPORT", "rep-1")
+
+    re_applied = apply_migrations(engine)
+    assert re_applied == []
+
+    # Verifica recuperación aditiva si existía la tabla safety_alerts sin índices
+    with engine.begin() as conn:
+        conn.execute(text("DROP INDEX IF EXISTS ix_safety_alerts_trainer_status_created"))
+    recovered = apply_migrations(engine)
+    assert "safety_alerts.ix_safety_alerts_trainer_status_created:index" in recovered
+    assert apply_migrations(engine) == []
+    engine.dispose()
+
+
+def test_sprint5_us24_us26_schema_migrations_and_lineage_backfill(tmp_path):
+    """Migra tablas legacy para snapshots, linaje routine_assignment_id, baseline_blocks y reemplazos por sesión."""
+    db_file = tmp_path / "legacy_sprint5.db"
+    engine = create_engine(f"sqlite:///{db_file}")
+
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE users (id VARCHAR(36) PRIMARY KEY, email VARCHAR(255) NOT NULL)"))
+        conn.execute(text("CREATE TABLE exercises (id VARCHAR(36) PRIMARY KEY, name VARCHAR(150) NOT NULL)"))
+        conn.execute(text("CREATE TABLE trainer_profiles (id VARCHAR(36) PRIMARY KEY, user_id VARCHAR(36) NOT NULL)"))
+        conn.execute(text("CREATE TABLE student_profiles (id VARCHAR(36) PRIMARY KEY, user_id VARCHAR(36) NOT NULL)"))
+        conn.execute(text("CREATE TABLE training_plans (id VARCHAR(36) PRIMARY KEY)"))
+        conn.execute(text("""
+            CREATE TABLE training_relationships (
+                id VARCHAR(36) PRIMARY KEY,
+                student_id VARCHAR(36) NOT NULL,
+                trainer_id VARCHAR(36) NOT NULL,
+                plan_id VARCHAR(36) NOT NULL,
+                agreed_monthly_price NUMERIC(10, 2) NOT NULL,
+                agreed_currency VARCHAR(3) NOT NULL,
+                status VARCHAR(16) NOT NULL,
+                start_date DATE NOT NULL,
+                initial_routine_id VARCHAR(36),
+                routine_assigned_at DATETIME
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE student_routines (
+                id VARCHAR(36) PRIMARY KEY,
+                relationship_id VARCHAR(36) UNIQUE NOT NULL,
+                source_template_id VARCHAR(36),
+                source_kind VARCHAR(16) NOT NULL,
+                name VARCHAR(150) NOT NULL,
+                duration_weeks INTEGER NOT NULL,
+                intensity VARCHAR(16) NOT NULL,
+                has_no_materials_alternative BOOLEAN NOT NULL,
+                desired_weekly_volume INTEGER,
+                days JSON NOT NULL,
+                draft JSON,
+                draft_version INTEGER NOT NULL,
+                status VARCHAR(16) NOT NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE workout_sessions (
+                id VARCHAR(36) PRIMARY KEY,
+                student_id VARCHAR(36) NOT NULL,
+                relationship_id VARCHAR(36) NOT NULL,
+                routine_id VARCHAR(36) NOT NULL,
+                day_name VARCHAR(100) NOT NULL,
+                modality VARCHAR(16) NOT NULL,
+                started_at DATETIME NOT NULL,
+                finished_at DATETIME,
+                rpe INTEGER
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE exercise_replacement_logs (
+                id VARCHAR(36) PRIMARY KEY,
+                student_id VARCHAR(36) NOT NULL,
+                routine_id VARCHAR(36) NOT NULL,
+                day_name VARCHAR(100) NOT NULL,
+                session_date DATE NOT NULL,
+                original_exercise_id VARCHAR(36) NOT NULL,
+                replacement_exercise_id VARCHAR(36),
+                updated_at DATETIME NOT NULL,
+                UNIQUE (student_id, routine_id, day_name, session_date, original_exercise_id)
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE session_adjustments (
+                id VARCHAR(36) PRIMARY KEY,
+                relationship_id VARCHAR(36) NOT NULL,
+                student_routine_id VARCHAR(36),
+                source_session_id VARCHAR(36) NOT NULL,
+                blocking_session_id VARCHAR(36),
+                trainer_id VARCHAR(36) NOT NULL,
+                day_name VARCHAR(100) NOT NULL,
+                note VARCHAR(500),
+                blocks JSON NOT NULL,
+                changed_exercise_ids JSON NOT NULL,
+                status VARCHAR(16) NOT NULL,
+                created_at DATETIME NOT NULL,
+                applied_at DATETIME
+            )
+        """))
+        conn.execute(text("""
+            INSERT INTO training_relationships (
+                id, student_id, trainer_id, plan_id, agreed_monthly_price, agreed_currency, status, start_date, initial_routine_id
+            ) VALUES ('rel-1', 'st-1', 'tr-1', 'pl-1', 100, 'USD', 'ACTIVE', '2026-11-01', 'tpl-1')
+        """))
+        conn.execute(text("""
+            INSERT INTO student_routines (
+                id, relationship_id, source_template_id, source_kind, name, duration_weeks, intensity,
+                has_no_materials_alternative, days, draft_version, status, created_at, updated_at
+            ) VALUES ('sr-1', 'rel-1', 'tpl-1', 'GENERIC', 'Rutina', 4, 'MEDIA', 0, '[]', 1, 'ACTIVE', '2026-11-01', '2026-11-01')
+        """))
+        conn.execute(text("""
+            INSERT INTO exercise_replacement_logs (
+                id, student_id, routine_id, day_name, session_date, original_exercise_id, replacement_exercise_id, updated_at
+            ) VALUES ('erl-1', 'st-1', 'sr-1', 'Día 1', '2026-11-12', 'ex-1', 'ex-2', '2026-11-12 10:00:00')
+        """))
+
+    applied = apply_migrations(engine)
+    assert "training_relationships.routine_assignment_id" in applied
+    assert "student_routines.routine_assignment_id" in applied
+    assert "exercise_replacement_logs.session_id" in applied
+    assert "session_adjustments.baseline_blocks" in applied
+    assert "training_relationships.routine_assignment_id:backfill" in applied
+    assert "student_routines.routine_assignment_id:backfill" in applied
+    assert "exercise_replacement_logs.uq_exercise_replacement_session_exercise:sqlite_table_rebuild" in applied
+
+    inspector = inspect(engine)
+    assert "workout_session_snapshots" in set(inspector.get_table_names())
+    assert {"session_id", "routine_assignment_id", "planned_blocks"}.issubset(
+        {c["name"] for c in inspector.get_columns("workout_session_snapshots")}
+    )
+
+    with engine.connect() as conn:
+        tr_aid = conn.execute(text("SELECT routine_assignment_id FROM training_relationships WHERE id = 'rel-1'")).scalar_one()
+        sr_aid = conn.execute(text("SELECT routine_assignment_id FROM student_routines WHERE id = 'sr-1'")).scalar_one()
+        assert tr_aid is not None
+        assert sr_aid == tr_aid
+        # Verificar preservación del reemplazo histórico y posibilidad de múltiples sesiones en la misma fecha UTC
+        row = conn.execute(text("SELECT session_id, replacement_exercise_id FROM exercise_replacement_logs WHERE id = 'erl-1'")).one()
+        assert row == (None, "ex-2")
+
+    # Idempotencia en segunda ejecución
+    assert apply_migrations(engine) == []
+    engine.dispose()

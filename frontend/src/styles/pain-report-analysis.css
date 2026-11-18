@@ -1,0 +1,63 @@
+.pain-analysis { grid-column: 1 / -1; }
+.pain-analysis__chart { margin: 8px 0 16px; }
+.pain-analysis__chart-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.pain-analysis__chart-header label { color: #475569; font-size: .85rem; font-weight: 600; }
+.pain-analysis__chart-header select {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #1e293b;
+  font: inherit;
+  font-size: 16px;
+}
+.pain-analysis__legend { display: flex; gap: 12px; margin-left: auto; color: #475569; font-size: .8rem; }
+.pain-analysis__legend span { display: inline-flex; gap: 6px; align-items: center; }
+.pain-analysis__legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+
+.pain-analysis__bars { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.pain-analysis__bars li {
+  display: grid;
+  grid-template-columns: minmax(90px, 32%) 1fr 28px;
+  gap: 10px;
+  align-items: center;
+}
+.pain-analysis__bar-label { overflow: hidden; color: #334155; font-size: .875rem; text-overflow: ellipsis; white-space: nowrap; }
+.pain-analysis__bar-track { display: flex; height: 14px; border-radius: 999px; background: #eef2f6; overflow: hidden; }
+.pain-analysis__bar { height: 100%; }
+.pain-analysis__bar-count { color: #1e293b; font-weight: 700; text-align: right; }
+.is-pain { background: #dc4c3e; }
+.is-discomfort { background: #f2b33d; }
+
+.pain-analysis__subtitle { margin: 4px 0 8px; color: #1e293b; font-size: .95rem; }
+.pain-analysis__reports { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.pain-analysis__reports > li { padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
+.pain-analysis__report-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; color: #64748b; font-size: .8rem; }
+.pain-analysis__reports .pain-analysis__report-source { margin: 4px 0; color: #1e293b; font-weight: 600; }
+.pain-analysis__zones { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.pain-analysis__zones li { padding: 2px 8px; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+.pain-analysis__zones .is-pain { background: #fde3df; color: #9f2a1f; }
+.pain-analysis__zones .is-discomfort { background: #fff1d1; color: #7a4b00; }
+.pain-analysis__more {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #1e293b;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (max-width: 560px) {
+  .pain-analysis__legend { margin-left: 0; }
+  .pain-analysis__bars li { grid-template-columns: minmax(80px, 38%) 1fr 24px; }
+}

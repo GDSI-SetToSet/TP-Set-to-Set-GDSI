@@ -15,7 +15,7 @@ from backend.src.models.protected_zone import ProtectedZone
 from backend.src.models.routine_template import RoutineTemplate
 from backend.src.models.student_routine import RoutineChangeLog, StudentRoutine
 from backend.src.models.training_relationship import TrainingRelationship
-from backend.src.models.user import User
+from backend.src.models.user import User, new_id
 from backend.src.schemas.student_routine import RoutineDraftInput
 from backend.src.services.routine_template_service import RoutineTemplateError
 from backend.src.services.safe_variant_service import resolve_variant
@@ -126,9 +126,25 @@ def active_relationship(db: Session, user: User, student_id: str) -> TrainingRel
 
 
 # Copia perezosa por alumno: editar nunca toca la plantilla compartida (research D1).
-def ensure_routine(db: Session, relationship: TrainingRelationship) -> StudentRoutine:
+def ensure_routine(
+    db: Session, relationship: TrainingRelationship, *, commit: bool = True
+) -> StudentRoutine:
     routine = db.scalar(select(StudentRoutine).where(StudentRoutine.relationship_id == relationship.id))
     if routine is not None and routine.status != "UNASSIGNED":
+        assignment_id = relationship.routine_assignment_id or routine.routine_assignment_id or new_id()
+        changed = False
+        if relationship.routine_assignment_id != assignment_id:
+            relationship.routine_assignment_id = assignment_id
+            changed = True
+        if routine.routine_assignment_id != assignment_id:
+            routine.routine_assignment_id = assignment_id
+            changed = True
+        if changed:
+            if commit:
+                db.commit()
+                db.refresh(routine)
+            else:
+                db.flush()
         return routine
     source: RoutineTemplate | AssignedRoutine | None = None
     if relationship.initial_routine_id:
@@ -139,15 +155,21 @@ def ensure_routine(db: Session, relationship: TrainingRelationship) -> StudentRo
                 source = assigned
     if source is None or source.trainer_id != relationship.trainer_id:
         raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "El alumno no tiene una rutina asignada.")
+    if relationship.routine_assignment_id is None:
+        relationship.routine_assignment_id = new_id()
     now = utc_now()
     is_new = routine is None
     routine = routine or StudentRoutine(relationship_id=relationship.id, created_at=now, draft_version=0)
     _seed(routine, source)
+    routine.routine_assignment_id = relationship.routine_assignment_id
     if is_new:
         routine.draft_version = 0
     db.add(routine)
-    db.commit()
-    db.refresh(routine)
+    if commit:
+        db.commit()
+        db.refresh(routine)
+    else:
+        db.flush()
     return routine
 
 
@@ -189,6 +211,7 @@ def sync_assigned_routine(
         )
     _seed(routine, assigned)
     routine.draft_version = 0
+    routine.routine_assignment_id = relationship.routine_assignment_id
     if relationship.routine_modality == "HOME" and not _days_support_home_modality(db, routine.days):
         relationship.routine_modality = "GYM"
     db.add(routine)
@@ -210,9 +233,14 @@ def on_reassign(db: Session, relationship_id: str, template_id: str | None) -> N
         return
     source = _assignable_source(db, template_id)
     if source is None:
-        routine.status, routine.draft = "UNASSIGNED", None
+        routine.status, routine.draft, routine.routine_assignment_id = "UNASSIGNED", None, None
     else:
         _seed(routine, source)
+        relationship = db.get(TrainingRelationship, relationship_id)
+        if relationship is not None:
+            if relationship.routine_assignment_id is None:
+                relationship.routine_assignment_id = new_id()
+            routine.routine_assignment_id = relationship.routine_assignment_id
     db.commit()
 
 

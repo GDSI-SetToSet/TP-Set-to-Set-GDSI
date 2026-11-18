@@ -1,7 +1,7 @@
 import os
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -28,6 +28,7 @@ from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.training_request import TrainingRequest
 from backend.src.models.user import User
+from backend.src.models.workout_log import WorkoutSession
 from backend.src.schemas.discovery import TrainerSearchFilters
 from backend.src.services.auth_service import login_user
 from backend.src.services.discovery_service import (
@@ -109,6 +110,20 @@ def test_seed_demo_is_idempotent():
         assert total_requests1 == total_requests2
     finally:
         db.close()
+
+
+def test_seed_demo_adds_weekly_history_for_the_evolution_chart_once():
+    db = create_test_db()
+    seed_demo_data(db, verbose=False)
+    older = select(func.count()).select_from(WorkoutSession).where(
+        WorkoutSession.started_at < datetime.now(UTC).replace(tzinfo=None) - timedelta(days=7)
+    )
+    first = db.scalar(older)
+    assert first >= 8  # al menos 8 semanas para un alumno
+
+    seed_demo_data(db, verbose=False)
+
+    assert db.scalar(older) == first
 
 
 def test_demo_users_can_authenticate():

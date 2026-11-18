@@ -14,4 +14,5 @@ export interface ReplacementInput {
   day_name: string;
   original_exercise_id: string;
   replacement_exercise_id: string | null;
+  session_id?: string | null;
 }

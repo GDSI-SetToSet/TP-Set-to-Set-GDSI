@@ -10,6 +10,14 @@
 
 **User Stories Cubiertas**: US-65, US-67, US-68
 
+## Clarifications
+
+### Session 2026-11-15
+
+- Q: ¿Cómo se define un récord personal (PR) de un ejercicio? → A: Mayor peso (kg) registrado en cualquier serie de trabajo completada del ejercicio, sin importar las repeticiones.
+- Q: ¿Qué series se suman en el volumen semanal? → A: Solo series de trabajo completadas con peso: Σ(kg × reps); calentamiento y ejercicios sin peso quedan excluidos.
+- Q: ¿Qué rango de fechas se muestra por defecto en el gráfico de evolución? → A: Últimas 12 semanas.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-65: Evolución de cargas, volumen semanal y récords personales (PRs)] (Priority: P2, Estimación: 5 SP)
@@ -98,6 +106,12 @@ Como alumno,
 ### Functional Requirements
 
 - **FR-001**: El sistema DEBE mostrar gráficos interactivos con la evolución de cargas, tonelaje semanal y récords personales (US-65).
+
+- **FR-001a**: Un récord personal (PR) es el mayor peso (kg) registrado en una serie de trabajo completada de un ejercicio, sin importar las repeticiones; se registra un nuevo PR cuando una serie supera estrictamente el máximo previo de ese ejercicio (US-65).
+
+- **FR-001b**: El volumen semanal es Σ(kg × repeticiones) de las series de trabajo completadas con peso; se excluyen series de calentamiento y ejercicios sin peso externo (US-65).
+
+- **FR-001c**: Sin filtros aplicados, el gráfico de evolución muestra por defecto las últimas 12 semanas (US-65).
 
 - **FR-002**: El sistema DEBE permitir filtrar la visualización del progreso por ejercicio específico o por grupo muscular (US-65).
 

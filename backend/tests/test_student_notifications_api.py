@@ -1,5 +1,8 @@
+from datetime import datetime
+
 from backend.src.models.notification import Notification
 from backend.src.models.user import User
+from backend.src.services import notification_service
 from backend.src.services.notification_service import create_notification
 
 
@@ -13,15 +16,17 @@ def auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_list_notifications_and_unread_count(client):
+def test_list_notifications_and_unread_count(client, monkeypatch):
     api, session_factory = client
     student_token = register_and_login(api, "student_notif@example.com", "STUDENT")
 
     with session_factory() as db:
         user = db.query(User).filter_by(email="student_notif@example.com").first()
+        monkeypatch.setattr(notification_service, "utc_now", lambda: datetime(2026, 11, 14, 10, 0, 0))
         create_notification(
             db, user.id, "TRAINING_ACCEPTED", "Bienvenido", "Mensaje 1", commit=True
         )
+        monkeypatch.setattr(notification_service, "utc_now", lambda: datetime(2026, 11, 14, 10, 1, 0))
         create_notification(
             db, user.id, "ROUTINE_ASSIGNED", "Nueva Rutina", "Mensaje 2", commit=True
         )

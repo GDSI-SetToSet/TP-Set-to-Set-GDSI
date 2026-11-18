@@ -65,6 +65,7 @@ export interface BodyMapZoneHistoryItem {
   session_day_name: string | null;
   exercise_id: string | null;
   exercise_name: string | null;
+  exercise_muscle_group?: string | null;
   context: ReportContext;
   action_taken: ActionTaken | null;
 }

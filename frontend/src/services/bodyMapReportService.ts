@@ -74,11 +74,25 @@ export async function getAllTrainerStudentBodyMapReports(
 
 export async function getTrainerStudentZoneHistory(
   studentId: string,
-  params?: { zone?: string; intensity?: string }
+  params?: { zone?: string; intensity?: string; limit?: number; offset?: number }
 ): Promise<BodyMapZoneHistoryItem[]> {
   const { data } = await api.get<BodyMapZoneHistoryItem[]>(
     `/api/v1/trainers/me/students/${studentId}/body-map-reports/by-zone`,
     { params }
   );
   return data;
+}
+
+/** US-28: historial completo por zona de un alumno (pagina de a 500). */
+export async function getAllTrainerStudentZoneHistory(studentId: string): Promise<BodyMapZoneHistoryItem[]> {
+  const items: BodyMapZoneHistoryItem[] = [];
+  const pageSize = 500;
+  let offset = 0;
+
+  while (true) {
+    const page = await getTrainerStudentZoneHistory(studentId, { limit: pageSize, offset });
+    items.push(...page);
+    if (page.length < pageSize) return items;
+    offset += page.length;
+  }
 }

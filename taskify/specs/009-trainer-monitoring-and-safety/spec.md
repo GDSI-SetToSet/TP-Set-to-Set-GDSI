@@ -1,28 +1,117 @@
-# Feature Specification: Panel de Monitoreo del Entrenador, Métricas y Alertas de Seguridad
+# Especificación de la feature: Panel de Monitoreo del Entrenador, Métricas y Alertas de Seguridad
 
-**Feature Branch**: `009-trainer-monitoring-and-safety`
+**Rama de la feature**: `009-trainer-monitoring-and-safety`
 
-**Created**: 2026-10-15
+**Creada**: 2026-10-15
 
-**Status**: Draft
+**Estado**: Borrador
 
-**Input**: User Story Map y Backlog MVP: Centro de control del entrenador para supervisar alumnos activos, buscar y filtrar por paquete, comunicarse por canal directo, comparar ejecución planificada vs realizada, analizar cargas y RPE, ajustar próximas sesiones y recibir alertas tempranas de dolor y de riesgo de abandono.
+**Entrada**: Mapa de historias de usuario y Backlog MVP: Centro de control del entrenador para supervisar alumnos activos, buscar y filtrar por paquete, comunicarse por canal directo, comparar ejecución planificada vs realizada, analizar cargas y RPE, ajustar próximas sesiones y recibir alertas tempranas de dolor y de riesgo de abandono.
 
-**User Stories Cubiertas**: US-18, US-19, US-20, US-21, US-22, US-24, US-26, US-28, US-29, US-30, US-32
+**Historias de usuario cubiertas**: US-18, US-19, US-20, US-21, US-22, US-24, US-26, US-28, US-29, US-30, US-32
 
-## User Scenarios & Testing *(mandatory)*
+## Clarificaciones
 
-### User Story 1 - [US-18: visualización de alumnos activos] (Priority: P1, Estimación: 3 SP)
+### Sesión 2026-11-11 — US-18
+
+- Q: ¿Qué alcance se implementa en este incremento de la feature 009? → A: Exclusivamente US-18; US-19, US-20, US-21, US-22, US-24, US-26, US-28, US-29, US-30 y US-32 permanecen fuera de alcance.
+- Q: ¿Qué debe incluir el detalle de un alumno activo sin duplicar módulos existentes? → A: Perfil básico, paquete y tarifa acordada, objetivos, zonas protegidas, rutina vigente y un resumen de métricas ya disponibles; se reutilizan los servicios existentes de rutinas, sesiones, logs, feedback y reportes.
+- Q: ¿Qué significa “métricas” para US-18 sin absorber US-24 o US-30? → A: Un resumen de actividad reciente (sesiones finalizadas, última sesión, series registradas, último RPE y tonelaje de la última sesión); no incluye gráficos, filtros ni comparación histórica avanzada.
+- Q: ¿Cómo se deben ordenar y destacar las alertas en esta entrega? → A: El ordenamiento por alertas de seguridad queda fuera de este incremento y se implementará junto con US-29; US-18 conserva el punto de integración visual sin inventar estados de revisión.
+
+### Sesión 2026-11-12 — US-20
+
+- Q: ¿Qué se considera un "paquete registrado" para habilitar el filtro? → A: Los paquetes vigentes (no archivados) del entrenador más cualquier paquete archivado que todavía tenga contratado un alumno activo. Con un único paquete el filtro no se muestra.
+- Q: ¿Cómo se muestran los cupos ocupados por plan? → A: Cada opción del filtro indica la cantidad de alumnos activos que contrataron ese paquete; un paquete sin alumnos aparece con cero cupos ocupados y un mensaje de estado vacío propio.
+- Q: ¿Dónde se filtra? → A: Localmente en el cliente, sobre los alumnos activos ya cargados y combinado con la búsqueda por nombre de US-19. El backend solo expone `plan_id` y `plan_title` en `GET /api/v1/routine-templates/assignments`.
+
+### Sesión 2026-11-12 — US-22
+
+- Q: ¿Qué es "rutina del día" si los días de la rutina no están atados al calendario? → A: La sesión de entrenamiento que el alumno inició en el día calendario local del entrenador (se envía `date` y `utc_offset_minutes`). Sin sesión ese día, el estado es "No comenzada".
+- Q: ¿Qué sesión se muestra si hubo más de una en el día? → A: La sesión en curso, si existe; si no, la última finalizada.
+- Q: ¿Qué detalle se muestra? → A: Día de rutina, hora de inicio y fin, duración, RPE y, por ejercicio, cada serie con repeticiones, carga, tiempo de la serie y hora de registro. Los alumnos que están entrenando aparecen primero.
+
+### Sesión 2026-11-12 — US-28
+
+- Q: ¿Qué reportes se analizan? → A: Las zonas reportadas con molestia o dolor en el mapa corporal (US-61), tanto durante el ejercicio como post-sesión; las zonas "Normal" se descartan.
+- Q: ¿Qué significa "grupo muscular" en el gráfico? → A: El grupo muscular objetivo del ejercicio asociado al reporte. Como el mapa corporal registra zonas, el gráfico también permite agrupar por zona corporal, ejercicio y día de rutina; los reportes post-sesión sin ejercicio se agrupan aparte.
+- Q: ¿Dónde se muestra? → A: En el detalle del alumno (US-18), con un gráfico de barras apiladas dolor/molestia y el listado de reportes del más reciente al más antiguo. El backend solo agrega `exercise_muscle_group` al historial por zona existente.
+
+### Sesión 2026-11-12 — US-32
+
+- Q: ¿Qué cuenta como "reporte del entrenamiento"? → A: Una sesión de entrenamiento finalizada por el alumno.
+- Q: ¿Cómo se calculan los "5 entrenamientos"? → A: Con la frecuencia de la rutina asignada (días de rutina por semana): entrenamientos sin reportar = ⌊días sin reportar × frecuencia / 7⌋. El riesgo se dispara con 5 entrenamientos sin reportar o 14 días, lo que ocurra primero. Sin rutina asignada no se esperan entrenamientos y no hay riesgo.
+- Q: ¿Desde cuándo se cuentan los días? → A: Desde el último reporte, o desde el inicio del vínculo o la asignación de la rutina si nunca reportó (la fecha más reciente).
+- Q: ¿Cómo recibe la alerta el entrenador? → A: Como notificación `ABANDONMENT_RISK` (una sola vez por período de inactividad), generada al consultar sus notificaciones o el riesgo de sus alumnos. En "Mis alumnos" los alumnos en riesgo aparecen primero con la etiqueta "Riesgo de abandono".
+
+### Sesión 2026-11-13 — US-24
+
+- Q: ¿Contra qué se comparan las métricas de una sesión "Finalizada"? → A: Contra ambas referencias. Por ejercicio se muestra lo planificado en la rutina (series, repeticiones y carga objetivo) frente a lo realizado, y además frente a la sesión anterior.
+- Q: ¿Qué "entrenamientos previos" se usan? → A: La última sesión finalizada anterior del mismo día de rutina (misma rutina y mismo nombre de día) del mismo vínculo. Sin sesión previa, la comparación histórica se muestra vacía.
+- Q: ¿Qué métricas se comparan? → A: Por ejercicio: series realizadas, repeticiones por serie, carga máxima, volumen (repeticiones × carga) y tiempo total de las series. Por sesión: duración, RPE y volumen total. Lo planificado corresponde a la versión vigente de la rutina, porque no se guardan versiones históricas. Si el alumno reemplazó un ejercicio (US-54), lo realizado del reemplazo se compara contra lo planificado del ejercicio original y se indica el reemplazo.
+- Q: ¿Dónde se ve? → A: En "Rutinas del día" (US-22), dentro del detalle de una sesión "Finalizada", mediante la acción "Comparar métricas". Una sesión en curso no se puede comparar.
+
+### Sesión 2026-11-13 — US-26
+
+- Q: Los días de la rutina no están atados al calendario: ¿qué es la "próxima sesión programada" y qué modifica el ajuste? → A: El mismo día de rutina de la sesión revisada (por ejemplo, "Día A"). El ajuste modifica de forma persistente ese día en la copia de la rutina del alumno, reutilizando la edición de US-14, y queda en el historial de cambios. El alumno ve la marca "Ajustado por tu entrenador" y la nota en los ejercicios ajustados hasta que finaliza una sesión de ese día.
+- Q: ¿Qué se puede modificar? → A: Las series, las repeticiones, el descanso y la carga objetivo de los ejercicios del día, y reemplazar un ejercicio por otro de la biblioteca del entrenador. No se agregan ni quitan días o bloques. La nota es opcional (hasta 500 caracteres).
+- Q: ¿Qué información de la sesión se ve al ajustar? → A: Las cargas registradas por ejercicio, el RPE, las molestias y los dolores reportados en el mapa corporal durante esa sesión (US-61) y los pedidos de reemplazo o los ejercicios salteados (US-54).
+- Q: ¿Un ejercicio contraindicado se advierte o se bloquea? → A: Se bloquea, igual que en US-14. La advertencia indica la limitación y la variante segura si existe, y el ajuste no se guarda.
+- Q: ¿Qué pasa si el alumno está entrenando cuando se guarda el ajuste? → A: El ajuste queda pendiente y se aplica cuando el alumno finaliza la sesión en curso, o cuando inicia una nueva si abandonó la anterior. La sesión en curso no se modifica. Un ajuste nuevo del mismo día reemplaza al anterior.
+- Q: ¿Qué pasa si la rutina cambió o tiene un borrador? → A: No se permite ajustar si la sesión revisada no corresponde a la rutina vigente del alumno, si el día ya no existe o si hay un borrador de US-14 sin confirmar.
+
+### Sesión 2026-11-14 — US-29
+
+- Q: ¿Cómo se priorizan los alumnos en el listado de US-18 cuando coexisten alertas de seguridad sin revisar (US-29) y riesgo de abandono (US-32)? → A: Decisión confirmada de tres niveles sobre vínculos activos: (1) primero y destacados los alumnos con al menos una alerta de seguridad sin revisar (`PENDING`), ordenados por mayor cantidad de alertas sin revisar, alerta pendiente más reciente y orden alfabético; (2) luego los alumnos sin alertas pendientes pero con riesgo de abandono activo (US-32), conservando su cálculo e indicador y su orden por días sin reportar; (3) finalmente el resto de los alumnos activos en orden alfabético.
+- Q: ¿A qué tipos de alerta aplica el aviso al alumno en su próxima sesión (CA-5)? → A: Decisión confirmada: aplica exclusivamente a las alertas originadas por reportes de dolor (`PAIN`, CA-1) marcadas como revisadas por el entrenador. No aplica a molestias repetidas (`DISCOMFORT`, CA-2) ni a esfuerzo excesivo (RPE 9 o 10, CA-3).
+- Q: ¿Cuándo se consideran 2 sesiones consecutivas con molestia en la misma zona (CA-2) y qué interrumpe la secuencia? → A: Decisión confirmada: se evalúan sesiones participantes del alumno dentro del vínculo activo ordenadas cronológicamente por fecha de inicio. Una sesión participa en la secuencia —y, como sesión intermedia, interrumpe la consecutividad cuando no contiene un reporte `DISCOMFORT` en la misma zona evaluada— únicamente si: (1) fue iniciada y (2) tiene actividad registrada (series registradas o reportes de dolor/molestia), contando **aunque no haya sido finalizada**. Dos sesiones participantes son consecutivas para una zona canónica si tanto la sesión donde se registra el reporte como la sesión participante inmediatamente anterior del mismo vínculo contienen al menos un reporte `DISCOMFORT` en esa misma zona; si esa sesión participante inmediatamente anterior no contiene `DISCOMFORT` en la zona evaluada (sin reportes, solo `NORMAL` o `PAIN`, o molestia solo en otra zona), interrumpe la secuencia. No cuentan como sesiones participantes ni intermedias: las sesiones creadas pero nunca iniciadas, las sesiones sin actividad registrada (aunque se hayan cerrado sin series ni reportes) y los reportes post-sesión históricos sin sesión asociada (porque no permiten asociar el reporte a una sesión concreta). Dos o más reportes de molestia en la misma zona dentro de una misma sesión siguen contando como una única sesión y no generan alerta de repetición entre sí.
+- Q: ¿Qué significa exactamente "notificación inmediata" (CA-1, CA-2, CA-3) dentro de la infraestructura actual sin WebSockets ni SSE? → A: Persistencia sincrónica de la alerta de seguridad y de la notificación asociada dentro de la misma transacción que registra el reporte en mapa corporal o el RPE, quedando disponibles de forma inmediata al consultar los listados de alertas, alumnos y notificaciones del entrenador, reflejándose automáticamente en el cliente mediante el polling existente (30 s en la campana de notificaciones y 3 s en el panel de progreso abierto).
+- Q: ¿Cuál es la granularidad de las alertas, cómo se tratan los reportes multizona o `NORMAL`, y cómo se preserva `PAIN_ALERT` de US-61? → A: La alerta de seguridad (`SafetyAlert`) se persiste en una entidad separada de `Notification`. En un reporte de mapa corporal multizona cada zona se evalúa según su intensidad: cada zona con `PAIN` genera una alerta de dolor con referencia al alumno, zona, ejercicio (si fue durante el ejercicio) y sesión, preservando sin cambios la única notificación `PAIN_ALERT` por reporte exigida por US-61; cada zona con `DISCOMFORT` evalúa CA-2 de forma independiente y genera una alerta de molestia repetida junto con una notificación específica al alcanzar la segunda sesión consecutiva; las zonas `NORMAL` no generan alertas ni notificaciones y no reemplazan a `DISCOMFORT` a efectos de mantener una racha. Ante un RPE de 9 o 10 se genera una única alerta de esfuerzo excesivo por sesión y su notificación correspondiente.
+- Q: ¿Cómo se distingue una notificación leída de una alerta revisada y cómo se registra la revisión (CA-4)? → A: Marcar una notificación como leída al abrir o hacer clic en la campana solo actualiza el estado de lectura de la bandeja y jamás marca una alerta como revisada. Toda alerta nace en estado pendiente y pasa a revisada únicamente cuando el entrenador ejecuta la acción explícita de revisión indicando obligatoriamente la acción tomada (`Ajusté la rutina`, `Contacté al alumno` o `Sin acción`) y, opcionalmente, una nota de hasta 500 caracteres (si queda vacía se almacena nula), registrando el momento de revisión.
+- Q: ¿Cómo se determina la próxima sesión del alumno para CA-5, qué pasa si no dejó nota y cómo se garantiza el consumo único? → A: Al abrir el alumno una sesión activa de entrenamiento (siguiendo el patrón de consumo único de US-64), el sistema consulta las alertas de dolor (`PAIN`) en estado revisado aún no vistas del vínculo activo; si existen, muestra que el reporte de dolor en esa zona fue revisado por su entrenador junto con la nota si fue cargada (si no hay nota, se muestra únicamente la confirmación de revisión y la acción tomada sin bloque de nota vacío) y registra inmediatamente su visualización para que no reaparezca en sesiones siguientes.
+- Q: ¿Cómo se generan y deduplican las alertas de RPE 9/10 (CA-3) y de mapa corporal ante reintentos, concurrencia o cambio de entrenador? → A: En US-60, tanto la finalización de sesión con RPE como la actualización diferida bloquean el registro de sesión y son idempotentes si se reenvía el mismo valor; la alerta de esfuerzo excesivo se dispara en ambos caminos únicamente cuando la sesión transiciona a RPE 9 o 10 sin haber tenido esa alerta previa, respaldada por una clave única por sesión. Para dolor se garantiza unicidad por combinación de reporte y zona, y para molestia repetida por combinación de vínculo, sesión y zona, apoyándose además en la clave de idempotencia y ventana de deduplicación de US-61. Todo acceso y cálculo se acota estrictamente al vínculo activo entre entrenador y alumno: al finalizar o cambiar de entrenador, el vínculo terminado revoca el acceso del entrenador anterior y el nuevo vínculo comienza con historial limpio sin arrastrar alertas ni secuencias previas.
+
+### Sesión 2026-11-14 — US-30
+
+- Q: ¿Qué representa cada una de las vistas "por entrenamiento" y "por semana"? → A: Por entrenamiento, un punto por sesión finalizada en orden cronológico; por semana, un punto por semana calendario de lunes a domingo. "Por grupo muscular" es un filtro (ver la sesión 2026-11-16).
+- Q: ¿Qué período de tiempo cubre el gráfico de evolución de un alumno? → A: Un selector de período con 4 semanas, 12 semanas y todo el historial; el valor por defecto es 12 semanas.
+- Q: ¿Dónde ve el entrenador la evolución del alumno? → A: En el detalle del alumno (US-18), con el título "Progreso de {nombre}". Qué se muestra y cómo se mide está en la sesión 2026-11-16.
+- Q: ¿Qué sesiones cuentan para el gráfico de evolución? → A: Solo las sesiones finalizadas; las en curso y las abandonadas se excluyen.
+
+### Sesión 2026-11-16 — US-30 (rediseño por preguntas)
+
+Esta sesión reemplaza a la sesión 2026-11-15 y a los puntos de la sesión 2026-11-14 que se contradicen con ella.
+
+**Enfoque**: el entrenador no abre la pantalla para mirar números sino para decidir qué hacer con el alumno. Por eso cada sección se titula con la pregunta que el entrenador se hace (¿está progresando?, ¿está entrenando lo que le programé?, ¿cómo le está costando?, ¿qué tengo que ajustar?), arranca con una respuesta en una línea calculada por el sistema y recién después muestra el detalle (tabla y gráfico) que la respalda. Los cuatro indicadores del encabezado resumen las respuestas y llevan a cada sección. El sistema señala lo que requiere atención, pero la decisión de ajustar la rutina sigue siendo del entrenador (US-26, desde "Rutinas del día").
+
+- Q: ¿Cómo se organiza la pantalla "Progreso del alumno"? → A: En cuatro secciones, cada una con una pregunta como título y una respuesta en una línea calculada por el sistema: "¿Está progresando?" (progresión por ejercicio), "¿Está entrenando lo que le programé?" (adherencia y cumplimiento), "¿Cómo le está costando?" (esfuerzo percibido, RPE) y "¿Qué tengo que ajustar?" (puntos a revisar y series semanales por grupo muscular). Arriba, cuatro indicadores (Progreso, Adherencia, Esfuerzo y Para revisar) con color de estado y siempre con texto o ícono.
+- Q: ¿Se mantiene el gráfico de volumen total y el de repeticiones y series? → A: No. Sumar kilos de ejercicios distintos engaña si el alumno cambia un ejercicio. El volumen queda solo en el resumen de sesión (US-63). Se elimina también el selector de ejercicio: elegir un ejercicio es tocar su fila en la tabla.
+- Q: ¿Qué se mide por ejercicio? → A: Por sesión, el peso máximo de las series con repeticiones numéricas; en ejercicios sin carga, el máximo de repeticiones en una serie; los ejercicios con repeticiones no numéricas ("45 seg", "al fallo") se muestran como "Sin métrica" y no cuentan. Es mejora si se supera el mejor valor anterior (más peso, o el mismo peso con más repeticiones).
+- Q: ¿Cómo se clasifica un ejercicio? → A: Solo con semanas completas (la semana en curso no entra en estados, porcentajes ni tendencias), en este orden: menos de 2 sesiones → "Pocos datos"; valor actual al menos 10 % menor que el máximo de las 3 semanas anteriores → "Bajó"; mejora en las últimas 3 semanas completas → "Progresando"; sin mejora y con al menos 3 sesiones en esas 3 semanas → "Estancado"; en otro caso → "Sin cambios". La tabla se ordena Bajó, Estancado y Progresando primero.
+- Q: ¿Qué significa "sesiones programadas"? → A: Los días de rutina por semana de la rutina vigente (el mismo criterio que US-32), desde la asignación de la rutina. Las series programadas salen de la versión vigente de la rutina. Cumplimiento = series completadas sobre programadas (sin superar lo programado por ejercicio). Los ejercicios más salteados son los 3 con menor cumplimiento si es menor al 70 %; el único motivo disponible es "pedido de reemplazo" (US-54).
+- Q: ¿Cómo se interpreta el esfuerzo? → A: Promedio de RPE de las últimas 4 sesiones con reporte y su tendencia contra las 4 anteriores (±0,5 es estable). El mensaje sigue esta precedencia: alguna sesión con RPE 9 o más, "esfuerzo excesivo"; carga plana y RPE subiendo, "posible fatiga"; promedio menor a 6, "podría exigirse más"; carga subiendo con RPE subiendo, "progresa pero el esfuerzo aumenta"; carga subiendo con RPE estable o bajando, "progresa con buen margen". La carga "sube" cuando el indicador de Progreso es verde. Las sesiones sin reporte quedan como hueco.
+- Q: ¿Qué incluye "¿Qué tengo que ajustar?" y se enlaza a US-26? → A: Una lista automática de puntos a revisar, en orden: ejercicios que bajaron, estancados, fatiga o esfuerzo excesivo, ejercicios salteados y semanas sin entrenar en las últimas 2; más las series semanales promedio por grupo muscular contra las programadas. Cada punto salvo "semana sin entrenar" tiene el enlace "Ajustar en Rutinas del día", que lleva a esa pantalla (US-26) donde el entrenador elige la sesión y el ejercicio; no hay botón "Ajustar próxima sesión" ni preselección del ejercicio. Sin puntos: "Nada para ajustar por ahora".
+- Q: ¿Qué controles tiene la pantalla? → A: Período (4 semanas, 12 semanas por defecto o todo el historial, alineado a semanas calendario y con el rango de fechas visible), Agrupar (por entrenamiento o por semana) y Grupo muscular (filtra la tabla y las series semanales). "Por grupo muscular" deja de ser una agrupación del eje temporal.
+- Q: ¿Qué estados especiales hay? → A: Sin sesiones: "{nombre} todavía no registró entrenamientos" y sin gráficos. Una sola sesión: la tabla con estado "Pocos datos" y sin gráficos de línea. Sin RPE: "{nombre} no reportó esfuerzo en este período". Grupo muscular sin datos: "No hay ejercicios de {grupo} en este período". Los umbrales (3 semanas, 10 %, 70 %, rangos de RPE y colores) son constantes del módulo.
+- Q: ¿Cómo se explica qué significa cada línea, marca y color de los gráficos? → A: Cada gráfico tiene una leyenda propia, con una muestra dibujada igual que en el gráfico (línea continua, línea entrecortada, punto lleno o hueco, anillo, barra o banda) y su significado en texto. Línea continua: mejor serie de cada período; entrecortada que llega a un punto hueco: período en curso, todavía incompleto; punteada gris: peso objetivo programado; anillo dorado: récord personal vigente; barra gris: sesiones programadas; barra azul: realizadas; contorno rojo: semana sin entrenar; banda verde: RPE 6–8 recomendado; ×: sesión sin reporte de esfuerzo; marca dorada vertical: series programadas. Ningún significado depende solo del color, y cada gráfico ofrece "Ver valores en tabla" como alternativa para teclado y táctil.
+
+### Límite de alcance de este incremento
+
+Los artefactos de implementación de esta iteración cubren únicamente los escenarios de aceptación 1–3 de US-18. El escenario 4, de priorización de alertas, permanece en la especificación de la feature como dependencia de US-29 y explícitamente no se implementa en este incremento. La búsqueda, el filtrado por paquete, la mensajería, las comparaciones avanzadas, los gráficos, los ajustes de sesiones, el ciclo de vida de las alertas de seguridad y el cálculo del riesgo de abandono siguen perteneciendo a sus respectivas historias de usuario.
+
+## Escenarios de usuario y pruebas *(obligatorio)*
+
+### Historia de usuario 1 - [US-18: visualización de alumnos activos] (Prioridad: P1, Estimación: 3 SP)
 
 Como entrenador personal,
  quiero visualizar el listado de alumnos activos que tengo,
  para poder llevar un monitoreo general y particular de cada uno de mis alumnos.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador, cuando ingresa a la sección "Alumnos", entonces debe visualizar todos sus alumnos activos.
 
@@ -30,22 +119,22 @@ Como entrenador personal,
 
 3. Dado un entrenador con alumnos activos, cuando selecciona un alumno en particular, entonces se muestra el perfil del alumno, paquete contratado, objetivos, limitaciones, rutinas cargadas y métricas del alumno.
 
-4. Dado un entrenador con alumnos con alertas de seguridad sin revisar (US-29), cuando ingresa a "Alumnos", entonces esos alumnos aparecen primero y destacados.
+4. Dado un entrenador con alumnos con alertas de seguridad sin revisar (US-29), cuando ingresa a "Alumnos", entonces esos alumnos aparecen primero y destacados. **Nota sobre la dependencia**: este escenario queda reservado para el incremento de US-29 y no forma parte del alcance actual de implementación de US-18.
 
 
 ---
 
-### User Story 2 - [US-19: buscar por alumno] (Priority: P1, Estimación: 2 SP)
+### Historia de usuario 2 - [US-19: buscar por alumno] (Prioridad: P1, Estimación: 2 SP)
 
 Como entrenador personal,
  quiero poder buscar alumnos dentro de mi listado de alumnos activos,
  para encontrar y consultar el perfil de un alumno en particular.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador con alumnos activos, cuando el entrenador busca por nombre y apellido un alumno existente, entonces el sistema devuelve el alumno buscado.
 
@@ -54,17 +143,17 @@ Como entrenador personal,
 
 ---
 
-### User Story 3 - [US-20: filtrar alumnos por paquete contratado] (Priority: P2, Estimación: 2 SP)
+### Historia de usuario 3 - [US-20: filtrar alumnos por paquete contratado] (Prioridad: P2, Estimación: 2 SP)
 
 Como entrenador personal,
  quiero filtrar a mis alumnos por paquete contratado,
  para poder ver los cupos ocupados en cada uno de mis planes.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador con un solo paquete de entrenamiento cargado, cuando entra a la sección de "Alumnos", entonces no puede filtrar por paquete ya que solamente hay un único paquete
 
@@ -75,17 +164,17 @@ Como entrenador personal,
 
 ---
 
-### User Story 4 - [US-21: Canal de mensajes entrenador–alumno] (Priority: P1, Estimación: 4 SP)
+### Historia de usuario 4 - [US-21: Canal de mensajes entrenador–alumno] (Prioridad: P1, Estimación: 4 SP)
 
 Como entrenador personal o alumno,
  quiero intercambiar mensajes con mi alumno o mi entrenador dentro de la aplicación,
  para coordinar cambios y resolver dudas generales sin usar WhatsApp.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador y su alumno activo, cuando uno ingresa al perfil del otro, entonces puede abrir la conversación entre ambos.
 
@@ -98,17 +187,17 @@ Como entrenador personal o alumno,
 
 ---
 
-### User Story 5 - [US-22: seguimiento de rutinas de alumnos] (Priority: P1, Estimación: 4 SP)
+### Historia de usuario 5 - [US-22: seguimiento de rutinas de alumnos] (Prioridad: P1, Estimación: 4 SP)
 
 Como entrenador personal,
  quiero realizar un seguimiento de las rutinas del día del alumno,
  para conocer el estado del entrenamiento de mi alumno.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador con alumnos activos, cuando entra a la sección de "Rutinas del día", entonces debe poder ver todas las rutinas de sus alumnos para ese día.
 
@@ -119,34 +208,34 @@ Como entrenador personal,
 
 ---
 
-### User Story 6 - [US-24: ver métricas esperadas vs obtenidas por rutina] (Priority: P2, Estimación: 3 SP)
+### Historia de usuario 6 - [US-24: ver métricas esperadas vs obtenidas por rutina] (Prioridad: P2, Estimación: 3 SP)
 
 Como entrenador personal,
  quiero comparar las métricas esperadas del entrenamiento con las métricas obtenidas,
  para realizar un seguimiento de los entrenamientos de mis alumnos y adaptar las rutinas en base a lo obtenido.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador con alumnos activos, cuando entra a una rutina en estado "Finalizada", entonces puede ver las métricas de tiempos y cargas del alumno y compararlas con entrenamientos previos del alumno.
 
 
 ---
 
-### User Story 7 - [US-26: Ajustar la próxima sesión del alumno a partir de sus reportes] (Priority: P1, Estimación: 3 SP)
+### Historia de usuario 7 - [US-26: Ajustar la próxima sesión del alumno a partir de sus reportes] (Prioridad: P1, Estimación: 3 SP)
 
 Como entrenador personal,
  quiero ajustar la próxima sesión de un alumno a partir de lo que reportó en la anterior,
  para adaptar cargas o ejercicios según su rendimiento, sus molestias y sus pedidos.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador revisando una sesión "Finalizada" (cargas, RPE, molestias y pedidos de reemplazo), cuando decide ajustar, entonces puede modificar cargas, series o reemplazar ejercicios de la próxima sesión programada desde esa misma pantalla.
 
@@ -159,17 +248,17 @@ Como entrenador personal,
 
 ---
 
-### User Story 8 - [US-28: analizar cargas reportadas por alumnos] (Priority: P1, Estimación: 4 SP)
+### Historia de usuario 8 - [US-28: analizar cargas reportadas por alumnos] (Prioridad: P1, Estimación: 4 SP)
 
 Como entrenador personal,
  quiero poder analizar los reportes de carga de los alumnos después de cada entrenamiento,
  para poder llevar un mejor seguimiento de cada alumno y adaptar los entrenamientos para prevenir lesiones.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador con alumnos activos, cuando consulta un alumno en particular, entonces puede ver todos sus reportes de molestia y dolor asociados al ejercicio o rutina correspondiente.
 
@@ -178,17 +267,17 @@ Como entrenador personal,
 
 ---
 
-### User Story 9 - [US-29: Alertas de seguridad por dolor, molestia repetida o esfuerzo excesivo] (Priority: P1, Estimación: 3 SP)
+### Historia de usuario 9 - [US-29: Alertas de seguridad por dolor, molestia repetida o esfuerzo excesivo] (Prioridad: P1, Estimación: 3 SP)
 
 Como entrenador personal,
  quiero recibir alertas inmediatas cuando un alumno reporta dolor, molestias repetidas o un esfuerzo excesivo,
  para actuar antes de que se produzca una lesión o una recaída.
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un alumno que reporta "dolor" en una zona (durante el ejercicio o al finalizar la sesión, US-61), cuando lo registra, entonces el entrenador recibe una notificación inmediata con el alumno, la zona, el ejercicio y la sesión.
 
@@ -196,43 +285,58 @@ Como entrenador personal,
 
 3. Dado un alumno que reporta un RPE de 9 o 10 (US-60), cuando lo envía, entonces el entrenador recibe una alerta de esfuerzo excesivo.
 
-4. Dado un entrenador con alertas sin revisar, cuando abre el listado de alumnos (US-18), entonces esos alumnos aparecen primero y destacados hasta que marca la alerta como "Revisada" indicando la acción tomada (ajusté la rutina, contacté al alumno o sin acción).
+4. Dado un entrenador con alertas sin revisar, cuando abre el listado de alumnos (US-18), entonces esos alumnos aparecen primero y destacados hasta que marca la alerta como "Revisada" indicando la acción tomada (ajusté la rutina, contacté al alumno o sin acción) y una nota opcional; los alumnos con alertas sin revisar preceden a quienes presentan riesgo de abandono (US-32).
 
-5. Dado un alumno que reportó dolor, cuando el entrenador marca la alerta como revisada, entonces el alumno ve en su próxima sesión que su reporte fue revisado, junto con la nota del entrenador si la dejó.
+5. Dado un alumno que reportó dolor (`PAIN`, CA-1), cuando el entrenador marca la alerta como revisada, entonces el alumno ve en su próxima sesión que su reporte fue revisado, junto con la nota del entrenador si la dejó; este aviso no se emite para alertas por molestias repetidas ni por esfuerzo excesivo.
+
+**Ciclo de vida y privacidad de alertas (US-29)**:
+
+- Estados de revisión de la alerta: `PENDING` (sin revisar) → `REVIEWED` (revisada explícitamente por el entrenador del vínculo activo con acción tomada y fecha/hora de revisión UTC). La lectura de una notificación en la bandeja nunca transiciona una alerta a `REVIEWED`.
+- Reglas de visibilidad y aislamiento: solo el entrenador titular del vínculo `ACTIVE` asociado a la alerta puede consultarla, incluirla en su priorización o marcarla como revisada. Ante la baja o cambio de vínculo (`TERMINATED`), el acceso del entrenador anterior se revoca inmediatamente y los reportes de vínculos anteriores no generan secuencias consecutivas ni alertas visibles para un nuevo entrenador.
 
 
 ---
 
-### User Story 10 - [US-30: ver métricas de evolución de entrenamientos] (Priority: P2, Estimación: 4 SP)
+### Historia de usuario 10 - [US-30: ver métricas de evolución de entrenamientos] (Prioridad: P2, Estimación: 4 SP)
 
 Como entrenador personal,
- quiero ver un gráfico de evolución de los entrenamientos de mis alumnos mostrando pesos levantados, repeticiones y series realizadas,
- para evaluar el avance y evolución de los entrenamientos de mis alumnos
+ quiero ver la evolución de los entrenamientos de mis alumnos (pesos levantados por ejercicio, adherencia, esfuerzo percibido y series completadas) organizada según lo que necesito saber: si progresan, si entrenan lo que les programé, cómo les cuesta y qué debo ajustar,
+ para evaluar el avance de mis alumnos y decidir si hay que ajustar sus rutinas
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
-1. Dado un entrenador con alumnos activos, cuando consulta un alumno en particular, entonces debe poder ver un gráfico de evolución de peso levantado, repeticiones y series realizadas.
+1. Dado un entrenador con alumnos activos, cuando consulta un alumno en particular, entonces ve la evolución del peso máximo por ejercicio, la adherencia (sesiones realizadas vs. programadas), el esfuerzo percibido por sesión y el cumplimiento de series respecto de lo programado.
 
-2. Dado un entrenador con alumnos activos, cuando consulta las métricas de evolución de entrenamiento de un alumno, entonces debe poder seleccionar el gráfico por grupo muscular, por entrenamiento, o por semana.
+2. Dado un entrenador con alumnos activos, cuando consulta las métricas de evolución de entrenamiento de un alumno, entonces debe poder seleccionar el gráfico por grupo muscular, por entrenamiento, o por semana. El eje temporal se agrupa por entrenamiento (un punto por sesión finalizada) o por semana (un punto por semana calendario); el grupo muscular filtra la tabla de ejercicios y se grafica en las series semanales por grupo. Solo cuentan las sesiones finalizadas. El período se elige entre 4 semanas, 12 semanas (por defecto) y todo el historial, alineado a semanas calendario. Se muestra en el detalle del alumno. Ver la sesión de clarificaciones 2026-11-16.
 
+
+3. Dado un entrenador que consulta el progreso de un alumno con sesiones finalizadas, cuando mira la sección "¿Está progresando?", entonces ve una tabla con cada ejercicio (peso o repeticiones de inicio y actual, cambio porcentual, estado y última mejora) ordenada de modo que los ejercicios que bajaron y los estancados aparezcan primero, y puede elegir un ejercicio para ver su gráfico con el peso objetivo programado y los récords personales destacados. El estado es "Progresando", "Estancado", "Bajó", "Sin cambios", "Pocos datos" (menos de 2 sesiones) o "Sin métrica" (repeticiones no numéricas), y se calcula solo con semanas completas.
+
+4. Dado un entrenador que consulta el progreso de un alumno, cuando mira la sección "¿Está entrenando lo que le programé?", entonces ve las sesiones realizadas contra las programadas por semana (con las semanas sin entrenar resaltadas), el porcentaje de adherencia, el porcentaje de series completadas respecto de lo programado y los ejercicios más salteados. La semana en curso se muestra marcada como "en curso" y no entra en porcentajes ni estados.
+
+5. Dado un entrenador que consulta el progreso de un alumno, cuando mira la sección "¿Cómo le está costando?", entonces ve un mensaje que combina la carga con el esfuerzo percibido (esfuerzo excesivo, posible fatiga, se puede exigir más, progresa con esfuerzo en aumento o progresa con margen) y un gráfico del RPE con la zona recomendada (6–8) y huecos en las sesiones sin reporte.
+
+6. Dado un entrenador que consulta el progreso de un alumno, cuando mira la sección "¿Qué tengo que ajustar?", entonces ve una lista automática de puntos a revisar (ejercicios que bajaron o están estancados, fatiga o esfuerzo excesivo, ejercicios salteados y semanas sin entrenar) y las series semanales por grupo muscular contra las programadas. Cada punto, salvo las semanas sin entrenar, ofrece un enlace a "Rutinas del día" para ajustar la rutina (US-26). Si no hay puntos, se indica "Nada para ajustar por ahora".
+
+7. Dado un entrenador que consulta el progreso de un alumno, cuando el alumno no tiene sesiones finalizadas, tiene una sola sesión, no reportó esfuerzo o el grupo muscular elegido no tiene ejercicios en el período, entonces se informa cada caso con un mensaje específico en lugar de gráficos vacíos. Los cuatro indicadores del encabezado (Progreso, Adherencia, Esfuerzo y Para revisar) resumen cada sección con un color y un texto, y llevan a la sección al tocarlos.
 
 ---
 
-### User Story 11 - [US-32: ver alumnos con riesgo de abandono] (Priority: P1, Estimación: 3 SP)
+### Historia de usuario 11 - [US-32: ver alumnos con riesgo de abandono] (Prioridad: P1, Estimación: 3 SP)
 
 Como entrenador personal,
  quiero ver los alumnos con riesgo de abandono,
  para poder crear incentivos y evitar que abandonen
 
-**Why this priority**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
+**Por qué esta prioridad**: Funcionalidad clave clasificada con prioridad Alta en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
-**Independent Test**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
+**Prueba independiente**: Puede verificarse ejecutando los escenarios de aceptación correspondientes y comprobando los cambios de estado en la interfaz y persistencia.
 
-**Acceptance Scenarios**:
+**Escenarios de aceptación**:
 
 1. Dado un entrenador con alumnos activos, cuando un alumno no realizó el reporte del entrenamiento por 5 entrenamientos o 2 semanas (lo que ocurra primero), entonces el entrenador recibe una alerta de posible abandono
 
@@ -241,9 +345,11 @@ Como entrenador personal,
 
 ---
 
-### Edge Cases
+### Casos límite
 
-- ¿Qué ocurre si un alumno reporta dolor en la misma zona durante dos sesiones consecutivas? El sistema eleva la alerta a nivel crítico en el panel del entrenador y sugiere revisar ejercicios vinculados a esa articulación.
+- ¿Qué ocurre si un alumno reporta molestias en la misma zona con una sesión intermedia sin molestia en esa zona? Toda sesión intermedia que fue iniciada, tiene actividad registrada (series o reportes) y no contiene un reporte `DISCOMFORT` en esa zona —**aunque no haya sido finalizada**— interrumpe la secuencia, por lo que una sesión posterior con molestia en esa zona no genera alerta de repetición respecto de la anterior. Por el contrario, una sesión creada pero nunca iniciada o una sesión sin actividad registrada no cuenta como sesión intermedia ni interrumpe la secuencia, y los reportes post-sesión históricos sin sesión asociada quedan excluidos de la secuencia por no poder vincularse a una sesión concreta.
+
+- ¿Qué ocurre si un alumno registra dos o más reportes de molestia en la misma zona dentro de la misma sesión o reintenta el envío de un reporte o RPE 9/10? Dos o más reportes de molestia en la misma zona dentro de una misma sesión siguen contando como una única sesión y no disparan molestia repetida entre sí; las claves de deduplicación evitan alertas duplicadas ante reintentos o ejecuciones concurrentes.
 
 - ¿Cuándo se marca un alumno con 'riesgo de abandono'? Cuando transcurren más de 7 días consecutivos sin que el alumno registre actividad estando su plan activo.
 
@@ -251,39 +357,39 @@ Como entrenador personal,
 
 
 
-## Requirements *(mandatory)*
+## Requisitos *(obligatorio)
 
-### Functional Requirements
+### Requisitos funcionales
 
 - **FR-001**: El sistema DEBE mostrar el listado de alumnos activos con su estado actual y paquete contratado (US-18).
 
-- **FR-002**: El sistema DEBE permitir buscar alumnos por nombre o email (US-19).
+- **FR-002**: El sistema DEBE permitir buscar alumnos activos por nombre y apellido (US-19), sin distinguir mayúsculas ni acentos y mostrando todos los alumnos cuando el campo esté vacío.
 
-- **FR-003**: El sistema DEBE permitir filtrar alumnos según el paquete contratado (US-20).
+- **FR-003**: El sistema DEBE permitir filtrar alumnos según el paquete contratado (US-20), mostrando el filtro solo cuando haya más de un paquete registrado e indicando los cupos ocupados de cada paquete.
 
 - **FR-004**: El sistema DEBE proveer un canal de comunicación directo entre entrenador y alumno (US-21), integrando las consultas técnicas sobre ejercicios provenientes de US-62 con tarjetas referenciales al ejercicio consultado (Decisión Alternativa B).
 
-- **FR-005**: El sistema DEBE permitir al entrenador visualizar la rutina activa y el avance de cada alumno (US-22).
+- **FR-005**: El sistema DEBE permitir al entrenador visualizar la rutina del día de cada alumno activo con su estado (No comenzada, Entrenando, Finalizada) y los tiempos y cargas de cada serie registrada (US-22).
 
 - **FR-006**: El sistema DEBE contrastar métricas planificadas vs obtenidas por rutina (cargas, repeticiones, series) (US-24).
 
 - **FR-007**: El sistema DEBE permitir ajustar las variables de la próxima sesión en base a los reportes del alumno (US-26).
 
-- **FR-008**: El sistema DEBE permitir analizar la evolución de cargas y RPE reportados por el alumno (US-28, US-30).
+- **FR-008**: El sistema DEBE permitir analizar los reportes de molestia y dolor del alumno por ejercicio, rutina y grupo muscular (US-28), y la evolución de cargas y RPE (US-30).
 
-- **FR-009**: El sistema DEBE disparar alertas automáticas de seguridad ante reportes de dolor, molestias repetidas o esfuerzo excesivo (US-29).
+- **FR-009**: El sistema DEBE generar y persistir alertas automáticas de seguridad (`PENDING`) y notificaciones asociadas ante reportes de dolor (`PAIN`, conservando `PAIN_ALERT` de US-61), molestias repetidas (`DISCOMFORT`) en la misma zona en 2 sesiones consecutivas sin sesión intermedia que corte la secuencia, o esfuerzo excesivo (RPE 9 o 10 tanto al finalizar la sesión como en reporte diferido), permitiendo al entrenador revisarlas explícitamente con acción tomada y nota opcional, priorizando primero y de forma destacada a estos alumnos por encima del riesgo de abandono (US-32), y mostrando al alumno un aviso único en su próxima sesión exclusivamente cuando una alerta por dolor (`PAIN`) haya sido revisada (US-29).
 
-- **FR-010**: El sistema DEBE identificar y destacar alumnos con riesgo de abandono por inactividad prolongada (US-32).
+- **FR-010**: El sistema DEBE alertar al entrenador y mostrar primero a los alumnos con riesgo de abandono: 5 entrenamientos sin reportar o 2 semanas sin reportes, lo que ocurra primero (US-32).
 
 
 
-### Key Entities *(include if feature involves data)*
+### Entidades principales *(incluir si la feature involucra datos)
 
 - **TrainerDashboardOverview**: Vista consolidada de cartera de alumnos activos, clasificados por estado de actividad y paquete contratado.
 
 - **TrainerStudentChat**: Canal de mensajería directa entre el entrenador y su alumno vinculado, que aloja tanto la comunicación general (US-21) como los hilos contextuales de dudas técnicas sobre ejercicios (US-62).
 
-- **SafetyAlert**: Alerta automática generada por dolor agudo, molestias reiteradas en la misma articulación o RPE extremo consecutivo.
+- **SafetyAlert**: Alerta automática persistente generada ante reportes de dolor (`PAIN`), molestias (`DISCOMFORT`) reiteradas en la misma zona en 2 sesiones consecutivas o esfuerzo excesivo (RPE 9 o 10), con ciclo de vida independiente de revisión (`PENDING`/`REVIEWED`), acción tomada, nota opcional del entrenador y marca de visualización en la próxima sesión del alumno para alertas de dolor.
 
 - **AbandonmentRiskAlert**: Indicador de riesgo de deserción activado cuando un alumno supera un umbral de días sin registrar entrenamientos.
 
@@ -291,9 +397,9 @@ Como entrenador personal,
 
 
 
-## Success Criteria *(mandatory)*
+## Criterios de éxito *(obligatorio)
 
-### Measurable Outcomes
+### Resultados medibles
 
 - **SC-001**: Las alertas de dolor agudo aparecen destacadas en el panel del entrenador de forma inmediata.
 
@@ -303,7 +409,7 @@ Como entrenador personal,
 
 
 
-## Assumptions
+## Supuestos
 
 - El entrenador consulta su panel periódicamente desde web o móvil para supervisar a su cartera de alumnos.
 

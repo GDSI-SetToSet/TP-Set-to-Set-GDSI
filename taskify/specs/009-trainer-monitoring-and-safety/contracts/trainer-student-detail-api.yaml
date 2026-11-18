@@ -1,0 +1,703 @@
+openapi: 3.0.3
+info:
+  title: API de resumen del alumno para el entrenador
+  version: 1.1.0
+  description: Contrato de US-18 (resumen del alumno), US-24 (comparación de sesiones), US-26 (ajuste de la próxima sesión), US-29 (alertas de seguridad por dolor, molestia repetida o esfuerzo excesivo) y US-30 (progreso y evolución del alumno). Las demás historias de monitoreo se documentan en sus propios contratos o se excluyen.
+paths:
+  /api/v1/trainers/me/students:
+    get:
+      summary: Listar los alumnos activos del entrenador
+      description: >
+        Devuelve los vínculos activos del entrenador autenticados ordenados en tres niveles (US-29 + US-32 + US-18):
+        (1) alumnos con alertas de seguridad sin revisar (`unreviewed_alert_count > 0`),
+        (2) alumnos sin alertas pendientes pero con riesgo de abandono activo (US-32),
+        (3) resto de los alumnos activos en orden alfabético.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Alumnos activos pertenecientes al entrenador autenticado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrainerStudentListItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/trainers/me/students/{student_id}:
+    get:
+      summary: Obtener el resumen de un alumno activo
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: student_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detalle autorizado de un alumno activo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainerStudentDetail'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/trainers/me/sessions/{session_id}/comparison:
+    get:
+      summary: "US-24: comparar una sesión finalizada con lo planificado y con la sesión previa del mismo día de rutina"
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Comparación de métricas por ejercicio y por sesión
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionComparison'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: La sesión todavía está en curso (RFC 7807)
+  /api/v1/trainers/me/sessions/{session_id}/adjustment:
+    parameters:
+      - in: path
+        name: session_id
+        required: true
+        schema:
+          type: string
+    get:
+      summary: "US-26: reportes de una sesión finalizada y el día de rutina a ajustar"
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Cargas, RPE, molestias, pedidos de reemplazo, ejercicios del día y ajuste vigente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionAdjustmentContext'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: La sesión sigue en curso (RFC 7807)
+    put:
+      summary: "US-26: ajustar la próxima sesión de ese día de rutina"
+      description: >
+        Reescribe el día en la copia de la rutina del alumno (con registro en el historial de cambios). Si el alumno
+        tiene una sesión en curso, el ajuste queda PENDING y se aplica cuando esa sesión finaliza o cuando inicia otra.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [blocks]
+              properties:
+                note: {type: string, nullable: true, maxLength: 500}
+                blocks:
+                  type: array
+                  minItems: 1
+                  items: {type: object, description: Igual a un bloque de RoutineTemplateInput}
+      responses:
+        '200':
+          description: Ajuste guardado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdjustmentView'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Sesión en curso, rutina cambiada, día inexistente o borrador de US-14 sin confirmar (RFC 7807)
+        '422':
+          description: Ejercicio contraindicado, sin alternativa "Sin materiales", datos inválidos o sin cambios (RFC 7807 con errors)
+  /api/v1/students/me/routine-adjustments:
+    get:
+      summary: "US-26: días con ejercicios \"Ajustado por tu entrenador\" que el alumno todavía no entrenó"
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Avisos de ajuste por día
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [day_name, exercise_ids, adjusted_at]
+                  properties:
+                    day_name: {type: string}
+                    note: {type: string, nullable: true}
+                    exercise_ids: {type: array, items: {type: string}}
+                    adjusted_at: {type: string, format: date-time}
+  /api/v1/trainers/me/safety-alerts:
+    get:
+      summary: "US-29: listar alertas de seguridad de los alumnos activos del entrenador"
+      description: >
+        Devuelve las alertas de seguridad (`PAIN`, `REPEATED_DISCOMFORT`, `EXCESSIVE_EFFORT`) pertenecientes a vínculos
+        con estado `ACTIVE` del entrenador autenticado. Se ordenan priorizando las alertas `PENDING` y luego por fecha
+        de creación descendente. Nunca incluye alertas de vínculos `TERMINATED` ni de otros entrenadores.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema:
+            $ref: '#/components/schemas/SafetyAlertStatus'
+          description: Filtrar por estado de revisión (`PENDING` o `REVIEWED`).
+        - in: query
+          name: student_id
+          required: false
+          schema:
+            type: string
+          description: Filtrar por identificador de perfil del alumno vinculado activamente.
+      responses:
+        '200':
+          description: Listado autorizado de alertas de seguridad
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SafetyAlertView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /api/v1/trainers/me/students/{student_id}/safety-alerts:
+    get:
+      summary: "US-29: listar alertas de seguridad de un alumno activo específico"
+      description: >
+        Requiere que el entrenador autenticado posea un vínculo `ACTIVE` con `student_id`. Rechaza con 404 si el alumno
+        pertenece a otro entrenador o si el vínculo está `TERMINATED`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: student_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: status
+          required: false
+          schema:
+            $ref: '#/components/schemas/SafetyAlertStatus'
+      responses:
+        '200':
+          description: Alertas de seguridad del alumno activo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SafetyAlertView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /api/v1/trainers/me/safety-alerts/{alert_id}/review:
+    patch:
+      summary: "US-29: marcar una alerta de seguridad como Revisada indicando la acción tomada"
+      description: >
+        Transiciona una alerta de `PENDING` a `REVIEWED` registrando obligatoriamente `action_taken` y opcionalmente
+        `trainer_note`. Requiere rol TRAINER y vínculo `ACTIVE` titular de la alerta. Marcar la notificación como leída
+        en la campana no modifica este estado. Si la alerta es de tipo `PAIN`, habilita el aviso en la próxima sesión
+        del alumno (CA-5).
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: alert_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SafetyAlertReviewRequest'
+      responses:
+        '200':
+          description: Alerta marcada como revisada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SafetyAlertView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /api/v1/students/me/safety-alerts/reviewed-notices:
+    get:
+      summary: "US-29 (CA-5): obtener avisos pendientes de alertas por dolor revisadas por el entrenador"
+      description: >
+        Devuelve exclusivamente alertas con `alert_type = PAIN`, `status = REVIEWED` y `student_seen_at = null` del
+        vínculo `ACTIVE` del alumno autenticado. Nunca incluye alertas `REPEATED_DISCOMFORT` ni `EXCESSIVE_EFFORT`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Avisos de dolor revisados pendientes de visualización en la próxima sesión
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StudentPainAlertReviewedNotice'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/students/me/safety-alerts/{alert_id}/seen:
+    post:
+      summary: "US-29 (CA-5): marcar como visto un aviso de alerta por dolor revisada"
+      description: >
+        Registra `student_seen_at` en UTC cuando el alumno visualiza el aviso en su próxima sesión para garantizar
+        consumo único. Operación idempotente para alertas `PAIN` en estado `REVIEWED` del propio alumno en vínculo
+        `ACTIVE`. Rechaza alertas de otros alumnos o tipos que no corresponden a dolor.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: alert_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Aviso marcado como visto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentPainAlertReviewedNotice'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/trainers/me/students/{student_id}/evolution:
+    get:
+      summary: "US-30: progreso del alumno (progresión por ejercicio, adherencia, esfuerzo y puntos a revisar)"
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: student_id
+          required: true
+          schema: {type: string}
+        - in: query
+          name: period
+          schema: {type: string, enum: [4w, 12w, all], default: 12w}
+        - in: query
+          name: group_by
+          schema: {type: string, enum: [session, week], default: week}
+        - in: query
+          name: muscle_group
+          description: Filtra la tabla de ejercicios y las series semanales por grupo muscular
+          schema: {type: string}
+      responses:
+        '200':
+          description: Solo sesiones finalizadas; la semana en curso (`is_partial`) no entra en estados, porcentajes ni tendencias
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingEvolution'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Parámetro inválido (RFC 7807)
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  responses:
+    Unauthorized:
+      description: Error de autenticación RFC 7807
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Error de autorización RFC 7807
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: Error de recurso no encontrado RFC 7807
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Conflicto de estado (ej. alerta ya revisada) RFC 7807
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnprocessableEntity:
+      description: Error de validación de datos RFC 7807
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, detail, instance]
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer}
+        detail: {type: string}
+        instance: {type: string}
+        errors:
+          type: array
+          items: {type: object}
+    TrainerStudentListItem:
+      type: object
+      required: [relationship_id, student_id, full_name, profile_status, has_activity]
+      properties:
+        relationship_id: {type: string}
+        student_id: {type: string}
+        full_name: {type: string}
+        profile_status: {type: string}
+        package_title: {type: string, nullable: true}
+        routine_name: {type: string, nullable: true}
+        has_activity: {type: boolean}
+        unreviewed_alert_count: {type: integer, nullable: true, description: "Cantidad de alertas de seguridad PENDING del vínculo activo (poblado por US-29)"}
+    TrainerStudentDetail:
+      type: object
+      required: [relationship, profile, goals, limitations, routine, metrics]
+      properties:
+        relationship: {type: object}
+        profile: {type: object}
+        goals: {type: object}
+        limitations: {type: object}
+        routine: {type: object, nullable: true}
+        metrics:
+          type: object
+          required: [finished_sessions, logged_sets]
+          properties:
+            finished_sessions: {type: integer}
+            last_session_at: {type: string, format: date-time, nullable: true}
+            logged_sets: {type: integer}
+            last_rpe: {type: number, nullable: true}
+            last_tonnage_kg: {type: number, nullable: true}
+    PerformedMetrics:
+      type: object
+      required: [sets_completed, reps, volume_kg, total_duration_seconds]
+      properties:
+        sets_completed: {type: integer}
+        reps: {type: array, items: {type: string}}
+        max_weight_kg: {type: number, nullable: true}
+        volume_kg: {type: number, description: Suma de repeticiones × carga de las series con valores numéricos}
+        total_duration_seconds: {type: integer, nullable: true}
+    ExerciseComparison:
+      type: object
+      required: [exercise_id, exercise_name]
+      properties:
+        exercise_id: {type: string}
+        exercise_name: {type: string}
+        replaced_exercise_name: {type: string, nullable: true, description: Ejercicio planificado que el alumno reemplazó (US-54)}
+        planned:
+          type: object
+          nullable: true
+          properties:
+            sets: {type: integer}
+            reps: {type: string}
+            target_weight_kg: {type: number, nullable: true}
+        performed: {$ref: '#/components/schemas/PerformedMetrics', nullable: true}
+        previous: {$ref: '#/components/schemas/PerformedMetrics', nullable: true}
+    SessionComparison:
+      type: object
+      required: [session, exercises, volume_kg]
+      properties:
+        session: {type: object, description: Igual a DailyRoutineSession}
+        previous_session: {type: object, nullable: true, description: Última sesión finalizada anterior del mismo día de rutina}
+        planned_duration_seconds: {type: integer, nullable: true, description: Duración estimada total en segundos de los bloques planificados de la sesión}
+        volume_kg: {type: number}
+        previous_volume_kg: {type: number, nullable: true}
+        exercises:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExerciseComparison'
+    AdjustmentView:
+      type: object
+      required: [id, status, changed_exercise_ids, created_at]
+      properties:
+        id: {type: string}
+        status: {type: string, enum: [PENDING, APPLIED]}
+        note: {type: string, nullable: true}
+        changed_exercise_ids: {type: array, items: {type: string}}
+        created_at: {type: string, format: date-time}
+        applied_at: {type: string, format: date-time, nullable: true}
+    SessionAdjustmentContext:
+      type: object
+      required: [session_id, day_name, logged_exercises, pain_zones, replacement_requests, blocks, can_adjust]
+      properties:
+        session_id: {type: string}
+        day_name: {type: string}
+        started_at: {type: string, format: date-time}
+        finished_at: {type: string, format: date-time, nullable: true}
+        rpe: {type: integer, nullable: true}
+        logged_exercises: {type: array, items: {type: object}}
+        pain_zones:
+          type: array
+          items:
+            type: object
+            properties:
+              zone: {type: string}
+              zone_label: {type: string}
+              intensity: {type: string, enum: [DISCOMFORT, PAIN]}
+              exercise_name: {type: string, nullable: true}
+              context: {type: string}
+        replacement_requests:
+          type: array
+          items:
+            type: object
+            properties:
+              original_exercise_id: {type: string}
+              original_exercise_name: {type: string}
+              replacement_exercise_name: {type: string, nullable: true, description: None si el alumno salteó el ejercicio}
+        blocks: {type: array, items: {type: object}, description: Día vigente, o el ajuste pendiente si lo hay}
+        can_adjust: {type: boolean}
+        blocked_reason: {type: string, nullable: true}
+        current_adjustment: {$ref: '#/components/schemas/AdjustmentView', nullable: true}
+    SafetyAlertType:
+      type: string
+      enum: [PAIN, REPEATED_DISCOMFORT, EXCESSIVE_EFFORT]
+      description: >
+        PAIN: dolor reportado en mapa corporal (CA-1);
+        REPEATED_DISCOMFORT: molestia en la misma zona en 2 sesiones consecutivas (CA-2);
+        EXCESSIVE_EFFORT: RPE 9 o 10 reportado en una sesión (CA-3).
+    SafetyAlertStatus:
+      type: string
+      enum: [PENDING, REVIEWED]
+    SafetyAlertAction:
+      type: string
+      enum: [ADJUSTED_ROUTINE, CONTACTED_STUDENT, NO_ACTION]
+      description: >
+        ADJUSTED_ROUTINE = "Ajusté la rutina";
+        CONTACTED_STUDENT = "Contacté al alumno";
+        NO_ACTION = "Sin acción".
+    SafetyAlertReviewRequest:
+      type: object
+      required: [action_taken]
+      properties:
+        action_taken:
+          $ref: '#/components/schemas/SafetyAlertAction'
+        trainer_note:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: Nota opcional del entrenador para registrar contexto de la revisión (visible al alumno en CA-5 si la alerta es PAIN).
+    SafetyAlertView:
+      type: object
+      required: [id, relationship_id, student_id, student_name, alert_type, status, created_at]
+      properties:
+        id: {type: string}
+        relationship_id: {type: string}
+        student_id: {type: string}
+        student_name: {type: string}
+        session_id: {type: string, nullable: true}
+        session_day_name: {type: string, nullable: true}
+        report_id: {type: string, nullable: true}
+        exercise_id: {type: string, nullable: true}
+        exercise_name: {type: string, nullable: true}
+        alert_type: {$ref: '#/components/schemas/SafetyAlertType'}
+        zone: {type: string, nullable: true}
+        zone_display_name: {type: string, nullable: true}
+        rpe: {type: integer, nullable: true, minimum: 9, maximum: 10}
+        status: {$ref: '#/components/schemas/SafetyAlertStatus'}
+        action_taken:
+          allOf:
+            - $ref: '#/components/schemas/SafetyAlertAction'
+          nullable: true
+        trainer_note: {type: string, nullable: true}
+        created_at: {type: string, format: date-time}
+        reviewed_at: {type: string, format: date-time, nullable: true}
+        student_seen_at: {type: string, format: date-time, nullable: true}
+    StudentPainAlertReviewedNotice:
+      type: object
+      required: [id, action_taken, reviewed_at]
+      properties:
+        id: {type: string}
+        session_id: {type: string, nullable: true}
+        session_day_name: {type: string, nullable: true}
+        exercise_name: {type: string, nullable: true}
+        zone: {type: string, nullable: true}
+        zone_display_name: {type: string, nullable: true}
+        action_taken: {$ref: '#/components/schemas/SafetyAlertAction'}
+        trainer_note: {type: string, nullable: true}
+        reviewed_at: {type: string, format: date-time}
+    TrafficLight:
+      type: string
+      enum: [green, yellow, red]
+      nullable: true
+    SetResult:
+      type: object
+      properties:
+        weight: {type: number, nullable: true, description: Nulo sin carga (peso corporal)}
+        reps: {type: integer, nullable: true}
+    TrainingEvolution:
+      type: object
+      required: [period, group_by, muscle_groups, has_sessions, summary, exercises, adherence, most_skipped, rpe, sets_by_muscle_group, to_review]
+      properties:
+        period:
+          type: object
+          required: [key, end]
+          properties:
+            key: {type: string, enum: [4w, 12w, all]}
+            start: {type: string, format: date, nullable: true, description: Lunes inicial (semanas calendario)}
+            end: {type: string, format: date}
+        group_by: {type: string, enum: [session, week]}
+        muscle_group: {type: string, nullable: true}
+        muscle_groups: {type: array, items: {type: string}, description: Grupos de todo el historial, para el filtro}
+        has_sessions: {type: boolean}
+        summary:
+          type: object
+          required: [progress, adherence, effort, to_review]
+          properties:
+            progress:
+              type: object
+              properties:
+                improving: {type: integer}
+                with_data: {type: integer}
+                status: {$ref: '#/components/schemas/TrafficLight'}
+            adherence:
+              type: object
+              properties:
+                completed_sessions: {type: integer}
+                scheduled_sessions: {type: integer}
+                pct: {type: integer, nullable: true}
+                sets_completion_pct: {type: integer, nullable: true}
+                status: {$ref: '#/components/schemas/TrafficLight'}
+            effort:
+              type: object
+              properties:
+                avg_rpe_last_4: {type: number, nullable: true}
+                trend: {type: string, enum: [rising, stable, falling], nullable: true}
+                message_key: {type: string, enum: [excessive_effort, fatigue, room_for_more, progressing_effort_rising, progressing_with_margin], nullable: true}
+                status: {$ref: '#/components/schemas/TrafficLight'}
+            to_review:
+              type: object
+              properties:
+                count: {type: integer}
+                status: {$ref: '#/components/schemas/TrafficLight'}
+        exercises:
+          type: array
+          items:
+            type: object
+            properties:
+              exercise_id: {type: string}
+              name: {type: string}
+              muscle_group: {type: string}
+              metric: {type: string, enum: [max_weight, max_reps, none]}
+              start: {$ref: '#/components/schemas/SetResult'}
+              current: {$ref: '#/components/schemas/SetResult'}
+              change_pct: {type: number, nullable: true}
+              last_improvement:
+                type: object
+                nullable: true
+                properties:
+                  date: {type: string, format: date}
+                  is_pr: {type: boolean, description: Solo la sesión del récord vigente (US-59 guarda un único récord)}
+              status: {type: string, enum: [progressing, stalled, declined, unchanged, few_data, no_metric]}
+              points:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    key: {type: string}
+                    period_start: {type: string, format: date}
+                    period_end: {type: string, format: date}
+                    weight: {type: number, nullable: true}
+                    reps: {type: integer, nullable: true}
+                    target_weight: {type: number, nullable: true}
+                    rpe: {type: integer, nullable: true}
+                    is_pr: {type: boolean}
+                    is_partial: {type: boolean}
+        adherence:
+          type: array
+          items:
+            type: object
+            properties:
+              period_start: {type: string, format: date}
+              period_end: {type: string, format: date}
+              scheduled: {type: integer}
+              completed: {type: integer}
+              is_partial: {type: boolean}
+        most_skipped:
+          type: array
+          items:
+            type: object
+            properties:
+              exercise_id: {type: string}
+              name: {type: string}
+              completion_pct: {type: integer}
+              skip_count: {type: integer}
+              main_reason: {type: string, enum: [replacement_requested], nullable: true}
+        rpe:
+          type: array
+          items:
+            type: object
+            properties:
+              key: {type: string}
+              period_start: {type: string, format: date}
+              period_end: {type: string, format: date}
+              rpe: {type: number, nullable: true}
+              has_report: {type: boolean}
+              trainer_feedback: {type: string, nullable: true}
+              is_partial: {type: boolean}
+        sets_by_muscle_group:
+          type: array
+          items:
+            type: object
+            properties:
+              muscle_group: {type: string}
+              avg_completed_per_week: {type: number}
+              avg_scheduled_per_week: {type: number}
+        to_review:
+          type: array
+          items:
+            type: object
+            properties:
+              type: {type: string, enum: [exercise_declined, exercise_stalled, fatigue, excessive_effort, exercise_skipped, week_without_training]}
+              exercise_id: {type: string, nullable: true}
+              label: {type: string}

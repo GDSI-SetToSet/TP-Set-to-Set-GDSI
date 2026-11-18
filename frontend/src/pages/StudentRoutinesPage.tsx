@@ -10,6 +10,11 @@ import { EffortFeedbackList } from '../components/EffortFeedbackList';
 import { SafeVariantNotice } from '../components/SafeVariantNotice';
 import { SessionSummaryDialog } from '../components/SessionSummaryDialog';
 import {
+  RPE_UNREPORTED_LABEL,
+  findPendingRpeSession,
+  syncSessionAfterRpe,
+} from '../utils/sessionRpeState.mjs';
+import {
   elapsedSessionSeconds,
   parseSessionTimestamp,
   resolveSessionTimerState,
@@ -19,7 +24,17 @@ import {
 import { ExerciseAlternativesPanel } from '../components/ExerciseAlternativesPanel';
 import { saveReplacement } from '../services/exerciseAlternativeService';
 import type { ExerciseAlternative } from '../types/exerciseAlternative';
+import { getStudentReviewedPainNotices, markSafetyAlertSeen } from '../services/safetyAlertService';
+import { formatStudentPainReviewedNotice } from '../utils/safetyAlerts.mjs';
 import { RestTimer } from '../components/RestTimer';
+import { getStudentAdjustments } from '../services/sessionAdjustmentService';
+import type { StudentAdjustmentNotice } from '../types/sessionAdjustment';
+import {
+  ADJUSTED_LABEL,
+  isAdjustedExercise,
+  noticeForDay,
+  resolveInitialSetDraft,
+} from '../utils/sessionAdjustment.mjs';
 import { ROUTES } from '../constants/routes';
 import {
   createAssignedRoutineWorkoutLog,
@@ -153,8 +168,11 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const [clockNow, setClockNow] = useState(Date.now());
   const [autoFinishPending, setAutoFinishPending] = useState(false);
   const [effortFeedback, setEffortFeedback] = useState<EffortFeedback[]>([]);
+  const [adjustments, setAdjustments] = useState<StudentAdjustmentNotice[]>([]);
   const [unseenFeedback, setUnseenFeedback] = useState<EffortFeedback[]>([]);
   const [effortFeedbackError, setEffortFeedbackError] = useState(false);
+  const [reviewedPainNotices, setReviewedPainNotices] = useState<Array<NonNullable<ReturnType<typeof formatStudentPainReviewedNotice>>>>([]);
+  const [painNoticesError, setPainNoticesError] = useState(false);
   const autoFinishTimeout = useRef<number | null>(null);
   const sessionStartedAtMs = sessionMode && sessionTimerState.sessionId === sessionId
     ? sessionTimerState.startedAtMs
@@ -166,8 +184,10 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       getAssignedRoutineWorkoutLogs().catch(() => []),
       getAssignedRoutineWorkoutSessions().catch(() => []),
       getStudentZoneHistory().catch(() => []),
+      getStudentAdjustments().catch(() => []),
     ])
-      .then(([assigned, logs, sessions, zones]) => {
+      .then(([assigned, logs, sessions, zones, adjusted]) => {
+        setAdjustments(adjusted);
         setRoutine(assigned);
         setSelectedDayId(assigned?.days.some((day) => day.id === requestedDayId) ? requestedDayId ?? '' : assigned?.days[0]?.id ?? '');
         setWorkoutLogs(logs);
@@ -176,7 +196,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       })
       .catch(() => setError('No pudimos cargar tu rutina. Intentá nuevamente.'))
       .finally(() => setLoading(false));
-  }, [requestedDayId]);
+  }, [requestedDayId, sessionMode]);
 
   // US-64: devoluciones del entrenador. Al abrir una sesión se muestran las no vistas y se marcan como vistas.
   useEffect(() => {
@@ -198,6 +218,32 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
         });
       })
       .catch(() => { if (!cancelled) setEffortFeedbackError(true); });
+    return () => { cancelled = true; };
+  }, [sessionMode]);
+
+  // US-29 (CA-5): avisos únicos en próxima sesión exclusivamente para reportes PAIN revisados.
+  useEffect(() => {
+    if (!sessionMode) {
+      setReviewedPainNotices([]);
+      setPainNoticesError(false);
+      return undefined;
+    }
+    let cancelled = false;
+    getStudentReviewedPainNotices()
+      .then((items) => {
+        if (cancelled) return;
+        setPainNoticesError(false);
+        const formatted = items
+          .map((item) => formatStudentPainReviewedNotice(item))
+          .filter((item): item is NonNullable<typeof item> => item !== null);
+        setReviewedPainNotices(formatted);
+        formatted.forEach((notice) => {
+          markSafetyAlertSeen(notice.id).catch(() => undefined);
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setPainNoticesError(true);
+      });
     return () => { cancelled = true; };
   }, [sessionMode]);
 
@@ -255,6 +301,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const activeModality: RoutineModality = routine?.modality ?? 'GYM';
   const isHomeModality = activeModality === 'HOME';
   const selectedDay = routine?.days.find((day) => day.id === selectedDayId) ?? routine?.days[0];
+  const selectedNotice = noticeForDay(adjustments, selectedDay?.name);
   const totalDuration = selectedDay?.blocks.reduce((total, block) => total + (block.estimated_duration_minutes ?? 0), 0) ?? 0;
   const showCelebration = searchParams.get('completed') === '1';
   const showPrAlertBanner = shouldShowPersonalRecordAlert(prAlertBanner, {
@@ -350,14 +397,11 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     let nextSet = 1;
     while (nextSet <= item.sets && recordedSetNumbers.has(nextSet)) nextSet += 1;
     const previousLog = getPreviousLog(item);
-    const defaultWeight = previousLog?.weight_kg !== null && previousLog?.weight_kg !== undefined
-      ? String(previousLog.weight_kg)
-      : isHomeModality ? '0' : item.target_weight_kg !== null ? String(item.target_weight_kg) : '';
-    return {
-      setNumber: String(nextSet),
-      repsCompleted: previousLog?.reps_completed ?? item.reps,
-      weightKg: defaultWeight,
-    };
+    return resolveInitialSetDraft(item, previousLog, {
+      isAdjusted: isAdjustedExercise(selectedNotice, item.exercise.id),
+      isHomeModality,
+      nextSet,
+    });
   };
 
   const updateDraftField = (item: RoutineExercise, field: keyof SetLogDraft, value: string) => {
@@ -410,7 +454,17 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       const startedAt = parseSessionTimestamp(session.started_at);
       if (startedAt === null) throw new Error('La sesión no devolvió una fecha de inicio válida.');
       window.localStorage.setItem(`workout-started-at:${session.id}`, String(startedAt));
-      navigate(ROUTES.studentRoutineSession + '?day=' + encodeURIComponent(selectedDay.id) + '&session=' + encodeURIComponent(session.id) + '&startedAt=' + encodeURIComponent(String(startedAt)));
+      // US-26: al iniciar se aplican los ajustes pendientes del entrenador; se recarga la rutina vigente.
+      const [refreshed, adjusted] = await Promise.all([
+        getAssignedStudentRoutine().catch(() => routine),
+        getStudentAdjustments().catch(() => adjustments),
+      ]);
+      const refreshedDay = refreshed?.days.find((day) => day.name === selectedDay.name) ?? selectedDay;
+      if (refreshed) setRoutine(refreshed);
+      setAdjustments(adjusted);
+      setLogDrafts({});
+      setSelectedDayId(refreshedDay.id);
+      navigate(ROUTES.studentRoutineSession + '?day=' + encodeURIComponent(refreshedDay.id) + '&session=' + encodeURIComponent(session.id) + '&startedAt=' + encodeURIComponent(String(startedAt)));
     } catch {
       setLogError('No pudimos iniciar el entrenamiento. Intentá nuevamente.');
     } finally {
@@ -423,7 +477,8 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     setLogError('');
     setFinishingWorkout(true);
     try {
-      await finishAssignedWorkoutSession(sessionId, null);
+      const finished = await finishAssignedWorkoutSession(sessionId, null);
+      setWorkoutSessions((current) => syncSessionAfterRpe(current, finished));
       window.localStorage.removeItem(`workout-started-at:${sessionId}`);
       setActiveRest(null);
       setAutoFinishPending(false);
@@ -441,9 +496,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     setLogError('');
     try {
       const updated = await reportWorkoutSessionRpe(targetSessionId, rpeVal);
-      setWorkoutSessions((current) =>
-        current.map((s) => (s.id === targetSessionId ? { ...s, rpe: updated.rpe } : s))
-      );
+      setWorkoutSessions((current) => syncSessionAfterRpe(current, updated));
       setPendingRpeValue(0);
     } catch {
       setLogError('No pudimos guardar el reporte de esfuerzo. Intentá nuevamente.');
@@ -655,6 +708,33 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                 <span className="student-routine-session-heading__elapsed" role="timer" aria-label="Tiempo transcurrido del entrenamiento">Tiempo de entrenamiento: {formatClock(elapsedSessionSeconds(clockNow, sessionStartedAtMs))}</span>
               </div>
             </div>}
+            {sessionMode && painNoticesError && (
+              <p className="form-alert" role="status">
+                No pudimos verificar si tu entrenador revisó reportes de dolor anteriores.
+              </p>
+            )}
+            {sessionMode && reviewedPainNotices.length > 0 && (
+              <section className="safety-pain-notice" aria-labelledby="safety-pain-notice-title">
+                <h2 id="safety-pain-notice-title">
+                  {reviewedPainNotices.length === 1
+                    ? 'Tu entrenador revisó tu reporte de dolor'
+                    : 'Tu entrenador revisó tus reportes de dolor'}
+                </h2>
+                <ul className="safety-pain-notice__list">
+                  {reviewedPainNotices.map((notice) => (
+                    <li key={notice.id} className="safety-pain-notice__item">
+                      <strong>{notice.actionLabel}</strong>
+                      {notice.contextText && (
+                        <span className="safety-pain-notice__meta">{notice.contextText}</span>
+                      )}
+                      {notice.trainerNote && (
+                        <p className="safety-pain-notice__note">{notice.trainerNote}</p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             {sessionMode && unseenFeedback.length > 0 && <section className="effort-feedback-notice" aria-labelledby="effort-feedback-notice-title">
               <h2 id="effort-feedback-notice-title">{unseenFeedback.length === 1 ? 'Tu entrenador te dejó una devolución' : 'Tu entrenador te dejó devoluciones'}</h2>
               <EffortFeedbackList items={unseenFeedback} />
@@ -715,9 +795,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
             )}
 
             {(() => {
-              const pendingRpeSession = workoutSessions.find(
-                (s) => s.finished_at && (s.rpe === null || s.rpe === undefined) && s.id !== sessionId
-              );
+              const pendingRpeSession = findPendingRpeSession(workoutSessions, sessionId);
               if (!pendingRpeSession) return null;
               return (
                 <aside className="student-routine-rpe-reminder" role="status" aria-live="polite">
@@ -780,6 +858,18 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
               </aside>
             )}
 
+            {selectedNotice && (
+              <aside className="student-routine-adjusted" role="status">
+                <strong>{ADJUSTED_LABEL}</strong>
+                <p>
+                  {selectedNotice.exercise_ids.length === 0
+                    ? 'Tu entrenador revisó tu última sesión de este día y te dejó una nota.'
+                    : `Tu entrenador ajustó ${selectedNotice.exercise_ids.length === 1 ? 'un ejercicio' : `${selectedNotice.exercise_ids.length} ejercicios`} de este día a partir de tu última sesión.`}
+                </p>
+                {selectedNotice.note && <blockquote>{selectedNotice.note}</blockquote>}
+              </aside>
+            )}
+
             {selectedDay?.blocks.map((block) => (
               <section key={block.id} className="student-daily-routine__block">
                 <header>
@@ -798,6 +888,9 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                         <div className="student-routine-exercise__summary">
                           <div className="student-routine-exercise__title-row">
                             <h4>{replacements[item.id]?.name ?? item.exercise.name}</h4>
+                            {isAdjustedExercise(selectedNotice, item.exercise.id) && (
+                              <span className="student-routine-adjusted__badge">{ADJUSTED_LABEL}</span>
+                            )}
                             <span
                               className={`student-routine-exercise__modality-badge ${
                                 isHomeModality
@@ -829,6 +922,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                           <ExerciseAlternativesPanel
                             exerciseId={item.exercise.id}
                             dayName={selectedDay?.name ?? ''}
+                            sessionId={sessionMode ? sessionId : null}
                             chosen={replacements[item.id] ?? null}
                             onChosen={(alt) => setReplacements((current) => {
                               const { [item.id]: _removed, ...rest } = current;
@@ -1041,7 +1135,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                                 </span>
                               ) : (
                                 <span className="student-routine-session__rpe-badge student-routine-session__rpe-badge--unreported">
-                                  Sin reporte de RPE
+                                  {RPE_UNREPORTED_LABEL}
                                 </span>
                               )}
                             </div>
@@ -1159,6 +1253,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                         day_name: selectedDay.name,
                         original_exercise_id: targetExercise.exercise.id,
                         replacement_exercise_id: variantExercise.exercise_id,
+                        session_id: sessionId,
                       }).catch(() => {});
                     }
                     setReplacements((current) => ({
@@ -1183,6 +1278,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                         day_name: selectedDay.name,
                         original_exercise_id: targetExercise.exercise.id,
                         replacement_exercise_id: null,
+                        session_id: sessionId,
                       }).catch(() => {});
                     }
                     setSkipped((current) => [...current, targetExercise.id]);
@@ -1237,6 +1333,12 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
         )}
         {showCelebration && sessionId && <SessionSummaryDialog
           sessionId={sessionId}
+          onRpeSaved={(updatedSession) => {
+            setWorkoutSessions((current) => syncSessionAfterRpe(current, updatedSession));
+          }}
+          onZonesReported={() => {
+            void getStudentZoneHistory().then(setZoneHistory).catch(() => {});
+          }}
           onClose={() => navigate(ROUTES.studentRoutines + '?session=' + encodeURIComponent(sessionId), { replace: true })}
         />}
       </section>

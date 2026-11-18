@@ -1,0 +1,25 @@
+import type { AdherenceWeek, EvolutionGrouping, ExerciseProgress, ExerciseStatus, RpePoint, SetResult } from '../types/trainerStudent';
+
+export const EVOLUTION_GROUPINGS: Record<EvolutionGrouping, string>;
+export const EVOLUTION_PERIODS: Record<'4w' | '12w' | 'all', string>;
+export const STATUS_ORDER: Record<ExerciseStatus, number>;
+export const STATUS_LABELS: Record<ExerciseStatus, string>;
+export const LIGHT_LABELS: Record<'green' | 'yellow' | 'red', string>;
+export const EFFORT_MESSAGES: Record<string, string>;
+export const TREND_LABELS: Record<'rising' | 'stable' | 'falling', string>;
+export const REVIEW_HINT: Record<string, string>;
+export function formatDay(isoDate: string): string;
+export function formatRange(start: string, end: string): string;
+export function niceTicks(max: number, options?: { integer?: boolean; count?: number }): number[];
+export function xLabelIndexes(total: number, max?: number): number[];
+export function formatNumber(value: number): string;
+export function sortByStatus(exercises: ExerciseProgress[]): ExerciseProgress[];
+export function formatSet(set: SetResult | null | undefined): string;
+export function formatChange(pct: number | null | undefined): string;
+export function daysBetween(fromIso: string, toIso: string): number;
+export function formatAgo(isoDate: string, todayIso: string): string;
+export function statusCounts(exercises: ExerciseProgress[]): { progressing: number; stalled: number; declined: number };
+export function recentRecordCount(exercises: ExerciseProgress[], todayIso: string): number;
+export function reportedRuns(points: RpePoint[]): RpePoint[][];
+export function firstName(fullName: string): string;
+export type { AdherenceWeek };

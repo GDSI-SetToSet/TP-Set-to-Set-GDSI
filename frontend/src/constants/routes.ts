@@ -16,6 +16,7 @@ export const ROUTES = {
   trainerRoutines: '/entrenador/rutinas',
   trainerGenerateAIRoutine: '/entrenador/rutinas/generar-ia',
   trainerStudents: '/entrenador/alumnos',
+  trainerDailyRoutines: '/entrenador/rutinas-del-dia',
   trainerStudentRoutine: '/entrenador/alumnos/:studentId/rutina',
   trainerRequests: '/entrenador/solicitudes',
   trainerRequestDetail: '/entrenador/solicitudes/:requestId',
@@ -26,6 +27,7 @@ export const ROUTES = {
   studentMedical: '/alumno/apto-medico',
   studentActivePlans: '/alumno/mis-entrenamientos',
   studentRoutines: '/alumno/rutinas',
+  studentProgress: '/alumno/evolucion',
   studentRoutineSession: '/alumno/rutinas/sesion',
   trainerSearch: '/alumno/buscar-entrenadores',
   trainerPublicDetail: '/entrenadores/:trainerId',
@@ -44,8 +46,11 @@ export function trainerNotificationPath(notification: Pick<
 >): string {
   if (
     notification.type !== 'PAIN_ALERT'
+    && notification.type !== 'REPEATED_DISCOMFORT_ALERT'
+    && notification.type !== 'EXCESSIVE_EFFORT_ALERT'
     && notification.type !== 'PERSONAL_RECORD'
     && notification.type !== 'PROTECTED_ZONES_UPDATED'
+    && notification.type !== 'ABANDONMENT_RISK'
   ) {
     return ROUTES.trainerRequests;
   }
@@ -60,7 +65,12 @@ export function trainerNotificationPath(notification: Pick<
   }
   if (
     notification.related_entity_id
-    && (notification.type === 'PAIN_ALERT' || notification.type === 'PERSONAL_RECORD')
+    && (
+      notification.type === 'PAIN_ALERT'
+      || notification.type === 'REPEATED_DISCOMFORT_ALERT'
+      || notification.type === 'EXCESSIVE_EFFORT_ALERT'
+      || notification.type === 'PERSONAL_RECORD'
+    )
   ) {
     params.set('eventId', notification.related_entity_id);
     params.set('eventType', notification.type);

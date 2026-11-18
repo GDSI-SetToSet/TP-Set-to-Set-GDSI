@@ -19,6 +19,7 @@ class ReplacementInput(BaseModel):
     day_name: str = Field(min_length=1, max_length=100)
     original_exercise_id: str
     replacement_exercise_id: str | None = None  # None = el alumno saltea el ejercicio
+    session_id: str | None = None
 
 
 class ReplacementResponse(BaseModel):

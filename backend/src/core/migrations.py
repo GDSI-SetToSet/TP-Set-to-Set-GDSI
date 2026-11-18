@@ -6,8 +6,10 @@ sin destruir tablas preexistentes ni sobrescribir datos.
 
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from uuid import uuid4
 
-from sqlalchemy import Engine, inspect, text
+from sqlalchemy import DateTime, Engine, bindparam, inspect, text
 
 import backend.src.models  # noqa: F401 - Asegura el registro de todas las entidades en Base.metadata
 from backend.src.core.database import Base, engine
@@ -122,6 +124,13 @@ TARGET_COLUMNS: tuple[ColumnMigration, ...] = (
         postgres_default="'GYM'",
     ),
     ColumnMigration(
+        table="training_relationships",
+        column="routine_assigned_at",
+        sqlite_type="DATETIME",
+        postgres_type="TIMESTAMP WITH TIME ZONE",
+        nullable=True,
+    ),
+    ColumnMigration(
         table="workout_set_logs",
         column="duration_seconds",
         sqlite_type="INTEGER",
@@ -156,6 +165,34 @@ TARGET_COLUMNS: tuple[ColumnMigration, ...] = (
         postgres_type="VARCHAR(36)",
         nullable=True,
     ),
+    ColumnMigration(
+        table="training_relationships",
+        column="routine_assignment_id",
+        sqlite_type="VARCHAR(36)",
+        postgres_type="VARCHAR(36)",
+        nullable=True,
+    ),
+    ColumnMigration(
+        table="student_routines",
+        column="routine_assignment_id",
+        sqlite_type="VARCHAR(36)",
+        postgres_type="VARCHAR(36)",
+        nullable=True,
+    ),
+    ColumnMigration(
+        table="exercise_replacement_logs",
+        column="session_id",
+        sqlite_type="VARCHAR(36)",
+        postgres_type="VARCHAR(36)",
+        nullable=True,
+    ),
+    ColumnMigration(
+        table="session_adjustments",
+        column="baseline_blocks",
+        sqlite_type="JSON",
+        postgres_type="JSON",
+        nullable=True,
+    ),
 )
 
 # Definición explícita de ampliaciones de longitud de columnas en bases de datos que imponen límites de caracteres (ej. PostgreSQL)
@@ -174,6 +211,26 @@ TARGET_CHECK_CONSTRAINTS: tuple[CheckConstraintMigration, ...] = (
         table="workout_sessions",
         name="ck_workout_sessions_rpe_range",
         expression="rpe IS NULL OR (rpe >= 1 AND rpe <= 10)",
+    ),
+    CheckConstraintMigration(
+        table="safety_alerts",
+        name="ck_safety_alerts_type",
+        expression="alert_type IN ('PAIN', 'REPEATED_DISCOMFORT', 'EXCESSIVE_EFFORT')",
+    ),
+    CheckConstraintMigration(
+        table="safety_alerts",
+        name="ck_safety_alerts_status",
+        expression="status IN ('PENDING', 'REVIEWED')",
+    ),
+    CheckConstraintMigration(
+        table="safety_alerts",
+        name="ck_safety_alerts_action",
+        expression="action_taken IS NULL OR action_taken IN ('ADJUSTED_ROUTINE', 'CONTACTED_STUDENT', 'NO_ACTION')",
+    ),
+    CheckConstraintMigration(
+        table="safety_alerts",
+        name="ck_safety_alerts_rpe",
+        expression="rpe IS NULL OR rpe IN (9, 10)",
     ),
 )
 
@@ -384,6 +441,276 @@ def _migrate_sqlite_body_map_pain_reports_unique_constraint(eng: Engine, inspect
     return [key]
 
 
+def _backfill_routine_assigned_at(
+    conn,
+    existing_tables: set[str],
+) -> list[str]:
+    """Completa routine_assigned_at en vínculos heredados con rutina asignada sin perder historial."""
+    if "training_relationships" not in existing_tables:
+        return []
+    conn_inspector = inspect(conn)
+    rel_cols = {c["name"] for c in conn_inspector.get_columns("training_relationships")}
+    if not {"initial_routine_id", "routine_assigned_at"}.issubset(rel_cols):
+        return []
+
+    pending = conn.execute(
+        text(
+            "SELECT COUNT(*) FROM training_relationships "
+            "WHERE initial_routine_id IS NOT NULL AND routine_assigned_at IS NULL"
+        )
+    ).scalar()
+    if not pending:
+        return []
+
+    sr_cols = {c["name"] for c in conn_inspector.get_columns("student_routines")} if "student_routines" in existing_tables else set()
+    ar_cols = {c["name"] for c in conn_inspector.get_columns("assigned_routines")} if "assigned_routines" in existing_tables else set()
+    ws_cols = {c["name"] for c in conn_inspector.get_columns("workout_sessions")} if "workout_sessions" in existing_tables else set()
+
+    applied: list[str] = []
+    if {"relationship_id", "status", "created_at"}.issubset(sr_cols):
+        conn.execute(
+            text(
+                "UPDATE training_relationships "
+                "SET routine_assigned_at = ("
+                "  SELECT sr.created_at FROM student_routines sr "
+                "  WHERE sr.relationship_id = training_relationships.id "
+                "    AND sr.status != 'UNASSIGNED' "
+                "  LIMIT 1"
+                ") "
+                "WHERE initial_routine_id IS NOT NULL "
+                "  AND routine_assigned_at IS NULL "
+                "  AND EXISTS ("
+                "    SELECT 1 FROM student_routines sr "
+                "    WHERE sr.relationship_id = training_relationships.id "
+                "      AND sr.status != 'UNASSIGNED'"
+                "  )"
+            )
+        )
+
+    if {"id", "status", "approved_at", "updated_at", "created_at"}.issubset(ar_cols):
+        conn.execute(
+            text(
+                "UPDATE training_relationships "
+                "SET routine_assigned_at = ("
+                "  SELECT COALESCE(ar.approved_at, ar.updated_at, ar.created_at) "
+                "  FROM assigned_routines ar "
+                "  WHERE ar.id = training_relationships.initial_routine_id "
+                "    AND ar.status = 'APPROVED' "
+                "  LIMIT 1"
+                ") "
+                "WHERE initial_routine_id IS NOT NULL "
+                "  AND routine_assigned_at IS NULL "
+                "  AND EXISTS ("
+                "    SELECT 1 FROM assigned_routines ar "
+                "    WHERE ar.id = training_relationships.initial_routine_id "
+                "      AND ar.status = 'APPROVED'"
+                "  )"
+            )
+        )
+
+    if {"relationship_id", "routine_id", "started_at"}.issubset(ws_cols):
+        conn.execute(
+            text(
+                "UPDATE training_relationships "
+                "SET routine_assigned_at = ("
+                "  SELECT MIN(ws.started_at) FROM workout_sessions ws "
+                "  WHERE ws.relationship_id = training_relationships.id "
+                "    AND ws.routine_id = training_relationships.initial_routine_id"
+                ") "
+                "WHERE initial_routine_id IS NOT NULL "
+                "  AND routine_assigned_at IS NULL "
+                "  AND EXISTS ("
+                "    SELECT 1 FROM workout_sessions ws "
+                "    WHERE ws.relationship_id = training_relationships.id "
+                "      AND ws.routine_id = training_relationships.initial_routine_id"
+                "  )"
+            )
+        )
+
+    remaining = conn.execute(
+        text(
+            "SELECT COUNT(*) FROM training_relationships "
+            "WHERE initial_routine_id IS NOT NULL AND routine_assigned_at IS NULL"
+        )
+    ).scalar()
+    if remaining:
+        fallback_now = datetime.now(UTC).replace(tzinfo=None)
+        stmt = text(
+            "UPDATE training_relationships "
+            "SET routine_assigned_at = :fallback_now "
+            "WHERE initial_routine_id IS NOT NULL AND routine_assigned_at IS NULL"
+        ).bindparams(bindparam("fallback_now", value=fallback_now, type_=DateTime(timezone=True)))
+        conn.execute(stmt)
+
+    key = "training_relationships.routine_assigned_at:backfill"
+    applied.append(key)
+    logger.info("Backfill aplicado: %s", key)
+    return applied
+
+
+def _backfill_routine_assignment_lineage(conn, existing_tables: set[str]) -> list[str]:
+    """Completa routine_assignment_id en relaciones/rutinas existentes para preservar la continuidad histórica."""
+    if "training_relationships" not in existing_tables:
+        return []
+    insp = inspect(conn)
+    tr_cols = {c["name"] for c in insp.get_columns("training_relationships")}
+    if not {"id", "initial_routine_id", "routine_assignment_id"}.issubset(tr_cols):
+        return []
+
+    applied: list[str] = []
+    rows = conn.execute(
+        text(
+            "SELECT id FROM training_relationships "
+            "WHERE initial_routine_id IS NOT NULL AND routine_assignment_id IS NULL"
+        )
+    ).fetchall()
+    for (rel_id,) in rows:
+        assignment_id = str(uuid4())
+        conn.execute(
+            text(
+                "UPDATE training_relationships SET routine_assignment_id = :aid "
+                "WHERE id = :rel_id AND routine_assignment_id IS NULL"
+            ),
+            {"aid": assignment_id, "rel_id": rel_id},
+        )
+    if rows:
+        applied.append("training_relationships.routine_assignment_id:backfill")
+
+    if "student_routines" in existing_tables:
+        sr_cols = {c["name"] for c in insp.get_columns("student_routines")}
+        if {"relationship_id", "routine_assignment_id"}.issubset(sr_cols):
+            pending_sr = conn.execute(
+                text(
+                    "SELECT COUNT(*) FROM student_routines sr "
+                    "JOIN training_relationships tr ON tr.id = sr.relationship_id "
+                    "WHERE sr.routine_assignment_id IS NULL AND tr.routine_assignment_id IS NOT NULL"
+                )
+            ).scalar()
+            if pending_sr:
+                conn.execute(
+                    text(
+                        "UPDATE student_routines "
+                        "SET routine_assignment_id = ("
+                        "  SELECT tr.routine_assignment_id FROM training_relationships tr "
+                        "  WHERE tr.id = student_routines.relationship_id"
+                        ") "
+                        "WHERE routine_assignment_id IS NULL "
+                        "  AND EXISTS ("
+                        "    SELECT 1 FROM training_relationships tr "
+                        "    WHERE tr.id = student_routines.relationship_id "
+                        "      AND tr.routine_assignment_id IS NOT NULL"
+                        "  )"
+                    )
+                )
+                applied.append("student_routines.routine_assignment_id:backfill")
+    return applied
+
+
+def _migrate_sqlite_exercise_replacement_logs(eng: Engine) -> list[str]:
+    """Migra exercise_replacement_logs en SQLite para indexar por session_id sin colisión en la misma fecha UTC."""
+    fresh_inspector = inspect(eng)
+    existing_tables = set(fresh_inspector.get_table_names())
+    if "exercise_replacement_logs" not in existing_tables:
+        return []
+
+    legacy_cols = {"student_id", "routine_id", "day_name", "session_date", "original_exercise_id"}
+    has_legacy_unique = False
+    has_session_unique = False
+    has_legacy_lookup_index = False
+
+    with eng.connect() as conn:
+        raw_indexes = conn.execute(text("PRAGMA index_list('exercise_replacement_logs')")).fetchall()
+        for idx in raw_indexes:
+            idx_name = idx[1]
+            is_unique = bool(idx[2])
+            cols = [row[2] for row in conn.execute(text(f"PRAGMA index_info('{idx_name}')")).fetchall()]
+            if is_unique and set(cols) == legacy_cols and len(cols) == len(legacy_cols):
+                has_legacy_unique = True
+            if is_unique and set(cols) == {"session_id", "original_exercise_id"} and len(cols) == 2:
+                has_session_unique = True
+            if idx_name == "ix_exercise_replacement_logs_legacy_lookup":
+                has_legacy_lookup_index = True
+
+    if has_session_unique and not has_legacy_unique and has_legacy_lookup_index:
+        return []
+
+    existing_cols = {c["name"] for c in fresh_inspector.get_columns("exercise_replacement_logs")}
+    with eng.connect() as conn:
+        dbapi = conn.connection.dbapi_connection
+        if hasattr(dbapi, "execute"):
+            dbapi.execute("PRAGMA foreign_keys=OFF;")
+        try:
+            with conn.begin():
+                conn.execute(
+                    text(
+                        """
+                        CREATE TABLE _exercise_replacement_logs_new (
+                            id VARCHAR(36) PRIMARY KEY,
+                            student_id VARCHAR(36) NOT NULL,
+                            session_id VARCHAR(36),
+                            routine_id VARCHAR(36) NOT NULL,
+                            day_name VARCHAR(100) NOT NULL,
+                            session_date DATE NOT NULL,
+                            original_exercise_id VARCHAR(36) NOT NULL,
+                            replacement_exercise_id VARCHAR(36),
+                            updated_at DATETIME NOT NULL,
+                            CONSTRAINT uq_exercise_replacement_session_exercise UNIQUE (session_id, original_exercise_id),
+                            FOREIGN KEY(student_id) REFERENCES student_profiles (id) ON DELETE CASCADE,
+                            FOREIGN KEY(session_id) REFERENCES workout_sessions (id) ON DELETE CASCADE,
+                            FOREIGN KEY(original_exercise_id) REFERENCES exercises (id),
+                            FOREIGN KEY(replacement_exercise_id) REFERENCES exercises (id)
+                        )
+                        """
+                    )
+                )
+                target_cols = [
+                    "id",
+                    "student_id",
+                    "session_id",
+                    "routine_id",
+                    "day_name",
+                    "session_date",
+                    "original_exercise_id",
+                    "replacement_exercise_id",
+                    "updated_at",
+                ]
+                copy_cols = [c for c in target_cols if c in existing_cols]
+                cols_sql = ", ".join(copy_cols)
+                conn.execute(
+                    text(
+                        f"INSERT INTO _exercise_replacement_logs_new ({cols_sql}) "
+                        f"SELECT {cols_sql} FROM exercise_replacement_logs"
+                    )
+                )
+                conn.execute(text("DROP TABLE exercise_replacement_logs"))
+                conn.execute(text("ALTER TABLE _exercise_replacement_logs_new RENAME TO exercise_replacement_logs"))
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_exercise_replacement_logs_student_id "
+                        "ON exercise_replacement_logs (student_id)"
+                    )
+                )
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_exercise_replacement_logs_session_id "
+                        "ON exercise_replacement_logs (session_id)"
+                    )
+                )
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_exercise_replacement_logs_legacy_lookup "
+                        "ON exercise_replacement_logs (student_id, routine_id, day_name, session_date, original_exercise_id)"
+                    )
+                )
+        finally:
+            if hasattr(dbapi, "execute"):
+                dbapi.execute("PRAGMA foreign_keys=ON;")
+
+    key = "exercise_replacement_logs.uq_exercise_replacement_session_exercise:sqlite_table_rebuild"
+    logger.info("Migración de tabla aplicada en SQLite: %s", key)
+    return [key]
+
+
 def apply_migrations(target_engine: Engine | None = None) -> list[str]:
     """Aplica de forma aditiva e idempotente las columnas faltantes y ampliaciones de tipo en tablas existentes."""
     eng = target_engine or engine
@@ -421,6 +748,9 @@ def apply_migrations(target_engine: Engine | None = None) -> list[str]:
                 key = f"{m.table}.{m.column}"
                 applied.append(key)
                 logger.info("Migración aplicada: %s", key)
+
+        applied.extend(_backfill_routine_assigned_at(conn, existing_tables))
+        applied.extend(_backfill_routine_assignment_lineage(conn, existing_tables))
 
         # 2. Ampliaciones de tipo de columna en bases de datos relacionales estrictas (p. ej. PostgreSQL)
         if not is_sqlite:
@@ -495,12 +825,65 @@ def apply_migrations(target_engine: Engine | None = None) -> list[str]:
                     )
                 )
 
+        if "safety_alerts" in existing_tables:
+            existing_sa_idx_names = {i.get("name") for i in inspect(conn).get_indexes("safety_alerts")}
+            if "ix_safety_alerts_trainer_status_created" not in existing_sa_idx_names:
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_safety_alerts_trainer_status_created "
+                        "ON safety_alerts (trainer_id, status, created_at)"
+                    )
+                )
+                applied.append("safety_alerts.ix_safety_alerts_trainer_status_created:index")
+            if "ix_safety_alerts_relationship_status" not in existing_sa_idx_names:
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_safety_alerts_relationship_status "
+                        "ON safety_alerts (relationship_id, status)"
+                    )
+                )
+                applied.append("safety_alerts.ix_safety_alerts_relationship_status:index")
+
+        if not is_sqlite and "exercise_replacement_logs" in existing_tables:
+            pg_insp = inspect(conn)
+            legacy_cols = {"student_id", "routine_id", "day_name", "session_date", "original_exercise_id"}
+            for uq in pg_insp.get_unique_constraints("exercise_replacement_logs"):
+                uq_cols = set(uq.get("column_names") or [])
+                uq_name = uq.get("name")
+                if uq_name and uq_cols == legacy_cols:
+                    conn.execute(text(f'ALTER TABLE exercise_replacement_logs DROP CONSTRAINT IF EXISTS "{uq_name}"'))
+                    applied.append(f"exercise_replacement_logs.{uq_name}:drop_legacy_unique")
+            existing_uq_names = {u.get("name") for u in pg_insp.get_unique_constraints("exercise_replacement_logs")}
+            if "uq_exercise_replacement_session_exercise" not in existing_uq_names:
+                conn.execute(
+                    text(
+                        "ALTER TABLE exercise_replacement_logs "
+                        "ADD CONSTRAINT uq_exercise_replacement_session_exercise "
+                        "UNIQUE (session_id, original_exercise_id)"
+                    )
+                )
+                applied.append("exercise_replacement_logs.uq_exercise_replacement_session_exercise:unique_constraint")
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_exercise_replacement_logs_session_id "
+                    "ON exercise_replacement_logs (session_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_exercise_replacement_logs_legacy_lookup "
+                    "ON exercise_replacement_logs (student_id, routine_id, day_name, session_date, original_exercise_id)"
+                )
+            )
+
     # 5. Migración de restricciones CHECK y UNIQUE en SQLite existente mediante reconstrucción segura de tabla
     if is_sqlite:
         sqlite_ck_applied = _migrate_sqlite_workout_sessions_check_constraint(eng, inspector)
         applied.extend(sqlite_ck_applied)
         sqlite_uq_applied = _migrate_sqlite_body_map_pain_reports_unique_constraint(eng, inspector)
         applied.extend(sqlite_uq_applied)
+        sqlite_repl_applied = _migrate_sqlite_exercise_replacement_logs(eng)
+        applied.extend(sqlite_repl_applied)
 
     return applied
 
