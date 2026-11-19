@@ -13,7 +13,10 @@ import type { TrainerAIRoutine } from '../types/assignedRoutine';
 import type { RoutineTemplate } from '../types/routineTemplate';
 
 export function TrainerStudentsPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // US-35: tras una baja se vuelve a montar el panel para recargar la lista de alumnos activos.
+  const [listVersion, setListVersion] = useState(0);
+  const [terminationNotice, setTerminationNotice] = useState('');
   const [templates, setTemplates] = useState<RoutineTemplate[]>([]);
   const [aiRoutines, setAIRoutines] = useState<TrainerAIRoutine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,8 +135,10 @@ export function TrainerStudentsPage() {
           <p className="form-alert" role="status">No pudimos comprobar si este alumno tiene una rutina asignada. Revisá sus datos en esta sección.</p>
         )}
         {error && <p className="form-alert" role="alert">{error}</p>}
+        {terminationNotice && <p className="form-alert form-alert--success" role="status">{terminationNotice}</p>}
         {!error && (
           <RoutineAssignmentPanel
+            key={listVersion}
             templates={templates}
             aiRoutines={aiRoutines}
             initialStudentId={searchParams.get('studentId') ?? undefined}
@@ -171,6 +176,18 @@ export function TrainerStudentsPage() {
                     }}
                     safetyRefreshKey={safetyRefreshKey}
                     onSafetyAlertReviewed={handleSafetyAlertReviewed}
+                    onTerminated={(result, studentName) => {
+                      selectedStudentIdRef.current = null;
+                      detailTrackerRef.current.invalidate('detail');
+                      setSelectedStudentId(null);
+                      setStudentDetail(null);
+                      setDetailLoading(false);
+                      setSearchParams({});
+                      setTerminationNotice(
+                        `${studentName} fue dado de baja. Se liberó un cupo: tenés ${result.available_slots} ${result.available_slots === 1 ? 'cupo disponible' : 'cupos disponibles'}.`,
+                      );
+                      setListVersion((value) => value + 1);
+                    }}
                   />
                 )}
               </>

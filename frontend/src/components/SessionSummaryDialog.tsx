@@ -1,5 +1,6 @@
 import { Activity, Clock, Dumbbell, ListChecks, TrendingDown, TrendingUp, Trophy, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AchievementCelebration } from './AchievementCelebration';
 import { BodyMapSelector } from './BodyMapSelector';
 import type { ReportZoneInput } from '../types/bodyMapReport';
 import { createBodyMapReport } from '../services/bodyMapReportService';
@@ -71,8 +72,11 @@ export function SessionSummaryDialog({ sessionId, onClose, onRpeSaved, onZonesRe
     return () => { cancelled = true; };
   }, [sessionId]);
 
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  // US-67: al cerrar el resumen, los logros mostrados quedan como celebrados.
+  const ackRef = useRef<() => void>(() => undefined);
+  const registerAck = useCallback((ack: () => void) => { ackRef.current = ack; }, []);
+  const onCloseRef = useRef(() => {});
+  onCloseRef.current = () => { ackRef.current(); onClose(); };
 
   const handleSaveRpe = async () => {
     if (selectedRpe === null || savingRpe) return;
@@ -116,6 +120,7 @@ export function SessionSummaryDialog({ sessionId, onClose, onRpeSaved, onZonesRe
         {error && <p className="session-summary__status session-summary__status--error" role="alert">{error}</p>}
 
         {summary && <>
+          <AchievementCelebration registerAck={registerAck} />
           <dl className="session-summary__metrics">
             <div>
               <dt><Dumbbell size={16} aria-hidden="true" /> Tonelaje total</dt>
@@ -199,7 +204,7 @@ export function SessionSummaryDialog({ sessionId, onClose, onRpeSaved, onZonesRe
         {summary && summary.rpe !== null && summary.rpe !== undefined && (
           <p className="session-summary__rpe-saved" role="status">Esfuerzo calificado: {summary.rpe}/10</p>
         )}
-        <button ref={closeButton} type="button" onClick={onClose}>
+        <button ref={closeButton} type="button" onClick={() => onCloseRef.current()}>
           {shouldPromptForRpe(summary) ? 'Continuar sin reportar' : 'Continuar'}
         </button>
       </div>

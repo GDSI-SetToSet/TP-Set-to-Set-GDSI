@@ -573,7 +573,7 @@ def test_concurrent_save_adjustment_and_finish_session_sqlite_file(tmp_path):
             db.flush()
             rel = TrainingRelationship(
                 id=new_id(), student_id=st.id, trainer_id=tr.id, plan_id=plan.id, agreed_monthly_price=Decimal(100), agreed_currency="USD",
-                status="ACTIVE", start_date=date(2026, 11, 1), initial_routine_id=tpl.id, routine_assignment_id=new_id(), routine_assigned_at=base_now,
+                status="ACTIVE", start_date=date.today(), initial_routine_id=tpl.id, routine_assignment_id=new_id(), routine_assigned_at=base_now,
             )
             db.add(rel)
             db.flush()

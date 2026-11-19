@@ -54,6 +54,8 @@ class TrainingRelationship(Base):
     routine_modality: Mapped[str] = mapped_column(String(16), default="GYM", nullable=False)
     terminated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     termination_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # US-35: FALTA_DE_PAGO, RAZONES_PERSONALES u OTRO; termination_reason guarda el detalle.
+    termination_category: Mapped[str | None] = mapped_column(String(24), nullable=True)
 
     student: Mapped["StudentProfile"] = relationship()  # noqa: F821
     trainer: Mapped["TrainerProfile"] = relationship()  # noqa: F821

@@ -93,3 +93,14 @@ class StudentProgress(BaseModel):
     records: list[RecordEntry]
     new_exercises: list[NewExercise]
     next_session: NextSession | None = None
+
+
+class TrainingStreak(BaseModel):
+    """US-68: racha de semanas cumplidas (calculada, no persistida)."""
+
+    has_routine: bool
+    weekly_target: int
+    current_weeks: int
+    max_weeks: int
+    this_week_sessions: int
+    week_start: date

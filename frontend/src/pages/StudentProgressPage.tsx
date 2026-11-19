@@ -1,10 +1,14 @@
 import { ArrowLeft } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AchievementsSection } from '../components/AchievementsSection';
+import { StreakCard } from '../components/StreakCard';
 import { ConsistencyChart, LoadChart } from '../components/StudentProgressCharts';
 import { ROUTES } from '../constants/routes';
-import { getStudentProgress } from '../services/studentProgressService';
-import type { ProgressPeriodKey, StudentProgress } from '../types/studentProgress';
+import { getStudentAchievements } from '../services/achievementService';
+import { getStudentProgress, getStudentStreak } from '../services/studentProgressService';
+import type { AchievementsOverview } from '../types/achievement';
+import type { ProgressPeriodKey, StudentProgress, TrainingStreak } from '../types/studentProgress';
 import {
   PERIOD_LABELS, PROGRESS_HELP, consistencyLine, weeksText, exercisePhrase, formatMark, kg, markToBeat, recordLine, sortExercises, summaryCards,
 } from '../utils/studentProgress.mjs';
@@ -21,6 +25,15 @@ export function StudentProgressPage() {
   const [selected, setSelected] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [streak, setStreak] = useState<TrainingStreak | null>(null);
+  const [achievements, setAchievements] = useState<AchievementsOverview | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getStudentStreak().then((loaded) => { if (active) setStreak(loaded); }).catch(() => undefined);
+    getStudentAchievements().then((loaded) => { if (active) setAchievements(loaded); }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -60,6 +73,8 @@ export function StudentProgressPage() {
           <span>ESPACIO DEL ALUMNO</span>
           <h1>Mi evolución</h1>
         </div>
+        {streak && <StreakCard streak={streak} />}
+        {achievements && <AchievementsSection overview={achievements} />}
 
         <div className="training-evolution__controls">
           <label>Período
