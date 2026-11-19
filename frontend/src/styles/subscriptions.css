@@ -191,3 +191,80 @@
   .payment-item { flex-direction: column; }
   .payment-dialog__row { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ── US-71: pagos informados, avisos y bloqueo ── */
+.payment-item__actions { flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.payment-item__actions .profile-save { display: inline-flex; gap: 6px; align-items: center; min-height: 44px; padding: 0 14px; }
+.payment-item--pending { border-color: #e2b34d; background: #fffaf0; }
+.payment-item__tag--pending { background: #fff0bd; color: #6b4b00; }
+.payment-item__tag--rejected { background: #fde2e1; color: #8a1c13; }
+.subscription-row__pending {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fff0bd;
+  color: #6b4b00;
+  font-size: .78rem;
+  font-weight: 700;
+}
+.payment-dialog__hint { color: var(--pf-muted, #52665b); }
+.payment-dialog__notice {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f1f4f8;
+  color: #304664;
+  font-size: .9rem;
+}
+
+.subscription-alert {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 1px solid #e2b34d;
+  border-left-width: 5px;
+  border-radius: 12px;
+  background: #fffaf0;
+  color: #3d2c00;
+}
+.subscription-alert--expired { border-color: #d98b84; background: #fdf1f0; color: #5c140d; }
+.subscription-alert > div,
+.subscription-alert > p { flex: 1 1 260px; margin: 0; }
+.subscription-alert p { margin: 0; }
+.subscription-alert__link {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 44px;
+  color: inherit;
+  font-weight: 700;
+}
+.subscription-alert__link:focus-visible { outline: 3px solid rgba(92, 20, 13, .25); outline-offset: 2px; }
+
+.active-plan-card__subscription {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1rem;
+  padding: 14px 16px;
+  border: 1px solid #dfe6dd;
+  border-left: 5px solid #397050;
+  border-radius: 12px;
+  text-align: left;
+}
+.active-plan-card__subscription--por_vencer { border-left-color: #b7791f; background: #fffaf0; }
+.active-plan-card__subscription--vencida { border-left-color: #b42318; background: #fdf1f0; }
+.active-plan-card__due { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 0; color: #173a32; }
+.active-plan-card__due-note { margin: 6px 0 0; color: #3d5047; font-size: .9rem; }
+.active-plan-card__subscription-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.active-plan-card__subscription-actions .profile-save,
+.active-plan-card__subscription-actions .plan-cancel { min-height: 44px; padding: 0 16px; }
+
+.routine-locked__pending { font-weight: 700; }
+.routine-locked__actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.routine-locked__actions .profile-cta,
+.routine-locked__actions .plan-cancel { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; text-decoration: none; }

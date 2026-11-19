@@ -1417,3 +1417,55 @@ def test_apply_migrations_creates_informal_payments_table_idempotently():
     } <= checks
     uniques = {u["name"] for u in inspector.get_unique_constraints("informal_payments")}
     assert "uq_informal_payments_replaces" in uniques
+
+
+def test_apply_migrations_creates_achievement_tables_idempotently():
+    """US-67: las tablas de logros y felicitaciones se crean en una base existente y son idempotentes."""
+    engine = make_legacy_engine()
+    create_legacy_database(engine)
+
+    apply_migrations(engine)
+    apply_migrations(engine)
+
+    inspector = inspect(engine)
+    assert {"student_achievements", "achievement_congratulations"} <= set(inspector.get_table_names())
+    uniques = {u["name"] for u in inspector.get_unique_constraints("student_achievements")}
+    assert "uq_student_achievements_student_code" in uniques
+
+
+def test_apply_migrations_adds_us71_payment_columns_keeping_trainer_source():
+    """US-71: columnas de confirmación y comprobante sobre la tabla de US-34; los pagos existentes quedan como TRAINER."""
+    engine = make_legacy_engine()
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE informal_payments (id VARCHAR(36) PRIMARY KEY, status VARCHAR(24))"))
+        conn.execute(text("INSERT INTO informal_payments VALUES ('p1', 'CONFIRMADO')"))
+
+    apply_migrations(engine)
+    apply_migrations(engine)
+
+    cols = {c["name"] for c in inspect(engine).get_columns("informal_payments")}
+    for col in (
+        "source", "confirmed_by_user_id", "confirmed_at", "rejected_by_user_id", "rejected_at",
+        "rejection_reason", "receipt_path", "receipt_filename", "receipt_mime_type", "receipt_size",
+    ):
+        assert col in cols
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT id, source FROM informal_payments")).all() == [("p1", "TRAINER")]
+
+
+def test_apply_migrations_adds_termination_category_idempotently():
+    """US-35: la migración agrega termination_category a training_relationships sin perder filas."""
+    engine = make_legacy_engine()
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE training_relationships (id VARCHAR(36) PRIMARY KEY)"))
+        conn.execute(text("INSERT INTO training_relationships VALUES ('rel1')"))
+
+    apply_migrations(engine)
+    apply_migrations(engine)
+
+    cols = {c["name"] for c in inspect(engine).get_columns("training_relationships")}
+    assert "termination_category" in cols
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT id, termination_category FROM training_relationships")).all() == [
+            ("rel1", None)
+        ]

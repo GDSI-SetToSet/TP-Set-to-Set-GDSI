@@ -188,6 +188,11 @@ export function TrainerSubscriptionsPage() {
                     {SUBSCRIPTION_STATUS_LABELS[item.status]}
                   </span>
                   <span className="subscription-row__due">{dueDescription(item)}</span>
+                  {item.pending_payment_count > 0 && (
+                    <span className="subscription-row__pending">
+                      {item.pending_payment_count === 1 ? '1 pago por confirmar' : `${item.pending_payment_count} pagos por confirmar`}
+                    </span>
+                  )}
                 </div>
                 <div className="subscription-row__actions">
                   <button

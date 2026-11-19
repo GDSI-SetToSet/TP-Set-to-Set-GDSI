@@ -12,6 +12,7 @@ from backend.src.schemas.informal_payment import (
     PaymentCreate,
     PaymentHistory,
     PaymentMutationResult,
+    PaymentRejectRequest,
     PaymentVoidRequest,
     SubscriptionStatus,
     SubscriptionSummary,
@@ -21,6 +22,7 @@ from backend.src.schemas.safety_alert import (
     SafetyAlertStatus,
     SafetyAlertView,
 )
+from backend.src.schemas.student_progress import TrainingStreak
 from backend.src.schemas.trainer import (
     TrainerProfileResponse,
     TrainerProfileUpdate,
@@ -34,6 +36,8 @@ from backend.src.schemas.trainer_student import (
     AbandonmentRiskItem,
     DailyRoutineItem,
     SessionComparison,
+    StudentTerminationRequest,
+    StudentTerminationResult,
     TrainerStudentDetail,
     TrainerStudentListItem,
     TrainingEvolution,
@@ -42,9 +46,11 @@ from backend.src.services.abandonment_risk_service import list_abandonment_risk
 from backend.src.services.daily_routine_tracking_service import list_daily_routines
 from backend.src.services.informal_payment_service import (
     PaymentError,
+    confirm_payment,
     get_payment_history,
     list_subscriptions,
     register_payment,
+    reject_payment,
     void_payment,
 )
 from backend.src.services.safety_alert_service import (
@@ -54,6 +60,8 @@ from backend.src.services.safety_alert_service import (
     review_safety_alert,
 )
 from backend.src.services.session_comparison_service import compare_session
+from backend.src.services.streak_service import get_trainer_student_streak
+from backend.src.services.student_termination_service import terminate_student
 from backend.src.services.trainer_service import (
     TrainerProfileError,
     archive_plan,
@@ -184,6 +192,28 @@ def own_student_void_payment(
         handle_error(error)
 
 
+@router.post("/me/payments/{payment_id}/confirm", response_model=PaymentMutationResult)
+def own_student_confirm_payment(
+    payment_id: str, user: CurrentUser, db: DbDep, day: LocalDate = None
+) -> PaymentMutationResult:
+    """US-71 escenario 6: confirma un pago informado por el alumno; extiende el vencimiento."""
+    try:
+        return confirm_payment(db, user, payment_id, day or date.today())
+    except PaymentError as error:
+        handle_error(error)
+
+
+@router.post("/me/payments/{payment_id}/reject", response_model=PaymentMutationResult)
+def own_student_reject_payment(
+    payment_id: str, payload: PaymentRejectRequest, user: CurrentUser, db: DbDep, day: LocalDate = None
+) -> PaymentMutationResult:
+    """US-71 escenario 6: rechaza un pago informado indicando el motivo."""
+    try:
+        return reject_payment(db, user, payment_id, payload.reason, day or date.today())
+    except PaymentError as error:
+        handle_error(error)
+
+
 @router.get("/me/sessions/{session_id}/comparison", response_model=SessionComparison)
 def own_student_session_comparison(session_id: str, user: CurrentUser, db: DbDep) -> SessionComparison:
     """US-24: sesión finalizada vs lo planificado y vs la sesión previa del mismo día de rutina."""
@@ -202,6 +232,15 @@ def own_students_abandonment_risk(user: CurrentUser, db: DbDep) -> list[Abandonm
         handle_student_error(error)
 
 
+@router.get("/me/students/{student_id}/streak", response_model=TrainingStreak)
+def own_student_training_streak(student_id: str, user: CurrentUser, db: DbDep) -> TrainingStreak:
+    """US-68: racha actual y máxima del alumno activo."""
+    try:
+        return get_trainer_student_streak(db, user, student_id)
+    except TrainerStudentError as error:
+        handle_student_error(error)
+
+
 @router.get("/me/students/{student_id}/evolution", response_model=TrainingEvolution)
 def own_student_training_evolution(
     student_id: str,
@@ -214,6 +253,21 @@ def own_student_training_evolution(
     """US-30: progreso del alumno (progresión, adherencia, esfuerzo y puntos a revisar)."""
     try:
         return get_training_evolution(db, user, student_id, period, group_by, muscle_group)
+    except TrainerStudentError as error:
+        handle_student_error(error)
+
+
+@router.post("/me/students/{student_id}/termination", response_model=StudentTerminationResult)
+def own_student_termination(
+    student_id: str,
+    payload: StudentTerminationRequest,
+    user: CurrentUser,
+    db: DbDep,
+    day: Annotated[date | None, Query(alias="date", description="Fecha local del entrenador (hoy).")] = None,
+) -> StudentTerminationResult:
+    """US-35: da de baja al alumno con el motivo indicado; libera el cupo y revoca accesos."""
+    try:
+        return terminate_student(db, user, student_id, payload, day or date.today())
     except TrainerStudentError as error:
         handle_student_error(error)
 

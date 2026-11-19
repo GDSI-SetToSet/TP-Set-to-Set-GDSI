@@ -1,6 +1,6 @@
 import { type FormEvent, useRef, useState } from 'react';
 import { getApiErrorInfo } from '../services/errorMessage';
-import { getFieldErrors, registerPayment } from '../services/paymentService';
+import { getFieldErrors, registerPayment, reportPayment } from '../services/paymentService';
 import type { PaymentMethod, PaymentMutationResult, PaymentView, SubscriptionSummary } from '../types/payment';
 import { localDateInputValue } from '../utils/dailyRoutineFormat.mjs';
 import { PAYMENT_METHOD_LABELS, formatIsoDate, formatMoney, suggestedAmount } from '../utils/subscriptionFormat';
@@ -12,10 +12,15 @@ interface PaymentFormDialogProps {
   replaces?: PaymentView | null;
   onSaved: (result: PaymentMutationResult) => void;
   onClose: () => void;
+  /** US-71: el alumno informa el pago (queda pendiente) y puede adjuntar un comprobante. */
+  mode?: 'trainer' | 'student';
 }
 
+const RECEIPT_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
+const RECEIPT_MAX_BYTES = 10 * 1024 * 1024;
+
 type FieldName = 'paid_on' | 'amount' | 'method' | 'months_covered' | 'note';
-type FieldErrors = Partial<Record<FieldName | 'replaces_payment_id', string>>;
+type FieldErrors = Partial<Record<FieldName | 'replaces_payment_id' | 'receipt', string>>;
 
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
 const NOTE_MAX = 500;
@@ -45,7 +50,9 @@ function validate(paidOn: string, amount: string, method: string, months: number
   return errors;
 }
 
-export function PaymentFormDialog({ subscription, replaces = null, onSaved, onClose }: PaymentFormDialogProps) {
+export function PaymentFormDialog({ subscription, replaces = null, onSaved, onClose, mode = 'trainer' }: PaymentFormDialogProps) {
+  const isStudent = mode === 'student';
+  const [receipt, setReceipt] = useState<File | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const [paidOn, setPaidOn] = useState(replaces?.paid_on ?? localDateInputValue());
   const [months, setMonths] = useState(replaces?.months_covered ?? 1);
@@ -71,20 +78,26 @@ export function PaymentFormDialog({ subscription, replaces = null, onSaved, onCl
     event.preventDefault();
     if (submitting) return;
     const found = validate(paidOn, amount, method, months, note);
+    if (receipt && (!RECEIPT_TYPES.includes(receipt.type) || receipt.size > RECEIPT_MAX_BYTES)) {
+      found.receipt = 'El comprobante debe ser un PDF, JPG o PNG de hasta 10 MB.';
+    }
     setErrors(found);
     setFormError('');
     if (Object.keys(found).length > 0) return;
 
     setSubmitting(true);
     try {
-      const result = await registerPayment(subscription.student_id, {
+      const payload = {
         paid_on: paidOn,
         amount: normalizeAmount(amount),
         method: method as PaymentMethod,
         months_covered: months,
         note: note.trim() || null,
         replaces_payment_id: replaces?.id ?? null,
-      });
+      };
+      const result = isStudent
+        ? await reportPayment(subscription.relationship_id, payload, receipt)
+        : await registerPayment(subscription.student_id, payload);
       onSaved(result);
     } catch (error) {
       const fieldErrors = getFieldErrors(error) as FieldErrors;
@@ -118,8 +131,8 @@ export function PaymentFormDialog({ subscription, replaces = null, onSaved, onCl
         aria-labelledby="payment-dialog-title"
       >
         <div className="profile-heading">
-          <span>{replaces ? 'CORREGIR PAGO' : 'REGISTRAR PAGO'}</span>
-          <h2 id="payment-dialog-title">{subscription.student_name}</h2>
+          <span>{isStudent ? 'INFORMAR PAGO' : replaces ? 'CORREGIR PAGO' : 'REGISTRAR PAGO'}</span>
+          <h2 id="payment-dialog-title">{isStudent ? `Pago a ${subscription.trainer_name}` : subscription.student_name}</h2>
           <p>
             {subscription.plan_title} · {formatMoney(subscription.agreed_monthly_price, subscription.currency)} por mes ·
             vence el {formatIsoDate(subscription.due_date)}
@@ -210,11 +223,33 @@ export function PaymentFormDialog({ subscription, replaces = null, onSaved, onCl
             {fieldError('note')}
           </label>
 
+          {isStudent && (
+            <label>
+              Comprobante (opcional)
+              <input
+                type="file"
+                accept="application/pdf,image/jpeg,image/png"
+                onChange={(event) => setReceipt(event.target.files?.[0] ?? null)}
+                disabled={submitting}
+                aria-invalid={Boolean(errors.receipt)}
+                aria-describedby={errors.receipt ? 'payment-receipt-error' : 'payment-receipt-hint'}
+              />
+              {errors.receipt
+                ? <small className="field-error" id="payment-receipt-error">{errors.receipt}</small>
+                : <small className="payment-dialog__hint" id="payment-receipt-hint">PDF, JPG o PNG de hasta 10 MB. Solo lo ven vos y tu entrenador.</small>}
+            </label>
+          )}
+          {isStudent && (
+            <p className="payment-dialog__notice">
+              Tu entrenador va a revisar el pago. Hasta que lo confirme, queda "Pendiente de confirmación" y no cambia tu vencimiento.
+            </p>
+          )}
+
           {formError && <p className="form-alert" role="alert">{formError}</p>}
 
           <div className="payment-dialog__actions">
             <button type="submit" className="profile-save" disabled={submitting}>
-              {submitting ? 'Registrando…' : replaces ? 'Registrar pago corregido' : 'Registrar pago'}
+              {submitting ? 'Enviando…' : isStudent ? 'Informar pago' : replaces ? 'Registrar pago corregido' : 'Registrar pago'}
             </button>
             <button type="button" className="plan-cancel" onClick={onClose} disabled={submitting}>
               Cancelar

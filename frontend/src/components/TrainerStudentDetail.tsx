@@ -1,20 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, CalendarDays, ChevronUp, Dumbbell, MessageSquare, Package, ShieldAlert, Target, UserRound, Wallet } from 'lucide-react';
+import { Activity, CalendarDays, ChevronUp, Dumbbell, MessageSquare, Package, ShieldAlert, Target, UserMinus, UserRound, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { getTrainerStudentSafetyAlerts } from '../services/safetyAlertService';
 import type { SafetyAlertView } from '../types/safetyAlert';
-import type { TrainerStudentDetail as TrainerStudentDetailModel } from '../types/trainerStudent';
+import type { StudentTerminationResult, TrainerStudentDetail as TrainerStudentDetailModel } from '../types/trainerStudent';
+import { StudentTerminationDialog } from './StudentTerminationDialog';
 import { createScopedRequestTracker, executeStudentSafetyAlertsRequest } from '../utils/safetyAlerts.mjs';
 import { PainReportAnalysis } from './PainReportAnalysis';
 import { TrainingEvolution } from './TrainingEvolution';
 import { SafetyAlertListSection } from './SafetyAlertListSection';
+import { StreakCard } from './StreakCard';
+import { TrainerAchievements } from './TrainerAchievements';
+import { getTrainerStudentStreak } from '../services/trainerStudentService';
+import type { TrainingStreak } from '../types/studentProgress';
 
 interface TrainerStudentDetailProps {
   detail: TrainerStudentDetailModel;
   onClose: () => void;
   safetyRefreshKey?: number;
   onSafetyAlertReviewed?: (studentId: string) => void;
+  /** US-35: se llama después de dar de baja al alumno. */
+  onTerminated?: (result: StudentTerminationResult, studentName: string) => void;
 }
 
 function formatDate(value: string | null): string {
@@ -40,8 +47,18 @@ export function TrainerStudentDetail({
   onClose,
   safetyRefreshKey = 0,
   onSafetyAlertReviewed,
+  onTerminated,
 }: TrainerStudentDetailProps) {
+  const [terminating, setTerminating] = useState(false);
   const fullName = [detail.profile.first_name, detail.profile.last_name].filter(Boolean).join(' ') || 'Alumno';
+  // US-68: racha actual y máxima del alumno.
+  const [streak, setStreak] = useState<TrainingStreak | null>(null);
+  useEffect(() => {
+    let active = true;
+    setStreak(null);
+    getTrainerStudentStreak(detail.profile.id).then((loaded) => { if (active) setStreak(loaded); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [detail.profile.id]);
   const [safetyAlerts, setSafetyAlerts] = useState<SafetyAlertView[]>([]);
   const [safetyLoading, setSafetyLoading] = useState(true);
   const [safetyError, setSafetyError] = useState('');
@@ -92,7 +109,23 @@ export function TrainerStudentDetail({
           Ocultar detalles
         </button>
         <p>Información del perfil, paquete contratado, objetivos, limitaciones, rutina y actividad.</p>
+        {onTerminated && (
+          <button type="button" className="trainer-student-detail__terminate" onClick={() => setTerminating(true)}>
+            <UserMinus size={16} aria-hidden="true" /> Dar de baja
+          </button>
+        )}
       </div>
+      {terminating && onTerminated && (
+        <StudentTerminationDialog
+          studentId={detail.profile.id}
+          studentName={fullName}
+          onClose={() => setTerminating(false)}
+          onTerminated={(result) => {
+            setTerminating(false);
+            onTerminated(result, fullName);
+          }}
+        />
+      )}
 
       <div className="trainer-student-detail__grid">
         <article>
@@ -153,8 +186,10 @@ export function TrainerStudentDetail({
           <h3><Dumbbell size={18} aria-hidden="true" />Rutina vigente</h3>
           <p>{detail.routine?.name || 'Sin rutina asignada.'}</p>
         </article>
+        <TrainerAchievements studentId={detail.profile.id} />
         <article className="trainer-student-detail__metrics">
           <h3><Activity size={18} aria-hidden="true" />Métricas</h3>
+          {streak && <StreakCard streak={streak} perspective="trainer" />}
           <div className="trainer-student-detail__metric-list">
             <div><strong>{detail.metrics.finished_sessions}</strong><span>Sesiones finalizadas</span></div>
             <div><strong>{detail.metrics.logged_sets}</strong><span>Series registradas</span></div>

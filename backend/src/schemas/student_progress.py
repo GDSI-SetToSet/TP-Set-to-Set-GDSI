@@ -60,3 +60,14 @@ class StudentProgress(BaseModel):
     weekly_volume: list[WeeklyVolume]
     week_comparison: WeekComparison
     personal_records: list[PersonalRecordEntry]
+
+
+class TrainingStreak(BaseModel):
+    """US-68: racha de semanas cumplidas (calculada, no persistida)."""
+
+    has_routine: bool
+    weekly_target: int
+    current_weeks: int
+    max_weeks: int
+    this_week_sessions: int
+    week_start: date

@@ -53,3 +53,13 @@ export interface StudentProgress {
   week_comparison: WeekComparison;
   personal_records: PersonalRecordEntry[];
 }
+
+/** US-68: racha de semanas cumplidas (objetivo = días de la rutina vigente). */
+export interface TrainingStreak {
+  has_routine: boolean;
+  weekly_target: number;
+  current_weeks: number;
+  max_weeks: number;
+  this_week_sessions: number;
+  week_start: string;
+}
