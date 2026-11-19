@@ -148,26 +148,6 @@ Para reiniciar los datos de demostración (limpieza y re-sembrado en un paso):
 python backend/scripts/seed_demo.py --reset
 ```
 
-#### Demo de la Sprint Review del Sprint 6
-
-Después del seed, `prepare_sprint6_demo.py` aplica los escenarios del Sprint 5 y agrega los del Sprint 6 (fechas relativas a hoy; idempotente). No se ejecuta con `APP_ENV=production`.
-
-```bash
-python backend/scripts/seed_demo.py --reset
-python backend/scripts/prepare_sprint6_demo.py
-```
-
-| Cuenta | Qué mostrar |
-|---|---|
-| `lucas.benitez@` (entrenador) | Aviso en el inicio; **Suscripciones** con Valentina "Al día", Mateo "Por vencer" y Lucía "Vencida" con un pago informado y comprobante para confirmar o rechazar (US-34, US-71); **Mensajes** con un mensaje sin leer de Valentina y **Consultas técnicas** con una pendiente (US-21, US-62); racha y logros en el detalle de Valentina (US-68, US-67); dar de baja a **Sofía Martínez** (US-35). |
-| `valentina.rossi@` | Racha de 5 semanas en el inicio y en "Mi evolución" con "Mis logros"; al **Comenzar rutina** (Día 1) ve la felicitación de Lucas y la nota técnica fijada sobre "Sentadilla con Barra". |
-| `mateo.gomez@` | Aviso de suscripción por vencer en 3 días. |
-| `lucia.fernandez@` | "Rutina del día" bloqueada por suscripción vencida, con su pago informado pendiente. |
-| `joaquin.diaz@` | Al entrar recibe el mensaje de aliento por la racha cortada. |
-| `tomas.castro@` | Tiene 9 sesiones: al **Comenzar** y **Finalizar rutina** desbloquea "10 sesiones" con celebración, y Gonzalo Morales recibe la notificación para felicitarlo. |
-
-La celebración de Tomás y la baja de Sofía consumen el escenario: para repetir la demo, volvé a correr los dos comandos.
-
 > **Credenciales locales:** En desarrollo, todas las cuentas de prueba comparten `DemoPassword123!` y pertenecen al dominio `@demo.settoset.com` (ej. `lucas.benitez@demo.settoset.com`, `mateo.gomez@demo.settoset.com`). En producción se usa el valor protegido de `DEMO_SEED_PASSWORD`.
 
 #### Ejecución contra producción

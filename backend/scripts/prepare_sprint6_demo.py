@@ -64,7 +64,11 @@ from backend.src.services.informal_payment_service import (
     register_payment,
 )
 from backend.src.services.student_subscription_service import report_payment
-from backend.src.services.subscription_service import add_months
+from backend.src.services.subscription_service import (
+    DUE_SOON_DAYS,
+    add_months,
+    compute_due_date,
+)
 from backend.src.services.technical_query_service import create_query
 
 DEMO_NOTE = "Demo Sprint 6"
@@ -84,6 +88,25 @@ def _utc_now() -> datetime:
 
 def _monday(day: date) -> date:
     return day - timedelta(days=day.weekday())
+
+
+def due_soon_start_date(today: date, target_days: int = 3) -> date:
+    """Elige un `start_date <= today` cuyo vencimiento (+1 mes) quede `POR_VENCER` lo más cerca de `target_days`.
+
+    Como `add_months(start, 1)` recorta al fin de mes (ej. 28/02 → 28/03), fechas como 29–31 de marzo
+    o 31 de mayo no tienen un `start_date` a exactamente 1 mes atrás. Buscando alrededor de
+    `add_months(today + target_days, -1)` se garantiza siempre `1 <= days_until_due <= DUE_SOON_DAYS`
+    (estado `POR_VENCER` en los 365/366 días del año) y exactamente `target_days` siempre que exista.
+    """
+    target_due = today + timedelta(days=target_days)
+    base = add_months(target_due, -1)
+    candidates = [
+        (abs(days - target_days), 0 if days >= 1 else 1, candidate)
+        for delta in range(-DUE_SOON_DAYS, DUE_SOON_DAYS + 1)
+        if (candidate := base + timedelta(days=delta)) <= today
+        and 0 <= (days := (compute_due_date(candidate, 0) - today).days) <= DUE_SOON_DAYS
+    ]
+    return min(candidates)[2]
 
 
 def _user(db: Session, email: str) -> User:
@@ -260,7 +283,8 @@ def prepare_sprint6_demo_data(db: Session, *, today: date | None = None) -> dict
     db.commit()
 
     # --- US-34 / US-71: tres estados de suscripción --------------------------------------
-    rel_mateo.start_date = add_months(today, -1) + timedelta(days=3)  # vence en 3 días → Por vencer
+    rel_valentina.start_date = today - timedelta(days=5)
+    rel_mateo.start_date = due_soon_start_date(today)  # siempre "Por vencer" (objetivo 3 días)
     rel_lucia.start_date = add_months(today, -2)  # venció hace un mes → Vencida (rutina bloqueada)
     db.commit()
 
@@ -335,10 +359,11 @@ def prepare_sprint6_demo_data(db: Session, *, today: date | None = None) -> dict
             WorkoutSession.student_id == _student(db, TOMAS).id, WorkoutSession.finished_at.is_not(None)
         )
     )
+    mateo_days = (compute_due_date(rel_mateo.start_date, 0) - today).days
     return {
         "Lucas (entrenador)": "Suscripciones con los 3 estados y 1 pago por confirmar; mensajes y 1 consulta técnica pendiente; Sofía para dar de baja.",
         "Valentina": "Al día · racha de 5 semanas · logros + felicitación y nota técnica al iniciar su próxima sesión.",
-        "Mateo": "Suscripción por vencer en 3 días (aviso en el inicio).",
+        "Mateo": f"Suscripción por vencer en {mateo_days} {'día' if mateo_days == 1 else 'días'} (aviso en el inicio).",
         "Lucía": "Suscripción vencida: rutina bloqueada y pago informado pendiente.",
         "Joaquín": "Racha cortada: recibe el mensaje de aliento al abrir la app.",
         "Tomás (Gonzalo)": f"{tomas_sessions} sesiones finalizadas: al terminar la próxima desbloquea '10 sesiones'."
