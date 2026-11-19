@@ -40,7 +40,7 @@
 .training-evolution__table-wrap { overflow-x: auto; margin: 8px 0; }
 .training-evolution__table { width: 100%; border-collapse: collapse; font-size: .88rem; }
 .training-evolution__table th, .training-evolution__table td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; }
-.training-evolution__table th small { display: block; color: #64748b; font-weight: 500; }
+.training-evolution__table th small, .training-evolution__table td small { display: block; color: #64748b; font-weight: 500; }
 .training-evolution__table tr.is-selected { background: #eff6ff; }
 .training-evolution__badge { display: inline-block; padding: 1px 8px; border-radius: 999px; background: #f1f5f9; color: #334155; font-size: .78rem; font-weight: 700; white-space: nowrap; }
 .training-evolution__badge--progressing { background: #dcfce7; color: #166534; }
@@ -63,3 +63,16 @@
 @media (max-width: 640px) { .training-evolution__controls label { flex: 1 1 140px; } .training-evolution__controls select { width: 100%; } }
 .training-evolution__swatch { flex: none; }
 .training-evolution__legend li { min-height: 20px; }
+
+/* US-65 · Mi evolución (alumno) */
+.student-evolution__chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 10px; }
+.student-evolution__chips button { min-height: 44px; padding: 0 14px; border: 1px solid #cbd5e1; border-radius: 999px; background: #fff; color: #334155; font: inherit; font-weight: 600; cursor: pointer; }
+.student-evolution__chips button[aria-pressed="true"] { border-color: #1d4ed8; background: #eff6ff; color: #1e3a8a; }
+.student-evolution__list { display: grid; gap: 6px; margin: 0 0 12px; padding: 0; list-style: none; }
+.student-evolution__list button { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; color: #0f172a; font: inherit; text-align: left; cursor: pointer; }
+.student-evolution__list button[aria-pressed="true"] { border-color: #1d4ed8; background: #eff6ff; }
+.student-evolution__records { display: grid; gap: 6px; padding-left: 20px; }
+.training-evolution details { margin: 8px 0; }
+.training-evolution summary { min-height: 44px; display: flex; align-items: center; color: #1d4ed8; font-weight: 600; cursor: pointer; }
+.training-evolution__card { text-align: left; cursor: pointer; }
+.student-evolution__cta { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 8px; padding: 0 18px; border-radius: 10px; background: #1d4ed8; color: #fff; font-weight: 700; text-decoration: none; }

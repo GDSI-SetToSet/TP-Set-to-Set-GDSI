@@ -146,6 +146,29 @@ def _light(value: float, green: float, yellow: float) -> str:
     return "green" if value >= green else "yellow" if value >= yellow else "red"
 
 
+def adherence_weeks(
+    db: Session, relationship: TrainingRelationship, now: datetime, finished_days: list[date], range_start: date | None
+) -> list[AdherenceWeek]:
+    """Sesiones acordadas vs. finalizadas por semana, desde la asignación (o `range_start`) hasta la semana en curso."""
+    weekly, assigned_at, _ = _weekly_trainings(db, relationship, now.replace(tzinfo=None))
+    current_monday = _monday(_as_utc(now).date())
+    first_week = _monday(_as_utc(assigned_at).date() if assigned_at else relationship.start_date)
+    if range_start is not None:
+        first_week = max(first_week, range_start)
+    done_by_week: dict[date, int] = defaultdict(int)
+    for day in finished_days:
+        done_by_week[_monday(day)] += 1
+    weeks: list[AdherenceWeek] = []
+    week = first_week
+    while range_start is not None and weekly > 0 and week <= current_monday:
+        weeks.append(AdherenceWeek(
+            period_start=week, period_end=week + timedelta(days=6), scheduled=weekly,
+            completed=done_by_week.get(week, 0), is_partial=week == current_monday,
+        ))
+        week += timedelta(weeks=1)
+    return weeks
+
+
 def get_training_evolution(
     db: Session,
     user: User,
@@ -280,21 +303,7 @@ def get_training_evolution(
     )
 
     # ---- ¿Está entrenando lo que le programé? ----
-    weekly, assigned_at, _ = _weekly_trainings(db, relationship, now.replace(tzinfo=None))
-    first_week = _monday(_as_utc(assigned_at).date() if assigned_at else relationship.start_date)
-    if range_start is not None:
-        first_week = max(first_week, range_start)
-    done_by_week: dict[date, int] = defaultdict(int)
-    for _, finished in all_sessions:
-        done_by_week[_monday(finished.date())] += 1
-    adherence: list[AdherenceWeek] = []
-    week = first_week
-    while range_start is not None and weekly > 0 and week <= current_monday:
-        adherence.append(AdherenceWeek(
-            period_start=week, period_end=week + timedelta(days=6), scheduled=weekly,
-            completed=done_by_week.get(week, 0), is_partial=week == current_monday,
-        ))
-        week += timedelta(weeks=1)
+    adherence = adherence_weeks(db, relationship, now, [f.date() for _, f in all_sessions], range_start)
     full_weeks = [item for item in adherence if not item.is_partial]
     scheduled_total = sum(item.scheduled for item in full_weeks)
     completed_total = sum(min(item.completed, item.scheduled) for item in full_weeks)

@@ -2,7 +2,7 @@
 description: "Lista de tareas de US-65 de la feature 010"
 ---
 
-# Tasks: US-65 — Evolución de cargas, volumen semanal y récords personales (PRs)
+# Tasks: US-65 — Evolución de cargas, constancia y récords personales (PRs)
 
 **Entrada**: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/student-progress-api.yaml`, `quickstart.md`
 
@@ -51,6 +51,21 @@ description: "Lista de tareas de US-65 de la feature 010"
 - [ ] T017 Ejecutar `npm run build` en `frontend/` sin errores.
 - [X] T018 Recorrer manualmente `specs/010-progress-and-gamification/quickstart.md` (7 pasos) contra los escenarios de aceptación de la spec.
 - [ ] T019 Ejecutar `/speckit-analyze` y `/speckit-converge` sobre US-65 y confirmar que no hay requisitos faltantes ni referencias a US-67/US-68.
+
+## Fase 5: Rediseño "Mi evolución" (T020–T029)
+
+> Reemplaza el volumen semanal por constancia y el selector de ejercicio por una lista de frases (ver `us-65-redisign.md`). Numeración propia de la feature 010. Las tareas T004–T015 de la Fase 3 describen la versión anterior.
+
+- [X] T020 [US1] Reescribir los criterios de aceptación y los FR de US-65 en `spec.md` (PO a validar).
+- [X] T021 [US1] Backend: progreso por ejercicio con `message_key`, reutilizando `classify` de `training_evolution_service` (sin duplicar lógica).
+- [X] T022 [US1] Backend: constancia por semana y racha; el bucle de adherencia pasa a `adherence_weeks`, compartido con la vista del entrenador (US-30).
+- [X] T023 [US1] Backend: récords reales (sin la primera carga, con la marca previa), ejercicios nuevos y próxima sesión (rutina vigente, ajustes de US-26 y devolución de US-64).
+- [X] T024 [US1] Actualizar `contracts/student-progress-api.yaml` y `data-model.md`: parámetros `period` y `muscle_group`; se eliminan `exercise_id`, `from`, `to`, el volumen semanal y el 422 por fechas.
+- [X] T025 [US1] Frontend: tipos, servicio y utilidades de frases (`utils/studentProgress.mjs`) con su test (sin "estancado", "bajó" ni porcentajes).
+- [X] T026 [US1] Frontend: encabezado, selector de período y sección "¿Estoy mejorando?" (lista, chips, gráfico con objetivo punteado y explicación).
+- [X] T027 [US1] Frontend: secciones "¿Estoy siendo constante?", "¿Qué logré?" y "¿Qué me toca ahora?".
+- [X] T028 [US1] Frontend: eliminar volumen semanal, texto comparativo, filtros de fecha y selectores duplicados; estados especiales.
+- [X] T029 [US1] Pruebas de backend (`test_us65_student_progress_api.py`) y frontend (`studentProgress.test.mjs`).
 
 ## Dependencias y orden
 

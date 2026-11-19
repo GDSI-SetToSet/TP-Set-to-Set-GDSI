@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import (
     APIRouter,
@@ -7,7 +7,6 @@ from fastapi import (
     File,
     Form,
     HTTPException,
-    Query,
     UploadFile,
     status,
 )
@@ -90,17 +89,15 @@ def own_profile(user: CurrentUser, db: DbDep) -> StudentProfileResponse:
         handle_error(error)
 
 
-@router.get("/me/progress", response_model=StudentProgress, response_model_by_alias=True)
+@router.get("/me/progress", response_model=StudentProgress)
 def own_progress(
     user: CurrentUser,
     db: DbDep,
-    exercise_id: str | None = None,
+    period: Literal["4w", "12w", "all"] = "12w",
     muscle_group: str | None = None,
-    from_: Annotated[date | None, Query(alias="from")] = None,
-    to: date | None = None,
 ) -> StudentProgress:
     try:
-        return get_student_progress(db, user, exercise_id, muscle_group, from_, to)
+        return get_student_progress(db, user, period, muscle_group)
     except StudentProfileError as error:
         handle_error(error)
 

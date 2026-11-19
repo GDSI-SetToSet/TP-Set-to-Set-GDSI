@@ -1,55 +1,86 @@
+export type ProgressPeriodKey = '4w' | '12w' | 'all';
+
 export interface ProgressFilters {
-  exercise_id?: string;
+  period: ProgressPeriodKey;
   muscle_group?: string;
-  from?: string;
-  to?: string;
 }
 
-export interface LoadPoint {
+export interface SetResult {
+  weight: number | null;
+  reps: number | null;
+}
+
+export type MessageKey =
+  | 'weight_increased'
+  | 'reps_increased'
+  | 'no_change'
+  | 'below_best'
+  | 'bodyweight_reps_increased'
+  | 'few_data';
+
+export interface ExercisePoint {
   date: string;
-  weight_kg: number;
-  reps: string;
+  weight: number | null;
+  reps: number;
+  target_weight: number | null;
   is_pr: boolean;
 }
 
-export interface ExerciseLoad {
+export interface ExerciseEvolution {
   exercise_id: string;
   name: string;
   muscle_group: string;
-  has_trend: boolean;
-  points: LoadPoint[];
+  metric: 'max_weight' | 'max_reps';
+  start: SetResult;
+  current: SetResult;
+  best: SetResult;
+  message_key: MessageKey;
+  weeks_without_change: number;
+  last_improvement_is_pr: boolean;
+  points: ExercisePoint[];
 }
 
-export interface WeeklyVolume {
-  week_start: string;
-  week_end: string;
-  volume_kg: number;
+export interface ConsistencyWeek {
+  period_start: string;
+  period_end: string;
+  scheduled: number;
+  completed: number;
   is_partial: boolean;
 }
 
-export interface WeekComparison {
-  current_volume_kg: number;
-  previous_volume_kg: number;
-  delta_vs_previous_pct: number | null;
-  previous_avg_kg: number;
+export interface RecordEntry {
+  date: string;
+  exercise_id: string;
+  name: string;
+  weight: number | null;
+  reps: number;
+  previous: SetResult;
 }
 
-export interface PersonalRecordEntry {
+export interface NextExercise {
   exercise_id: string;
-  exercise_name: string;
-  weight_kg: number;
+  name: string;
+  last: SetResult | null;
+  target_weight: number | null;
   reps: string;
-  achieved_at: string;
-  previous_weight_kg: number | null;
-  is_initial: boolean;
+  sets: number;
+  adjusted_by_trainer: boolean;
+  trainer_note: string | null;
 }
 
 export interface StudentProgress {
-  range: { from: string; to: string; is_default: boolean };
+  period: { key: ProgressPeriodKey; start: string | null; end: string };
+  muscle_group: string | null;
   muscle_groups: string[];
-  has_data: boolean;
-  exercises: ExerciseLoad[];
-  weekly_volume: WeeklyVolume[];
-  week_comparison: WeekComparison;
-  personal_records: PersonalRecordEntry[];
+  has_sessions: boolean;
+  summary: {
+    improving_exercises_last_4w: number;
+    streak: { current_weeks: number; best_weeks: number };
+    records_in_period: number;
+  };
+  exercises: ExerciseEvolution[];
+  consistency: ConsistencyWeek[];
+  records: RecordEntry[];
+  new_exercises: { exercise_id: string; name: string; first_date: string }[];
+  next_session: { day_name: string; trainer_feedback: string | null; exercises: NextExercise[] } | null;
 }
