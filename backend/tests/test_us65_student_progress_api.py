@@ -1,9 +1,9 @@
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from backend.src.models.exercise import Exercise
 from backend.src.models.training_relationship import TrainingRelationship
-from backend.src.models.workout_log import WorkoutSetLog
+from backend.src.models.workout_log import WorkoutSession, WorkoutSetLog
 from backend.tests.test_us22_daily_routines_api import fixed_clock
 from backend.tests.test_workout_session_api import (
     create_assigned_routine,
@@ -22,15 +22,20 @@ def setup(client, monkeypatch):
     squat, relationship_id = create_assigned_routine(api, sessions, trainer, "student@example.com")
     fixed_clock(monkeypatch, NOW)
     with sessions() as db:
-        student_id = db.get(TrainingRelationship, relationship_id).student_id
-        press = Exercise(
-            name="Press banca", description="x", category="FUERZA", target_muscle_group="Pecho",
-            equipment_needed="Barra", trainer_id=db.get(Exercise, squat).trainer_id,
-            created_at=NOW.replace(tzinfo=None), updated_at=NOW.replace(tzinfo=None),
-        )
-        db.add(press)
+        relationship = db.get(TrainingRelationship, relationship_id)
+        relationship.routine_assigned_at = (NOW - 20 * WEEK).replace(tzinfo=None)
+        student_id = relationship.student_id
+        trainer_id = db.get(Exercise, squat).trainer_id
+        ids = {}
+        for name, group in [("Press banca", "Pecho"), ("Curl femoral", "Piernas"), ("Dominadas", "Espalda")]:
+            ex = Exercise(
+                name=name, description="x", category="FUERZA", target_muscle_group=group, equipment_needed="Barra",
+                trainer_id=trainer_id, created_at=NOW.replace(tzinfo=None), updated_at=NOW.replace(tzinfo=None),
+            )
+            db.add(ex)
+            db.flush()
+            ids[name] = ex.id
         db.commit()
-        press_id = press.id
 
     def add(exercise_id, weeks_ago, weight, reps="8", set_number=1, day_offset=0):
         moment = (NOW - weeks_ago * WEEK + timedelta(days=day_offset)).replace(tzinfo=None)
@@ -42,113 +47,160 @@ def setup(client, monkeypatch):
             ))
             db.commit()
 
-    return api, trainer, student, squat, press_id, add
+    def finish(weeks_ago, day_offset=0):
+        moment = (NOW - weeks_ago * WEEK + timedelta(days=day_offset)).replace(tzinfo=None)
+        with sessions() as db:
+            db.add(WorkoutSession(
+                student_id=student_id, relationship_id=relationship_id, routine_id="r", day_name="Día 1",
+                modality="GYM", started_at=moment, finished_at=moment,
+            ))
+            db.commit()
+
+    return api, trainer, student, squat, ids, add, finish
 
 
 def get(api, student, **params):
     return api.get(PATH, headers=student, params=params)
 
 
-def test_load_per_exercise_and_default_12_week_range(client, monkeypatch):
-    api, _, student, squat, _, add = setup(client, monkeypatch)
-    add(squat, 20, 50)  # fuera del rango por defecto (12 semanas)
-    add(squat, 3, 60)
-    add(squat, 1, 70, reps="5")
+def by_name(body):
+    return {e["name"]: e for e in body["exercises"]}
+
+
+def test_message_key_for_each_case_and_order(client, monkeypatch):
+    api, _, student, squat, ids, add, _ = setup(client, monkeypatch)
+    add(squat, 4, 22.5)
+    add(squat, 1, 40)  # subió el peso
+    add(ids["Press banca"], 3, 30, reps="8")
+    add(ids["Press banca"], 1, 30, reps="10")  # mismo peso, más repeticiones
+    for weeks_ago in (3, 2, 1):
+        add(ids["Curl femoral"], weeks_ago, 40)  # sin cambios
+    add(ids["Dominadas"], 3, None, reps="6")
+    add(ids["Dominadas"], 1, None, reps="9")  # sin carga
+    body = get(api, student).json()
+    found = by_name(body)
+
+    assert found["Sentadilla"]["message_key"] == "weight_increased"
+    assert (found["Sentadilla"]["start"]["weight"], found["Sentadilla"]["current"]["weight"]) == (22.5, 40.0)
+    assert found["Sentadilla"]["last_improvement_is_pr"] is True
+    assert found["Press banca"]["message_key"] == "reps_increased"
+    assert found["Curl femoral"]["message_key"] == "no_change" and found["Curl femoral"]["weeks_without_change"] >= 1
+    assert found["Dominadas"]["message_key"] == "bodyweight_reps_increased" and found["Dominadas"]["metric"] == "max_reps"
+    # primero las mejoras, después el resto por orden alfabético
+    assert [e["name"] for e in body["exercises"]] == ["Dominadas", "Press banca", "Sentadilla", "Curl femoral"]
+    assert body["summary"]["improving_exercises_last_4w"] == 3
+
+
+def test_below_best_few_data_and_current_week_excluded(client, monkeypatch):
+    api, _, student, squat, ids, add, _ = setup(client, monkeypatch)
+    add(squat, 3, 50)
+    add(squat, 2, 50)
+    add(squat, 1, 45)  # <= 90 % de la mejor
+    add(ids["Press banca"], 0, 60, day_offset=-3)  # un solo día, semana en curso
+    add(ids["Curl femoral"], 3, 30)
+    add(ids["Curl femoral"], 0, 80, day_offset=-3)  # la semana en curso no cuenta como mejora
+    found = by_name(get(api, student).json())
+    assert found["Sentadilla"]["message_key"] == "below_best" and found["Sentadilla"]["best"]["weight"] == 50.0
+    assert found["Press banca"]["message_key"] == "few_data"
+    assert found["Curl femoral"]["message_key"] == "few_data"  # 1 sola semana completa
+
+
+def test_records_exclude_first_load_and_use_previous_mark(client, monkeypatch):
+    api, _, student, squat, ids, add, _ = setup(client, monkeypatch)
+    add(squat, 9, 35)  # primera carga: no es récord
+    add(squat, 6, 35, reps="10")  # mismo peso, más repeticiones
+    add(squat, 2, 35, reps="9")  # no supera
+    add(squat, 1, 40, reps="8")
+    add(ids["Press banca"], 1, 40)  # primera carga
     body = get(api, student).json()
 
-    assert body["range"] == {"from": "2026-08-24", "to": "2026-11-14", "is_default": True}
-    assert len(body["weekly_volume"]) == 12
-    [exercise] = body["exercises"]
-    assert exercise["name"] == "Sentadilla" and exercise["has_trend"] is True
-    assert [(p["weight_kg"], p["reps"], p["is_pr"]) for p in exercise["points"]] == [(60.0, "8", True), (70.0, "5", True)]  # 60 supera los 50 previos fuera del rango
-    assert body["has_data"] is True and body["muscle_groups"] == ["Piernas"]
-
-
-def test_weekly_volume_with_empty_weeks_and_comparison(client, monkeypatch):
-    api, _, student, squat, _, add = setup(client, monkeypatch)
-    add(squat, 2, 50, reps="10")  # 500
-    add(squat, 2, 50, reps="10", set_number=2)  # 500
-    add(squat, 0, 100, reps="5", day_offset=-3)  # semana en curso: 500
-    add(squat, 0, 40, reps="al fallo", set_number=2, day_offset=-3)  # reps no numéricas: no suma al volumen
-    body = get(api, student, **{"from": "2026-10-19", "to": "2026-11-14"}).json()
-
-    volumes = [w["volume_kg"] for w in body["weekly_volume"]]
-    assert volumes == [0.0, 1000.0, 0.0, 500.0]  # la semana sin series queda en 0
-    assert [w["is_partial"] for w in body["weekly_volume"]] == [False] * 3 + [True]
-    assert body["week_comparison"] == {
-        "current_volume_kg": 500.0, "previous_volume_kg": 0.0, "delta_vs_previous_pct": None, "previous_avg_kg": 333.33,
-    }
-    add(squat, 1, 25, reps="10")  # 250 la semana previa
-    comparison = get(api, student, **{"from": "2026-10-19", "to": "2026-11-14"}).json()["week_comparison"]
-    assert comparison["previous_volume_kg"] == 250.0 and comparison["delta_vs_previous_pct"] == 100.0
-
-
-def test_personal_records_are_strict_chronological_and_ignore_reps(client, monkeypatch):
-    api, _, student, squat, press, add = setup(client, monkeypatch)
-    add(squat, 4, 60, reps="al fallo")  # PR inicial aunque las reps no sean numéricas
-    add(squat, 3, 60)  # igual al máximo previo: no es PR
-    add(squat, 2, 70, reps="1")  # PR con 1 repetición
-    add(squat, 1, 65)  # inferior: no es PR
-    add(press, 1, 40)
-    body = get(api, student).json()
-
-    records = body["personal_records"]
-    assert [(r["exercise_name"], r["weight_kg"], r["previous_weight_kg"], r["is_initial"]) for r in records] == [
-        ("Sentadilla", 60.0, None, True), ("Sentadilla", 70.0, 60.0, False), ("Press banca", 40.0, None, True),
+    assert [(r["name"], r["weight"], r["reps"], r["previous"]) for r in body["records"]] == [
+        ("Sentadilla", 40.0, 8, {"weight": 35.0, "reps": 10}),
+        ("Sentadilla", 35.0, 10, {"weight": 35.0, "reps": 8}),
     ]
-    assert [r["achieved_at"] for r in records] == sorted(r["achieved_at"] for r in records)
+    assert [r["date"] for r in body["records"]] == sorted((r["date"] for r in body["records"]), reverse=True)
+    assert body["summary"]["records_in_period"] == 2
+    assert [p["is_pr"] for p in by_name(body)["Sentadilla"]["points"]] == [False, True, False, True]
+    assert {n["name"] for n in body["new_exercises"]} == {"Sentadilla", "Press banca"}
+
+    short = get(api, student, period="4w").json()  # la marca previa sale del historial completo
+    assert [(r["weight"], r["previous"]["weight"]) for r in short["records"]] == [(40.0, 35.0)]
 
 
-def test_same_session_tie_is_broken_by_set_number(client, monkeypatch):
-    api, _, student, squat, _, add = setup(client, monkeypatch)
-    add(squat, 1, 50, set_number=1)
-    add(squat, 1, 50, set_number=2)  # mismo instante y mismo peso: no es PR
-    add(squat, 1, 55, set_number=3)
-    records = get(api, student).json()["personal_records"]
-    assert [(r["weight_kg"], r["is_initial"]) for r in records] == [(50.0, True), (55.0, False)]
+def test_muscle_group_filter_keeps_chips_and_summary(client, monkeypatch):
+    api, _, student, squat, ids, add, _ = setup(client, monkeypatch)
+    add(squat, 3, 50)
+    add(squat, 1, 60)
+    add(ids["Press banca"], 3, 40)
+    add(ids["Press banca"], 1, 45)
+    body = get(api, student, muscle_group="Pecho").json()
+    assert [e["name"] for e in body["exercises"]] == ["Press banca"]
+    assert [r["name"] for r in body["records"]] == ["Press banca"]
+    assert body["muscle_groups"] == ["Pecho", "Piernas"]
+    assert body["summary"]["records_in_period"] == 2 and body["summary"]["improving_exercises_last_4w"] == 2
+    assert get(api, student, muscle_group="Espalda").json()["exercises"] == []
 
 
-def test_filters_by_exercise_muscle_group_and_dates_keep_prior_max(client, monkeypatch):
-    api, _, student, squat, press, add = setup(client, monkeypatch)
-    add(squat, 8, 80)
-    add(squat, 1, 70)  # inferior al máximo previo fuera del rango: no es PR aunque sea el primero del rango
-    add(press, 1, 40)
+def test_consistency_excludes_current_week_and_computes_streak(client, monkeypatch):
+    api, _, student, squat, _, add, finish = setup(client, monkeypatch)
+    add(squat, 1, 50)
+    for weeks_ago in (5, 4, 3, 1):  # la semana de hace 2 queda sin sesiones
+        finish(weeks_ago)
+    finish(0, day_offset=-3)  # semana en curso
+    body = get(api, student, period="4w").json()
 
-    by_exercise = get(api, student, exercise_id=press).json()
-    assert [e["name"] for e in by_exercise["exercises"]] == ["Press banca"]
-    assert [r["exercise_name"] for r in by_exercise["personal_records"]] == ["Press banca"]
-    assert [e["name"] for e in get(api, student, muscle_group="Piernas").json()["exercises"]] == ["Sentadilla"]
-    assert get(api, student, exercise_id=press, muscle_group="Piernas").json()["has_data"] is False
-
-    ranged = get(api, student, **{"from": "2026-11-02", "to": "2026-11-14"}).json()
-    assert [r["exercise_name"] for r in ranged["personal_records"]] == ["Press banca"]
-    assert ranged["muscle_groups"] == ["Pecho", "Piernas"]  # las opciones del filtro no dependen del rango
+    weeks = body["consistency"]
+    assert len(weeks) == 4 and weeks[-1]["is_partial"] is True and weeks[-1]["completed"] == 1
+    assert [w["completed"] for w in weeks[:-1]] == [1, 0, 1]
+    assert body["summary"]["streak"] == {"current_weeks": 1, "best_weeks": 3}  # el historial completo, sin la semana en curso
 
 
-def test_single_point_has_no_trend_and_empty_state(client, monkeypatch):
-    api, _, student, squat, _, add = setup(client, monkeypatch)
+def test_next_session_cycles_from_last_finished_day(client, monkeypatch):
+    api, _, student, squat, _, add, finish = setup(client, monkeypatch)
+    assert get(api, student).json()["next_session"]["day_name"] == "Día 1"
+    add(squat, 1, 40, reps="8")
+    finish(1)
+    session = get(api, student).json()["next_session"]
+    [exercise] = session["exercises"]
+    assert session["day_name"] == "Día 1"  # rutina de un solo día
+    assert exercise["name"] == "Sentadilla" and exercise["last"] == {"weight": 40.0, "reps": 8}
+    assert (exercise["target_weight"], exercise["sets"], exercise["reps"]) == (10.0, 3, "8")
+    assert exercise["adjusted_by_trainer"] is False and session["trainer_feedback"] is None
+
+
+def test_empty_state_validation_authorization_and_isolation(client, monkeypatch):
+    api, trainer, student, squat, _, add, _ = setup(client, monkeypatch)
     empty = get(api, student).json()
-    assert empty["has_data"] is False and empty["exercises"] == [] and empty["personal_records"] == []
-    assert all(w["volume_kg"] == 0 for w in empty["weekly_volume"])
-    add(squat, 1, 50)
-    add(squat, 1, 0)  # sin peso: se ignora
-    add(squat, 1, None)
-    [exercise] = get(api, student).json()["exercises"]
-    assert exercise["has_trend"] is False and len(exercise["points"]) == 1
+    assert empty["has_sessions"] is False and empty["exercises"] == [] and empty["records"] == []
+    add(squat, 1, 50)  # una sola sesión
+    [only] = get(api, student).json()["exercises"]
+    assert only["message_key"] == "few_data"
 
-
-def test_validation_authorization_and_isolation(client, monkeypatch):
-    api, trainer, student, squat, _, add = setup(client, monkeypatch)
-    add(squat, 1, 50)
-
-    inverted = get(api, student, **{"from": "2026-11-14", "to": "2026-11-01"})
-    assert inverted.status_code == 422 and inverted.headers["content-type"].startswith("application/problem+json")
-    assert inverted.json()["errors"][0]["field"] == "from"
-    malformed = get(api, student, **{"from": "no-es-fecha"})
-    assert malformed.status_code == 422 and malformed.headers["content-type"].startswith("application/problem+json")
-
+    assert get(api, student, period="2w").status_code == 422
     assert api.get(PATH, headers=trainer).status_code == 403
     assert api.get(PATH).status_code == 401
     other = register_and_login(api, "other@example.com", "STUDENT")
-    assert get(api, other).json()["has_data"] is False  # no ve las series de otro alumno
-    assert date.fromisoformat(get(api, student).json()["range"]["to"]) == NOW.date()
+    unlinked = get(api, other).json()  # no ve las series de otro alumno y sin vínculo no hay constancia ni próxima sesión
+    assert unlinked["has_sessions"] is False and unlinked["consistency"] == [] and unlinked["next_session"] is None
+
+
+def test_next_session_shows_trainer_adjustment_and_feedback(client, monkeypatch):
+    from backend.tests.test_us26_session_adjustment_api import adjustment_path, blocks
+    from backend.tests.test_us26_session_adjustment_api import setup as setup_us26
+    from backend.tests.test_workout_session_api import TEMPLATES_PATH
+
+    api, _, trainer, student, exercise_id, relationship_id, _, session_id = setup_us26(client, monkeypatch)
+    saved = api.put(adjustment_path(session_id), headers=trainer, json={"blocks": blocks(exercise_id), "note": "Subí la carga"})
+    assert saved.status_code == 200
+    feedback = api.put(
+        f"{TEMPLATES_PATH}/assignments/{relationship_id}/workout-sessions/{session_id}/effort-feedback",
+        headers=trainer, json={"category": "MORE_EFFORT", "comment": "Podés exigirte más."},
+    )
+    assert feedback.status_code == 200
+
+    session = get(api, student).json()["next_session"]
+    [exercise] = session["exercises"]
+    assert session["trainer_feedback"] == "Podés exigirte más."
+    assert exercise["adjusted_by_trainer"] is True and exercise["trainer_note"] == "Subí la carga"
+    assert (exercise["target_weight"], exercise["sets"], exercise["reps"]) == (12.5, 4, "6")
+    assert exercise["last"] == {"weight": 10.0, "reps": 8}  # log_set(..., peso 10)

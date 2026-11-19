@@ -1,18 +1,23 @@
-import { ArrowLeft, Trophy } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { LoadChart, VolumeChart } from '../components/StudentProgressCharts';
+import { ConsistencyChart, LoadChart } from '../components/StudentProgressCharts';
 import { ROUTES } from '../constants/routes';
 import { getStudentProgress } from '../services/studentProgressService';
-import type { ProgressFilters, StudentProgress } from '../types/studentProgress';
-import { formatNumber } from '../utils/trainingEvolution.mjs';
+import type { ProgressPeriodKey, StudentProgress } from '../types/studentProgress';
+import {
+  PERIOD_LABELS, PROGRESS_HELP, consistencyLine, weeksText, exercisePhrase, formatMark, kg, markToBeat, recordLine, sortExercises, summaryCards,
+} from '../utils/studentProgress.mjs';
+import { formatDay } from '../utils/trainingEvolution.mjs';
 import '../styles/training-evolution.css';
 
-const dateTime = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeZone: 'UTC' });
+const goTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
 export function StudentProgressPage() {
-  const [filters, setFilters] = useState<ProgressFilters>({});
+  const [period, setPeriod] = useState<ProgressPeriodKey>('12w');
+  const [group, setGroup] = useState('');
   const [data, setData] = useState<StudentProgress | null>(null);
+  const [groups, setGroups] = useState<string[]>([]);
   const [selected, setSelected] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -21,25 +26,29 @@ export function StudentProgressPage() {
     let active = true;
     setLoading(true);
     setError('');
-    getStudentProgress(filters)
+    getStudentProgress({ period, muscle_group: group || undefined })
       .then((result) => {
-        if (active) setData(result);
+        if (!active) return;
+        setData(result);
+        if (!group) setGroups(result.muscle_groups);
       })
-      .catch(() => {
-        if (active) setError('No pudimos cargar tu evolución. Revisá los filtros e intentá nuevamente.');
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+      .catch(() => active && setError('No pudimos cargar tu evolución. Intentá nuevamente en un momento.'))
+      .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
-  }, [filters]);
+  }, [period, group]);
 
-  const set = (key: keyof ProgressFilters) => (value: string) =>
-    setFilters((current) => ({ ...current, [key]: value || undefined }));
-  const exercise = data?.exercises.find((item) => item.exercise_id === selected) ?? data?.exercises[0];
-  const comparison = data?.week_comparison;
+  const changePeriod = (value: ProgressPeriodKey) => {
+    setPeriod(value);
+    setGroup('');
+    setSelected('');
+  };
+  const exercises = data ? sortExercises(data.exercises) : [];
+  const chosen = exercises.find((item) => item.exercise_id === selected);
+  const next = data?.next_session;
+  const consistency = data ? consistencyLine(data.consistency) : null;
+  const toBeat = data && !data.records.length ? markToBeat(data.exercises) : null;
 
   return (
     <main className="profile-shell">
@@ -50,75 +59,113 @@ export function StudentProgressPage() {
         <div className="profile-heading">
           <span>ESPACIO DEL ALUMNO</span>
           <h1>Mi evolución</h1>
-          <p>Mirá cómo avanzan tus cargas, tu volumen semanal y tus récords personales.</p>
         </div>
 
         <div className="training-evolution__controls">
-          <label>Ejercicio
-            <select value={filters.exercise_id ?? ''} onChange={(e) => set('exercise_id')(e.target.value)}>
-              <option value="">Todos</option>
-              {data?.exercises.map((item) => <option key={item.exercise_id} value={item.exercise_id}>{item.name}</option>)}
+          <label>Período
+            <select value={period} onChange={(e) => changePeriod(e.target.value as ProgressPeriodKey)}>
+              {Object.entries(PERIOD_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
             </select>
           </label>
-          <label>Grupo muscular
-            <select value={filters.muscle_group ?? ''} onChange={(e) => set('muscle_group')(e.target.value)}>
-              <option value="">Todos</option>
-              {data?.muscle_groups.map((group) => <option key={group} value={group}>{group}</option>)}
-            </select>
-          </label>
-          <label>Desde
-            <input type="date" value={filters.from ?? ''} max={filters.to} onChange={(e) => set('from')(e.target.value)} />
-          </label>
-          <label>Hasta
-            <input type="date" value={filters.to ?? ''} min={filters.from} onChange={(e) => set('to')(e.target.value)} />
-          </label>
-          <small>{data?.range.is_default ? 'Mostrando las últimas 12 semanas.' : ''}</small>
+          {data?.period.start && <small>{formatDay(data.period.start)} – {formatDay(data.period.end)}</small>}
         </div>
 
-        {loading && <p role="status">Cargando tu evolución…</p>}
+        {loading && !data && <p role="status">Cargando tu evolución…</p>}
         {error && <p role="alert" className="profile-error">{error}</p>}
-        {!loading && !error && data && !data.has_data && (
-          <p role="status">Todavía no hay series registradas para estos filtros. Entrená y registrá tus series para ver tu evolución.</p>
+
+        {!error && data && !data.has_sessions && (
+          <>
+            <p role="status">Todavía no registraste entrenamientos. Cuando termines tu primera sesión, vas a ver tu progreso acá.</p>
+            <Link className="student-evolution__cta" to={ROUTES.studentRoutines}>Ver rutina del día</Link>
+          </>
         )}
 
-        {!loading && !error && data?.has_data && (
-          <>
-            <h4>Carga por ejercicio</h4>
-            {data.exercises.length > 1 && (
-              <label className="training-evolution__controls">
-                <select aria-label="Ejercicio del gráfico" value={exercise?.exercise_id} onChange={(e) => setSelected(e.target.value)}>
-                  {data.exercises.map((item) => <option key={item.exercise_id} value={item.exercise_id}>{item.name}</option>)}
-                </select>
-              </label>
-            )}
-            {exercise && (exercise.has_trend
-              ? <figure><figcaption>{exercise.name} · carga máxima por día (kg)</figcaption><LoadChart exercise={exercise} /></figure>
-              : <p role="status">Se requieren más sesiones de {exercise.name} para trazar la tendencia.</p>)}
+        {!error && data?.has_sessions && (
+          <div aria-busy={loading} style={{ opacity: loading ? 0.6 : 1 }}>
+            <div className="training-evolution__cards">
+              {summaryCards(data.summary).map((card) => (
+                <button key={card.id} type="button" className="training-evolution__card" onClick={() => goTo(card.id)}>
+                  <span className="training-evolution__card-title">{card.title}</span>
+                  <strong>{card.text}</strong>
+                </button>
+              ))}
+            </div>
 
-            <h4>Volumen semanal</h4>
-            <figure><figcaption>Kilaje total por semana (kg)</figcaption><VolumeChart weeks={data.weekly_volume} /></figure>
-            {comparison && (
-              <p>
-                Esta semana: <strong>{formatNumber(comparison.current_volume_kg)} kg</strong> · semana anterior: {formatNumber(comparison.previous_volume_kg)} kg
-                {comparison.delta_vs_previous_pct !== null && ` (${comparison.delta_vs_previous_pct > 0 ? '+' : ''}${formatNumber(comparison.delta_vs_previous_pct)} %)`}
-                {' '}· promedio de las anteriores: {formatNumber(comparison.previous_avg_kg)} kg
-              </p>
-            )}
-
-            <h4><Trophy size={18} aria-hidden="true" /> Récords personales</h4>
-            {data.personal_records.length === 0
-              ? <p>No lograste récords en este período.</p>
+            <h4 id="mejorando">¿Estoy mejorando?</h4>
+            <div className="student-evolution__chips" role="group" aria-label="Grupo muscular">
+              {['', ...groups].map((name) => (
+                <button key={name || 'all'} type="button" aria-pressed={group === name} onClick={() => { setGroup(name); setSelected(''); }}>{name || 'Todos'}</button>
+              ))}
+            </div>
+            {exercises.length === 0
+              ? <p role="status">{group ? `No hiciste ejercicios de ${group} en este período` : 'No registraste ejercicios en este período'}</p>
               : (
-                <ol>
-                  {data.personal_records.map((record) => (
-                    <li key={`${record.exercise_id}-${record.achieved_at}`}>
-                      {dateTime.format(new Date(record.achieved_at))} · <strong>{record.exercise_name}</strong>: {formatNumber(record.weight_kg)} kg × {record.reps}
-                      {record.is_initial ? ' (primer registro)' : ` (antes ${formatNumber(record.previous_weight_kg ?? 0)} kg)`}
+                <ul className="student-evolution__list">
+                  {exercises.map((item) => (
+                    <li key={item.exercise_id}>
+                      <button type="button" aria-pressed={item.exercise_id === chosen?.exercise_id} onClick={() => setSelected(item.exercise_id === selected ? '' : item.exercise_id)}>
+                        <strong>{item.name}</strong>: {exercisePhrase(item)}
+                      </button>
                     </li>
                   ))}
-                </ol>
+                </ul>
               )}
-          </>
+            {chosen && (chosen.points.length > 1
+              ? <figure><figcaption>{chosen.name} · {chosen.metric === 'max_weight' ? 'mejor peso de cada sesión' : 'mejores repeticiones de cada sesión'}</figcaption><LoadChart exercise={chosen} /></figure>
+              : <p role="status">Con la próxima sesión de {chosen.name} vas a ver tu gráfico.</p>)}
+            <details>
+              <summary>¿Cómo se mide el progreso?</summary>
+              <p>{PROGRESS_HELP}</p>
+            </details>
+
+            <h4 id="constante">¿Estoy siendo constante?</h4>
+            {data.consistency.length === 0
+              ? <p>Todavía no tenés sesiones acordadas</p>
+              : (
+                <>
+                  {consistency && <p><strong>{consistency}</strong></p>}
+                  {data.summary.streak.best_weeks > 0 && <p>Racha actual: {weeksText(data.summary.streak.current_weeks)} · Tu mejor racha: {weeksText(data.summary.streak.best_weeks)}</p>}
+                  <figure><figcaption>Sesiones por semana</figcaption><ConsistencyChart weeks={data.consistency} /></figure>
+                </>
+              )}
+
+            <h4 id="logros">¿Qué logré?</h4>
+            {data.records.length > 0
+              ? (
+                <ol className="student-evolution__records">
+                  {data.records.map((record) => (
+                    <li key={`${record.exercise_id}-${record.date}`}>{formatDay(record.date)} · <strong>{record.name}</strong> · {recordLine(record)}</li>
+                  ))}
+                </ol>
+              )
+              : <p>Todavía no tenés récords en este período.{toBeat && ` Tu marca a superar en ${toBeat.name} es ${toBeat.mark}.`}</p>}
+            {data.new_exercises.length > 0 && <p>Empezaste {data.new_exercises.length} {data.new_exercises.length === 1 ? 'ejercicio nuevo' : 'ejercicios nuevos'}: {data.new_exercises.map((n) => n.name).join(', ')}.</p>}
+
+            <h4 id="ahora">¿Qué me toca ahora?</h4>
+            {!next
+              ? <p>No tenés sesiones programadas todavía. Tu entrenador te va a avisar cuando cargue tu próxima rutina.</p>
+              : (
+                <>
+                  {next.trainer_feedback && <p role="note"><strong>Tu entrenador:</strong> {next.trainer_feedback}</p>}
+                  <div className="training-evolution__table-wrap">
+                    <table className="training-evolution__table">
+                      <caption>{next.day_name}</caption>
+                      <thead><tr><th>Ejercicio</th><th>La última vez</th><th>Próxima sesión</th></tr></thead>
+                      <tbody>
+                        {next.exercises.map((e) => (
+                          <tr key={e.exercise_id}>
+                            <td>{e.name}{e.adjusted_by_trainer && <small>Ajustado por tu entrenador{e.trainer_note && `: ${e.trainer_note}`}</small>}</td>
+                            <td>{e.last ? formatMark(e.last) : '— (primera vez)'}</td>
+                            <td><strong>{e.target_weight ? `${kg(e.target_weight)} × ${e.reps}` : `${e.reps} repeticiones`}</strong> · {e.sets} series</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            <Link className="student-evolution__cta" to={ROUTES.studentRoutines}>Ver rutina del día</Link>
+          </div>
         )}
       </section>
     </main>
