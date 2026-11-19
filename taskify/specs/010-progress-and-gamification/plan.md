@@ -1,5 +1,7 @@
 # Plan de implementación: US-65 — Evolución de cargas, volumen semanal y PRs
 
+> **Rediseño (T020–T029):** este documento describe la versión inicial (volumen semanal, PR por mayor peso, filtros de fecha). Vigente: `spec.md` (FR-001 a FR-002), `data-model.md` y `contracts/`.
+
 **Branch**: `010-progress-and-gamification` | **Date**: 2026-11-15 | **Spec**: [spec.md](./spec.md)
 
 **Alcance**: solo US-65. US-67 (logros) y US-68 (racha) quedan fuera de este plan (Principio VII: una story por PR).

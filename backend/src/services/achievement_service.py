@@ -6,8 +6,9 @@ estaban cumplidos antes de la funcionalidad se otorgan en silencio (retroactivos
 """
 
 import logging
+from collections import defaultdict
 from dataclasses import dataclass
-from datetime import UTC, datetime, time
+from datetime import UTC, date, datetime, time
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -25,7 +26,9 @@ from backend.src.schemas.achievement import (
     CongratulationView,
     LockedAchievement,
 )
+from backend.src.services.daily_routine_tracking_service import _as_utc
 from backend.src.services.notification_service import create_notification
+from backend.src.services.session_comparison_service import _number
 from backend.src.services.streak_service import (
     monday,
     relationship_week_data,
@@ -37,6 +40,7 @@ from backend.src.services.trainer_student_service import (
     _active_relationship,
     _trainer_profile,
 )
+from backend.src.services.training_evolution_service import Best, _best
 
 logger = logging.getLogger(__name__)
 
@@ -93,19 +97,44 @@ def _session_dates(db: Session, profile: StudentProfile) -> list[datetime]:
 
 
 def _record_dates(db: Session, profile: StudentProfile) -> list[datetime]:
-    """Momento de cada récord: un peso que supera estrictamente el máximo previo del ejercicio (US-65)."""
-    logs = db.scalars(
-        select(WorkoutSetLog)
-        .where(WorkoutSetLog.student_id == profile.id, WorkoutSetLog.weight_kg > 0)
-        .order_by(WorkoutSetLog.recorded_at, WorkoutSetLog.set_number)
+    """Momento de cada récord: mejor serie del día que supera la mejor marca anterior del ejercicio (US-65).
+
+    La primera carga de un ejercicio establece la marca inicial y no cuenta como récord.
+    Superar implica más peso, o el mismo peso con más repeticiones (y sin carga, más repeticiones).
+    """
+    logs = list(
+        db.scalars(
+            select(WorkoutSetLog)
+            .where(WorkoutSetLog.student_id == profile.id)
+            .order_by(WorkoutSetLog.recorded_at, WorkoutSetLog.set_number)
+        )
     )
-    best: dict[str, float] = {}
-    dates: list[datetime] = []
+    by_day: dict[str, dict[date, list[WorkoutSetLog]]] = defaultdict(lambda: defaultdict(list))
     for log in logs:
-        weight = float(log.weight_kg)
-        if log.exercise_id not in best or weight > best[log.exercise_id]:
-            best[log.exercise_id] = weight
-            dates.append(_naive(log.recorded_at))
+        by_day[log.exercise_id][_as_utc(log.recorded_at).date()].append(log)
+
+    dates: list[datetime] = []
+    for days in by_day.values():
+        rows: list[tuple[Best, datetime]] = []
+        for _, day_logs in sorted(days.items()):
+            best = _best(day_logs)
+            if best is None:
+                continue
+            winning = next(
+                log
+                for log in day_logs
+                if (reps := _number(log.reps_completed)) is not None
+                and (float(log.weight_kg or 0), int(reps)) == best
+            )
+            rows.append((best, _naive(winning.recorded_at)))
+        if not rows:
+            continue
+        top = rows[0][0]
+        for best, moment in rows[1:]:
+            if best > top:
+                dates.append(moment)
+                top = best
+    dates.sort()
     return dates
 
 

@@ -68,7 +68,7 @@ export function HomePage() {
       ]
     : [
         { label: 'Rutina del día', description: 'Consultá los ejercicios y bloques asignados.', to: ROUTES.studentRoutines, icon: <Dumbbell size={20} />, featured: true, extra: streak?.has_routine ? streakSummary(streak) : undefined },
-        { label: 'Mi evolución', description: 'Seguí tus cargas, volumen semanal y récords.', to: ROUTES.studentProgress, icon: <TrendingUp size={20} /> },
+        { label: 'Mi evolución', description: 'Mirá si mejorás, tu constancia y tus récords.', to: ROUTES.studentProgress, icon: <TrendingUp size={20} /> },
         { label: 'Mensajes', description: 'Escribile a tu entrenador y resolvé dudas.', to: ROUTES.studentMessages, icon: <MessageSquare size={20} /> },
         { label: 'Mis entrenadores', description: 'Revisá tus vínculos de entrenamiento.', to: ROUTES.studentActivePlans, icon: <Users size={20} />, count: activeLinksCount, countLabel: 'entrenadores activos' },
         { label: 'Buscar entrenadores', description: 'Encontrá un entrenador para empezar.', to: ROUTES.trainerSearch, icon: <Search size={20} /> },

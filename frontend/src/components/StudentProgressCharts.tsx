@@ -1,9 +1,10 @@
-import type { ExerciseLoad, WeeklyVolume } from '../types/studentProgress';
+import type { ConsistencyWeek, ExerciseEvolution } from '../types/studentProgress';
+import { currentWeekLabel, isWeekDone, kg } from '../utils/studentProgress.mjs';
 import { formatDay, formatNumber, formatRange, niceTicks, xLabelIndexes } from '../utils/trainingEvolution.mjs';
 
 const W = 640;
 const H = 220;
-const PAD = { top: 16, right: 14, bottom: 30, left: 48 };
+const PAD = { top: 20, right: 14, bottom: 30, left: 48 };
 const BLUE = '#1d4ed8';
 const GOLD = '#b45309';
 const INNER_W = W - PAD.left - PAD.right;
@@ -25,25 +26,29 @@ function Axis({ ticks, max }: { ticks: number[]; max: number }) {
   );
 }
 
-/** Carga máxima de cada día para un ejercicio; los PRs se marcan con un círculo ámbar. */
-export function LoadChart({ exercise }: { exercise: ExerciseLoad }) {
+/** Mejor serie de cada sesión (peso, o repeticiones si no lleva carga). Récords en ámbar; objetivo del entrenador punteado. */
+export function LoadChart({ exercise }: { exercise: ExerciseEvolution }) {
   const { points } = exercise;
-  const ticks = niceTicks(Math.max(...points.map((p) => p.weight_kg)));
+  const byWeight = exercise.metric === 'max_weight';
+  const value = (p: ExerciseEvolution['points'][number]) => (byWeight ? p.weight ?? 0 : p.reps);
+  const ticks = niceTicks(Math.max(...points.map(value), ...points.map((p) => (byWeight ? p.target_weight ?? 0 : 0))), { integer: !byWeight });
   const max = ticks[ticks.length - 1];
   const times = points.map((p) => Date.parse(p.date));
   const minT = Math.min(...times);
   const span = Math.max(...times) - minT || 1;
   const xs = times.map((t) => PAD.left + ((t - minT) / span) * INNER_W);
-  const ys = points.map((p) => PAD.top + INNER_H - (p.weight_kg / max) * INNER_H);
-  const summary = points.map((p) => `${formatDay(p.date)}: ${formatNumber(p.weight_kg)} kg`).join('; ');
+  const y = (v: number) => PAD.top + INNER_H - (v / max) * INNER_H;
+  const tip = (p: ExerciseEvolution['points'][number]) =>
+    `${formatDay(p.date)}: ${p.weight ? `${kg(p.weight)} × ${p.reps}` : `${p.reps} repeticiones`}${p.is_pr ? ' · ¡Récord!' : ''}`;
+  const target = byWeight ? points.map((p, i) => (p.target_weight ? { x: xs[i], y: y(p.target_weight) } : null)).filter((t) => t !== null) : [];
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Carga de ${exercise.name} a lo largo del tiempo. ${summary}`} className="training-evolution__svg">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Evolución de ${exercise.name}. ${points.map(tip).join('; ')}`} className="training-evolution__svg">
       <Axis ticks={ticks} max={max} />
-      <polyline points={xs.map((x, i) => `${x},${ys[i]}`).join(' ')} fill="none" stroke={BLUE} strokeWidth={2} />
+      <text x={PAD.left} y={10} className="training-evolution__unit">{byWeight ? 'kg' : 'repeticiones'}</text>
+      <polyline points={xs.map((x, i) => `${x},${y(value(points[i]))}`).join(' ')} fill="none" stroke={BLUE} strokeWidth={2} />
+      {target.length > 1 && <polyline points={target.map((t) => `${t.x},${t.y}`).join(' ')} fill="none" stroke={GOLD} strokeWidth={2} strokeDasharray="5 4"><title>Objetivo de tu entrenador</title></polyline>}
       {points.map((p, i) => (
-        <circle key={p.date} cx={xs[i]} cy={ys[i]} r={p.is_pr ? 6 : 4} fill={p.is_pr ? GOLD : BLUE}>
-          <title>{`${formatDay(p.date)}: ${formatNumber(p.weight_kg)} kg × ${p.reps}${p.is_pr ? ' (PR)' : ''}`}</title>
-        </circle>
+        <circle key={p.date} cx={xs[i]} cy={y(value(p))} r={p.is_pr ? 6 : 4} fill={p.is_pr ? GOLD : BLUE}><title>{tip(p)}</title></circle>
       ))}
       {xLabelIndexes(points.length).map((i) => (
         <text key={points[i].date} x={xs[i]} y={H - 8} textAnchor="middle" className="training-evolution__tick">{formatDay(points[i].date)}</text>
@@ -52,27 +57,31 @@ export function LoadChart({ exercise }: { exercise: ExerciseLoad }) {
   );
 }
 
-/** Kilaje total por semana; la semana en curso se dibuja con trama porque aún no terminó. */
-export function VolumeChart({ weeks }: { weeks: WeeklyVolume[] }) {
-  const ticks = niceTicks(Math.max(...weeks.map((w) => w.volume_kg)));
+/** Sesiones por semana: acordadas (fondo claro) y realizadas (sólido). Sin color de alerta; la semana en curso va punteada. */
+export function ConsistencyChart({ weeks }: { weeks: ConsistencyWeek[] }) {
+  const ticks = niceTicks(Math.max(...weeks.map((w) => Math.max(w.scheduled, w.completed))), { integer: true });
   const max = ticks[ticks.length - 1];
   const slot = INNER_W / weeks.length;
-  const barW = Math.max(4, slot * 0.7);
-  const summary = weeks.map((w) => `${formatRange(w.week_start, w.week_end)}: ${formatNumber(w.volume_kg)} kg`).join('; ');
+  const barW = Math.min(36, slot * 0.7);
+  const y = (v: number) => PAD.top + INNER_H - (v / max) * INNER_H;
+  const tip = (w: ConsistencyWeek) => `${formatRange(w.period_start, w.period_end)}: ${w.is_partial ? currentWeekLabel(w) : `${w.completed} de ${w.scheduled} sesiones`}`;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Kilaje total por semana. ${summary}`} className="training-evolution__svg">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Sesiones por semana. ${weeks.map(tip).join('; ')}`} className="training-evolution__svg">
       <Axis ticks={ticks} max={max} />
       {weeks.map((w, i) => {
-        const h = (w.volume_kg / max) * INNER_H;
-        const x = PAD.left + i * slot + (slot - barW) / 2;
+        const x = PAD.left + slot * i + slot / 2;
         return (
-          <rect key={w.week_start} x={x} y={PAD.top + INNER_H - h} width={barW} height={h} fill={BLUE} opacity={w.is_partial ? 0.5 : 1}>
-            <title>{`${formatRange(w.week_start, w.week_end)}: ${formatNumber(w.volume_kg)} kg${w.is_partial ? ' (semana en curso)' : ''}`}</title>
-          </rect>
+          <g key={w.period_start}>
+            <rect x={x - barW / 2} y={y(w.scheduled)} width={barW} height={INNER_H - (y(w.scheduled) - PAD.top)} fill="#e2e8f0"
+              stroke={w.is_partial ? '#64748b' : 'none'} strokeWidth="1.5" strokeDasharray={w.is_partial ? '4 3' : undefined}><title>{tip(w)}</title></rect>
+            {w.completed > 0 && <rect x={x - barW / 2} y={y(Math.min(w.completed, max))} width={barW} height={INNER_H - (y(Math.min(w.completed, max)) - PAD.top)} fill={BLUE}><title>{tip(w)}</title></rect>}
+            {isWeekDone(w) && <text x={x} y={y(Math.max(w.scheduled, w.completed)) - 4} textAnchor="middle" className="training-evolution__tick">✓</text>}
+            {w.is_partial && <text x={x} y={PAD.top - 6} textAnchor="end" className="training-evolution__partial">{currentWeekLabel(w)}</text>}
+          </g>
         );
       })}
       {xLabelIndexes(weeks.length).map((i) => (
-        <text key={weeks[i].week_start} x={PAD.left + i * slot + slot / 2} y={H - 8} textAnchor="middle" className="training-evolution__tick">{formatDay(weeks[i].week_start)}</text>
+        <text key={weeks[i].period_start} x={PAD.left + slot * i + slot / 2} y={H - 8} textAnchor="middle" className="training-evolution__tick">{formatDay(weeks[i].period_start)}</text>
       ))}
     </svg>
   );

@@ -37,7 +37,15 @@ def setup(client):
     return api, sessions, trainer, student, exercise_id, relationship_id, routine_id, student_id
 
 
-def add_history(sessions, relationship_id, routine_id, exercise_id, days_ago: list[int], weights: list[int] | None = None):
+def add_history(
+    sessions,
+    relationship_id,
+    routine_id,
+    exercise_id,
+    days_ago: list[int],
+    weights: list[int] | None = None,
+    reps: list[str] | None = None,
+):
     """Sesiones finalizadas hace N días; con `weights`, una serie por sesión con ese peso."""
     with sessions() as db:
         relationship = db.get(TrainingRelationship, relationship_id)
@@ -49,11 +57,13 @@ def add_history(sessions, relationship_id, routine_id, exercise_id, days_ago: li
             )
             db.add(session)
             db.flush()
-            if weights:
+            if weights is not None:
                 db.add(WorkoutSetLog(
                     student_id=relationship.student_id, relationship_id=relationship.id, routine_id=routine_id,
                     day_name="Día 1", exercise_id=exercise_id, exercise_name="Press militar", set_number=1,
-                    reps_completed="10", weight_kg=Decimal(weights[index]), session_id=session.id,
+                    reps_completed=reps[index] if reps is not None else "10",
+                    weight_kg=Decimal(weights[index]) if weights[index] is not None else None,
+                    session_id=session.id,
                     recorded_at=start + timedelta(minutes=10),
                 ))
         db.commit()
@@ -133,8 +143,11 @@ def test_tenth_session_unlocks_a_fresh_achievement_and_earlier_ones_are_retroact
 
 def test_personal_record_achievements_use_strictly_greater_weights(setup):
     api, sessions, _, student, exercise_id, relationship_id, routine_id, _ = setup
-    # Pesos 20, 20 (igual: no es récord), 25, 30, 35, 40 → récords: 20, 25, 30, 35, 40 = 5.
-    add_history(sessions, relationship_id, routine_id, exercise_id, [30, 25, 20, 15, 10, 5], [20, 20, 25, 30, 35, 40])
+    # 20 (marca inicial: no es récord), 20 (igual: no es récord), 25, 30, 35, 40, 45 → 5 récords reales.
+    add_history(
+        sessions, relationship_id, routine_id, exercise_id,
+        [35, 30, 25, 20, 15, 10, 5], [20, 20, 25, 30, 35, 40, 45],
+    )
 
     body = api.get(ACHIEVEMENTS, headers=student).json()
 
@@ -143,8 +156,59 @@ def test_personal_record_achievements_use_strictly_greater_weights(setup):
     assert notifications(sessions, "trainer_rpe@example.com", "ACHIEVEMENT_UNLOCKED") == []
 
 
+def test_first_load_is_not_a_personal_record(setup):
+    api, sessions, _, student, exercise_id, relationship_id, routine_id, _ = setup
+    add_history(sessions, relationship_id, routine_id, exercise_id, [10, 5], [20, 20], ["8", "8"])
+
+    body = api.get(ACHIEVEMENTS, headers=student).json()
+
+    assert codes(body) == {"FIRST_SESSION"}
+    locked = {item["code"]: item for item in body["locked"]}
+    assert (locked["FIRST_PR"]["current"], locked["FIRST_PR"]["target"]) == (0, 1)
+
+
+def test_same_weight_with_more_reps_counts_as_personal_record(setup):
+    api, sessions, _, student, exercise_id, relationship_id, routine_id, _ = setup
+    add_history(sessions, relationship_id, routine_id, exercise_id, [10, 5], [20, 20], ["8", "10"])
+
+    body = api.get(ACHIEVEMENTS, headers=student).json()
+
+    assert codes(body) == {"FIRST_SESSION", "FIRST_PR"}
+    pr_item = next(item for item in body["unlocked"] if item["code"] == "FIRST_PR")
+    assert pr_item["unlocked_at"].startswith((now() - timedelta(days=5, hours=2)).date().isoformat())
+
+
+def test_live_pr_unlock_on_session_finish_respects_previous_mark(setup):
+    api, sessions, _, student, exercise_id, relationship_id, routine_id, _ = setup
+    add_history(sessions, relationship_id, routine_id, exercise_id, [7], [40], ["8"])
+    assert codes(api.get(ACHIEVEMENTS, headers=student).json()) == {"FIRST_SESSION"}
+
+    session = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student, json={"day_name": "Día 1"}).json()
+    logged = api.post(
+        f"{ASSIGNED_PATH}/workout-logs",
+        headers=student,
+        json={
+            "day_name": "Día 1",
+            "exercise_id": exercise_id,
+            "set_number": 1,
+            "reps_completed": "10",
+            "weight_kg": 40,
+            "session_id": session["id"],
+        },
+    )
+    assert logged.status_code == 201
+    finished = api.post(f"{ASSIGNED_PATH}/workout-sessions/{session['id']}/finish", headers=student, json={})
+    assert finished.status_code == 200
+
+    items = {item["code"]: item for item in api.get(ACHIEVEMENTS, headers=student).json()["unlocked"]}
+    assert "FIRST_PR" in items
+    assert items["FIRST_PR"]["retroactive"] is False
+    assert items["FIRST_PR"]["pending_celebration"] is True
+
+
 def test_locked_achievements_show_progress(setup):
     api, sessions, _, student, exercise_id, relationship_id, routine_id, _ = setup
+    # 20 (inicial: 0 PR), 20 (igual: 0 PR), 25 (supera: 1 PR).
     add_history(sessions, relationship_id, routine_id, exercise_id, [9, 8, 7], [20, 20, 25])
 
     body = api.get(ACHIEVEMENTS, headers=student).json()
@@ -152,7 +216,7 @@ def test_locked_achievements_show_progress(setup):
     locked = {item["code"]: item for item in body["locked"]}
     assert codes(body) == {"FIRST_SESSION", "FIRST_PR"}
     assert (locked["TEN_SESSIONS"]["current"], locked["TEN_SESSIONS"]["target"]) == (3, 10)
-    assert (locked["FIVE_PRS"]["current"], locked["FIVE_PRS"]["target"]) == (2, 5)
+    assert (locked["FIVE_PRS"]["current"], locked["FIVE_PRS"]["target"]) == (1, 5)
     assert set(locked) == {item.code for item in CATALOG} - codes(body)
 
 

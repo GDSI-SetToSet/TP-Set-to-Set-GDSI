@@ -40,11 +40,11 @@
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - [US-65: Evolución de cargas, volumen semanal y récords personales (PRs)] (Priority: P2, Estimación: 5 SP)
+### User Story 1 - [US-65: Evolución de cargas, constancia y récords personales (PRs)] (Priority: P2, Estimación: 5 SP)
 
 Como alumno,
- quiero ver la evolución de mis cargas, mi volumen semanal y mis récords personales a lo largo del tiempo,
- para comprender visualmente mi progreso y mantener la motivación.
+ quiero ver si estoy mejorando en cada ejercicio, si estoy siendo constante, qué récords logré y qué me toca en la próxima sesión,
+ para comprender mi progreso, mantener la motivación y saber qué esperar de mi próximo entrenamiento.
 
 **Why this priority**: Funcionalidad clave clasificada con prioridad Media en el Backlog-US-MVP para garantizar el flujo operativo del usuario.
 
@@ -52,15 +52,19 @@ Como alumno,
 
 **Acceptance Scenarios**:
 
-1. Dado un alumno consultando su perfil, cuando accede a la sección de evolución, entonces el sistema muestra un gráfico de la carga por ejercicio a lo largo del tiempo.
+1. Dado un alumno consultando su perfil, cuando accede a la sección de evolución, entonces ve cada uno de sus ejercicios con una frase que describe su progreso (más peso, más repeticiones con el mismo peso o sin cambios) y puede elegir un ejercicio para ver el gráfico de su carga a lo largo del tiempo, con sus récords destacados y el peso objetivo programado.
 
-2. Dado un alumno en la sección de evolución, cuando selecciona la vista semanal, entonces ve el kilaje total levantado por semana y la comparación de la semana actual con las anteriores.
+2. Dado un alumno en la sección de evolución, cuando consulta su constancia, entonces ve las sesiones realizadas frente a las acordadas por semana. La semana en curso se muestra como "en curso" y no se compara con las anteriores.
 
-3. Dado un alumno que no registró entrenamientos en una semana, cuando el sistema calcula el volumen, entonces esa semana se muestra en cero sin afectar el cálculo de las demás.
+3. Dado un alumno que no registró entrenamientos en una semana, cuando consulta su constancia, entonces esa semana se muestra sin sesiones realizadas, sin mensajes de alerta y sin afectar el cálculo de las demás.
 
-4. Dado un alumno consultando el gráfico, cuando aplica un filtro, entonces puede filtrar por ejercicio, grupo muscular o rango de fechas.
+4. Dado un alumno consultando su evolución, cuando aplica un filtro, entonces puede filtrar por grupo muscular y elegir el período (4 semanas, 12 semanas o todo el historial).
 
-5. Dado un alumno consultando su historial de PRs, cuando lo visualiza, entonces el sistema lo lista cronológicamente con la fecha en que logró cada uno.
+5. Dado un alumno consultando su historial de PRs, cuando lo visualiza, entonces el sistema lista cronológicamente las marcas que superaron una marca anterior del mismo ejercicio, con la fecha y la marca superada. La primera carga de un ejercicio no se considera récord.
+
+6. Dado un alumno con una próxima sesión programada, cuando consulta su evolución, entonces ve, para cada ejercicio de esa sesión, lo que hizo la última vez y lo que le programó el entrenador, incluidos los ajustes y la devolución del entrenador si existen.
+
+7. Dado un alumno sin sesiones, con una sola sesión o sin rutina asignada, cuando consulta su evolución, entonces se informa cada caso con un mensaje específico en lugar de gráficos vacíos, y en ningún caso se muestran porcentajes negativos ni las palabras "estancado" o "bajó".
 
 
 ---
@@ -125,15 +129,19 @@ Como alumno,
 
 ### Functional Requirements
 
-- **FR-001**: El sistema DEBE mostrar gráficos interactivos con la evolución de cargas, tonelaje semanal y récords personales (US-65).
+- **FR-001**: El sistema DEBE mostrar al alumno su progreso por ejercicio, su constancia semanal, sus récords y su próxima sesión, en lenguaje simple y sin diagnosticar: nunca usa "estancado", "bajó", RPE, 1RM, volumen ni porcentajes negativos (US-65).
 
-- **FR-001a**: Un récord personal (PR) es el mayor peso (kg) registrado en una serie de trabajo completada de un ejercicio, sin importar las repeticiones; se registra un nuevo PR cuando una serie supera estrictamente el máximo previo de ese ejercicio (US-65).
+- **FR-001a**: Un récord personal (PR) es una serie (la mejor del día de un ejercicio) que supera la mejor marca anterior del ejercicio: más peso, o el mismo peso con más repeticiones. La primera carga de un ejercicio no es récord. Siempre se muestra la marca superada (US-65).
 
-- **FR-001b**: El volumen semanal es Σ(kg × repeticiones) de las series de trabajo completadas con peso; se excluyen series de calentamiento y ejercicios sin peso externo (US-65).
+- **FR-001b**: El progreso por ejercicio reutiliza el cálculo de la vista del entrenador (US-30) y lo expresa como `message_key`: `weight_increased`, `reps_increased`, `no_change`, `below_best`, `bodyweight_reps_increased` o `few_data`. La semana en curso no entra en ningún cálculo (US-65).
 
-- **FR-001c**: Sin filtros aplicados, el gráfico de evolución muestra por defecto las últimas 12 semanas (US-65).
+- **FR-001c**: Sin filtros, el período por defecto es de 12 semanas; también se puede elegir 4 semanas o todo el historial (US-65).
 
-- **FR-002**: El sistema DEBE permitir filtrar la visualización del progreso por ejercicio específico o por grupo muscular (US-65).
+- **FR-001d**: La constancia compara sesiones realizadas (finalizadas) con las acordadas (días de la rutina vigente) por semana calendario; una semana está cumplida si realizadas ≥ acordadas. La racha son las semanas cumplidas consecutivas hasta la última semana completa (US-65).
+
+- **FR-001e**: La próxima sesión es el día siguiente, en ciclo, al último finalizado en la rutina vigente. Muestra la última mejor serie y la carga programada por el entrenador; la app no calcula ni sugiere cargas (US-65).
+
+- **FR-002**: El sistema DEBE permitir filtrar la evolución por grupo muscular (US-65).
 
 - **FR-003**: El sistema DEBE desbloquear automáticamente insignias y medallas al alcanzar hitos de entrenamiento (US-67).
 
