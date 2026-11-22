@@ -35,12 +35,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from fastapi import UploadFile
-from sqlalchemy import func, select
+from sqlalchemy import func, inspect, select
 from sqlalchemy.orm import Session
 from starlette.datastructures import Headers
 
 from backend.scripts.prepare_sprint5_demo import prepare_sprint5_demo_data
-from backend.scripts.seed_demo import DEMO_PASSWORD
+from backend.scripts.seed_demo import DEMO_PASSWORD, seed_demo_data
 from backend.src.core.config import APP_ENV
 from backend.src.core.database import Base, SessionLocal, engine
 from backend.src.core.migrations import apply_migrations
@@ -230,9 +230,14 @@ def _exercise(db: Session, trainer: TrainerProfile, name: str) -> Exercise:
     return exercise
 
 
-def prepare_sprint6_demo_data(db: Session, *, today: date | None = None) -> dict[str, str]:
+def prepare_sprint6_demo_data(
+    db: Session,
+    *,
+    today: date | None = None,
+    password: str = DEMO_PASSWORD,
+) -> dict[str, str]:
     """Siembra los escenarios del Sprint 6 y devuelve un resumen para imprimir."""
-    prepare_sprint5_demo_data(db)
+    prepare_sprint5_demo_data(db, password=password)
     today = today or _utc_now().date()
     this_monday = _monday(today)
 
@@ -375,23 +380,99 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Prepara datos idempotentes de Sprint Review para Sprint 6 sobre usuarios @demo.settoset.com."
     )
-    parser.parse_args()
+    parser.add_argument(
+        "--production-demo",
+        action="store_true",
+        help="Permite preparar escenarios @demo en PostgreSQL de producción; requiere confirmación.",
+    )
+    parser.add_argument(
+        "--confirm-production-demo",
+        action="store_true",
+        help="Confirma que autorizás escribir/actualizar escenarios de cuentas @demo en producción.",
+    )
+    args = parser.parse_args()
 
-    if APP_ENV == "production":
-        parser.error("Este script no debe ejecutarse con APP_ENV=production.")
+    production_password: str | None = None
+    if args.production_demo:
+        if not args.confirm_production_demo:
+            parser.error("Usá --confirm-production-demo para confirmar la escritura en producción.")
+        if APP_ENV != "production":
+            parser.error("--production-demo requiere APP_ENV=production.")
+        if engine.dialect.name != "postgresql":
+            parser.error("--production-demo sólo se permite contra PostgreSQL.")
+
+        production_password = os.getenv("DEMO_SEED_PASSWORD", "")
+        if (
+            len(production_password) < 12
+            or len(production_password) > 128
+            or any(char.isspace() for char in production_password)
+            or not any(char.isupper() for char in production_password)
+            or not any(char.islower() for char in production_password)
+            or not any(char.isdigit() for char in production_password)
+        ):
+            parser.error(
+                "Configurá DEMO_SEED_PASSWORD con entre 12 y 128 caracteres, sin espacios, "
+                "y al menos una mayúscula, una minúscula y un número."
+            )
+
+        # En producción sólo comprobamos el esquema. Las migraciones pertenecen al despliegue,
+        # nunca al script de preparación de datos.
+        schema_inspector = inspect(engine)
+        existing_tables = set(schema_inspector.get_table_names())
+        missing_schema_items: list[str] = []
+        for table_name, table in Base.metadata.tables.items():
+            if table_name not in existing_tables:
+                missing_schema_items.append(table_name)
+                continue
+            existing_columns = {
+                column["name"] for column in schema_inspector.get_columns(table_name)
+            }
+            missing_schema_items.extend(
+                f"{table_name}.{column.name}"
+                for column in table.columns
+                if column.name not in existing_columns
+            )
+        if missing_schema_items:
+            parser.error(
+                "Faltan tablas o columnas del esquema actual. Desplegá primero la versión y aplicá "
+                "sus migraciones: " + ", ".join(sorted(missing_schema_items))
+            )
+    else:
+        if args.confirm_production_demo:
+            parser.error("--confirm-production-demo sólo se usa junto con --production-demo.")
+        if APP_ENV == "production" or engine.dialect.name == "postgresql":
+            parser.error(
+                "En producción/PostgreSQL usá --production-demo --confirm-production-demo."
+            )
+
+        # En desarrollo/testing se permite inicializar una base local vacía.
+        Base.metadata.create_all(bind=engine)
+        apply_migrations(engine)
+
     if os.getenv("DISABLE_DEMO_PREP") == "1":
         return
 
-    Base.metadata.create_all(bind=engine)
-    apply_migrations(engine)
-
     with SessionLocal() as db:
-        summary = prepare_sprint6_demo_data(db)
+        if production_password is not None:
+            # El seed sólo crea/actualiza cuentas @demo y sincroniza sus credenciales gestionadas.
+            seed_demo_data(
+                db,
+                verbose=False,
+                password=production_password,
+                update_existing_demo_passwords=True,
+            )
+        summary = prepare_sprint6_demo_data(
+            db,
+            password=production_password or DEMO_PASSWORD,
+        )
 
     print("Datos de Sprint Review (Sprint 6) preparados correctamente.\n")
     for who, what in summary.items():
         print(f" • {who}: {what}")
-    print(f"\nContraseña de cuentas @demo.settoset.com: {DEMO_PASSWORD}")
+    if production_password is not None:
+        print("La contraseña de las cuentas @demo está configurada mediante DEMO_SEED_PASSWORD.")
+    else:
+        print(f"\nContraseña de cuentas @demo.settoset.com: {DEMO_PASSWORD}")
 
 
 if __name__ == "__main__":
