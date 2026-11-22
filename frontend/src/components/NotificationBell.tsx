@@ -104,7 +104,10 @@ export function NotificationBell({ onNotificationClick }: NotificationBellProps)
   );
 
   return (
-    <div className="notification-bell-container" ref={containerRef}>
+    <div
+      className={`notification-bell-container${user?.role === USER_ROLES.student ? ' notification-bell-container--student' : user?.role === USER_ROLES.trainer ? ' notification-bell-container--trainer' : ''}`}
+      ref={containerRef}
+    >
       <button
         type="button"
         className="notification-bell-btn"

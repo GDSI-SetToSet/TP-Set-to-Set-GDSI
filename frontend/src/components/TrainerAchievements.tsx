@@ -1,4 +1,4 @@
-import { Medal } from 'lucide-react';
+import { Medal, MessageCircle } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { congratulateAchievement, getTrainerStudentAchievements } from '../services/achievementService';
 import { getApiErrorInfo } from '../services/errorMessage';
@@ -34,7 +34,11 @@ function CongratulateForm({ item, onSent }: { item: AchievementItem; onSent: () 
   }
 
   if (!open) {
-    return <button type="button" className="trainer-achievements__open" onClick={() => setOpen(true)}>Felicitar</button>;
+    return (
+      <button type="button" className="trainer-achievements__open" onClick={() => setOpen(true)}>
+        <MessageCircle size={16} aria-hidden="true" /> Felicitar
+      </button>
+    );
   }
   const id = `congratulation-${item.id}`;
   return (

@@ -139,8 +139,8 @@
   font-weight: 800;
 }
 .student-routine-exercise__modality-badge--gym {
-  background: #e0e7ff;
-  color: #1e40af;
+  background: #eaf4ed;
+  color: #24543a;
 }
 .student-routine-exercise__modality-badge--home {
   background: #dcfce7;
@@ -472,9 +472,9 @@
   min-width: 190px;
   min-height: 48px;
   padding: 10px 18px;
-  border: 1px solid #a73333;
+  border: 1px solid var(--pf-accent, #397050);
   border-radius: 10px;
-  background: #a73333;
+  background: var(--pf-accent, #397050);
   color: white;
   font: inherit;
   font-weight: 800;
@@ -625,25 +625,25 @@
 
 /* Resumen e instancia activa tienen señales visuales distintas. */
 .profile-shell--overview { background: #f3f7f2; }
-.profile-shell--session { background: #eef4f8; }
+.profile-shell--session { background: #f0f6f1; }
 .student-daily-routine--overview { border-top: 8px solid #568264; }
-.student-daily-routine--session { border-top: 8px solid #2e6780; }
+.student-daily-routine--session { border-top: 8px solid #397050; }
 .profile-shell--session .profile-heading > span {
   display: inline-flex;
   padding: 6px 11px;
   border-radius: 999px;
-  background: #e5f0f6;
-  color: #285b72;
+  background: #eaf4ed;
+  color: #24543a;
 }
 .profile-shell--session .student-routine-session-heading {
-  border-color: #c7dce7;
-  border-left-color: #2e6780;
-  background: #edf5f9;
+  border-color: #c9dfcf;
+  border-left-color: #397050;
+  background: #eff7f1;
 }
-.profile-shell--session .student-routine-session-heading__badge { color: #285b72; }
+.profile-shell--session .student-routine-session-heading__badge { color: #24543a; }
 .profile-shell--session .student-routine-session-heading__elapsed {
-  border-color: #c7dce7;
-  color: #285b72;
+  border-color: #c9dfcf;
+  color: #24543a;
 }
 .student-routine-history--progress { margin-top: 28px; }
 .student-routine-history__item--workout { padding: 14px 16px; }
@@ -882,11 +882,11 @@
   flex-wrap: wrap;
   margin: 16px 0 20px;
   padding: 16px 20px;
-  border: 1px solid #93c5fd;
-  border-left: 6px solid #2563eb;
+  border: 1px solid #b9d8c1;
+  border-left: 6px solid #397050;
   border-radius: 12px;
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.08);
+  background: linear-gradient(135deg, #f3f8f4 0%, #e5f1e8 100%);
+  box-shadow: 0 4px 14px rgba(57, 112, 80, 0.08);
 }
 
 .student-routine-rpe-reminder__content {
@@ -903,14 +903,14 @@
 
 .student-routine-rpe-reminder__text strong {
   display: block;
-  color: #1e40af;
+  color: #24543a;
   font-size: 14px;
   font-weight: 800;
 }
 
 .student-routine-rpe-reminder__text p {
   margin: 2px 0 0;
-  color: #1e3a8a;
+  color: #315c42;
   font-size: 13px;
   line-height: 1.4;
 }
@@ -924,10 +924,10 @@
 
 .student-routine-rpe-reminder__select {
   padding: 7px 12px;
-  border: 1px solid #93c5fd;
+  border: 1px solid #b9d8c1;
   border-radius: 8px;
   background: #ffffff;
-  color: #1e3a8a;
+  color: #315c42;
   font-size: 13px;
   font-weight: 600;
 }
@@ -936,7 +936,7 @@
   padding: 8px 16px;
   border: 0;
   border-radius: 8px;
-  background: #2563eb;
+  background: #397050;
   color: #ffffff;
   font-size: 13px;
   font-weight: 700;
@@ -945,7 +945,7 @@
 }
 
 .student-routine-rpe-reminder__btn:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: #285b3f;
 }
 
 .student-routine-rpe-reminder__btn:disabled {
@@ -964,9 +964,9 @@
 }
 
 .student-routine-session__rpe-badge--reported {
-  background: #e0f2fe;
-  color: #0369a1;
-  border: 1px solid #bae6fd;
+  background: #eaf4ed;
+  color: #24543a;
+  border: 1px solid #c5dfcd;
 }
 
 .student-routine-session__rpe-badge--unreported {
@@ -1005,9 +1005,9 @@
 }
 
 .workout-rpe-btn--active {
-  border-color: #2563eb !important;
-  background: #eff6ff !important;
-  color: #1d4ed8 !important;
+  border-color: #397050 !important;
+  background: #eaf4ed !important;
+  color: #24543a !important;
 }
 
 .workout-rpe-val {
@@ -1025,7 +1025,7 @@
 }
 
 .workout-rpe-btn--active .workout-rpe-desc {
-  color: #1d4ed8 !important;
+  color: #24543a !important;
 }
 
 .workout-rpe-actions {
@@ -1056,22 +1056,22 @@
 .student-routine-adjusted {
   margin: 0 0 16px;
   padding: 12px 14px;
-  border: 1px solid #c7d7fe;
-  border-left: 4px solid #3563b0;
+  border: 1px solid #c5dfcd;
+  border-left: 4px solid #397050;
   border-radius: 12px;
-  background: #eef3ff;
-  color: #1d3f7a;
+  background: #f0f7f2;
+  color: #24543a;
 }
 .student-routine-adjusted strong { display: block; }
 .student-routine-adjusted p { margin: 4px 0 0; font-size: 14px; }
-.student-routine-adjusted blockquote { margin: 8px 0 0; padding-left: 10px; border-left: 2px solid #9db5ec; font-style: italic; }
+.student-routine-adjusted blockquote { margin: 8px 0 0; padding-left: 10px; border-left: 2px solid #9fbea7; font-style: italic; }
 .student-routine-adjusted__badge {
   display: inline-flex;
   align-items: center;
   padding: 3px 10px;
   border-radius: 999px;
-  background: #dbe7fb;
-  color: #1d3f7a;
+  background: #e2efe5;
+  color: #24543a;
   font-size: 12px;
   font-weight: 800;
 }

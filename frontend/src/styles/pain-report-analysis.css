@@ -25,11 +25,12 @@
 .pain-analysis__bars { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .pain-analysis__bars li {
   display: grid;
-  grid-template-columns: minmax(90px, 32%) 1fr 28px;
+  grid-template-columns: minmax(0, 32%) minmax(0, 1fr) 28px;
+  min-width: 0;
   gap: 10px;
   align-items: center;
 }
-.pain-analysis__bar-label { overflow: hidden; color: #334155; font-size: .875rem; text-overflow: ellipsis; white-space: nowrap; }
+.pain-analysis__bar-label { min-width: 0; color: #334155; font-size: .875rem; overflow-wrap: anywhere; }
 .pain-analysis__bar-track { display: flex; height: 14px; border-radius: 999px; background: #eef2f6; overflow: hidden; }
 .pain-analysis__bar { height: 100%; }
 .pain-analysis__bar-count { color: #1e293b; font-weight: 700; text-align: right; }
@@ -58,6 +59,19 @@
 }
 
 @media (max-width: 560px) {
-  .pain-analysis__legend { margin-left: 0; }
-  .pain-analysis__bars li { grid-template-columns: minmax(80px, 38%) 1fr 24px; }
+  .trainer-student-detail .pain-analysis h3 { align-items: flex-start; gap: 7px; font-size: .98rem; line-height: 1.3; }
+  .trainer-student-detail .pain-analysis h3 svg { flex: none; margin-top: 2px; }
+  .pain-analysis__chart-header { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+  .pain-analysis__chart-header select { width: 100%; }
+  .pain-analysis__legend { margin-left: 0; flex-wrap: wrap; }
+  .pain-analysis__bars li { grid-template-columns: minmax(0, 1fr) 28px; gap: 5px 8px; }
+  .pain-analysis__bar-label { grid-column: 1 / -1; grid-row: 1; white-space: normal; line-height: 1.35; }
+  .pain-analysis__bar-track { grid-column: 1; grid-row: 2; }
+  .pain-analysis__bar-count { grid-column: 2; grid-row: 2; }
+  .trainer-student-detail .pain-analysis__reports { min-width: 0; padding: 0; }
+  .pain-analysis__reports > li { min-width: 0; padding: 10px; background: #f8fafc; }
+  .trainer-student-detail .pain-analysis__zones { padding: 0; }
+  .pain-analysis__report-meta { gap: 2px 8px; }
+  .pain-analysis__reports .pain-analysis__report-source { line-height: 1.35; }
+  .pain-analysis__zones li { max-width: 100%; overflow-wrap: anywhere; }
 }

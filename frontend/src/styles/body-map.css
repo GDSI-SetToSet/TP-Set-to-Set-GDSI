@@ -138,7 +138,7 @@
 
 .body-map-hotspot:hover,
 .body-map-hotspot:focus-visible {
-  border-color: #0284c7;
+  border-color: #397050;
   transform: translate(-50%, -50%) scale(1.08);
   outline: none;
 }
@@ -248,7 +248,7 @@
 /* Selector flotante de intensidad */
 .body-map-intensity-picker {
   background: #ffffff;
-  border: 2px solid #3b82f6;
+  border: 2px solid #397050;
   border-radius: 10px;
   padding: 14px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
@@ -558,13 +558,13 @@
 }
 
 .body-map-btn--primary {
-  background: #0284c7;
+  background: #397050;
   color: #ffffff;
   border: none;
 }
 
 .body-map-btn--primary:hover:not(:disabled) {
-  background: #0369a1;
+  background: #285b3f;
 }
 
 .body-map-btn--primary:disabled {
@@ -775,8 +775,8 @@
 }
 
 .student-routine-history__tab-btn--active {
-  background: #0284c7;
-  border-color: #0284c7;
+  background: #397050;
+  border-color: #397050;
   color: #ffffff;
 }
 

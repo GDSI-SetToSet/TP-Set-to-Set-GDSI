@@ -38,10 +38,21 @@
 .trainer-achievements li { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; justify-content: space-between; }
 .trainer-achievements li > div { display: grid; gap: 2px; min-width: 0; }
 .trainer-achievements small { color: #52665b; }
-.trainer-achievements__sent { margin: 2px 0 0; color: #174b35; font-size: .88rem; }
+.trainer-achievements__sent { margin: 2px 0 0; color: var(--pf-success, #1d4a8c); font-size: .88rem; }
 .trainer-achievements__locked { color: #52665b; font-size: .85rem; }
-.trainer-achievements__open { min-height: 44px; padding: 0 16px; border: 1px solid #397050; border-radius: 10px; background: #fff; color: #174b35; font: inherit; font-weight: 700; cursor: pointer; }
+.trainer-achievements__open { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 0 12px; border: 1px solid var(--pf-accent, #3563b0); border-radius: 10px; background: #fff; color: var(--pf-link, #1f3a68); font: inherit; font-size: .9rem; font-weight: 700; cursor: pointer; }
 .trainer-achievements__form { display: grid; flex: 1 1 100%; gap: 6px; }
-.trainer-achievements__form textarea { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid #cbd7cd; border-radius: 10px; font: inherit; font-size: 16px; }
+.trainer-achievements__form textarea { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--pf-input-border, #c5d0e2); border-radius: 10px; font: inherit; font-size: 16px; }
 .trainer-achievements__form > div { display: flex; gap: 8px; }
 .trainer-achievements__form .profile-save, .trainer-achievements__form .plan-cancel { min-height: 44px; padding: 0 16px; }
+
+@media (max-width: 640px) {
+  .trainer-achievements li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 10px; }
+  .trainer-achievements li > div { min-width: 0; }
+  .trainer-achievements__open { width: auto; min-width: 100px; min-height: 36px; padding: 0 9px; justify-self: end; gap: 5px; font-size: .82rem; white-space: nowrap; }
+  .trainer-achievements__open svg { width: 15px; height: 15px; }
+  .trainer-achievements__form { grid-column: 1 / -1; }
+  .trainer-achievements__form > div { flex-wrap: wrap; }
+  .trainer-achievements__form .profile-save,
+  .trainer-achievements__form .plan-cancel { flex: 1 1 120px; }
+}

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AchievementsSection } from '../components/AchievementsSection';
 import { StreakCard } from '../components/StreakCard';
-import { ConsistencyChart, LoadChart } from '../components/StudentProgressCharts';
+import { ConsistencyChart, LoadChart, LoadChartLegend } from '../components/StudentProgressCharts';
 import { ROUTES } from '../constants/routes';
 import { getStudentAchievements } from '../services/achievementService';
 import { getStudentProgress, getStudentStreak } from '../services/studentProgressService';
@@ -64,7 +64,7 @@ export function StudentProgressPage() {
   const toBeat = data && !data.records.length ? markToBeat(data.exercises) : null;
 
   return (
-    <main className="profile-shell">
+    <main className="profile-shell student-progress-page">
       <header className="profile-header">
         <Link to={ROUTES.studentHome} className="profile-back"><ArrowLeft size={18} /> Volver al inicio</Link>
       </header>
@@ -126,7 +126,7 @@ export function StudentProgressPage() {
                 </ul>
               )}
             {chosen && (chosen.points.length > 1
-              ? <figure><figcaption>{chosen.name} · {chosen.metric === 'max_weight' ? 'mejor peso de cada sesión' : 'mejores repeticiones de cada sesión'}</figcaption><LoadChart exercise={chosen} /></figure>
+              ? <figure><figcaption>{chosen.name} · {chosen.metric === 'max_weight' ? 'mejor peso de cada sesión' : 'mejores repeticiones de cada sesión'}</figcaption><div className="training-evolution__chart-scroll" role="region" aria-label={`Gráfico de evolución de ${chosen.name}`}><LoadChart exercise={chosen} /></div><LoadChartLegend exercise={chosen} /></figure>
               : <p role="status">Con la próxima sesión de {chosen.name} vas a ver tu gráfico.</p>)}
             <details>
               <summary>¿Cómo se mide el progreso?</summary>
@@ -140,7 +140,7 @@ export function StudentProgressPage() {
                 <>
                   {consistency && <p><strong>{consistency}</strong></p>}
                   {data.summary.streak.best_weeks > 0 && <p>Racha actual: {weeksText(data.summary.streak.current_weeks)} · Tu mejor racha: {weeksText(data.summary.streak.best_weeks)}</p>}
-                  <figure><figcaption>Sesiones por semana</figcaption><ConsistencyChart weeks={data.consistency} /></figure>
+                  <figure><figcaption>Sesiones por semana</figcaption><div className="training-evolution__chart-scroll" role="region" aria-label="Gráfico de sesiones por semana"><ConsistencyChart weeks={data.consistency} /></div><ul className="training-evolution__legend training-evolution__legend--student-chart" aria-label="Referencias del gráfico"><li><span className="training-evolution__chart-key training-evolution__chart-key--solid" aria-hidden="true" />Sesiones realizadas</li><li><span className="training-evolution__chart-key training-evolution__chart-key--planned" aria-hidden="true" />Sesiones acordadas</li><li><span className="training-evolution__chart-key training-evolution__chart-key--current" aria-hidden="true" />Semana en curso</li><li><span className="training-evolution__chart-key training-evolution__chart-key--check" aria-hidden="true">✓</span>Objetivo semanal cumplido</li></ul></figure>
                 </>
               )}
 
@@ -163,15 +163,15 @@ export function StudentProgressPage() {
                 <>
                   {next.trainer_feedback && <p role="note"><strong>Tu entrenador:</strong> {next.trainer_feedback}</p>}
                   <div className="training-evolution__table-wrap">
-                    <table className="training-evolution__table">
+                    <table className="training-evolution__table training-evolution__table--student-next">
                       <caption>{next.day_name}</caption>
                       <thead><tr><th>Ejercicio</th><th>La última vez</th><th>Próxima sesión</th></tr></thead>
                       <tbody>
                         {next.exercises.map((e) => (
                           <tr key={e.exercise_id}>
-                            <td>{e.name}{e.adjusted_by_trainer && <small>Ajustado por tu entrenador{e.trainer_note && `: ${e.trainer_note}`}</small>}</td>
-                            <td>{e.last ? formatMark(e.last) : '— (primera vez)'}</td>
-                            <td><strong>{e.target_weight ? `${kg(e.target_weight)} × ${e.reps}` : `${e.reps} repeticiones`}</strong> · {e.sets} series</td>
+                            <td data-label="Ejercicio">{e.name}{e.adjusted_by_trainer && <small>Ajustado por tu entrenador{e.trainer_note && `: ${e.trainer_note}`}</small>}</td>
+                            <td data-label="La última vez">{e.last ? formatMark(e.last) : '— (primera vez)'}</td>
+                            <td data-label="Próxima sesión"><strong>{e.target_weight ? `${kg(e.target_weight)} × ${e.reps}` : `${e.reps} repeticiones`}</strong> · {e.sets} series</td>
                           </tr>
                         ))}
                       </tbody>
