@@ -114,7 +114,9 @@
 .student-daily-routine .student-daily-routine__block li > p,
 .student-daily-routine .student-daily-routine__block li > dl,
 .student-daily-routine .student-daily-routine__block li > .student-routine-exercise__logger,
-.student-daily-routine .student-daily-routine__block li > .student-routine-exercise__quick-actions {
+.student-daily-routine .student-daily-routine__block li > .student-routine-exercise__quick-actions,
+.student-daily-routine .student-daily-routine__block li > .technical-note,
+.student-daily-routine .student-daily-routine__block li > .exercise-queries {
   grid-column: 2;
   min-width: 0;
 }

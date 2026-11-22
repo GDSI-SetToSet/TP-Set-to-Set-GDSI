@@ -84,3 +84,13 @@ export interface StudentProgress {
   new_exercises: { exercise_id: string; name: string; first_date: string }[];
   next_session: { day_name: string; trainer_feedback: string | null; exercises: NextExercise[] } | null;
 }
+
+/** US-68: racha de semanas cumplidas (objetivo = días de la rutina vigente). */
+export interface TrainingStreak {
+  has_routine: boolean;
+  weekly_target: number;
+  current_weeks: number;
+  max_weeks: number;
+  this_week_sessions: number;
+  week_start: string;
+}

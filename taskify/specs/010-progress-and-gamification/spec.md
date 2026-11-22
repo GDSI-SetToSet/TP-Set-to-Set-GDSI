@@ -18,6 +18,26 @@
 - Q: ¿Qué series se suman en el volumen semanal? → A: Solo series de trabajo completadas con peso: Σ(kg × reps); calentamiento y ejercicios sin peso quedan excluidos.
 - Q: ¿Qué rango de fechas se muestra por defecto en el gráfico de evolución? → A: Últimas 12 semanas.
 
+### Session 2026-11-17 — US-67
+
+- Q: ¿Cuál es el catálogo del MVP y cómo se mide cada hito? → A: Cinco logros: "Primera sesión" (1 sesión finalizada), "10 sesiones" (10 finalizadas), "Racha de 4 semanas" (racha de US-68 de 4 semanas), "Primer récord personal" y "5 récords personales" (un récord es un peso que supera estrictamente el máximo previo del ejercicio, la definición de US-65). Las sesiones y récords cuentan todos los vínculos del alumno.
+- Q: ¿Qué fecha tiene cada logro? → A: La fecha real en que se alcanzó el hito (la sesión o serie que lo completó; para la racha, el lunes que sigue a la 4.ª semana cumplida). Un logro desbloqueado no se pierde.
+- Q: ¿Qué pasa con los hitos ya cumplidos antes de esta funcionalidad? → A: Se otorgan con su fecha real la primera vez que se evalúan, marcados como retroactivos: sin celebración ni notificación al entrenador. Desde ahí, los nuevos celebran y notifican.
+- Q: ¿Cuándo se evalúa? → A: Al finalizar una sesión y al consultar los logros (para la racha, que se completa al terminar la semana).
+- Q: ¿Cómo es la celebración (escenario 2)? → A: El resumen de la sesión finalizada muestra los logros desbloqueados en esa sesión hasta que el alumno los cierra; los logros por racha se celebran la próxima vez que abre su sección de logros.
+- Q: ¿Dónde ve el alumno sus logros (escenario 3)? → A: En "Mi evolución", sección "Mis logros", con la fecha de cada uno y el avance de los que faltan.
+- Q: ¿Cómo felicita el entrenador (escenario 4)? → A: Recibe una notificación por cada logro nuevo de sus alumnos activos y, desde el detalle del alumno, puede enviar una felicitación de hasta 300 caracteres (una por logro). El alumno la ve como aviso al abrir su próxima sesión, una sola vez, y recibe una notificación.
+- Q: ¿Se entrega sobre US-68? → A: Sí, la rama parte de la de US-68 (PR #73, sin mergear) porque "Racha de 4 semanas" usa su cálculo. Excepción al Principio VII, aceptada por el equipo.
+
+### Session 2026-11-17 — US-68
+
+- Q: ¿Qué son las "sesiones semanales acordadas"? → A: La cantidad de días de la rutina vigente del alumno, el mismo criterio de "sesiones programadas" que US-30 y US-32 (una rutina de 3 días equivale a 3 sesiones por semana). Una sesión cuenta cuando está finalizada. Sin rutina asignada no hay racha.
+- Q: ¿Qué es una semana? → A: De lunes a domingo en UTC, como en US-65 y US-30. Se cuentan desde la semana en que se asignó la rutina; las semanas anteriores no suman ni cortan.
+- Q: ¿Cuándo suma o corta la semana en curso? → A: Solo al terminar. Mientras tanto se muestra el avance ("2 de 3 sesiones esta semana") y la semana en curso nunca corta la racha.
+- Q: ¿Qué es la racha actual y la máxima? → A: La actual son las semanas consecutivas cumplidas hasta la última semana terminada; la máxima, la serie más larga del historial. Se calculan a partir de las sesiones finalizadas, sin guardarse.
+- Q: ¿Cuándo llega el mensaje de aliento (escenario 2)? → A: Al abrir el alumno la aplicación después de una semana no cumplida que cortó una racha de al menos una semana: una notificación por cada racha cortada (no se repite).
+- Q: ¿Dónde se ve (escenarios 3 y 4)? → A: El alumno la ve en el inicio, en el acceso a "Rutina del día", y en "Mi evolución". El entrenador, en el detalle del alumno en "Mis alumnos".
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-65: Evolución de cargas, constancia y récords personales (PRs)] (Priority: P2, Estimación: 5 SP)

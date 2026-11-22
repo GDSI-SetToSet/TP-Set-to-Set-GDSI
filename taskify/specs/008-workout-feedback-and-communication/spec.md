@@ -19,6 +19,14 @@
 - Q: ¿Qué forma tiene la devolución del entrenador (US-64)? → A: Una categoría obligatoria ("Podrías exigir más", "Esfuerzo adecuado", "Bajar la intensidad") más un comentario opcional de hasta 500 caracteres.
 - Q: ¿Cuántas devoluciones por sesión y qué ocurre al enviarla (US-64)? → A: Una devolución por sesión con RPE reportado; el entrenador puede editarla. Al crearla o editarla el alumno recibe una notificación; la ve al abrir su próxima sesión y en un historial de devoluciones, y queda marcada como vista al visualizarla.
 
+### Session 2026-11-16 — US-62 (junto con US-21)
+
+- Q: ¿Dónde vive la consulta técnica? → A: En la conversación del vínculo (US-21), como mensaje con tarjeta del ejercicio y, si corresponde, la sesión y la serie. Ver las clarificaciones de US-21 en la spec 009.
+- Q: ¿Cuándo está "pendiente" una consulta (escenario 2)? → A: Hasta que el entrenador la responde. La bandeja "Consultas técnicas" del entrenador muestra solo las pendientes, agrupadas por alumno.
+- Q: ¿Quién puede crear consultas y respuestas? → A: Solo el alumno crea consultas; solo el entrenador del vínculo las responde, desde la bandeja o desde el chat. Una consulta admite varias respuestas.
+- Q: ¿Cuánto dura la "nota técnica" fijada (escenario 3)? → A: Solo hasta la próxima vez que el alumno inicia ese ejercicio en una sesión: la tarjeta del ejercicio muestra la nota y pide "Entendido" antes de registrar la primera serie. Después queda visible en el historial de consultas del ejercicio, sin bloquear.
+- Q: ¿Qué historial se ve por ejercicio (escenario 4)? → A: Todas las consultas de ese ejercicio en el vínculo, cada una con sus respuestas, en orden cronológico. El alumno lo ve desde la tarjeta del ejercicio; el entrenador, desde la bandeja de consultas.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-60: Reporte de esfuerzo percibido (RPE) post-sesión] (Priority: P2, Estimación: 2 SP)

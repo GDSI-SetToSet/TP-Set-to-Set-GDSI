@@ -430,10 +430,17 @@ def start_student_workout_session(
         apply_pending_adjustments,
         relationship_write_lock,
     )
+    from backend.src.services.student_subscription_service import (
+        EXPIRED_BLOCK,
+        is_subscription_expired,
+    )
 
     user_id = user.id
     relationship, _ = _resolve_student_active_routine(db, user)
     relationship_id = relationship.id
+    # US-71 (FR-006): con la suscripción vencida se bloquea el inicio de sesiones nuevas.
+    if is_subscription_expired(db, relationship):
+        raise RoutineTemplateError(status.HTTP_409_CONFLICT, EXPIRED_BLOCK)
     with relationship_write_lock(db, relationship_id, refresh_snapshot=True):
         reloaded_user = db.get(User, user_id)
         if reloaded_user is None:
@@ -547,6 +554,11 @@ def finish_student_workout_session(
                     create_excessive_effort_alert(db, session)
             apply_pending_adjustments(db, session.relationship_id, session.id, commit=False)  # US-26
             db.commit()
+            db.refresh(session)
+            # US-67: los logros que alcanza esta sesión (nunca impiden finalizarla).
+            from backend.src.services.achievement_service import evaluate_after_session
+
+            evaluate_after_session(db, session)
             db.refresh(session)
         else:
             if rpe is not None:

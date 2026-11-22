@@ -1,3 +1,4 @@
+from backend.src.models.achievement import AchievementCongratulation, StudentAchievement
 from backend.src.models.assigned_routine import (
     AssignedRoutine,
     AssignedRoutineBlock,
@@ -8,9 +9,11 @@ from backend.src.models.body_map_report import (
     BodyMapPainReport,
     BodyMapPainReportZone,
 )
+from backend.src.models.conversation import ConversationMessage, TechnicalNote
 from backend.src.models.effort_feedback import EffortFeedback
 from backend.src.models.exercise import Exercise
 from backend.src.models.exercise_replacement_log import ExerciseReplacementLog
+from backend.src.models.informal_payment import InformalPayment
 from backend.src.models.medical_clearance import MedicalClearance
 from backend.src.models.notification import Notification
 from backend.src.models.personal_record import PersonalRecord
@@ -42,17 +45,20 @@ from .protected_zone import ProtectedZone
 from .student_profile import StudentProfile
 
 __all__ = [
+    "AchievementCongratulation",
     "AssignedRoutine",
     "AssignedRoutineBlock",
     "AssignedRoutineDay",
     "AssignedRoutineExercise",
     "BodyMapPainReport",
     "BodyMapPainReportZone",
+    "ConversationMessage",
     "EffortFeedback",
     "Exercise",
     "ExerciseReplacementLog",
     "ExerciseSafeVariant",
     "HealthQuestionnaire",
+    "InformalPayment",
     "MedicalClearance",
     "Notification",
     "PasswordResetToken",
@@ -68,8 +74,10 @@ __all__ = [
     "SafeVariantCase",
     "SafetyAlert",
     "SessionAdjustment",
+    "StudentAchievement",
     "StudentProfile",
     "StudentRoutine",
+    "TechnicalNote",
     "TrainerProfile",
     "TrainingPlan",
     "TrainingRelationship",

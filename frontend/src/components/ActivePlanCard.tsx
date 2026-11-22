@@ -1,12 +1,20 @@
 import { Calendar, CheckCircle2, Clock, Dumbbell, Mail, MessageSquare, Phone, UserCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '../constants/routes';
 import type { ActivePlanResponse } from '../types/discovery';
+import type { SubscriptionSummary } from '../types/payment';
+import { SUBSCRIPTION_STATUS_LABELS, dueDescription, formatIsoDate } from '../utils/subscriptionFormat';
 
 interface ActivePlanCardProps {
   plan: ActivePlanResponse;
   onRoutineClick?: () => void;
+  /** US-71: suscripción del vínculo y acciones del alumno. */
+  subscription?: SubscriptionSummary | null;
+  onReportPayment?: () => void;
+  onShowPayments?: () => void;
 }
 
-export function ActivePlanCard({ plan, onRoutineClick }: ActivePlanCardProps) {
+export function ActivePlanCard({ plan, onRoutineClick, subscription, onReportPayment, onShowPayments }: ActivePlanCardProps) {
   const isPending = plan.status === 'PENDING';
   if ((!plan.has_active_plan && !isPending) || !plan.trainer) {
     return null;
@@ -61,6 +69,14 @@ export function ActivePlanCard({ plan, onRoutineClick }: ActivePlanCardProps) {
                   </span>
                 )}
               </div>
+            )}
+            {!isPending && plan.relationship_id && (
+              <Link
+                className="active-plan-card__message-link"
+                to={`${ROUTES.studentMessages}?relationshipId=${encodeURIComponent(plan.relationship_id)}`}
+              >
+                <MessageSquare size={15} aria-hidden="true" /> Enviar mensaje
+              </Link>
             )}
           </div>
         </section>
@@ -126,6 +142,39 @@ export function ActivePlanCard({ plan, onRoutineClick }: ActivePlanCardProps) {
           )}
         </section>
       </div>
+      {subscription && (
+        <section
+          className={`active-plan-card__subscription active-plan-card__subscription--${subscription.status.toLowerCase()}`}
+          aria-label={`Suscripción con ${subscription.trainer_name}`}
+        >
+          <div>
+            <span className="active-plan-card__kicker">Suscripción</span>
+            <p className="active-plan-card__due">
+              Vence el <strong>{formatIsoDate(subscription.due_date)}</strong>{' '}
+              <span className={`subscription-badge subscription-badge--${subscription.status.toLowerCase()}`}>
+                {SUBSCRIPTION_STATUS_LABELS[subscription.status]}
+              </span>{' '}
+              <span>{dueDescription(subscription)}</span>
+            </p>
+            {subscription.status === 'VENCIDA' && (
+              <p className="active-plan-card__due-note">
+                Tu rutina está bloqueada hasta que tu entrenador confirme un pago.
+              </p>
+            )}
+            {subscription.pending_payment_count > 0 && (
+              <p className="active-plan-card__due-note">
+                {subscription.pending_payment_count === 1
+                  ? 'Tenés un pago informado pendiente de confirmación.'
+                  : `Tenés ${subscription.pending_payment_count} pagos informados pendientes de confirmación.`}
+              </p>
+            )}
+          </div>
+          <div className="active-plan-card__subscription-actions">
+            <button type="button" className="profile-save" onClick={onReportPayment}>Informar pago</button>
+            <button type="button" className="plan-cancel" onClick={onShowPayments}>Ver pagos</button>
+          </div>
+        </section>
+      )}
     </article>
   );
 }

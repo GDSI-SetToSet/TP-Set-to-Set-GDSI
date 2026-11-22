@@ -1,0 +1,86 @@
+openapi: 3.0.3
+info:
+  title: API de suscripción del alumno, pagos informados y confirmación (US-71)
+  version: 1.0.0
+  description: >
+    Extiende el contrato de US-34 (informal-payments-api.yaml). SubscriptionSummary suma
+    trainer_name y pending_payment_count; PaymentView suma source, confirmed_by_name,
+    confirmed_at, rejected_by_name, rejected_at, rejection_reason y has_receipt.
+paths:
+  /api/v1/students/me/subscriptions:
+    get:
+      summary: Suscripciones de los vínculos activos del alumno (escenarios 1, 2 y 4)
+      parameters: [{ $ref: '#/components/parameters/LocalDate' }]
+      responses:
+        '200': { description: 'Lista de SubscriptionSummary (ver informal-payments-api.yaml)' }
+        '403': { description: Rol entrenador }
+  /api/v1/students/me/subscriptions/{relationship_id}/payments:
+    parameters:
+      - { in: path, name: relationship_id, required: true, schema: { type: string } }
+      - { $ref: '#/components/parameters/LocalDate' }
+    get:
+      summary: Suscripción e historial completo de pagos del vínculo (escenario 5)
+      responses:
+        '200': { description: PaymentHistory }
+        '404': { description: El vínculo no es del alumno o no está activo }
+    post:
+      summary: Informar un pago realizado por fuera de la app (escenario 3)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [paid_on, amount, method, months_covered]
+              properties:
+                paid_on: { type: string, format: date }
+                amount: { type: string }
+                method: { type: string, enum: [EFECTIVO, TRANSFERENCIA, OTRO] }
+                months_covered: { type: integer, minimum: 1, maximum: 12 }
+                note: { type: string, maxLength: 500 }
+                receipt: { type: string, format: binary, description: 'PDF, JPG o PNG de hasta 10 MB (opcional)' }
+      responses:
+        '201': { description: 'PaymentMutationResult con el pago en PENDIENTE_CONFIRMACION; el vencimiento no cambia' }
+        '404': { description: El vínculo no es del alumno o no está activo }
+        '422': { description: 'Campos inválidos o comprobante de tipo o tamaño no permitido (errors[])' }
+  /api/v1/payments/{payment_id}/receipt:
+    get:
+      summary: Descargar el comprobante (alumno o entrenador del vínculo)
+      parameters: [{ in: path, name: payment_id, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Archivo }
+        '404': { description: 'Sin comprobante, o el usuario no es parte del vínculo' }
+  /api/v1/trainers/me/payments/{payment_id}/confirm:
+    post:
+      summary: Confirmar un pago informado; extiende el vencimiento (escenario 6)
+      parameters:
+        - { in: path, name: payment_id, required: true, schema: { type: string } }
+        - { $ref: '#/components/parameters/LocalDate' }
+      responses:
+        '200': { description: PaymentMutationResult }
+        '404': { description: Pago de otro entrenador o inexistente }
+        '409': { description: El pago no está pendiente de confirmación }
+  /api/v1/trainers/me/payments/{payment_id}/reject:
+    post:
+      summary: Rechazar un pago informado con motivo (escenario 6)
+      parameters:
+        - { in: path, name: payment_id, required: true, schema: { type: string } }
+        - { $ref: '#/components/parameters/LocalDate' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [reason], properties: { reason: { type: string, minLength: 5, maxLength: 500 } } }
+      responses:
+        '200': { description: PaymentMutationResult }
+        '404': { description: Pago de otro entrenador o inexistente }
+        '409': { description: El pago no está pendiente de confirmación }
+        '422': { description: Motivo faltante o fuera de rango }
+  /api/v1/students/me/routine-templates/assigned/workout-sessions:
+    post:
+      summary: (Existente) Iniciar sesión; ahora responde 409 si la suscripción del vínculo está vencida (FR-006)
+      responses:
+        '409': { description: 'Suscripción vencida: se desbloquea cuando el entrenador confirma un pago' }
+components:
+  parameters:
+    LocalDate: { in: query, name: date, schema: { type: string, format: date }, description: 'Fecha local ("hoy")' }

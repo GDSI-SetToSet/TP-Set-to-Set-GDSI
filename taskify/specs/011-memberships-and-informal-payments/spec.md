@@ -10,6 +10,35 @@
 
 **User Stories Cubiertas**: US-34, US-35, US-71
 
+## Clarificaciones
+
+### Sesión 2026-11-16 — US-34
+
+- Q: ¿Desde cuándo existe la suscripción y cuál es su primer vencimiento? → A: La suscripción nace con el vínculo de entrenamiento activo. El primer mes se considera abonado al aceptar al alumno: el primer vencimiento es la fecha de inicio del vínculo + 1 mes. La misma regla aplica a los vínculos activos existentes, a partir de su fecha de inicio.
+- Q: ¿Cómo se indica el "período abonado"? → A: En meses enteros, de 1 a 12. El monto se precarga con la tarifa mensual acordada × meses y el entrenador puede modificarlo.
+- Q: Si el alumno paga con la suscripción vencida, ¿desde qué fecha se extiende el vencimiento? → A: Desde el vencimiento anterior, conservando el ciclo de facturación. Ejemplo: vence el 1/11, paga 1 mes el 10/11, el nuevo vencimiento es el 1/12. El vencimiento vigente es siempre la fecha de inicio + (1 + meses de pagos confirmados y no anulados).
+- Q: ¿El escenario 4 de US-34 (confirmar o rechazar un pago informado por el alumno) se implementa en US-34? → A: No. Se traslada a US-71, que crea el pago informado; así se puede probar de punta a punta respetando el Principio VII (precedentes mergeados). US-34 cubre los pagos cargados por el entrenador, el estado de las suscripciones, el historial y la anulación con reemisión.
+- Q: ¿Qué incluye y qué no incluye US-34 respecto del estado "Vencida"? → A: US-34 calcula y muestra el estado al entrenador. Las alertas al alumno y al entrenador, y el bloqueo de la "Rutina del día" con la suscripción vencida (FR-006, Decisión Alternativa A), pertenecen a US-71.
+- Q: ¿Cuándo una suscripción está "Por vencer" o "Vencida"? → A: "Por vencer" cuando faltan entre 0 y 5 días para el vencimiento (el día del vencimiento todavía está cubierto); "Vencida" desde el día siguiente al vencimiento. El "hoy" es la fecha local del entrenador.
+
+### Sesión 2026-11-17 — US-71
+
+- Q: ¿Dónde ve el alumno su suscripción (escenarios 1 y 4)? → A: En "Mis entrenadores", en la tarjeta de cada vínculo activo: paquete, vencimiento, estado y acceso a "Informar pago" y al historial. Un alumno con dos entrenadores ve una suscripción por vínculo.
+- Q: ¿Qué es la "alerta" al abrir la aplicación (escenario 2)? → A: Un aviso destacado en el inicio del alumno cuando alguna suscripción está "Por vencer" (0 a 5 días) o "Vencida", con la fecha resaltada y el acceso a "Informar pago". No hay notificaciones push.
+- Q: ¿Qué es el comprobante? → A: Un archivo opcional (PDF, JPG o PNG de hasta 10 MB) en almacenamiento privado, como el apto médico (US-43). Solo lo descargan el alumno y su entrenador.
+- Q: ¿Qué datos informa el alumno (escenario 3)? → A: Los mismos que carga el entrenador en US-34: fecha, monto, medio, meses (1 a 12) y nota opcional, más el comprobante. El pago queda "Pendiente de confirmación", no extiende el vencimiento y el entrenador recibe una notificación.
+- Q: ¿Qué pasa al confirmar o rechazar (escenario 6)? → A: Confirmar lo pasa a "Confirmado", extiende el vencimiento y registra quién y cuándo. Rechazar exige un motivo (5 a 500 caracteres) y lo pasa a "Rechazado". En los dos casos el alumno recibe una notificación. Un pago pendiente o rechazado no se anula.
+- Q: ¿Cómo se aplica el bloqueo con la suscripción vencida (FR-006)? → A: El alumno no puede iniciar sesiones nuevas (el servidor responde 409) y la "Rutina del día" muestra un aviso de bloqueo con "Informar pago" en lugar de la rutina. Conserva su historial, su evolución y los mensajes. El bloqueo se levanta solo cuando el entrenador confirma un pago; un pago informado pendiente no desbloquea.
+- Q: ¿Cómo ve el entrenador la "misma alerta" (escenario 4)? → A: Un aviso en su inicio con la cantidad de suscripciones vencidas y de pagos por confirmar, que lleva a "Suscripciones". Ahí cada alumno muestra sus pagos informados pendientes.
+- Q: ¿Qué historial ve el alumno (escenario 5)? → A: Todos sus pagos del vínculo con su estado (confirmado, pendiente, rechazado con motivo o anulado con motivo).
+
+### Sesión 2026-11-17 — US-35
+
+- Q: ¿Cómo se indica la razón de la baja? → A: Con una categoría obligatoria ("Falta de pago", "Razones personales" u "Otro motivo") y un detalle de hasta 500 caracteres, obligatorio solo con "Otro motivo".
+- Q: ¿Qué se le informa al alumno? → A: Recibe una notificación "Tu entrenador {nombre} finalizó tu suscripción" con la categoría y el detalle. El formulario le avisa al entrenador que el alumno verá el motivo.
+- Q: ¿Qué cambia al dar de baja? → A: El vínculo pasa a `TERMINATED` con fecha de baja, categoría y detalle. Se libera el cupo, el alumno sale de "Mis alumnos" y de "Suscripciones" (no genera vencimientos), el entrenador pierde el acceso a sus datos de salud (Principio III), la rutina deja de estar disponible para el alumno y el chat queda en modo lectura (US-21). Los pagos y mensajes no se borran.
+- Q: ¿Se puede deshacer? → A: No. Para volver a entrenar, el alumno envía una nueva solicitud (flujo de US-48 y US-07).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [US-34: Registrar pagos y controlar el estado de las suscripciones] (Priority: P1, Estimación: 4 SP)
@@ -30,9 +59,11 @@ Como entrenador personal,
 
 3. Dado un entrenador que intenta registrar un pago sin fecha o sin monto, cuando confirma, entonces el sistema no lo registra y le indica los datos faltantes.
 
-4. Dado un alumno que informó un pago (US-71), cuando el entrenador lo revisa, entonces puede confirmarlo (se extiende el vencimiento) o rechazarlo indicando un motivo.
+4. *(Trasladado a US-71, escenario 6; ver Clarificaciones 2026-11-16.)*
 
 5. Dado un alumno en particular, cuando el entrenador consulta su historial de pagos, entonces ve todos los pagos registrados con fecha, monto, medio y usuario que lo cargó o confirmó. Los registros no pueden eliminarse, solo anularse con un motivo.
+
+6. Dado un entrenador que anuló un pago por un error de carga, cuando registra el pago corregido, entonces el nuevo registro referencia al pago anulado, el historial conserva ambos y el vencimiento se recalcula sin contar el pago anulado.
 
 
 ---
@@ -80,6 +111,8 @@ Como alumno,
 
 5. Dado un alumno, cuando consulta su historial, entonces ve los pagos confirmados y su estado.
 
+6. Dado un alumno que informó un pago, cuando el entrenador lo revisa, entonces puede confirmarlo (se extiende el vencimiento) o rechazarlo indicando un motivo. *(Trasladado desde US-34, escenario 4.)*
+
 
 ---
 
@@ -99,9 +132,9 @@ Como alumno,
 
 ### Functional Requirements
 
-- **FR-001**: El sistema DEBE permitir al entrenador registrar cobros manuales indicando fecha, monto, medio (efectivo/transferencia) y período (US-34).
+- **FR-001**: El sistema DEBE permitir al entrenador registrar cobros manuales indicando fecha, monto, medio (efectivo, transferencia u otro) y período abonado en meses enteros de 1 a 12 (US-34).
 
-- **FR-002**: Al registrar o confirmar un pago, el sistema DEBE extender automáticamente la fecha de vencimiento de la suscripción (US-34).
+- **FR-002**: Al registrar o confirmar un pago, el sistema DEBE extender automáticamente la fecha de vencimiento de la suscripción desde el vencimiento anterior. El primer vencimiento es la fecha de inicio del vínculo + 1 mes (US-34; la confirmación de pagos informados corresponde a US-71).
 
 - **FR-003**: El sistema DEBE garantizar la inmutabilidad de los pagos, prohibiendo la eliminación física de registros de la base de datos (US-34, Constitución).
 
