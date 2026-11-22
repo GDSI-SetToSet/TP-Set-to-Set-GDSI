@@ -6,17 +6,15 @@ info:
 paths:
   /api/v1/students/me/progress:
     get:
-      summary: Evolución de cargas, volumen semanal y PRs del alumno autenticado
+      summary: Evolución del alumno autenticado (progreso por ejercicio, constancia, récords y próxima sesión)
       security:
         - bearerAuth: []
       parameters:
-        - { in: query, name: exercise_id, schema: { type: string }, description: Filtra por ejercicio }
-        - { in: query, name: muscle_group, schema: { type: string }, description: Filtra por grupo muscular }
-        - { in: query, name: from, schema: { type: string, format: date }, description: Inicio del rango (UTC) }
-        - { in: query, name: to, schema: { type: string, format: date }, description: Fin del rango (UTC) }
+        - { in: query, name: period, schema: { type: string, enum: ['4w', '12w', all], default: '12w' }, description: Período de las secciones de progreso, constancia y récords }
+        - { in: query, name: muscle_group, schema: { type: string }, description: Filtra ejercicios, récords y ejercicios nuevos (no el resumen) }
       responses:
         '200':
-          description: Sin from/to se devuelven las últimas 12 semanas.
+          description: Evolución del período.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/StudentProgress' }
@@ -45,68 +43,102 @@ components:
         errors:
           type: array
           items: { type: object, properties: { field: { type: string }, message: { type: string } } }
+    SetResult:
+      type: object
+      properties:
+        weight: { type: number, nullable: true, description: Null sin carga (peso corporal) }
+        reps: { type: integer, nullable: true }
     StudentProgress:
       type: object
-      required: [range, muscle_groups, has_data, exercises, weekly_volume, week_comparison, personal_records]
+      required: [period, muscle_groups, has_sessions, summary, exercises, consistency, records, new_exercises]
       properties:
-        range:
+        period:
           type: object
-          required: [from, to, is_default]
+          required: [key, end]
           properties:
-            from: { type: string, format: date }
-            to: { type: string, format: date }
-            is_default: { type: boolean }
-        muscle_groups: { type: array, items: { type: string } }
-        has_data: { type: boolean }
-        exercises: { type: array, items: { $ref: '#/components/schemas/ExerciseLoad' } }
-        weekly_volume: { type: array, items: { $ref: '#/components/schemas/WeeklyVolume' } }
-        week_comparison: { $ref: '#/components/schemas/WeekComparison' }
-        personal_records:
-          type: array
-          description: Orden cronológico ascendente.
-          items: { $ref: '#/components/schemas/PersonalRecordEntry' }
-    ExerciseLoad:
-      type: object
-      required: [exercise_id, name, muscle_group, has_trend, points]
-      properties:
-        exercise_id: { type: string }
-        name: { type: string }
-        muscle_group: { type: string }
-        has_trend: { type: boolean, description: false si hay menos de 2 puntos }
-        points:
+            key: { type: string, enum: ['4w', '12w', all] }
+            start: { type: string, format: date, nullable: true }
+            end: { type: string, format: date }
+        muscle_group: { type: string, nullable: true }
+        muscle_groups: { type: array, items: { type: string }, description: Opciones del filtro, sin filtrar }
+        has_sessions: { type: boolean }
+        summary:
+          type: object
+          properties:
+            improving_exercises_last_4w: { type: integer }
+            streak:
+              type: object
+              properties: { current_weeks: { type: integer }, best_weeks: { type: integer } }
+            records_in_period: { type: integer }
+        exercises:
           type: array
           items:
             type: object
-            required: [date, weight_kg, reps, is_pr]
+            properties:
+              exercise_id: { type: string }
+              name: { type: string }
+              muscle_group: { type: string }
+              metric: { type: string, enum: [max_weight, max_reps] }
+              start: { $ref: '#/components/schemas/SetResult' }
+              current: { $ref: '#/components/schemas/SetResult' }
+              best: { $ref: '#/components/schemas/SetResult' }
+              message_key: { type: string, enum: [weight_increased, reps_increased, no_change, below_best, bodyweight_reps_increased, few_data] }
+              weeks_without_change: { type: integer }
+              last_improvement_is_pr: { type: boolean }
+              points:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    date: { type: string, format: date }
+                    weight: { type: number, nullable: true }
+                    reps: { type: integer }
+                    target_weight: { type: number, nullable: true }
+                    is_pr: { type: boolean }
+        consistency:
+          type: array
+          description: La semana en curso lleva is_partial y no entra en ningún cálculo.
+          items:
+            type: object
+            properties:
+              period_start: { type: string, format: date }
+              period_end: { type: string, format: date }
+              scheduled: { type: integer }
+              completed: { type: integer }
+              is_partial: { type: boolean }
+        records:
+          type: array
+          description: Del más reciente al más viejo; la primera carga de un ejercicio no es récord.
+          items:
+            type: object
             properties:
               date: { type: string, format: date }
-              weight_kg: { type: number }
-              reps: { type: string, description: Repeticiones tal como se registraron }
-              is_pr: { type: boolean }
-    WeeklyVolume:
-      type: object
-      required: [week_start, week_end, volume_kg, is_partial]
-      properties:
-        week_start: { type: string, format: date }
-        week_end: { type: string, format: date }
-        volume_kg: { type: number, description: 0 en semanas sin series }
-        is_partial: { type: boolean }
-    WeekComparison:
-      type: object
-      required: [current_volume_kg, previous_volume_kg, previous_avg_kg]
-      properties:
-        current_volume_kg: { type: number }
-        previous_volume_kg: { type: number }
-        delta_vs_previous_pct: { type: number, nullable: true }
-        previous_avg_kg: { type: number }
-    PersonalRecordEntry:
-      type: object
-      required: [exercise_id, exercise_name, weight_kg, reps, achieved_at, is_initial]
-      properties:
-        exercise_id: { type: string }
-        exercise_name: { type: string }
-        weight_kg: { type: number }
-        reps: { type: string, description: Repeticiones tal como se registraron }
-        achieved_at: { type: string, format: date-time }
-        previous_weight_kg: { type: number, nullable: true }
-        is_initial: { type: boolean }
+              exercise_id: { type: string }
+              name: { type: string }
+              weight: { type: number, nullable: true }
+              reps: { type: integer }
+              previous: { $ref: '#/components/schemas/SetResult' }
+        new_exercises:
+          type: array
+          items:
+            type: object
+            properties: { exercise_id: { type: string }, name: { type: string }, first_date: { type: string, format: date } }
+        next_session:
+          type: object
+          nullable: true
+          properties:
+            day_name: { type: string }
+            trainer_feedback: { type: string, nullable: true }
+            exercises:
+              type: array
+              items:
+                type: object
+                properties:
+                  exercise_id: { type: string }
+                  name: { type: string }
+                  last: { allOf: [{ $ref: '#/components/schemas/SetResult' }], nullable: true }
+                  target_weight: { type: number, nullable: true }
+                  reps: { type: string }
+                  sets: { type: integer }
+                  adjusted_by_trainer: { type: boolean }
+                  trainer_note: { type: string, nullable: true }

@@ -29,21 +29,6 @@ const ICON = { green: Check, yellow: AlertTriangle, red: X };
 const STATUS_ICON = { progressing: TrendingUp, stalled: AlertTriangle, declined: TrendingDown, unchanged: ArrowRight };
 const icon = { size: 16, 'aria-hidden': true, className: 'training-evolution__icon' } as const;
 
-/** Alternativa textual de un gráfico: tooltips nativos no sirven con teclado ni táctil. */
-function Values({ head, rows }: { head: string[]; rows: (string | number)[][] }) {
-  return (
-    <details className="training-evolution__values">
-      <summary>Ver valores en tabla</summary>
-      <div className="training-evolution__table-wrap">
-        <table className="training-evolution__table">
-          <thead><tr>{head.map((h) => <th key={h} scope="col">{h}</th>)}</tr></thead>
-          <tbody>{rows.map((row) => <tr key={row[0]}>{row.map((cell, i) => <td key={i}>{cell}</td>)}</tr>)}</tbody>
-        </table>
-      </div>
-    </details>
-  );
-}
-
 function Card({ title, value, detail, light, target, onGo }: {
   title: string; value: string; detail: string; light: TrafficLight; target: string; onGo: (id: string) => void;
 }) {
@@ -144,7 +129,7 @@ export function TrainingEvolution({ studentId, studentName }: { studentId: strin
               {records > 0 && <> · <Trophy {...icon} /> {records} récord{records === 1 ? '' : 's'} esta semana</>}.
             </p>
             <div className="training-evolution__table-wrap">
-              <table className="training-evolution__table">
+              <table className="training-evolution__table training-evolution__table--progress">
                 <caption className="training-evolution__sr">Progreso por ejercicio, ordenado por lo que requiere atención</caption>
                 <thead><tr><th>Ejercicio</th><th>Inicio</th><th>Actual</th><th>Cambio</th><th>Estado</th><th>Última mejora</th></tr></thead>
                 <tbody>
@@ -156,9 +141,9 @@ export function TrainingEvolution({ studentId, studentName }: { studentId: strin
                         )}
                         <small>{item.muscle_group}</small>
                       </th>
-                      <td>{formatSet(item.start)}</td><td>{formatSet(item.current)}</td><td>{formatChange(item.change_pct)}</td>
-                      <td><span className={`training-evolution__badge training-evolution__badge--${item.status}`}>{(() => { const Icon = STATUS_ICON[item.status as keyof typeof STATUS_ICON]; return Icon ? <Icon {...icon} /> : null; })()}{STATUS_LABELS[item.status]}</span></td>
-                      <td>{item.last_improvement ? <>{item.last_improvement.is_pr && <Trophy {...icon} aria-hidden={false} aria-label="Récord personal" role="img" />}{formatAgo(item.last_improvement.date, data.period.end)}</> : '—'}</td>
+                      <td data-label="Inicio">{formatSet(item.start)}</td><td data-label="Actual">{formatSet(item.current)}</td><td data-label="Cambio">{formatChange(item.change_pct)}</td>
+                      <td data-label="Estado"><span className={`training-evolution__badge training-evolution__badge--${item.status}`}>{(() => { const Icon = STATUS_ICON[item.status as keyof typeof STATUS_ICON]; return Icon ? <Icon {...icon} /> : null; })()}{STATUS_LABELS[item.status]}</span></td>
+                      <td data-label="Última mejora">{item.last_improvement ? <>{item.last_improvement.is_pr && <Trophy {...icon} aria-hidden={false} aria-label="Récord personal" role="img" />}{formatAgo(item.last_improvement.date, data.period.end)}</> : '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -169,7 +154,6 @@ export function TrainingEvolution({ studentId, studentName }: { studentId: strin
                 <figcaption>{current.name}: {current.metric === 'max_weight' ? 'mejor serie (kg)' : 'máximo de repeticiones'} por {groupBy === 'week' ? 'semana' : 'entrenamiento'}</figcaption>
                 <ExerciseChart points={current.points} groupBy={groupBy} kind={current.metric as 'max_weight' | 'max_reps'}
                   ariaLabel={`${current.name}: de ${formatSet(current.start)} a ${formatSet(current.current)}, ${STATUS_LABELS[current.status]}`} />
-                <Values head={['Fecha', 'Serie', 'Objetivo (kg)', 'RPE']} rows={current.points.map((p) => [formatRange(p.period_start, groupBy === 'session' ? p.period_start : p.period_end), current.metric === 'max_weight' ? formatSet({ weight: p.weight, reps: p.reps }) : `${p.reps} reps`, p.target_weight ?? '—', p.rpe ?? '—'])} />
                 <Legend items={[
                   ['line', 'Mejor serie de cada período'], ['dot', 'Período completo'], ['dashed', 'Período en curso: todavía incompleto'],
                   ['dotted', 'Peso objetivo programado'], ['ring', 'Récord personal vigente'],
@@ -190,7 +174,6 @@ export function TrainingEvolution({ studentId, studentName }: { studentId: strin
         <figure>
           <figcaption>Sesiones por semana</figcaption>
           <AdherenceChart weeks={data.adherence} ariaLabel={`Adherencia: ${summary.adherence.completed_sessions} de ${summary.adherence.scheduled_sessions} sesiones programadas`} />
-          <Values head={['Semana', 'Realizadas', 'Programadas']} rows={data.adherence.map((w) => [formatRange(w.period_start, w.period_end) + (w.is_partial ? ' (en curso)' : ''), w.completed, w.scheduled])} />
           <Legend items={[
             ['bar-blue', 'Sesiones realizadas'], ['bar-gray', 'Sesiones programadas'], ['bar-red', 'Semana sin entrenar'], ['bar-partial', 'Semana en curso'],
           ]} />
@@ -212,7 +195,6 @@ export function TrainingEvolution({ studentId, studentName }: { studentId: strin
           <figure>
             <figcaption>RPE por {groupBy === 'week' ? 'semana' : 'entrenamiento'}</figcaption>
             <RpeChart points={data.rpe} groupBy={groupBy} ariaLabel={`RPE promedio de las últimas sesiones: ${summary.effort.avg_rpe_last_4 ?? 'sin datos'}`} />
-            <Values head={['Fecha', 'RPE', 'Devolución']} rows={data.rpe.map((p) => [formatRange(p.period_start, groupBy === 'session' ? p.period_start : p.period_end), p.has_report ? formatNumber(p.rpe as number) : 'sin reporte', p.trainer_feedback ?? '—'])} />
             <Legend items={[
               ['line', 'RPE (esfuerzo percibido)'], ['band', 'Zona recomendada: RPE 6–8'], ['cross', 'Sesión sin reporte'], ['hollow', 'Período en curso'],
             ]} />
@@ -224,7 +206,11 @@ export function TrainingEvolution({ studentId, studentName }: { studentId: strin
         <h4 id={`evo-review-h-${studentId}`}>¿Qué tengo que ajustar?</h4>
         {data.to_review.length === 0 ? <p><Check {...icon} /> Nada para ajustar por ahora</p> : (
           <ul className="training-evolution__review">{data.to_review.map((item, index) => (
-            <li key={`${item.type}-${item.exercise_id ?? index}-${index}`}><span className="training-evolution__badge">{REVIEW_HINT[item.type]}</span> {item.label}{item.type !== 'week_without_training' && <>{' '}<Link className="training-evolution__link" to={ROUTES.trainerDailyRoutines}>Ajustar en Rutinas del día</Link></>}</li>
+            <li key={`${item.type}-${item.exercise_id ?? index}-${index}`} className="training-evolution__review-item">
+              <span className="training-evolution__badge">{REVIEW_HINT[item.type]}</span>
+              <span className="training-evolution__review-label">{item.label}</span>
+              {item.type !== 'week_without_training' && <Link className="training-evolution__link" to={ROUTES.trainerDailyRoutines}>Ajustar en Rutinas del día</Link>}
+            </li>
           ))}</ul>
         )}
         {data.sets_by_muscle_group.length > 0 && (

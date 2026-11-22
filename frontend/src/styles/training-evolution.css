@@ -17,6 +17,7 @@
 .training-evolution__help { display: inline-flex; color: #475569; cursor: help; }
 .training-evolution__help:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; border-radius: 50%; }
 .training-evolution__svg { width: 100%; height: auto; }
+.training-evolution__chart-frame { width: 100%; max-width: 640px; min-width: 0; margin-inline: auto; }
 .training-evolution__grid { stroke: #e2e8f0; stroke-width: 1; }
 .training-evolution__tick { fill: #475569; font-size: 12px; }
 .training-evolution__partial { fill: #475569; font-size: 12px; font-style: italic; }
@@ -40,7 +41,7 @@
 .training-evolution__table-wrap { overflow-x: auto; margin: 8px 0; }
 .training-evolution__table { width: 100%; border-collapse: collapse; font-size: .88rem; }
 .training-evolution__table th, .training-evolution__table td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; }
-.training-evolution__table th small { display: block; color: #64748b; font-weight: 500; }
+.training-evolution__table th small, .training-evolution__table td small { display: block; color: #64748b; font-weight: 500; }
 .training-evolution__table tr.is-selected { background: #eff6ff; }
 .training-evolution__badge { display: inline-block; padding: 1px 8px; border-radius: 999px; background: #f1f5f9; color: #334155; font-size: .78rem; font-weight: 700; white-space: nowrap; }
 .training-evolution__badge--progressing { background: #dcfce7; color: #166534; }
@@ -53,9 +54,7 @@
 .training-evolution__icon { display: inline-block; margin-right: 4px; vertical-align: -3px; }
 .training-evolution__sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .training-evolution__link { min-height: 44px; text-align: left; }
-.training-evolution__values { margin: 6px 0; font-size: .85rem; }
-.training-evolution__values summary { min-height: 44px; display: flex; align-items: center; color: #1d4ed8; font-weight: 600; cursor: pointer; }
-.training-evolution__values summary:focus-visible, .training-evolution select:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
+.training-evolution select:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
 .training-evolution__badge { display: inline-flex; align-items: center; }
 .training-evolution__card { transition: box-shadow .15s ease; }
 .training-evolution__card:hover { box-shadow: 0 2px 8px rgb(15 23 42 / .12); }
@@ -63,3 +62,122 @@
 @media (max-width: 640px) { .training-evolution__controls label { flex: 1 1 140px; } .training-evolution__controls select { width: 100%; } }
 .training-evolution__swatch { flex: none; }
 .training-evolution__legend li { min-height: 20px; }
+.training-evolution__review-item { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 8px; min-width: 0; }
+.training-evolution__review-item .training-evolution__badge { flex: none; }
+.training-evolution__review-label { flex: 1 1 180px; min-width: 0; overflow-wrap: anywhere; }
+.training-evolution__group-chart { min-width: 0; }
+.training-evolution__group-chart-mobile { display: none; }
+
+/* US-65 · Mi evolución (alumno) */
+.student-evolution__chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 10px; }
+.student-evolution__chips button { min-height: 44px; padding: 0 14px; border: 1px solid #cbd5e1; border-radius: 999px; background: #fff; color: #334155; font: inherit; font-weight: 600; cursor: pointer; }
+.student-evolution__chips button[aria-pressed="true"] { border-color: #1d4ed8; background: #eff6ff; color: #1e3a8a; }
+.student-evolution__list { display: grid; gap: 6px; margin: 0 0 12px; padding: 0; list-style: none; }
+.student-evolution__list button { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; color: #0f172a; font: inherit; text-align: left; cursor: pointer; }
+.student-evolution__list button[aria-pressed="true"] { border-color: #1d4ed8; background: #eff6ff; }
+.student-evolution__records { display: grid; gap: 6px; padding-left: 20px; }
+.training-evolution details { margin: 8px 0; }
+.training-evolution summary { min-height: 44px; display: flex; align-items: center; color: #1d4ed8; font-weight: 600; cursor: pointer; }
+.training-evolution__card { text-align: left; cursor: pointer; }
+.student-evolution__cta { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 8px; padding: 0 18px; border-radius: 10px; background: #1d4ed8; color: #fff; font-weight: 700; text-decoration: none; }
+
+/* La vista de progreso pertenece al alumno y conserva la identidad verde de su espacio. */
+.student-progress-page .training-evolution {
+  --student-chart-series: #397050;
+  --training-evolution-accent: #397050;
+  --training-evolution-accent-soft: #eaf4ed;
+}
+.student-progress-page .training-evolution__link,
+.student-progress-page .training-evolution summary { color: var(--training-evolution-accent); }
+.student-progress-page .student-evolution__chips button[aria-pressed="true"],
+.student-progress-page .student-evolution__list button[aria-pressed="true"] {
+  border-color: var(--training-evolution-accent);
+  background: var(--training-evolution-accent-soft);
+  color: #174b35;
+}
+.student-progress-page .student-evolution__cta { background: var(--training-evolution-accent); }
+.student-progress-page .training-evolution__table tr.is-selected { background: var(--training-evolution-accent-soft); }
+.student-progress-page .training-evolution__card:focus-visible,
+.student-progress-page .student-evolution__chips button:focus-visible,
+.student-progress-page .student-evolution__list button:focus-visible,
+.student-progress-page .training-evolution__chart-scroll:focus-visible {
+  outline: 3px solid rgba(57, 112, 80, .35);
+  outline-offset: 2px;
+}
+.training-evolution__chart-hint { display: none; }
+.training-evolution__chart-scroll { width: 100%; min-width: 0; overflow: visible; }
+.training-evolution__responsive-chart { width: 100%; max-width: 640px; min-width: 0; margin-inline: auto; }
+.training-evolution__chart-key { display: inline-block; width: 14px; height: 14px; flex: none; border-radius: 3px; }
+.training-evolution__chart-key--solid { background: var(--student-chart-series, #397050); }
+.training-evolution__chart-key--planned { border: 1px solid #94a3b8; background: #e2e8f0; }
+.training-evolution__chart-key--current { border: 2px dashed #64748b; background: #fff; }
+.training-evolution__chart-key--check { width: auto; height: auto; border-radius: 0; background: none; color: var(--student-chart-series, #397050); font-size: 1rem; font-weight: 800; }
+.training-evolution__legend--student-chart { display: grid; gap: 8px; margin-top: 14px; font-size: .88rem; }
+.training-evolution__legend--student-chart li { display: flex; align-items: center; min-width: 0; min-height: 24px; gap: 10px; overflow-wrap: anywhere; }
+.training-evolution__legend--student-chart .training-evolution__swatch { display: block; width: 28px; height: 14px; flex: 0 0 28px; }
+
+@media (max-width: 640px) {
+  .student-progress-page.profile-shell { padding-inline: 10px; }
+  .student-progress-page .profile-card { padding: 20px 14px; border-radius: 16px; }
+  .student-progress-page .profile-heading h1 { font-size: clamp(28px, 8vw, 36px); }
+  .training-evolution figure { overflow: hidden; padding: 10px 8px; }
+  .training-evolution__chart-hint {
+    display: block;
+    margin: 5px 0 8px;
+    color: #52665b;
+    font-size: .78rem;
+  }
+  .training-evolution__chart-scroll { overflow: visible; }
+  .training-evolution__responsive-chart { width: 100%; max-width: 640px; }
+  .training-evolution__chart-scroll .training-evolution__svg { display: block; width: 100%; max-width: 100%; height: auto; }
+  .student-progress-page .training-evolution__table-wrap { overflow-x: auto; overscroll-behavior-inline: contain; }
+  .student-progress-page .training-evolution__table { min-width: 590px; }
+  .student-progress-page .training-evolution__table-wrap { overflow: visible; }
+  .student-progress-page .training-evolution__table--student-next { display: block; width: 100%; min-width: 0; table-layout: fixed; }
+  .student-progress-page .training-evolution__table--student-next caption { padding: 4px 0 8px; }
+  .student-progress-page .training-evolution__table--student-next thead { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  .student-progress-page .training-evolution__table--student-next tbody { display: grid; gap: 8px; }
+  .student-progress-page .training-evolution__table--student-next tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; min-width: 0; padding: 10px 12px; border: 1px solid #dbe3ef; border-radius: 10px; background: #fff; }
+  .student-progress-page .training-evolution__table--student-next td { display: grid; align-content: start; gap: 3px; min-width: 0; padding: 8px 0; border: 0; overflow-wrap: anywhere; }
+  .student-progress-page .training-evolution__table--student-next td::before { color: #52637d; content: attr(data-label); font-size: .72rem; font-weight: 700; }
+  .student-progress-page .training-evolution__table--student-next td:first-child { grid-column: 1 / -1; border-bottom: 1px solid #e2e8f0; }
+  .student-progress-page .training-evolution__table--student-next td small { overflow-wrap: anywhere; }
+  .student-progress-page .training-evolution__table--student-next td:last-child strong { overflow-wrap: anywhere; }
+  .student-progress-page .training-evolution__controls label { flex: 1 1 100%; }
+  .student-progress-page .training-evolution__controls select { min-height: 44px; }
+  .student-progress-page .student-evolution__cta { width: 100%; }
+
+  /* En el detalle del entrenador, las tablas pasan a tarjetas para mantener todos los campos visibles. */
+  .trainer-student-detail .training-evolution,
+  .trainer-student-detail .training-evolution__table-wrap { min-width: 0; width: 100%; }
+  .trainer-student-detail .training-evolution__table-wrap { overflow: visible; }
+  .training-evolution__table--progress { display: block; width: 100%; min-width: 0; table-layout: fixed; }
+  .training-evolution__table--progress thead { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  .training-evolution__table--progress tbody { display: grid; gap: 8px; }
+  .training-evolution__table--progress tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 10px; padding: 8px 10px; border: 1px solid #dbe3ef; border-radius: 10px; background: #fff; }
+  .training-evolution__table--progress th[scope="row"] { grid-column: 1 / -1; min-width: 0; padding: 4px 0 8px; border-bottom: 1px solid #e2e8f0; overflow-wrap: anywhere; }
+  .training-evolution__table--progress td { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 2px; min-width: 0; padding: 7px 0; border: 0; font-size: .82rem; overflow-wrap: anywhere; }
+  .training-evolution__table--progress td::before { color: #52637d; content: attr(data-label); font-size: .7rem; font-weight: 700; }
+  .training-evolution__table--progress td:last-child { grid-column: 1 / -1; }
+  .training-evolution__table--progress .training-evolution__badge { white-space: normal; }
+  .trainer-student-detail .training-evolution__review { margin: 6px 0; padding: 0; gap: 8px; }
+  .training-evolution__review-item { display: grid; align-content: start; grid-template-columns: minmax(0, 1fr); gap: 4px; min-height: 0; padding: 10px 12px; border: 1px solid #dbe3ef; border-radius: 10px; background: #f8faff; line-height: 1.35; }
+  .training-evolution__review-item .training-evolution__badge { width: fit-content; max-width: 100%; white-space: normal; }
+  .training-evolution__review-label { min-width: 0; overflow-wrap: anywhere; }
+  .training-evolution__review-item .training-evolution__link { display: inline-flex; align-items: center; width: fit-content; max-width: 100%; min-height: 36px; margin-top: 2px; }
+  .training-evolution__group-chart > .training-evolution__chart-frame { display: none; }
+  .training-evolution__group-chart-mobile { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .training-evolution__group-chart-mobile li { display: grid; gap: 6px; min-width: 0; padding: 8px 0; border-bottom: 1px solid #e2e8f0; background: transparent; }
+  .training-evolution__group-chart-mobile li:last-child { border-bottom: 0; }
+  .training-evolution__group-chart-mobile-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 10px; min-width: 0; color: #263a5c; }
+  .training-evolution__group-chart-mobile-heading strong { overflow-wrap: anywhere; }
+  .training-evolution__group-chart-mobile-heading span { color: #52637d; font-size: .78rem; text-align: right; }
+  .training-evolution__group-chart-mobile-track { position: relative; display: block; height: 10px; border-radius: 999px; background: #e8edf5; }
+  .training-evolution__group-chart-mobile-track > span { display: block; height: 100%; border-radius: inherit; background: #1d4ed8; }
+  .training-evolution__group-chart-mobile-track > i { position: absolute; top: -3px; width: 3px; height: 18px; background: #b45309; transform: translateX(-50%); }
+}
+
+@media (max-width: 400px) {
+  .student-progress-page .training-evolution__table--student-next tr { grid-template-columns: minmax(0, 1fr); }
+  .student-progress-page .training-evolution__table--student-next td:first-child { grid-column: auto; }
+}

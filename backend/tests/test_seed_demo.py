@@ -441,3 +441,27 @@ def test_cli_reset_works_on_a_database_without_tables(tmp_path):
     for _ in range(2):  # base nueva y base ya poblada
         result = subprocess.run(command, env=env, cwd=tmp_path, capture_output=True, text=True, timeout=60, check=False)
         assert result.returncode == 0, result.stderr
+
+
+def test_seed_demo_adds_voided_and_reissued_payment_and_clean_removes_them():
+    """US-34: la demo trae un pago anulado con su corrección y la purga los elimina sin romper la FK."""
+    from backend.src.models.informal_payment import InformalPayment
+
+    db = create_test_db()
+    try:
+        stats = seed_demo_data(db, verbose=False)
+        payments = db.scalars(select(InformalPayment)).all()
+        assert stats["informal_payments"] == 2
+        assert {p.status for p in payments} == {"ANULADO", "CONFIRMADO"}
+        voided = next(p for p in payments if p.status == "ANULADO")
+        corrected = next(p for p in payments if p.status == "CONFIRMADO")
+        assert corrected.replaces_payment_id == voided.id
+        assert voided.void_reason
+
+        counts = clean_demo_data(db, verbose=False)
+        db.commit()
+        assert counts["informal_payments"] == 2
+        assert db.scalar(select(func.count(InformalPayment.id))) == 0
+        assert db.scalar(select(func.count(TrainingRelationship.id))) == 0
+    finally:
+        db.close()

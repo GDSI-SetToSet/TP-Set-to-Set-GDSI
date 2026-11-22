@@ -22,7 +22,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from sqlalchemy import inspect, select
+from sqlalchemy import delete, inspect, select
 from sqlalchemy.orm import Session
 
 from backend.src.core.config import APP_ENV
@@ -42,6 +42,7 @@ from backend.src.models.body_map_report import BodyMapPainReport, BodyMapPainRep
 from backend.src.models.effort_feedback import EffortFeedback
 from backend.src.models.exercise import Exercise
 from backend.src.models.health_questionnaire import HealthQuestionnaire
+from backend.src.models.informal_payment import InformalPayment
 from backend.src.models.medical_clearance import MedicalClearance
 from backend.src.models.notification import Notification
 from backend.src.models.personal_record import PersonalRecord
@@ -1473,6 +1474,80 @@ def _seed_workout_history(
             )
 
 
+def _seed_informal_payments(
+    db: Session,
+    trainer_map: dict[str, TrainerProfile],
+    student_map: dict[str, StudentProfile],
+    stats: dict[str, int],
+    now: datetime,
+) -> None:
+    """US-34: historial de pagos de Tomás con Gonzalo, con un pago anulado y su corrección.
+
+    Idempotente: solo siembra si el vínculo todavía no tiene pagos.
+    """
+    stats.setdefault("informal_payments", 0)
+    trainer = trainer_map.get("trainer_gonzalo")
+    student = student_map.get("student_tomas")
+    if trainer is None or student is None:
+        return
+    relationship = db.scalar(
+        select(TrainingRelationship).where(
+            TrainingRelationship.trainer_id == trainer.id,
+            TrainingRelationship.student_id == student.id,
+            TrainingRelationship.status == "ACTIVE",
+        )
+    )
+    if relationship is None:
+        return
+    existing = db.scalars(
+        select(InformalPayment.id).where(InformalPayment.relationship_id == relationship.id)
+    ).all()
+    if existing:
+        stats["informal_payments"] += len(existing)
+        return
+
+    registered_by = trainer.user_id
+    today = now.date()
+    base = {
+        "relationship_id": relationship.id,
+        "trainer_id": trainer.id,
+        "student_id": student.id,
+        "currency": relationship.agreed_currency,
+        "registered_by_user_id": registered_by,
+    }
+    monthly = relationship.agreed_monthly_price
+    voided = InformalPayment(
+        **base,
+        paid_on=today - timedelta(days=2),
+        amount=(monthly / 10).quantize(Decimal("0.01")),
+        method="TRANSFERENCIA",
+        months_covered=1,
+        status="ANULADO",
+        note="Transferencia del mes siguiente.",
+        created_at=now - timedelta(days=2),
+        voided_at=now - timedelta(days=2, minutes=-10),
+        voided_by_user_id=registered_by,
+        void_reason="Monto mal cargado: faltó un cero.",
+    )
+    db.add(voided)
+    db.flush()
+    db.add(
+        InformalPayment(
+            **base,
+            paid_on=today - timedelta(days=2),
+            amount=monthly,
+            method="TRANSFERENCIA",
+            months_covered=1,
+            status="CONFIRMADO",
+            note="Transferencia del mes siguiente.",
+            created_at=now - timedelta(days=2, minutes=-11),
+            replaces_payment_id=voided.id,
+        )
+    )
+    db.flush()
+    stats["informal_payments"] += 2
+
+
 def seed_demo_data(
     db: Session,
     verbose: bool = True,
@@ -1837,6 +1912,7 @@ def seed_demo_data(
     _seed_routines(db, trainer_map, student_map, stats, now)
     _seed_workout_history(db, trainer_map, student_map, stats, now)
     _seed_evolution_history(db, trainer_map, student_map, stats, now)
+    _seed_informal_payments(db, trainer_map, student_map, stats, now)
 
     db.commit()
 
@@ -1862,6 +1938,7 @@ def seed_demo_data(
         print(f" • Reportes de molestias:  {stats['body_map_reports']}")
         print(f" • Devoluciones RPE:       {stats['effort_feedback']}")
         print(f" • Récords personales:     {stats['personal_records']}")
+        print(f" • Pagos informales:       {stats.get('informal_payments', 0)}")
         print("=" * 70)
 
     return stats
@@ -1894,6 +1971,7 @@ def clean_demo_data(db: Session, verbose: bool = True) -> dict[str, int]:
 
     counts = {
         "notifications": 0,
+        "informal_payments": 0,
         "relationships": 0,
         "requests": 0,
         "plans": 0,
@@ -1924,6 +2002,20 @@ def clean_demo_data(db: Session, verbose: bool = True) -> dict[str, int]:
             ).all():
                 db.delete(rcl)
             db.delete(sr)
+
+    # 2a. Pagos informales de vínculos demo (US-34). Excepción documentada en el plan de la
+    # feature 011: la app nunca borra pagos, pero la purga de la demo elimina todo su grafo.
+    # El DELETE masivo no dispara el guard before_delete del ORM y se limita a usuarios demo.
+    if student_ids or trainer_ids:
+        result = db.execute(
+            delete(InformalPayment)
+            .where(
+                (InformalPayment.student_id.in_(student_ids))
+                | (InformalPayment.trainer_id.in_(trainer_ids))
+            )
+            .execution_options(synchronize_session=False)
+        )
+        counts["informal_payments"] = result.rowcount or 0
 
     # 2b. Vínculos activos / históricos de demo
     if student_ids or trainer_ids:
@@ -2042,6 +2134,7 @@ def clean_demo_data(db: Session, verbose: bool = True) -> dict[str, int]:
         print(f" • Paquetes eliminados:         {counts['plans']}")
         print(f" • Solicitudes eliminadas:      {counts['requests']}")
         print(f" • Vínculos eliminados:         {counts['relationships']}")
+        print(f" • Pagos demo eliminados:       {counts['informal_payments']}")
         print(f" • Cuestionarios eliminados:    {counts['health_questionnaires']}")
         print(f" • Zonas a proteger eliminadas: {counts['protected_zones']}")
         print(f" • Aptos médicos eliminados:    {counts['medical_clearances']}")

@@ -1,5 +1,7 @@
 # Investigación: US-65
 
+> **Rediseño (T020–T029):** este documento describe la versión inicial (volumen semanal, PR por mayor peso, filtros de fecha). Vigente: `spec.md` (FR-001 a FR-002), `data-model.md` y `contracts/`.
+
 ## D1 — Historial de PRs derivado de las series, no de `PersonalRecord`
 - **Decisión** (consulta acotada solo por `student_id`, sin filtrar por vínculo ni sesión finalizada, para que el historial sobreviva a un cambio de entrenador): calcular el historial recorriendo los `WorkoutSetLog` con peso > 0 del alumno, por ejercicio y en orden de `recorded_at`; una serie es PR si su peso supera **estrictamente** el máximo acumulado previo del mismo ejercicio. La primera serie con peso de un ejercicio es el PR inicial (`is_initial = true`, coherente con `is_initial_pr` de US-59).
 - **Rationale**: `PersonalRecord` tiene unicidad (alumno, ejercicio) y se sobrescribe, así que solo conserva el último récord; la spec pide lista cronológica con fecha de cada PR. Derivar evita migración y el caso de logs borrados (el delete de US-59 ya recalcula el vigente; el historial derivado se corrige solo).

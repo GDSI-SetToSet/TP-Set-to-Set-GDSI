@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, Check, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { USER_ROLES } from '../constants/auth';
-import { ROUTES, trainerNotificationPath } from '../constants/routes';
+import { studentNotificationPath, trainerNotificationPath } from '../constants/routes';
 import { useAuth } from '../context/AuthContext';
 import { getNotifications, markNotificationAsRead } from '../services/discoveryService';
 import type { NotificationItem } from '../types/discovery';
@@ -91,7 +91,7 @@ export function NotificationBell({ onNotificationClick }: NotificationBellProps)
     } else if (user?.role === USER_ROLES.trainer) {
       navigate(trainerNotificationPath(notif));
     } else if (user?.role === USER_ROLES.student) {
-      navigate(notif.type === 'EFFORT_FEEDBACK' ? ROUTES.studentRoutines : ROUTES.studentActivePlans);
+      navigate(studentNotificationPath(notif));
     }
   }
 
@@ -104,7 +104,10 @@ export function NotificationBell({ onNotificationClick }: NotificationBellProps)
   );
 
   return (
-    <div className="notification-bell-container" ref={containerRef}>
+    <div
+      className={`notification-bell-container${user?.role === USER_ROLES.student ? ' notification-bell-container--student' : user?.role === USER_ROLES.trainer ? ' notification-bell-container--trainer' : ''}`}
+      ref={containerRef}
+    >
       <button
         type="button"
         className="notification-bell-btn"

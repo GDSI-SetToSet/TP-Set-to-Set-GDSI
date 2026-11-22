@@ -1,0 +1,270 @@
+/* US-34: Suscripciones y pagos informales (vista del entrenador). */
+
+.subscriptions__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 20px 0 16px;
+}
+.subscriptions__filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.subscriptions__filter,
+.subscriptions__refresh {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--pf-input-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--pf-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.subscriptions__refresh { border-radius: 10px; }
+.subscriptions__filter.is-active { border-color: var(--pf-accent); background: var(--pf-ok-bg); color: var(--pf-ok-text); }
+.subscriptions__filter:focus-visible,
+.subscriptions__refresh:focus-visible,
+.subscriptions__close:focus-visible,
+.trainer-student-detail__payments-link:focus-visible { outline: 3px solid var(--pf-focus); outline-offset: 2px; }
+.subscriptions__refresh:disabled { opacity: .6; cursor: default; }
+.subscriptions__count {
+  min-width: 24px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--pf-arch-badge, #dde3dc);
+  color: var(--pf-ink);
+  font-size: .8rem;
+  text-align: center;
+}
+
+.subscriptions__list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.subscription-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--pf-border);
+  border-left-width: 5px;
+  border-radius: 12px;
+  background: #fff;
+}
+.subscription-row--vencida { border-left-color: #b42318; }
+.subscription-row--por_vencer { border-left-color: #b7791f; }
+.subscription-row--al_dia { border-left-color: var(--pf-accent); }
+.subscription-row.is-selected { box-shadow: 0 0 0 3px var(--pf-focus); }
+.subscription-row p { margin: 0; }
+.subscription-row__name { color: var(--pf-ink); font-weight: 700; }
+.subscription-row__plan,
+.subscription-row__dates { color: var(--pf-muted); font-size: .9rem; }
+.subscription-row__dates strong { color: var(--pf-ink); }
+.subscription-row__status { display: grid; gap: 4px; justify-items: end; text-align: right; }
+.subscription-row__due { color: var(--pf-muted); font-size: .85rem; }
+.subscription-row__actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.subscription-row__actions .profile-save,
+.subscription-row__actions .plan-cancel,
+.payment-item__actions .plan-cancel { display: inline-flex; gap: 6px; align-items: center; min-height: 44px; padding: 0 14px; }
+
+/* Contraste ≥ 4.5:1 en las tres insignias; el estado siempre se acompaña con texto. */
+.subscription-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: .8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.subscription-badge--vencida { background: #fde2e1; color: #8a1c13; }
+.subscription-badge--por_vencer { background: #fff0bd; color: #6b4b00; }
+.subscription-badge--al_dia { background: var(--pf-ok-bg); color: var(--pf-ok-text); }
+
+.subscriptions__history { position: relative; margin-top: 18px; }
+.subscriptions__close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--pf-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--pf-ink);
+  cursor: pointer;
+}
+
+.payment-history__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-right: 52px;
+}
+.payment-history__header h2 { margin: 0; color: var(--pf-ink); }
+.payment-history__header .profile-save { padding: 0 16px; }
+.payment-history__meta { margin: 4px 0 0; color: var(--pf-muted); }
+.payment-history__summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0;
+}
+.payment-history__summary div { padding: 12px; border: 1px solid var(--pf-border); border-radius: 12px; }
+.payment-history__summary dt { color: var(--pf-muted); font-size: .8rem; }
+.payment-history__summary dd { margin: 4px 0 0; color: var(--pf-ink); font-weight: 700; }
+.payment-history__subtitle { margin: 18px 0 10px; color: var(--pf-ink); font-size: 1rem; }
+.payment-history__notice {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--pf-border);
+  border-radius: 12px;
+  background: var(--pf-bg);
+}
+.payment-history__notice p { margin: 0; color: var(--pf-ink); }
+.payment-history__notice-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.payment-history__notice-actions .profile-save,
+.payment-history__notice-actions .plan-cancel { display: inline-flex; gap: 6px; align-items: center; min-height: 44px; padding: 0 14px; }
+
+.payment-history__list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.payment-item {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border: 1px solid var(--pf-border);
+  border-radius: 12px;
+}
+.payment-item p { margin: 0; }
+.payment-item__main { display: grid; gap: 3px; min-width: 0; }
+.payment-item__amount { display: flex; gap: 8px; align-items: center; color: var(--pf-ink); font-weight: 700; }
+.payment-item__detail { color: var(--pf-body, #3d5047); }
+.payment-item__audit,
+.payment-item__link { color: var(--pf-muted); font-size: .85rem; }
+.payment-item__note { color: var(--pf-body, #3d5047); font-size: .9rem; font-style: italic; overflow-wrap: anywhere; }
+.payment-item--voided { background: #f7f7f5; }
+.payment-item--voided .payment-item__amount del { color: var(--pf-muted); }
+.payment-item__tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e7e7e2;
+  color: #3b3b36;
+  font-size: .75rem;
+}
+.payment-item__void { color: #8a1c13; font-size: .85rem; overflow-wrap: anywhere; }
+.payment-item__actions { display: flex; align-items: flex-start; }
+
+.payment-dialog__form { display: grid; gap: 14px; }
+.payment-dialog__row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.payment-dialog__form select,
+.payment-dialog__form input,
+.payment-dialog__form textarea { min-height: 44px; font-size: 16px; }
+.payment-dialog__replaces { margin-top: 6px; font-weight: 700; }
+.payment-dialog__actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.payment-dialog__actions .profile-save,
+.payment-dialog__actions .plan-cancel,
+.payment-dialog__actions .inbox-action-btn { min-height: 44px; padding: 0 18px; }
+
+.trainer-student-detail__payments-link {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 44px;
+  color: var(--pf-link);
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .subscription-row { grid-template-columns: minmax(0, 1fr); }
+  .subscription-row__status { justify-items: start; text-align: left; }
+  .subscription-row__actions { justify-content: flex-start; }
+  .subscription-row__actions .profile-save,
+  .subscription-row__actions .plan-cancel { flex: 1 1 160px; justify-content: center; }
+  .payment-history__summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .payment-item { flex-direction: column; }
+  .payment-dialog__row { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── US-71: pagos informados, avisos y bloqueo ── */
+.payment-item__actions { flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.payment-item__actions .profile-save { display: inline-flex; gap: 6px; align-items: center; min-height: 44px; padding: 0 14px; }
+.payment-item--pending { border-color: #e2b34d; background: #fffaf0; }
+.payment-item__tag--pending { background: #fff0bd; color: #6b4b00; }
+.payment-item__tag--rejected { background: #fde2e1; color: #8a1c13; }
+.subscription-row__pending {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fff0bd;
+  color: #6b4b00;
+  font-size: .78rem;
+  font-weight: 700;
+}
+.payment-dialog__hint { color: var(--pf-muted, #52665b); }
+.payment-dialog__notice {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f1f4f8;
+  color: #304664;
+  font-size: .9rem;
+}
+
+.subscription-alert {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 1px solid #e2b34d;
+  border-left-width: 5px;
+  border-radius: 12px;
+  background: #fffaf0;
+  color: #3d2c00;
+}
+.subscription-alert--expired { border-color: #d98b84; background: #fdf1f0; color: #5c140d; }
+.subscription-alert > div,
+.subscription-alert > p { flex: 1 1 260px; margin: 0; }
+.subscription-alert p { margin: 0; }
+.subscription-alert__link {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 44px;
+  color: inherit;
+  font-weight: 700;
+}
+.subscription-alert__link:focus-visible { outline: 3px solid rgba(92, 20, 13, .25); outline-offset: 2px; }
+
+.active-plan-card__subscription {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1rem;
+  padding: 14px 16px;
+  border: 1px solid #dfe6dd;
+  border-left: 5px solid #397050;
+  border-radius: 12px;
+  text-align: left;
+}
+.active-plan-card__subscription--por_vencer { border-left-color: #b7791f; background: #fffaf0; }
+.active-plan-card__subscription--vencida { border-left-color: #b42318; background: #fdf1f0; }
+.active-plan-card__due { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 0; color: #173a32; }
+.active-plan-card__due-note { margin: 6px 0 0; color: #3d5047; font-size: .9rem; }
+.active-plan-card__subscription-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.active-plan-card__subscription-actions .profile-save,
+.active-plan-card__subscription-actions .plan-cancel { min-height: 44px; padding: 0 16px; }
+
+.routine-locked__pending { font-weight: 700; }
+.routine-locked__actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.routine-locked__actions .profile-cta,
+.routine-locked__actions .plan-cancel { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; text-decoration: none; }

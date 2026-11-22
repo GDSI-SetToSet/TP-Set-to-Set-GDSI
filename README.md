@@ -54,8 +54,8 @@ Los archivos de configuración y las especificaciones compartidas forman parte d
 ### Rutas del Frontend (`frontend/src/constants/routes.ts` y `frontend/src/App.tsx`)
 
 - **Autenticación (`001`):** `/login`, `/registro`, `/olvide-mi-contrasena`, `/restablecer-contrasena`, `/inicio`
-- **Entrenador (`002` / `004` / `005` / `006` / `009`):** `/entrenador/inicio`, `/entrenador/perfil`, `/entrenador/paquetes`, `/entrenador/ejercicios`, `/entrenador/rutinas`, `/entrenador/rutinas/generar-ia`, `/entrenador/alumnos`, `/entrenador/alumnos/:studentId/rutina`, `/entrenador/rutinas-del-dia`, `/entrenador/solicitudes`, `/entrenador/solicitudes/:requestId`
-- **Alumno (`003` / `004` / `005`):** `/alumno/inicio`, `/alumno/perfil`, `/alumno/salud`, `/alumno/zonas-a-proteger`, `/alumno/apto-medico`, `/alumno/buscar-entrenadores`, `/entrenadores/:trainerId`, `/entrenadores/:trainerId/solicitar`, `/alumno/mis-solicitudes`, `/alumno/mis-entrenamientos`, `/alumno/rutinas`, `/alumno/evolucion`
+- **Entrenador (`002` / `004` / `005` / `006` / `009` / `011`):** `/entrenador/inicio`, `/entrenador/perfil`, `/entrenador/paquetes`, `/entrenador/ejercicios`, `/entrenador/rutinas`, `/entrenador/rutinas/generar-ia`, `/entrenador/alumnos`, `/entrenador/alumnos/:studentId/rutina`, `/entrenador/rutinas-del-dia`, `/entrenador/suscripciones`, `/entrenador/mensajes`, `/entrenador/consultas`, `/entrenador/solicitudes`, `/entrenador/solicitudes/:requestId`
+- **Alumno (`003` / `004` / `005` / `008` / `009`):** `/alumno/inicio`, `/alumno/mensajes`, `/alumno/perfil`, `/alumno/salud`, `/alumno/zonas-a-proteger`, `/alumno/apto-medico`, `/alumno/buscar-entrenadores`, `/entrenadores/:trainerId`, `/entrenadores/:trainerId/solicitar`, `/alumno/mis-solicitudes`, `/alumno/mis-entrenamientos`, `/alumno/rutinas`, `/alumno/evolucion`
 
 ### Endpoints principales de la API (`backend/src/api/v1/`)
 
@@ -148,7 +148,7 @@ Para reiniciar los datos de demostración (limpieza y re-sembrado en un paso):
 python backend/scripts/seed_demo.py --reset
 ```
 
-> **Credenciales locales:** En desarrollo, todas las cuentas de prueba comparten `DemoPassword123!` y pertenecen al dominio `@demo.settoset.com` (ej. `lucas.benitez@demo.settoset.com`, `mateo.gomez@demo.settoset.com`). En producción se usa el valor protegido de `DEMO_SEED_PASSWORD`.
+> **Credenciales locales:** Todas las cuentas de prueba pertenecen al dominio `@demo.settoset.com` (ej. `lucas.benitez@demo.settoset.com`, `mateo.gomez@demo.settoset.com`) y comparten una contraseña común. Pedísela al equipo; en producción se usa el valor protegido de `DEMO_SEED_PASSWORD`.
 
 #### Ejecución contra producción
 
@@ -198,7 +198,7 @@ GEMINI_TIMEOUT_SECONDS=30
 
 1. Sembrar los perfiles ficticios de demostración (`python backend/scripts/seed_demo.py`).
 2. Levantar el backend (`uvicorn backend.src.main:app --reload`) y el frontend (`cd frontend && npm run dev`).
-3. Iniciar sesión como entrenador de demostración con vínculo activo (por ejemplo, `mariana.vega@demo.settoset.com` o `gonzalo.morales@demo.settoset.com` con contraseña `DemoPassword123!`), crear al menos una rutina genérica en `/entrenador/rutinas` y dirigirse a `/entrenador/rutinas/generar-ia`.
+3. Iniciar sesión como entrenador de demostración con vínculo activo (por ejemplo, `mariana.vega@demo.settoset.com` o `gonzalo.morales@demo.settoset.com`, con la contraseña de las cuentas demo), crear al menos una rutina genérica en `/entrenador/rutinas` y dirigirse a `/entrenador/rutinas/generar-ia`.
 4. Seleccionar el alumno activo ficticio y la rutina base, y presionar **Generar propuesta de rutina con IA**.
 5. Revisar el resumen de adaptaciones (`KEEP`, `REPLACE`, `REMOVE`) y aprobar explícitamente la rutina para asignarla al alumno sin modificar la plantilla genérica original.
 6. Opcionalmente, para verificar la conexión con Gemini desde consola sin levantar el frontend, ejecutar la prueba manual de humo (separada de la suite de `pytest`):

@@ -222,6 +222,9 @@
 .routine-assignment__detail {
   grid-column: 1 / -1;
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   scroll-margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid #e6ebf3;
@@ -230,9 +233,14 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 .trainer-student-detail__grid article {
   min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 20px;
   border: 1px solid #e4eaf2;
   border-radius: 12px;
@@ -275,8 +283,8 @@
   font-size: 16px;
 }
 .trainer-student-detail__grid h3 svg { color: #60738d; }
-.trainer-student-detail__grid p { display: flex; align-items: flex-start; gap: 6px; margin: 8px 0; color: #475569; line-height: 1.5; }
-.trainer-student-detail__grid ul { margin: 0; padding-left: 18px; color: #475569; }
+.trainer-student-detail__grid p { display: flex; align-items: flex-start; gap: 6px; min-width: 0; margin: 8px 0; color: #475569; line-height: 1.5; overflow-wrap: anywhere; }
+.trainer-student-detail__grid ul { margin: 0; padding-left: 18px; color: #475569; overflow-wrap: anywhere; }
 .trainer-student-detail__metrics { grid-column: span 2; }
 .trainer-student-detail__metric-list {
   display: grid;
@@ -289,14 +297,30 @@
   gap: 3px;
   padding: 12px;
   border-radius: 9px;
-  background: #f4f8f4;
+  background: #f1f5fb;
 }
-.trainer-student-detail__metric-list strong { color: #244e38; font-size: 25px; line-height: 1; }
-.trainer-student-detail__metric-list span { color: #537061; font-size: 12px; font-weight: 700; }
+.trainer-student-detail__metric-list strong { color: #1f3a68; font-size: 25px; line-height: 1; }
+.trainer-student-detail__metric-list span { color: #4a5f80; font-size: 12px; font-weight: 700; }
 @media (max-width: 700px) {
   .trainer-student-detail__grid { grid-template-columns: 1fr; }
   .trainer-student-detail__metrics { grid-column: auto; }
   .trainer-student-detail__metric-list { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .routine-assignment__detail { padding-top: 12px; }
+  .routine-assignment__detail > *,
+  .trainer-student-detail,
+  .trainer-student-detail__grid > * { min-width: 0; max-width: 100%; }
+  .trainer-student-detail { width: 100%; }
+  .trainer-student-detail__heading { align-items: stretch; flex-direction: column; gap: 10px; }
+  .trainer-student-detail__heading > div,
+  .trainer-student-detail__heading p { width: 100%; }
+  .trainer-student-detail__close,
+  .trainer-student-detail__terminate { justify-content: center; width: 100%; }
+  .trainer-student-detail__grid { gap: 12px; }
+  .trainer-student-detail__grid article { padding: 16px; }
+  .trainer-student-detail__metric-list div { min-width: 0; }
 }
 .routine-assignment__attention {
   display: inline-flex;
@@ -647,3 +671,35 @@
 @media (max-width: 700px) {
   .trainer-student-detail__safety-alerts { grid-column: auto; }
 }
+
+/* US-35: dar de baja al alumno */
+.trainer-student-detail__terminate {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid #e3b5b0;
+  border-radius: 10px;
+  background: #fff;
+  color: #8a1c13;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.trainer-student-detail__terminate:hover { background: #fdecea; }
+.trainer-student-detail__terminate:focus-visible,
+.termination-dialog__option input:focus-visible { outline: 3px solid rgba(138, 28, 19, .25); outline-offset: 2px; }
+.termination-dialog__effects { margin-top: 12px; color: #3d5047; font-size: .92rem; }
+.termination-dialog__effects p { margin: 0 0 6px; }
+.termination-dialog__effects ul { margin: 0; padding-left: 20px; }
+.termination-dialog__categories { display: grid; gap: 4px; margin: 0; padding: 0; border: 0; }
+.termination-dialog__categories legend { margin-bottom: 6px; color: #273d33; font-weight: 700; }
+/* Más específico que `.profile-form label` / `.profile-form input`, que son grilla y min-height 44px. */
+.profile-form .termination-dialog__option { display: flex; gap: 12px; align-items: center; min-height: 44px; cursor: pointer; }
+.profile-form .termination-dialog__option input { width: 20px; height: 20px; min-height: 0; margin: 0; }
+.termination-dialog__hint { color: #52665b; }
+.termination-dialog__actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.termination-dialog__actions .inbox-action-btn,
+.termination-dialog__actions .plan-cancel { min-height: 44px; padding: 0 18px; }

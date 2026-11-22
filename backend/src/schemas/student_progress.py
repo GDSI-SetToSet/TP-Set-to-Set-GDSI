@@ -1,62 +1,106 @@
-"""US-65: evolución del alumno (solo lectura)."""
+"""US-65: evolución del alumno (solo lectura). Sin porcentajes ni estados de alerta: el frontend arma las frases."""
 
-from datetime import date, datetime
+from datetime import date
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel
 
+from backend.src.schemas.trainer_student import AdherenceWeek, SetResult
 
-class ProgressRange(BaseModel):
-    from_: date = Field(alias="from")
-    to: date
-    is_default: bool
-
-    model_config = ConfigDict(populate_by_name=True)
+MESSAGE_KEYS = (
+    "weight_increased", "reps_increased", "no_change", "below_best", "bodyweight_reps_increased", "few_data",
+)
 
 
-class LoadPoint(BaseModel):
+class ProgressPeriod(BaseModel):
+    key: str
+    start: date | None = None
+    end: date
+
+
+class StreakSummary(BaseModel):
+    current_weeks: int
+    best_weeks: int
+
+
+class ProgressSummary(BaseModel):
+    improving_exercises_last_4w: int
+    streak: StreakSummary
+    records_in_period: int
+
+
+class ExercisePoint(BaseModel):
     date: date
-    weight_kg: float
-    reps: str
+    weight: float | None = None
+    reps: int
+    target_weight: float | None = None
     is_pr: bool
 
 
-class ExerciseLoad(BaseModel):
+class ExerciseEvolution(BaseModel):
     exercise_id: str
     name: str
     muscle_group: str
-    has_trend: bool  # al menos 2 puntos
-    points: list[LoadPoint]
+    metric: str  # "max_weight" | "max_reps"
+    start: SetResult
+    current: SetResult
+    best: SetResult
+    message_key: str
+    weeks_without_change: int
+    last_improvement_is_pr: bool
+    points: list[ExercisePoint]
 
 
-class WeeklyVolume(BaseModel):
-    week_start: date
-    week_end: date
-    volume_kg: float
-    is_partial: bool
-
-
-class WeekComparison(BaseModel):
-    current_volume_kg: float
-    previous_volume_kg: float
-    delta_vs_previous_pct: float | None = None
-    previous_avg_kg: float
-
-
-class PersonalRecordEntry(BaseModel):
+class RecordEntry(BaseModel):
+    date: date
     exercise_id: str
-    exercise_name: str
-    weight_kg: float
+    name: str
+    weight: float | None = None
+    reps: int
+    previous: SetResult
+
+
+class NewExercise(BaseModel):
+    exercise_id: str
+    name: str
+    first_date: date
+
+
+class NextExercise(BaseModel):
+    exercise_id: str
+    name: str
+    last: SetResult | None = None  # None: primera vez
+    target_weight: float | None = None
     reps: str
-    achieved_at: datetime
-    previous_weight_kg: float | None = None
-    is_initial: bool
+    sets: int
+    adjusted_by_trainer: bool
+    trainer_note: str | None = None
+
+
+class NextSession(BaseModel):
+    day_name: str
+    trainer_feedback: str | None = None
+    exercises: list[NextExercise]
 
 
 class StudentProgress(BaseModel):
-    range: ProgressRange
+    period: ProgressPeriod
+    muscle_group: str | None = None
     muscle_groups: list[str]
-    has_data: bool
-    exercises: list[ExerciseLoad]
-    weekly_volume: list[WeeklyVolume]
-    week_comparison: WeekComparison
-    personal_records: list[PersonalRecordEntry]
+    has_sessions: bool
+    summary: ProgressSummary
+    exercises: list[ExerciseEvolution]
+    consistency: list[AdherenceWeek]
+    records: list[RecordEntry]
+    new_exercises: list[NewExercise]
+    next_session: NextSession | None = None
+
+
+class TrainingStreak(BaseModel):
+    """US-68: racha de semanas cumplidas (calculada, no persistida)."""
+
+    has_routine: bool
+    weekly_target: int
+    current_weeks: int
+    max_weeks: int
+    this_week_sessions: int
+    week_start: date

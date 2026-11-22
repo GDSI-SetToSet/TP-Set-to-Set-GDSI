@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import (
     APIRouter,
@@ -7,7 +7,6 @@ from fastapi import (
     File,
     Form,
     HTTPException,
-    Query,
     UploadFile,
     status,
 )
@@ -33,7 +32,7 @@ from backend.src.schemas.student_health import (
     HealthQuestionnaireInput,
     HealthQuestionnaireResponse,
 )
-from backend.src.schemas.student_progress import StudentProgress
+from backend.src.schemas.student_progress import StudentProgress, TrainingStreak
 from backend.src.services.safety_alert_service import (
     SafetyAlertError,
     list_student_reviewed_pain_notices,
@@ -90,17 +89,27 @@ def own_profile(user: CurrentUser, db: DbDep) -> StudentProfileResponse:
         handle_error(error)
 
 
-@router.get("/me/progress", response_model=StudentProgress, response_model_by_alias=True)
+@router.get("/me/streak", response_model=TrainingStreak)
+def own_training_streak(user: CurrentUser, db: DbDep) -> TrainingStreak:
+    """US-68: racha actual, racha máxima y avance de la semana; avisa si la última semana cortó la racha."""
+    from backend.src.services.streak_service import get_student_streak
+    from backend.src.services.trainer_student_service import TrainerStudentError
+
+    try:
+        return get_student_streak(db, user)
+    except TrainerStudentError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+
+
+@router.get("/me/progress", response_model=StudentProgress)
 def own_progress(
     user: CurrentUser,
     db: DbDep,
-    exercise_id: str | None = None,
+    period: Literal["4w", "12w", "all"] = "12w",
     muscle_group: str | None = None,
-    from_: Annotated[date | None, Query(alias="from")] = None,
-    to: date | None = None,
 ) -> StudentProgress:
     try:
-        return get_student_progress(db, user, exercise_id, muscle_group, from_, to)
+        return get_student_progress(db, user, period, muscle_group)
     except StudentProfileError as error:
         handle_error(error)
 
