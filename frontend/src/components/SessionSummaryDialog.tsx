@@ -6,6 +6,7 @@ import type { ReportZoneInput } from '../types/bodyMapReport';
 import { createBodyMapReport } from '../services/bodyMapReportService';
 import { reportWorkoutSessionRpe, getWorkoutSessionSummary } from '../services/routineTemplateService';
 import type { WorkoutSession, WorkoutSessionSummary } from '../types/routineTemplate';
+import { formatPersonalRecordMark, formatPersonalRecordPreviousMark } from '../pages/studentRoutineSessionState.mjs';
 import { shouldPromptForRpe } from '../utils/sessionRpeState.mjs';
 import '../styles/session-summary.css';
 
@@ -156,15 +157,22 @@ export function SessionSummaryDialog({ sessionId, onClose, onRpeSaved, onZonesRe
             <section className="session-summary__prs" aria-labelledby="session-summary-prs-title">
               <h3 id="session-summary-prs-title"><Trophy size={18} aria-hidden="true" /> {summary.personal_records.length === 1 ? 'Nuevo récord personal' : `${summary.personal_records.length} récords personales`}</h3>
               <ul>
-                {summary.personal_records.map((record) => (
-                  <li key={record.exercise_id}>
-                    <strong>{record.exercise_name}</strong>
-                    <span>
-                      {formatKg(record.weight_kg)} kg × {record.reps_completed}
-                      {record.previous_weight_kg === null ? ' · primer récord' : ` · antes ${formatKg(record.previous_weight_kg)} kg`}
-                    </span>
-                  </li>
-                ))}
+                {summary.personal_records.map((record) => {
+                  const previousMark = formatPersonalRecordPreviousMark({
+                    weightKg: record.weight_kg,
+                    previousWeightKg: record.previous_weight_kg,
+                    previousReps: record.previous_reps ?? null,
+                  });
+                  return (
+                    <li key={record.exercise_id}>
+                      <strong>{record.exercise_name}</strong>
+                      <span>
+                        {formatPersonalRecordMark(record.weight_kg, record.reps_completed)}
+                        {previousMark === null ? ' · primer récord' : ` · antes ${previousMark}`}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           )}

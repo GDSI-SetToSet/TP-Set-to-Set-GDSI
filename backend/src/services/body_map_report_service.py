@@ -369,18 +369,6 @@ def create_body_map_report(
                 "Tu vínculo con este entrenador ya no está activo.",
             )
         relationship = session_relationship
-    elif relationship is None:
-        has_terminated = db.scalar(
-            select(TrainingRelationship.id).where(
-                TrainingRelationship.student_id == profile.id,
-                TrainingRelationship.status == "TERMINATED",
-            )
-        )
-        if has_terminated is not None:
-            raise BodyMapReportError(
-                status.HTTP_409_CONFLICT,
-                "Tu vínculo con este entrenador ya no está activo.",
-            )
     relationship_id = relationship.id if relationship else None
 
     # 5. Evaluación de variante segura si aplica

@@ -70,6 +70,7 @@ class WorkoutSetLog(Base):
     is_personal_record: ClassVar[bool] = False
     is_initial_pr: ClassVar[bool] = False
     pr_previous_weight_kg: ClassVar[float | None] = None
+    pr_previous_reps: ClassVar[int | None] = None
 
 
 class WorkoutSessionSnapshot(Base):

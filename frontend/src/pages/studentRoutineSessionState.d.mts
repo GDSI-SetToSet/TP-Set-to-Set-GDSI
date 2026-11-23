@@ -51,3 +51,9 @@ export function resolveWorkoutHistoryRoutineId(
   workoutSessions: Array<{ routine_id?: string | null; finished_at?: string | null }>,
   workoutLogs: Array<{ routine_id?: string | null }>,
 ): string | null;
+export function formatPersonalRecordMark(weightKg: number, reps: string | number): string;
+export function formatPersonalRecordPreviousMark(input: {
+  weightKg: number;
+  previousWeightKg: number | null | undefined;
+  previousReps?: number | null | undefined;
+}): string | null;

@@ -10,6 +10,7 @@ Regla única del dominio (US-65 FR-001a):
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -70,12 +71,18 @@ def load_student_logs(
     student_id: str,
     *,
     exercise_id: str | None = None,
+    exercise_ids: Iterable[str] | None = None,
     finished_only: bool = False,
 ) -> list[WorkoutSetLog]:
     """Carga cronológica de series del alumno (opcionalmente filtrada a sesiones finalizadas o sin sesión)."""
     stmt = select(WorkoutSetLog).where(WorkoutSetLog.student_id == student_id)
     if exercise_id is not None:
         stmt = stmt.where(WorkoutSetLog.exercise_id == exercise_id)
+    if exercise_ids is not None:
+        ids = list(exercise_ids)
+        if not ids:
+            return []
+        stmt = stmt.where(WorkoutSetLog.exercise_id.in_(ids))
     if finished_only:
         stmt = stmt.outerjoin(WorkoutSession, WorkoutSetLog.session_id == WorkoutSession.id).where(
             WorkoutSetLog.session_id.is_(None) | WorkoutSession.finished_at.is_not(None)

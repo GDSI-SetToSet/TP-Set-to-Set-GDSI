@@ -17,6 +17,8 @@ import {
 import {
   canStartExerciseSet,
   elapsedSessionSeconds,
+  formatPersonalRecordMark,
+  formatPersonalRecordPreviousMark,
   parseSessionTimestamp,
   resolveEffectiveExercise,
   resolveRoutineAccessState,
@@ -127,6 +129,7 @@ interface PersonalRecordAlert {
   weightKg: number;
   reps: string;
   previousWeightKg: number | null;
+  previousReps: number | null;
   isInitial: boolean;
   sessionId: string | null;
   dayName: string;
@@ -929,6 +932,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
           weightKg: created.weight_kg ?? parsedWeight ?? 0,
           reps: created.reps_completed,
           previousWeightKg: created.pr_previous_weight_kg ?? null,
+          previousReps: created.pr_previous_reps ?? null,
           isInitial: false,
           sessionId: created.session_id,
           dayName: created.day_name,
@@ -1205,7 +1209,14 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                   <div className="student-routine-pr-banner__text">
                     <strong>¡Nuevo récord personal (PR)!</strong>
                     <p>
-                      Superaste tu récord anterior en {prAlertBanner.exerciseName}: lograste {prAlertBanner.weightKg} kg ({prAlertBanner.reps} reps){prAlertBanner.previousWeightKg !== null ? ` (superando tu marca previa de ${prAlertBanner.previousWeightKg} kg)` : ''}. ¡Tu entrenador ya fue avisado!
+                      {(() => {
+                        const prev = formatPersonalRecordPreviousMark({
+                          weightKg: prAlertBanner.weightKg,
+                          previousWeightKg: prAlertBanner.previousWeightKg,
+                          previousReps: prAlertBanner.previousReps,
+                        });
+                        return `Superaste tu récord anterior en ${prAlertBanner.exerciseName}: lograste ${formatPersonalRecordMark(prAlertBanner.weightKg, prAlertBanner.reps)}${prev ? ` (superando tu marca previa de ${prev})` : ''}. ¡Tu entrenador ya fue avisado!`;
+                      })()}
                     </p>
                   </div>
                 </div>
@@ -1583,18 +1594,25 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
               <h2 id="pr-celebration-title">¡Nuevo récord personal!</h2>
               <p className="workout-pr-exercise-name">{prCelebration.exerciseName}</p>
               <div className="workout-pr-stat-box">
-                <span className="workout-pr-stat-weight">{prCelebration.weightKg} kg</span>
-                <span className="workout-pr-stat-reps">{prCelebration.reps} reps</span>
+                {prCelebration.weightKg > 0 && <span className="workout-pr-stat-weight">{prCelebration.weightKg} kg</span>}
+                <span className="workout-pr-stat-reps">{prCelebration.reps} reps{prCelebration.weightKg <= 0 ? ' (sin carga)' : ''}</span>
               </div>
-              {prCelebration.previousWeightKg !== null ? (
-                <p className="workout-pr-comparison">
-                  Superaste tu récord anterior de <strong>{prCelebration.previousWeightKg} kg</strong>. ¡Tu entrenador ya fue notificado de tu progreso!
-                </p>
-              ) : (
-                <p className="workout-pr-comparison">
-                  Superaste tu marca anterior en este ejercicio. Tu entrenador ya fue notificado.
-                </p>
-              )}
+              {(() => {
+                const prev = formatPersonalRecordPreviousMark({
+                  weightKg: prCelebration.weightKg,
+                  previousWeightKg: prCelebration.previousWeightKg,
+                  previousReps: prCelebration.previousReps,
+                });
+                return prev ? (
+                  <p className="workout-pr-comparison">
+                    Superaste tu récord anterior de <strong>{prev}</strong>. ¡Tu entrenador ya fue notificado de tu progreso!
+                  </p>
+                ) : (
+                  <p className="workout-pr-comparison">
+                    Superaste tu marca anterior en este ejercicio. Tu entrenador ya fue notificado.
+                  </p>
+                );
+              })()}
               <button
                 type="button"
                 className="workout-pr-dismiss-btn"

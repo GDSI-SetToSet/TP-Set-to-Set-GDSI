@@ -319,6 +319,29 @@ TARGET_CHECK_CONSTRAINTS: tuple[CheckConstraintMigration, ...] = (
         name="ck_safety_alerts_rpe",
         expression="rpe IS NULL OR rpe IN (9, 10)",
     ),
+    CheckConstraintMigration(
+        table="informal_payments",
+        name="ck_informal_payments_source",
+        expression="source IN ('TRAINER', 'STUDENT')",
+    ),
+    CheckConstraintMigration(
+        table="informal_payments",
+        name="ck_informal_payments_reject_fields",
+        expression=(
+            "(status = 'RECHAZADO' AND rejected_at IS NOT NULL AND rejected_by_user_id IS NOT NULL"
+            " AND rejection_reason IS NOT NULL)"
+            " OR (status <> 'RECHAZADO' AND rejected_at IS NULL AND rejected_by_user_id IS NULL"
+            " AND rejection_reason IS NULL)"
+        ),
+    ),
+    CheckConstraintMigration(
+        table="training_relationships",
+        name="ck_training_relationships_termination_category",
+        expression=(
+            "termination_category IS NULL OR termination_category IN "
+            "('FALTA_DE_PAGO', 'RAZONES_PERSONALES', 'OTRO')"
+        ),
+    ),
 )
 
 

@@ -176,17 +176,18 @@ export function TrainingEvolution({ studentId, studentName }: { studentId: strin
                 <ExerciseChart points={current.points} groupBy={groupBy} kind={current.metric as 'max_weight' | 'max_reps'}
                   ariaLabel={`${current.name}: de ${formatSet(current.start)} a ${formatSet(current.current)}, ${STATUS_LABELS[current.status]}`} />
                 <Values
-                  head={['Fecha', 'Serie', 'Objetivo (kg)', 'RPE']}
+                  head={['Fecha', 'Serie', 'Objetivo (kg)', 'RPE', 'Récord']}
                   rows={current.points.map((p) => [
                     formatRange(p.period_start, groupBy === 'session' ? p.period_start : p.period_end),
                     current.metric === 'max_weight' ? formatSet({ weight: p.weight, reps: p.reps }) : `${p.reps ?? 0} reps`,
                     p.target_weight ?? '—',
                     p.rpe ?? '—',
+                    p.is_pr ? 'Récord personal' : '—',
                   ])}
                 />
                 <Legend items={[
                   ['line', 'Mejor serie de cada período'], ['dot', 'Período completo'], ['dashed', 'Período en curso: todavía incompleto'],
-                  ['dotted', 'Peso objetivo programado'], ['ring', 'Récord personal vigente'],
+                  ['dotted', 'Peso objetivo programado'], ['ring', 'Récord personal'],
                 ]} />
               </figure>
             )}

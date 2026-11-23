@@ -136,3 +136,37 @@ export function resolveWorkoutHistoryRoutineId(routine, workoutSessions, workout
   if (sessionRoutineId) return sessionRoutineId;
   return workoutLogs?.find((log) => Boolean(log.routine_id))?.routine_id ?? null;
 }
+
+function formatPrWeight(weightKg) {
+  return Number(weightKg).toLocaleString('es-AR', { maximumFractionDigits: 2 });
+}
+
+/**
+ * Formatea una marca personal actual sin mostrar "0 kg" en ejercicios sin carga (AUD-08).
+ *
+ * @param {number} weightKg
+ * @param {string | number} reps
+ * @returns {string}
+ */
+export function formatPersonalRecordMark(weightKg, reps) {
+  if (weightKg <= 0) return `${reps} reps (sin carga)`;
+  return `${formatPrWeight(weightKg)} kg × ${reps}`;
+}
+
+/**
+ * Formatea la marca previa superada de un PR, incluyendo repeticiones cuando el peso no cambia (AUD-08).
+ *
+ * @param {{ weightKg: number, previousWeightKg: number | null | undefined, previousReps?: number | null | undefined }} input
+ * @returns {string | null}
+ */
+export function formatPersonalRecordPreviousMark({ weightKg, previousWeightKg, previousReps = null }) {
+  if (previousWeightKg === null || previousWeightKg === undefined) return null;
+  if (previousWeightKg <= 0) {
+    return previousReps != null ? `${previousReps} reps sin carga` : 'marca anterior sin carga';
+  }
+  const prevKg = `${formatPrWeight(previousWeightKg)} kg`;
+  if (previousReps != null && (previousWeightKg === weightKg || weightKg > 0)) {
+    return `${prevKg} × ${previousReps}`;
+  }
+  return prevKg;
+}

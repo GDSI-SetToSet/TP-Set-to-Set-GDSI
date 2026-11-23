@@ -5,18 +5,23 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from sqlalchemy import create_engine, func, inspect, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from backend.scripts.seed_demo import clean_demo_data, seed_demo_data
 from backend.src.core.database import Base
-from backend.src.core.migrations import apply_migrations
+from backend.src.core.migrations import TARGET_CHECK_CONSTRAINTS, apply_migrations
 from backend.src.models.achievement import AchievementCongratulation, StudentAchievement
 from backend.src.models.assigned_routine import AssignedRoutine
+from backend.src.models.body_map_report import BodyMapPainReport
 from backend.src.models.exercise import Exercise
 from backend.src.models.informal_payment import InformalPayment
 from backend.src.models.notification import Notification
 from backend.src.models.personal_record import PersonalRecord
+from backend.src.models.safety_alert import SafetyAlert
+from backend.src.models.student_profile import StudentProfile
+from backend.src.models.trainer_profile import TrainerProfile
 from backend.src.models.training_plan import TrainingPlan
 from backend.src.models.training_relationship import TrainingRelationship
 from backend.src.models.user import User
@@ -717,7 +722,7 @@ def test_aud12_aud13_aud17_termination_cleanup_readonly_payments_and_notificatio
         p2_db = db.get(InformalPayment, p2["id"])
         assert p2_db.status == "RECHAZADO"
 
-    # Sesiones y reportes en vínculo TERMINATED rechazados con 409 (AUD-12).
+    # Sesiones y reportes asociados a sesión de vínculo TERMINATED rechazados con 409 (AUD-12).
     assert api.post(f"{ASSIGNED_PATH}/workout-sessions/{sess['id']}/finish", headers=student, json={}).status_code == 409
     assert api.patch(f"{ASSIGNED_PATH}/workout-sessions/{sess['id']}/rpe", headers=student, json={"rpe": 7}).status_code == 409
     assert (
@@ -728,6 +733,19 @@ def test_aud12_aud13_aud17_termination_cleanup_readonly_payments_and_notificatio
         ).status_code
         == 409
     )
+
+    # Reporte general sin session_id tras la baja NO debe quedar bloqueado por un vínculo TERMINATED pasado (AUD-12).
+    general_report = api.post(
+        "/api/v1/body-map-reports",
+        headers=student,
+        json={"context": "POST_SESSION", "session_id": None, "zones": [{"zone": "knee", "intensity": "PAIN"}]},
+    )
+    assert general_report.status_code == 201
+    with sessions() as db:
+        saved_report = db.get(BodyMapPainReport, general_report.json()["id"])
+        assert saved_report is not None
+        assert saved_report.relationship_id is None
+        assert db.scalar(select(func.count(SafetyAlert.id))) == 0
 
     # Historial y comprobantes legibles tras la baja para ambos (AUD-17), pero mutaciones 404.
     assert api.get(f"/api/v1/trainers/me/students/{student_id}/payments", headers=trainer).status_code == 200
@@ -848,3 +866,147 @@ def test_aud20_clean_demo_data_removes_orphan_receipt_files(tmp_path, monkeypatc
     assert not demo_receipt.exists()
     assert not demo_receipt.parent.exists()
     assert non_demo_file.exists()
+
+
+def test_aud08_training_evolution_preserves_intermediate_and_same_weight_rep_prs(client):
+    api, sessions = client
+    trainer = register_and_login(api, "aud08_evo_t@example.com", "TRAINER")
+    student = register_and_login(api, "aud08_evo_s@example.com", "STUDENT")
+    exercise_id, rel_id, _ = setup_routine_and_assignment(
+        api, sessions, trainer, "aud08_evo_s@example.com", trainer_email="aud08_evo_t@example.com"
+    )
+    with sessions() as db:
+        student_id = db.get(TrainingRelationship, rel_id).student_id
+
+    def run(weight: float, reps: str, days_ago: int, finish_session: bool = True) -> tuple[str, dict]:
+        s_res = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student, json={"day_name": "Día 1"})
+        assert s_res.status_code == 201
+        sid = s_res.json()["id"]
+        l_res = api.post(
+            f"{ASSIGNED_PATH}/workout-logs",
+            headers=student,
+            json={
+                "exercise_id": exercise_id,
+                "day_name": "Día 1",
+                "set_number": 1,
+                "reps_completed": reps,
+                "weight_kg": weight,
+                "session_id": sid,
+            },
+        )
+        assert l_res.status_code == 201
+        if finish_session:
+            assert api.post(f"{ASSIGNED_PATH}/workout-sessions/{sid}/finish", headers=student, json={}).status_code == 200
+        with sessions() as db:
+            ws = db.get(WorkoutSession, sid)
+            ts = _now() - timedelta(days=days_ago)
+            ws.started_at = ts
+            if finish_session:
+                ws.finished_at = ts + timedelta(minutes=30)
+            for row in db.scalars(select(WorkoutSetLog).where(WorkoutSetLog.session_id == sid)):
+                row.recorded_at = ts + timedelta(minutes=5)
+            db.commit()
+        return sid, l_res.json()
+
+    from backend.src.models.workout_log import WorkoutSetLog
+
+    # S1: base (50 kg x 8 -> no PR)
+    _s1, l1 = run(50.0, "8", days_ago=28)
+    assert l1["is_personal_record"] is False
+
+    # S2: PR intermedio por peso (60 kg x 8)
+    _s2, l2 = run(60.0, "8", days_ago=21)
+    assert l2["is_personal_record"] is True
+    assert l2["pr_previous_weight_kg"] == 50.0
+    assert l2["pr_previous_reps"] == 8
+
+    # S3: PR por repeticiones con el mismo peso (60 kg x 10)
+    s3, l3 = run(60.0, "10", days_ago=14)
+    assert l3["is_personal_record"] is True
+    assert l3["pr_previous_weight_kg"] == 60.0
+    assert l3["pr_previous_reps"] == 8
+    s3_summary = api.get(f"{ASSIGNED_PATH}/workout-sessions/{s3}/summary", headers=student).json()
+    assert s3_summary["personal_records"][0]["weight_kg"] == 60.0
+    assert s3_summary["personal_records"][0]["previous_weight_kg"] == 60.0
+    assert s3_summary["personal_records"][0]["previous_reps"] == 8
+
+    # S4: PR posterior por peso (70 kg x 8)
+    _s4, l4 = run(70.0, "8", days_ago=7)
+    assert l4["is_personal_record"] is True
+
+    # S5: sesión activa sin finalizar con 80 kg -> no contamina ni borra los PRs históricos de evolución.
+    _s5, l5 = run(80.0, "8", days_ago=0, finish_session=False)
+    assert l5["is_personal_record"] is True
+
+    evo = api.get(f"/api/v1/trainers/me/students/{student_id}/evolution", headers=trainer, params={"group_by": "session"}).json()
+    ex_evo = evo["exercises"][0]
+    assert [p["is_pr"] for p in ex_evo["points"]] == [False, True, True, True]
+    assert ex_evo["last_improvement"]["is_pr"] is True
+
+
+def test_aud16_check_constraints_for_payments_and_termination_category():
+    target_names = {(c.table, c.name) for c in TARGET_CHECK_CONSTRAINTS}
+    assert ("informal_payments", "ck_informal_payments_source") in target_names
+    assert ("informal_payments", "ck_informal_payments_reject_fields") in target_names
+    assert ("training_relationships", "ck_training_relationships_termination_category") in target_names
+
+    eng = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(bind=eng)
+    insp = inspect(eng)
+    ip_cks = {c["name"] for c in insp.get_check_constraints("informal_payments")}
+    tr_cks = {c["name"] for c in insp.get_check_constraints("training_relationships")}
+    assert {"ck_informal_payments_source", "ck_informal_payments_reject_fields"}.issubset(ip_cks)
+    assert "ck_training_relationships_termination_category" in tr_cks
+
+    SessionLocal = sessionmaker(bind=eng, autoflush=False, autocommit=False)
+    now = _now()
+    with SessionLocal() as db:
+        db.add_all(
+            [
+                User(id="u1", email="t@e.com", password_hash="h", role="TRAINER", created_at=now),
+                User(id="u2", email="s@e.com", password_hash="h", role="STUDENT", created_at=now),
+                TrainerProfile(
+                    id="tp1",
+                    user_id="u1",
+                    full_name="T",
+                    bio="B",
+                    status="PUBLISHED",
+                    created_at=now,
+                    updated_at=now,
+                    max_students=10,
+                ),
+                StudentProfile(id="sp1", user_id="u2", first_name="S", last_name="L", created_at=now, updated_at=now),
+                TrainingPlan(
+                    id="pl1",
+                    trainer_id="tp1",
+                    title="P",
+                    monthly_price=1000,
+                    currency="ARS",
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                # termination_category=NULL permitido incluso con status='TERMINATED'
+                TrainingRelationship(
+                    id="rel1",
+                    student_id="sp1",
+                    trainer_id="tp1",
+                    plan_id="pl1",
+                    agreed_monthly_price=1000,
+                    agreed_currency="ARS",
+                    status="TERMINATED",
+                    start_date=date(2026, 1, 1),
+                    termination_category=None,
+                ),
+            ]
+        )
+        db.commit()
+
+    with pytest.raises(IntegrityError), eng.begin() as conn:
+        conn.execute(text("INSERT INTO training_relationships (id, student_id, trainer_id, plan_id, agreed_monthly_price, agreed_currency, status, start_date, welcome_message_sent, routine_modality, termination_category) VALUES ('rel2', 'sp1', 'tp1', 'pl1', 1000, 'ARS', 'TERMINATED', '2026-01-01', 1, 'GYM', 'INVALIDA')"))
+
+    with pytest.raises(IntegrityError), eng.begin() as conn:
+        conn.execute(text("INSERT INTO informal_payments (id, relationship_id, trainer_id, student_id, paid_on, amount, currency, method, months_covered, status, registered_by_user_id, created_at, source) VALUES ('pay1', 'rel1', 'tp1', 'sp1', '2026-01-01', 1000, 'ARS', 'EFECTIVO', 1, 'CONFIRMADO', 'u1', '2026-01-01', 'OTRO')"))
+
+    with pytest.raises(IntegrityError), eng.begin() as conn:
+        conn.execute(text("INSERT INTO informal_payments (id, relationship_id, trainer_id, student_id, paid_on, amount, currency, method, months_covered, status, registered_by_user_id, created_at, source, rejection_reason) VALUES ('pay2', 'rel1', 'tp1', 'sp1', '2026-01-01', 1000, 'ARS', 'EFECTIVO', 1, 'RECHAZADO', 'u1', '2026-01-01', 'STUDENT', NULL)"))

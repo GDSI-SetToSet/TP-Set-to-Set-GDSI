@@ -164,6 +164,7 @@ def test_summary_highlights_initial_and_improved_personal_records(client):
             "weight_kg": 27.5,
             "reps_completed": "10",
             "previous_weight_kg": 25.0,
+            "previous_reps": 10,
         }
     ]
 

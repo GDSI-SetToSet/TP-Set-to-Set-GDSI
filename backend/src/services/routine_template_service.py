@@ -784,6 +784,9 @@ def create_student_workout_log(
     pr_previous_weight_kg: float | None = (
         pr_eval.previous_mark[0] if (pr_eval.is_pr and pr_eval.previous_mark is not None) else None
     )
+    pr_previous_reps: int | None = (
+        pr_eval.previous_mark[1] if (pr_eval.is_pr and pr_eval.previous_mark is not None) else None
+    )
 
     if is_personal_record:
         sync_personal_record(db, relationship.student_id, exercise.id, existing_pr=existing_pr)
@@ -861,6 +864,7 @@ def create_student_workout_log(
     log_entry.is_personal_record = is_personal_record
     log_entry.is_initial_pr = is_initial_pr
     log_entry.pr_previous_weight_kg = pr_previous_weight_kg
+    log_entry.pr_previous_reps = pr_previous_reps
     return log_entry
 
 

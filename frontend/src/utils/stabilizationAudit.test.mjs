@@ -4,6 +4,8 @@ import { resolveDialogTabTarget } from './dialogFocus.mjs';
 import { formatNotificationTime, parseUtcIsoTimestamp } from './notificationFormat.mjs';
 import {
   canStartExerciseSet,
+  formatPersonalRecordMark,
+  formatPersonalRecordPreviousMark,
   resolveEffectiveExercise,
   resolveRoutineAccessState,
   resolveWorkoutHistoryRoutineId,
@@ -106,5 +108,22 @@ test('AUD-08: deleting a PR set log clears matching PR alerts and celebrations',
       { id: 'log-2', exercise_id: 'ex-1', session_id: 'sess-2', is_personal_record: true },
     ),
     true,
+  );
+});
+
+test('AUD-08: formatPersonalRecordMark and formatPersonalRecordPreviousMark format same-weight rep PRs and bodyweight PRs', () => {
+  assert.equal(formatPersonalRecordMark(60, '10'), '60 kg × 10');
+  assert.equal(
+    formatPersonalRecordPreviousMark({ weightKg: 60, previousWeightKg: 60, previousReps: 8 }),
+    '60 kg × 8',
+  );
+  assert.equal(formatPersonalRecordMark(0, '12'), '12 reps (sin carga)');
+  assert.equal(
+    formatPersonalRecordPreviousMark({ weightKg: 0, previousWeightKg: 0, previousReps: 8 }),
+    '8 reps sin carga',
+  );
+  assert.equal(
+    formatPersonalRecordPreviousMark({ weightKg: 65, previousWeightKg: 60, previousReps: 8 }),
+    '60 kg × 8',
   );
 });

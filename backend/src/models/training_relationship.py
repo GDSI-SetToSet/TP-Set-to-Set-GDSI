@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
@@ -21,6 +22,10 @@ from backend.src.models.user import new_id
 class TrainingRelationship(Base):
     __tablename__ = "training_relationships"
     __table_args__ = (
+        CheckConstraint(
+            "termination_category IS NULL OR termination_category IN ('FALTA_DE_PAGO', 'RAZONES_PERSONALES', 'OTRO')",
+            name="ck_training_relationships_termination_category",
+        ),
         Index(
             "uq_active_training_relationship",
             "student_id",

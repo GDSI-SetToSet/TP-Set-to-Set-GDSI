@@ -100,6 +100,7 @@ def _session_personal_records(
                 "weight_kg": float(match.best[0]),
                 "reps_completed": match.log.reps_completed,
                 "previous_weight_kg": float(match.previous[0]),
+                "previous_reps": int(match.previous[1]),
             }
         )
     return sorted(records, key=lambda record: record["exercise_name"])
