@@ -271,6 +271,7 @@ class WorkoutSetLogResponse(BaseModel):
     is_personal_record: bool = False
     is_initial_pr: bool = False
     pr_previous_weight_kg: float | None = None
+    pr_previous_reps: int | None = None
 
 
 class PersonalRecordResponse(BaseModel):
@@ -292,6 +293,7 @@ class SessionPersonalRecordResponse(BaseModel):
     weight_kg: float
     reps_completed: str
     previous_weight_kg: float | None = None
+    previous_reps: int | None = None
 
 
 class SessionHistoryComparisonResponse(BaseModel):

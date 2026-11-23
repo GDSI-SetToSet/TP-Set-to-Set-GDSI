@@ -6,7 +6,7 @@ import type {
   RpePoint,
 } from '../types/trainerStudent';
 import { useEffect, useRef, useState } from 'react';
-import { formatDay, formatNumber, formatRange, niceTicks, reportedRuns, xLabelIndexes } from '../utils/trainingEvolution.mjs';
+import { formatDay, formatNumber, formatRange, formatSet, niceTicks, reportedRuns, xLabelIndexes } from '../utils/trainingEvolution.mjs';
 
 const W = 640;
 const PAD = { top: 16, right: 14, bottom: 30, left: 44 };
@@ -136,7 +136,7 @@ export function ExerciseChart({ points, groupBy, kind, ariaLabel }: {
           x2={xs[points.length - 1]} y2={y(value(points[points.length - 1]))} />
       )}
       {points.map((p, i) => {
-        const set = kind === 'max_weight' ? `${formatNumber(p.weight ?? 0)} kg × ${p.reps}` : `${p.reps} reps`;
+        const set = kind === 'max_weight' ? formatSet({ weight: p.weight, reps: p.reps }) : `${p.reps} reps`;
         const tip = `${rangeOf(p, groupBy)} · ${set}${p.rpe !== null ? ` · RPE ${p.rpe}` : ''}${p.is_pr ? ' · récord personal' : ''}${p.is_partial ? ' (en curso)' : ''}`;
         return (
           <g key={p.key}>

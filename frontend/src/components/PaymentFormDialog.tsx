@@ -59,8 +59,8 @@ export function PaymentFormDialog({ subscription, replaces = null, onSaved, onCl
   const [amount, setAmount] = useState(
     replaces ? Number(replaces.amount).toFixed(2) : suggestedAmount(subscription.agreed_monthly_price, 1),
   );
-  // Mientras el entrenador no edite el monto, sigue a tarifa × meses.
-  const [amountTouched, setAmountTouched] = useState(Boolean(replaces));
+  // Mientras el monto no haya sido editado manualmente en el formulario, sigue a tarifa × meses.
+  const [amountTouched, setAmountTouched] = useState(false);
   const [method, setMethod] = useState<PaymentMethod | ''>(replaces?.method ?? '');
   const [note, setNote] = useState(replaces?.note ?? '');
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -78,8 +78,8 @@ export function PaymentFormDialog({ subscription, replaces = null, onSaved, onCl
     event.preventDefault();
     if (submitting) return;
     const found = validate(paidOn, amount, method, months, note);
-    if (receipt && (!RECEIPT_TYPES.includes(receipt.type) || receipt.size > RECEIPT_MAX_BYTES)) {
-      found.receipt = 'El comprobante debe ser un PDF, JPG o PNG de hasta 10 MB.';
+    if (receipt && (receipt.size === 0 || receipt.size > RECEIPT_MAX_BYTES || !RECEIPT_TYPES.includes(receipt.type))) {
+      found.receipt = 'El comprobante debe ser un PDF, JPG o PNG no vacío de hasta 10 MB.';
     }
     setErrors(found);
     setFormError('');
@@ -118,7 +118,7 @@ export function PaymentFormDialog({ subscription, replaces = null, onSaved, onCl
     'aria-describedby': errors[name] ? `payment-${name}-error` : undefined,
   });
   const fieldError = (name: FieldName) => errors[name]
-    ? <small className="field-error" id={`payment-${name}-error`}>{errors[name]}</small>
+    ? <small className="field-error" id={`payment-${name}-error`} role="alert">{errors[name]}</small>
     : null;
 
   return (
@@ -235,7 +235,7 @@ export function PaymentFormDialog({ subscription, replaces = null, onSaved, onCl
                 aria-describedby={errors.receipt ? 'payment-receipt-error' : 'payment-receipt-hint'}
               />
               {errors.receipt
-                ? <small className="field-error" id="payment-receipt-error">{errors.receipt}</small>
+                ? <small className="field-error" id="payment-receipt-error" role="alert">{errors.receipt}</small>
                 : <small className="payment-dialog__hint" id="payment-receipt-hint">PDF, JPG o PNG de hasta 10 MB. Solo lo ven vos y tu entrenador.</small>}
             </label>
           )}

@@ -539,23 +539,28 @@ def test_sqlite_legacy_table_rebuild_migrates_check_constraint_and_preserves_str
         assert log is not None and log[1] == "s1"
 
     # Escenario B: Integridad directa a nivel motor
+    insert_session_sql = (
+        "INSERT INTO workout_sessions "
+        "(id, student_id, relationship_id, routine_id, day_name, modality, started_at, finished_at, rpe) "
+        "VALUES "
+    )
     with engine.begin() as conn:
         # rpe = NULL: permitido
-        conn.execute(text("INSERT INTO workout_sessions VALUES ('s_null', 'st1', 'rel1', 'rou1', 'D1', 'GYM', '2026-01-01', '2026-01-01', NULL)"))
+        conn.execute(text(f"{insert_session_sql} ('s_null', 'st1', 'rel1', 'rou1', 'D1', 'GYM', '2026-01-01', '2026-01-01', NULL)"))
         # rpe = 1: permitido
-        conn.execute(text("INSERT INTO workout_sessions VALUES ('s_min', 'st1', 'rel1', 'rou1', 'D1', 'GYM', '2026-01-01', '2026-01-01', 1)"))
+        conn.execute(text(f"{insert_session_sql} ('s_min', 'st1', 'rel1', 'rou1', 'D1', 'GYM', '2026-01-01', '2026-01-01', 1)"))
         # rpe = 10: permitido
-        conn.execute(text("INSERT INTO workout_sessions VALUES ('s_max', 'st1', 'rel1', 'rou1', 'D1', 'GYM', '2026-01-01', '2026-01-01', 10)"))
+        conn.execute(text(f"{insert_session_sql} ('s_max', 'st1', 'rel1', 'rou1', 'D1', 'GYM', '2026-01-01', '2026-01-01', 10)"))
 
     with engine.connect() as conn:
         # rpe = 0: rechazado por CHECK a nivel de motor relacional
         with pytest.raises(Exception) as exc_0, engine.begin() as conn_sub:
-            conn_sub.execute(text("INSERT INTO workout_sessions VALUES ('s_bad0', 'st1', 'rel1', 'rou1', 'D1', 'GYM', '2026-01-01', '2026-01-01', 0)"))
+            conn_sub.execute(text(f"{insert_session_sql} ('s_bad0', 'st1', 'rel1', 'rou1', 'D1', 'GYM', '2026-01-01', '2026-01-01', 0)"))
         assert "CHECK constraint failed" in str(exc_0.value) or "ck_workout_sessions_rpe_range" in str(exc_0.value)
 
         # rpe = 11: rechazado por CHECK a nivel de motor relacional
         with pytest.raises(Exception) as exc_11, engine.begin() as conn_sub:
-            conn_sub.execute(text("INSERT INTO workout_sessions VALUES ('s_bad11', 'st1', 'rel1', 'rou1', 'D1', 'GYM', '2026-01-01', '2026-01-01', 11)"))
+            conn_sub.execute(text(f"{insert_session_sql} ('s_bad11', 'st1', 'rel1', 'rou1', 'D1', 'GYM', '2026-01-01', '2026-01-01', 11)"))
         assert "CHECK constraint failed" in str(exc_11.value) or "ck_workout_sessions_rpe_range" in str(exc_11.value)
 
     # Escenario D: Idempotencia

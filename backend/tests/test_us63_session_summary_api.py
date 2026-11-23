@@ -129,7 +129,7 @@ def test_summary_counts_bodyweight_and_non_numeric_reps_as_zero_tonnage(client):
 
     assert data["total_tonnage_kg"] == 0
     assert data["completed_sets"] == 2
-    assert data["personal_records"][0]["weight_kg"] == 30
+    assert data["personal_records"] == []
 
 
 def test_summary_without_sets(client):
@@ -155,29 +155,32 @@ def test_summary_highlights_initial_and_improved_personal_records(client):
     first_records = get_summary(api, student, first).json()["personal_records"]
     second_records = get_summary(api, student, second).json()["personal_records"]
 
-    assert first_records == [
+    # US-65 FR-001a: la primera sesión establece la marca base (25 kg) y no cuenta como PR
+    assert first_records == []
+    assert second_records == [
         {
             "exercise_id": exercise_id,
             "exercise_name": "Press militar",
-            "weight_kg": 25.0,
+            "weight_kg": 27.5,
             "reps_completed": "10",
-            "previous_weight_kg": None,
+            "previous_weight_kg": 25.0,
+            "previous_reps": 10,
         }
     ]
-    assert second_records[0]["weight_kg"] == 27.5
-    assert second_records[0]["previous_weight_kg"] == 25.0
 
 
 def test_summary_keeps_pr_even_if_beaten_in_a_later_session(client):
     api, sessions = client
     _, student, exercise_id, _, _ = setup_student(api, sessions, "beaten")
-    first = run_session(api, student, sessions, exercise_id, [30], days_ago=5)
+    run_session(api, student, sessions, exercise_id, [25], days_ago=7)
+    target = run_session(api, student, sessions, exercise_id, [30], days_ago=5)
     run_session(api, student, sessions, exercise_id, [40], days_ago=2)
 
-    records = get_summary(api, student, first).json()["personal_records"]
+    records = get_summary(api, student, target).json()["personal_records"]
 
     assert len(records) == 1
     assert records[0]["weight_kg"] == 30
+    assert records[0]["previous_weight_kg"] == 25.0
 
 
 def test_summary_without_new_personal_record(client):

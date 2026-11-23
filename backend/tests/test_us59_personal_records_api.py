@@ -149,20 +149,37 @@ def setup_routine_and_exercises(api, sessions, trainer_headers, student_email: s
     return ex1_id, ex2_id, rel_id, routine_id
 
 
+def _record_baseline_session(api, student, items: list[tuple[str, float, str]]) -> None:
+    """Ejecuta una sesión base finalizada; bajo FR-001a la primera carga fija la referencia y no es PR."""
+    s0 = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student, json={"day_name": "Día 1"}).json()["id"]
+    for idx, (exercise_id, weight, reps) in enumerate(items, start=1):
+        res = api.post(
+            f"{ASSIGNED_PATH}/workout-logs",
+            headers=student,
+            json={
+                "exercise_id": exercise_id,
+                "day_name": "Día 1",
+                "set_number": idx,
+                "reps_completed": reps,
+                "weight_kg": weight,
+                "session_id": s0,
+            },
+        )
+        assert res.status_code == 201
+        assert res.json()["is_personal_record"] is False
+    assert api.post(f"{ASSIGNED_PATH}/workout-sessions/{s0}/finish", headers=student, json={}).status_code == 200
+
+
 def test_first_positive_weight_set_sets_initial_personal_record_and_notifies_trainer(client):
-    """CA-1, CA-2, CA-3: El primer registro con carga positiva establece el récord inicial y avisa al entrenador."""
+    """US-65 FR-001a + CA-1/2/3: la primera carga es línea base (no PR); al superarla en sesión posterior se registra PR y notifica."""
     api, sessions = client
     trainer = register_and_login(api, "trainer_pr@example.com", "TRAINER")
     student = register_and_login(api, "student_pr@example.com", "STUDENT")
     ex1_id, _, _, _ = setup_routine_and_exercises(api, sessions, trainer, "student_pr@example.com")
 
-    # Iniciar sesión de entrenamiento
-    session_res = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student, json={"day_name": "Día 1"})
-    assert session_res.status_code == 201
-    session_id = session_res.json()["id"]
-
-    # Registrar primera serie con 50 kg
-    log_res = api.post(
+    # Sesión 1: primera carga (50 kg) -> línea base, sin PR ni notificación
+    s1_id = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student, json={"day_name": "Día 1"}).json()["id"]
+    base_res = api.post(
         f"{ASSIGNED_PATH}/workout-logs",
         headers=student,
         json={
@@ -171,21 +188,47 @@ def test_first_positive_weight_set_sets_initial_personal_record_and_notifies_tra
             "set_number": 1,
             "reps_completed": "8",
             "weight_kg": 50.0,
+            "session_id": s1_id,
+        },
+    )
+    assert base_res.status_code == 201
+    assert base_res.json()["is_personal_record"] is False
+    assert base_res.json()["is_initial_pr"] is False
+    assert base_res.json()["pr_previous_weight_kg"] is None
+    with sessions() as db:
+        assert db.scalar(select(PersonalRecord).where(PersonalRecord.exercise_id == ex1_id)) is None
+        assert db.scalar(select(Notification).where(Notification.type == "PERSONAL_RECORD")) is None
+    assert api.post(f"{ASSIGNED_PATH}/workout-sessions/{s1_id}/finish", headers=student, json={}).status_code == 200
+
+    # Sesión 2: supera la marca base (55 kg) -> nuevo PR y notificación al entrenador
+    session_res = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student, json={"day_name": "Día 1"})
+    assert session_res.status_code == 201
+    session_id = session_res.json()["id"]
+
+    log_res = api.post(
+        f"{ASSIGNED_PATH}/workout-logs",
+        headers=student,
+        json={
+            "exercise_id": ex1_id,
+            "day_name": "Día 1",
+            "set_number": 1,
+            "reps_completed": "8",
+            "weight_kg": 55.0,
             "session_id": session_id,
         },
     )
     assert log_res.status_code == 201
     body = log_res.json()
     assert body["is_personal_record"] is True
-    assert body["is_initial_pr"] is True
-    assert body["pr_previous_weight_kg"] is None
-    assert body["weight_kg"] == 50.0
+    assert body["is_initial_pr"] is False
+    assert body["pr_previous_weight_kg"] == 50.0
+    assert body["weight_kg"] == 55.0
 
     # Verificar en base de datos la entidad PersonalRecord
     with sessions() as db:
         pr = db.scalar(select(PersonalRecord).where(PersonalRecord.exercise_id == ex1_id))
         assert pr is not None
-        assert float(pr.weight_kg) == 50.0
+        assert float(pr.weight_kg) == 55.0
         assert pr.reps_completed == "8"
         assert pr.workout_set_log_id == body["id"]
 
@@ -201,24 +244,26 @@ def test_first_positive_weight_set_sets_initial_personal_record_and_notifies_tra
         notif = notifications[0]
         assert "Juan Perez" in notif.title
         assert "Sentadilla" in notif.message
+        assert "55 kg" in notif.message
         assert "50 kg" in notif.message
-        assert "primer récord" in notif.message
         assert notif.related_entity_id == body["id"]
         assert notif.related_student_id == body["student_id"]
         assert notif.related_session_id == session_id
 
 
 def test_subsequent_set_equal_or_lower_weight_does_not_trigger_pr(client):
-    """CA-1, CA-2: Cargas iguales o inferiores al récord no constituyen un nuevo PR ni generan alertas duplicadas."""
+    """CA-1, CA-2: Cargas iguales (con igual/menor reps) o inferiores al récord no constituyen un nuevo PR ni duplican alertas."""
     api, sessions = client
     trainer = register_and_login(api, "trainer_pr@example.com", "TRAINER")
     student = register_and_login(api, "student_pr@example.com", "STUDENT")
     ex1_id, _, _, _ = setup_routine_and_exercises(api, sessions, trainer, "student_pr@example.com")
 
+    _record_baseline_session(api, student, [(ex1_id, 55.0, "8")])
+
     session_res = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student, json={"day_name": "Día 1"})
     session_id = session_res.json()["id"]
 
-    # Serie 1: 60 kg (PR inicial)
+    # Serie 1: 60 kg (supera base de 55 kg -> PR)
     res1 = api.post(
         f"{ASSIGNED_PATH}/workout-logs",
         headers=student,
@@ -234,7 +279,7 @@ def test_subsequent_set_equal_or_lower_weight_does_not_trigger_pr(client):
     assert res1.status_code == 201
     assert res1.json()["is_personal_record"] is True
 
-    # Serie 2: 60 kg (igual)
+    # Serie 2: 60 kg con mismas reps (igual)
     res2 = api.post(
         f"{ASSIGNED_PATH}/workout-logs",
         headers=student,
@@ -267,7 +312,7 @@ def test_subsequent_set_equal_or_lower_weight_does_not_trigger_pr(client):
     assert res3.status_code == 201
     assert res3.json()["is_personal_record"] is False
 
-    # El entrenador debe mantener exactamente 1 notificación (la inicial)
+    # El entrenador debe mantener exactamente 1 notificación
     with sessions() as db:
         trainer_user = db.scalar(select(User).where(User.email == "trainer_pr@example.com"))
         notifications = db.scalars(
@@ -285,16 +330,18 @@ def test_subsequent_set_equal_or_lower_weight_does_not_trigger_pr(client):
 
 
 def test_subsequent_set_strictly_higher_weight_triggers_new_pr_and_replaces_previous(client):
-    """CA-1, CA-2, CA-3: Una carga que supera estrictamente el PR reemplaza el récord vigente y notifica con comparativa."""
+    """CA-1, CA-2, CA-3: Una carga que supera el PR reemplaza el récord vigente y notifica con comparativa."""
     api, sessions = client
     trainer = register_and_login(api, "trainer_pr@example.com", "TRAINER")
     student = register_and_login(api, "student_pr@example.com", "STUDENT")
     ex1_id, _, _, _ = setup_routine_and_exercises(api, sessions, trainer, "student_pr@example.com")
 
+    _record_baseline_session(api, student, [(ex1_id, 45.0, "10")])
+
     session_res = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student, json={"day_name": "Día 1"})
     session_id = session_res.json()["id"]
 
-    # Serie 1: 50 kg (inicial)
+    # Serie 1: 50 kg (PR #1 sobre base 45 kg)
     res1 = api.post(
         f"{ASSIGNED_PATH}/workout-logs",
         headers=student,
@@ -309,8 +356,9 @@ def test_subsequent_set_strictly_higher_weight_triggers_new_pr_and_replaces_prev
     )
     assert res1.status_code == 201
     assert res1.json()["is_personal_record"] is True
+    assert res1.json()["pr_previous_weight_kg"] == 45.0
 
-    # Serie 2: 55.5 kg (nuevo PR)
+    # Serie 2: 55.5 kg (PR #2)
     res2 = api.post(
         f"{ASSIGNED_PATH}/workout-logs",
         headers=student,
@@ -403,7 +451,7 @@ def test_student_isolation_records_do_not_leak_across_students(client):
         json={"routine_template_id": routine_id},
     )
 
-    # Student 1 levanta 100 kg
+    # Student 1 levanta 100 kg (base)
     s1_res = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student1, json={"day_name": "Día 1"})
     log1 = api.post(
         f"{ASSIGNED_PATH}/workout-logs",
@@ -417,40 +465,25 @@ def test_student_isolation_records_do_not_leak_across_students(client):
             "session_id": s1_res.json()["id"],
         },
     )
-    assert log1.json()["is_personal_record"] is True
-    assert log1.json()["is_initial_pr"] is True
+    assert log1.json()["is_personal_record"] is False
 
-    # Student 2 levanta 30 kg en el mismo ejercicio -> debe ser su propio récord inicial
+    # Student 2 fija base en 30 kg y luego levanta 35 kg -> nuevo PR para student 2, sin importar los 100 kg de student 1
+    _record_baseline_session(api, student2, [(ex1_id, 30.0, "10")])
     s2_res = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student2, json={"day_name": "Día 1"})
-    log2 = api.post(
-        f"{ASSIGNED_PATH}/workout-logs",
-        headers=student2,
-        json={
-            "exercise_id": ex1_id,
-            "day_name": "Día 1",
-            "set_number": 1,
-            "reps_completed": "10",
-            "weight_kg": 30.0,
-            "session_id": s2_res.json()["id"],
-        },
-    )
-    assert log2.json()["is_personal_record"] is True
-    assert log2.json()["is_initial_pr"] is True
-
-    # Student 2 luego levanta 35 kg -> nuevo PR para student 2, sin importar los 100 kg de student 1
     log3 = api.post(
         f"{ASSIGNED_PATH}/workout-logs",
         headers=student2,
         json={
             "exercise_id": ex1_id,
             "day_name": "Día 1",
-            "set_number": 2,
+            "set_number": 1,
             "reps_completed": "8",
             "weight_kg": 35.0,
             "session_id": s2_res.json()["id"],
         },
     )
     assert log3.json()["is_personal_record"] is True
+    assert log3.json()["is_initial_pr"] is False
     assert log3.json()["pr_previous_weight_kg"] == 30.0
 
 
@@ -460,6 +493,8 @@ def test_exercise_isolation_records_do_not_leak_across_exercises(client):
     trainer = register_and_login(api, "trainer_pr@example.com", "TRAINER")
     student = register_and_login(api, "student_pr@example.com", "STUDENT")
     ex1_id, ex2_id, _, _ = setup_routine_and_exercises(api, sessions, trainer, "student_pr@example.com")
+
+    _record_baseline_session(api, student, [(ex1_id, 75.0, "8"), (ex2_id, 35.0, "8")])
 
     session_res = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student, json={"day_name": "Día 1"})
     session_id = session_res.json()["id"]
@@ -479,7 +514,7 @@ def test_exercise_isolation_records_do_not_leak_across_exercises(client):
     )
     assert log_ex1.json()["is_personal_record"] is True
 
-    # Ex2 (Press de banca): 40 kg -> Es récord inicial de Ex2 aunque 40 < 80
+    # Ex2 (Press de banca): 40 kg -> Supera su base (35 kg) sin verse afectado por Ex1 (80 kg)
     log_ex2 = api.post(
         f"{ASSIGNED_PATH}/workout-logs",
         headers=student,
@@ -493,7 +528,8 @@ def test_exercise_isolation_records_do_not_leak_across_exercises(client):
         },
     )
     assert log_ex2.json()["is_personal_record"] is True
-    assert log_ex2.json()["is_initial_pr"] is True
+    assert log_ex2.json()["is_initial_pr"] is False
+    assert log_ex2.json()["pr_previous_weight_kg"] == 35.0
 
     with sessions() as db:
         records = db.scalars(select(PersonalRecord)).all()
@@ -501,16 +537,18 @@ def test_exercise_isolation_records_do_not_leak_across_exercises(client):
 
 
 def test_deleting_pr_set_recalculates_to_previous_highest_set(client):
-    """Al eliminar la serie que sostenía el PR vigente, se recalcula al anterior récord de la historia."""
+    """Al eliminar la serie que sostenía el PR vigente, se recalcula al anterior récord o se elimina si solo queda la base."""
     api, sessions = client
     trainer = register_and_login(api, "trainer_pr@example.com", "TRAINER")
     student = register_and_login(api, "student_pr@example.com", "STUDENT")
     ex1_id, _, _, _ = setup_routine_and_exercises(api, sessions, trainer, "student_pr@example.com")
 
+    _record_baseline_session(api, student, [(ex1_id, 40.0, "10")])
+
     session_res = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student, json={"day_name": "Día 1"})
     session_id = session_res.json()["id"]
 
-    # Serie 1: 50 kg
+    # Serie 1: 50 kg (PR #1)
     log1 = api.post(
         f"{ASSIGNED_PATH}/workout-logs",
         headers=student,
@@ -524,7 +562,7 @@ def test_deleting_pr_set_recalculates_to_previous_highest_set(client):
         },
     ).json()
 
-    # Serie 2: 70 kg (Nuevo PR)
+    # Serie 2: 70 kg (PR #2)
     log2 = api.post(
         f"{ASSIGNED_PATH}/workout-logs",
         headers=student,
@@ -542,19 +580,24 @@ def test_deleting_pr_set_recalculates_to_previous_highest_set(client):
     del_res = api.delete(f"{ASSIGNED_PATH}/workout-logs/{log2['id']}", headers=student)
     assert del_res.status_code == 204
 
-    # El PR debe haber vuelto automáticamente a 50 kg (apuntando a log1)
+    # El PR debe haber vuelto automáticamente a 50 kg (apuntando a log1) y haberse limpiado la notificación huérfana
     with sessions() as db:
         pr = db.scalar(select(PersonalRecord).where(PersonalRecord.exercise_id == ex1_id))
         assert pr is not None
         assert float(pr.weight_kg) == 50.0
         assert pr.workout_set_log_id == log1["id"]
+        remaining_notifs = db.scalars(
+            select(Notification).where(Notification.type == "PERSONAL_RECORD")
+        ).all()
+        assert [n.related_entity_id for n in remaining_notifs] == [log1["id"]]
 
-    # Si se desmarca también la serie 1, el registro PR se elimina por completo
+    # Si se desmarca también la serie 1, solo queda la sesión base (40 kg), por lo que el PR se elimina
     del1_res = api.delete(f"{ASSIGNED_PATH}/workout-logs/{log1['id']}", headers=student)
     assert del1_res.status_code == 204
     with sessions() as db:
         pr = db.scalar(select(PersonalRecord).where(PersonalRecord.exercise_id == ex1_id))
         assert pr is None
+        assert db.scalar(select(Notification).where(Notification.type == "PERSONAL_RECORD")) is None
 
 
 def test_deleting_non_pr_set_leaves_pr_untouched(client):
@@ -563,6 +606,8 @@ def test_deleting_non_pr_set_leaves_pr_untouched(client):
     trainer = register_and_login(api, "trainer_pr@example.com", "TRAINER")
     student = register_and_login(api, "student_pr@example.com", "STUDENT")
     ex1_id, _, _, _ = setup_routine_and_exercises(api, sessions, trainer, "student_pr@example.com")
+
+    _record_baseline_session(api, student, [(ex1_id, 50.0, "8")])
 
     session_res = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student, json={"day_name": "Día 1"})
     session_id = session_res.json()["id"]
@@ -612,6 +657,8 @@ def test_get_assigned_personal_records_endpoint(client):
     trainer = register_and_login(api, "trainer_pr@example.com", "TRAINER")
     student = register_and_login(api, "student_pr@example.com", "STUDENT")
     ex1_id, ex2_id, _, _ = setup_routine_and_exercises(api, sessions, trainer, "student_pr@example.com")
+
+    _record_baseline_session(api, student, [(ex1_id, 70.0, "8"), (ex2_id, 40.0, "10")])
 
     session_res = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student, json={"day_name": "Día 1"})
     session_id = session_res.json()["id"]
@@ -724,11 +771,13 @@ def test_historical_logs_prior_to_feature_sync_accurately(client):
 
 
 def test_concurrency_ordering_and_aggregate_lock_guarantees_maximum_pr(client):
-    """CONC-01: Verifica que cualquier orden de intercalación entre series positivas converge al PR máximo sin colisión."""
+    """CONC-01: Verifica que cualquier orden de intercalación entre series converge al PR máximo sin colisión."""
     api, sessions = client
     trainer = register_and_login(api, "trainer_ord1@example.com", "TRAINER")
     student = register_and_login(api, "student_ord1@example.com", "STUDENT")
     ex1_id, _, _, _ = setup_routine_and_exercises(api, sessions, trainer, "student_ord1@example.com", "trainer_ord1@example.com")
+
+    _record_baseline_session(api, student, [(ex1_id, 40.0, "8")])
 
     session_res = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student, json={"day_name": "Día 1"})
     session_id = session_res.json()["id"]
@@ -749,7 +798,8 @@ def test_concurrency_ordering_and_aggregate_lock_guarantees_maximum_pr(client):
     )
     assert r1.status_code == 201
     assert r1.json()["is_personal_record"] is True
-    assert r1.json()["is_initial_pr"] is True
+    assert r1.json()["is_initial_pr"] is False
+    assert r1.json()["pr_previous_weight_kg"] == 40.0
 
     # Entra inmediatamente B (60 kg): Al serializarse sobre StudentProfile, lee el PR existente y lo supera
     r2 = api.post(
@@ -781,6 +831,8 @@ def test_concurrency_ordering_descending_arrives_second_retains_maximum(client):
     trainer = register_and_login(api, "trainer_ord2@example.com", "TRAINER")
     student = register_and_login(api, "student_ord2@example.com", "STUDENT")
     ex1_id, _, _, _ = setup_routine_and_exercises(api, sessions, trainer, "student_ord2@example.com", "trainer_ord2@example.com")
+
+    _record_baseline_session(api, student, [(ex1_id, 40.0, "6")])
 
     session_res = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student, json={"day_name": "Día 1"})
     session_id = session_res.json()["id"]
@@ -829,6 +881,8 @@ def test_concurrency_interleaved_deletion_and_new_set_retains_consistency(client
     trainer = register_and_login(api, "trainer_ord3@example.com", "TRAINER")
     student = register_and_login(api, "student_ord3@example.com", "STUDENT")
     ex1_id, _, _, _ = setup_routine_and_exercises(api, sessions, trainer, "student_ord3@example.com", "trainer_ord3@example.com")
+
+    _record_baseline_session(api, student, [(ex1_id, 40.0, "8")])
 
     session_res = api.post(f"{ASSIGNED_PATH}/workout-sessions", headers=student, json={"day_name": "Día 1"})
     session_id = session_res.json()["id"]

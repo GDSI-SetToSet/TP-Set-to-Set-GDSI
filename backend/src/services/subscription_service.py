@@ -45,3 +45,36 @@ def current_date() -> date:
     Es una función aparte para que las pruebas puedan simular otra fecha.
     """
     return date.today()
+
+
+MAX_CLIENT_DATE_DRIFT_DAYS = 1
+DATE_DRIFT_MESSAGE = "La fecha local indicada difiere demasiado de la fecha del servidor."
+
+
+def resolve_local_date(requested: date | None, server_today: date | None = None) -> date:
+    """Valida que la fecha local del cliente no difiera más de ±1 día de la fecha del servidor."""
+    today = server_today if server_today is not None else current_date()
+    if requested is None:
+        return today
+    if abs((requested - today).days) > MAX_CLIENT_DATE_DRIFT_DAYS:
+        raise ValueError(DATE_DRIFT_MESSAGE)
+    return requested
+
+
+def validated_local_date(
+    requested: date | None,
+    error_factory,
+    *,
+    allow_none: bool = False,
+    field: str = "date",
+) -> date | None:
+    if requested is None and allow_none:
+        return None
+    try:
+        return resolve_local_date(requested)
+    except ValueError as error:
+        raise error_factory(
+            422,
+            str(error),
+            [{"field": field, "message": str(error)}],
+        ) from error

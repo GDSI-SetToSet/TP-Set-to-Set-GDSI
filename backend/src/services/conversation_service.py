@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy import func, or_, select, update
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
 from backend.src.models.conversation import ConversationMessage, TechnicalNote
@@ -161,14 +161,15 @@ def _summary(
     viewer_id: str,
     unread: int,
     last: ConversationMessage | None,
+    names: Parties | None = None,
 ) -> ConversationSummary:
-    names = parties(db, relationship)
+    resolved_names = names if names is not None else parties(db, relationship)
     is_trainer = role == TRAINER_ROLE
     return ConversationSummary(
         relationship_id=relationship.id,
         status=relationship.status,
         can_send=relationship.status == ACTIVE,
-        counterpart_name=names.student_name if is_trainer else names.trainer_name,
+        counterpart_name=resolved_names.student_name if is_trainer else resolved_names.trainer_name,
         counterpart_role=STUDENT_ROLE if is_trainer else TRAINER_ROLE,
         trainer_id=relationship.trainer_id,
         student_id=relationship.student_id,
@@ -200,13 +201,51 @@ def _unread_counts(db: Session, relationship_ids: list[str], viewer_id: str) -> 
     return {rel_id: int(count) for rel_id, count in rows}
 
 
-def _last_message(db: Session, relationship_id: str) -> ConversationMessage | None:
-    return db.scalar(
-        select(ConversationMessage)
-        .where(ConversationMessage.relationship_id == relationship_id)
-        .order_by(ConversationMessage.created_at.desc(), ConversationMessage.id.desc())
-        .limit(1)
+def _last_messages(db: Session, relationship_ids: list[str]) -> dict[str, ConversationMessage]:
+    """Obtiene el último mensaje de cada conversación en una sola consulta SQL."""
+    if not relationship_ids:
+        return {}
+    ranked = (
+        select(
+            ConversationMessage.id.label("msg_id"),
+            func.row_number()
+            .over(
+                partition_by=ConversationMessage.relationship_id,
+                order_by=(ConversationMessage.created_at.desc(), ConversationMessage.id.desc()),
+            )
+            .label("rn"),
+        )
+        .where(ConversationMessage.relationship_id.in_(relationship_ids))
+        .subquery()
     )
+    rows = db.scalars(
+        select(ConversationMessage).join(ranked, ConversationMessage.id == ranked.c.msg_id).where(ranked.c.rn == 1)
+    )
+    return {msg.relationship_id: msg for msg in rows}
+
+
+def _batch_parties(db: Session, relationships: list[TrainingRelationship]) -> dict[str, Parties]:
+    if not relationships:
+        return {}
+    trainer_ids = {r.trainer_id for r in relationships}
+    student_ids = {r.student_id for r in relationships}
+    trainers = {tp.id: tp for tp in db.scalars(select(TrainerProfile).where(TrainerProfile.id.in_(trainer_ids)))}
+    students = {sp.id: sp for sp in db.scalars(select(StudentProfile).where(StudentProfile.id.in_(student_ids)))}
+    user_ids = {tp.user_id for tp in trainers.values()} | {sp.user_id for sp in students.values()}
+    users = {u.id: u for u in db.scalars(select(User).where(User.id.in_(user_ids)))}
+    result: dict[str, Parties] = {}
+    for rel in relationships:
+        tp = trainers[rel.trainer_id]
+        sp = students[rel.student_id]
+        tu = users[tp.user_id]
+        su = users[sp.user_id]
+        result[rel.id] = Parties(
+            trainer_user_id=tu.id,
+            student_user_id=su.id,
+            trainer_name=trainer_display_name(tp, tu.email),
+            student_name=student_display_name(sp, su.email),
+        )
+    return result
 
 
 def list_conversations(db: Session, user: User) -> list[ConversationSummary]:
@@ -224,15 +263,26 @@ def list_conversations(db: Session, user: User) -> list[ConversationSummary]:
     ).exists()
     relationships = list(
         db.scalars(
-            select(TrainingRelationship).where(
-                owner_filter, or_(TrainingRelationship.status == ACTIVE, has_messages)
-            )
+            select(TrainingRelationship)
+            .options(selectinload(TrainingRelationship.plan))
+            .where(owner_filter, or_(TrainingRelationship.status == ACTIVE, has_messages))
         )
     )
-    unread = _unread_counts(db, [r.id for r in relationships], user.id)
-    # ponytail: una consulta por vínculo para el último mensaje; agrupar en SQL si hay muchos vínculos.
+    rel_ids = [r.id for r in relationships]
+    unread = _unread_counts(db, rel_ids, user.id)
+    last_messages = _last_messages(db, rel_ids)
+    names_by_rel = _batch_parties(db, relationships)
     summaries = [
-        _summary(db, r, role, user.id, unread.get(r.id, 0), _last_message(db, r.id)) for r in relationships
+        _summary(
+            db,
+            r,
+            role,
+            user.id,
+            unread.get(r.id, 0),
+            last_messages.get(r.id),
+            names=names_by_rel.get(r.id),
+        )
+        for r in relationships
     ]
     with_messages = sorted(
         (s for s in summaries if s.last_message), key=lambda s: s.last_message.created_at, reverse=True
@@ -339,6 +389,17 @@ def send_message(db: Session, user: User, relationship_id: str, data: MessageCre
                 exercise_name=query.exercise_name,
                 created_at=now,
             )
+        )
+    if query is not None:
+        db.execute(
+            update(Notification)
+            .where(
+                Notification.recipient_id == user.id,
+                Notification.type == "TECHNICAL_QUERY",
+                Notification.related_entity_id == query.id,
+                Notification.is_read.is_(False),
+            )
+            .values(is_read=True, read_at=now)
         )
     notify_new_message(db, relationship, user.id, data.body)
     db.commit()

@@ -4,6 +4,8 @@ La consulta es un mensaje TECHNICAL_QUERY dentro de la conversación del víncul
 Decisión Alternativa B). Está pendiente hasta que el entrenador la responde.
 """
 
+from datetime import date
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session, aliased
 
@@ -19,6 +21,7 @@ from backend.src.schemas.conversation import (
     PendingQueriesGroup,
     TechnicalNoteView,
     TechnicalQueryCreate,
+    TrainerQueryHistoryGroup,
 )
 from backend.src.services.conversation_service import (
     ACTIVE,
@@ -41,16 +44,30 @@ SESSION_INVALID = "La sesión no pertenece a este entrenamiento."
 NOTE_NOT_FOUND = "No se encontró la nota técnica."
 
 
-def create_query(db: Session, user: User, relationship_id: str, data: TechnicalQueryCreate) -> MessageView:
+def create_query(
+    db: Session, user: User, relationship_id: str, data: TechnicalQueryCreate, today: date | None = None
+) -> MessageView:
     """Escenario 1: el alumno consulta sobre un ejercicio; el entrenador recibe una notificación (escenario 2)."""
     relationship, role = resolve(db, user, relationship_id)
     if role != STUDENT_ROLE:
         raise ConversationError(403, ONLY_STUDENT_ASKS)
     require_active(relationship)
+    from backend.src.services.student_subscription_service import (
+        EXPIRED_BLOCK,
+        is_subscription_expired,
+    )
+
+    if is_subscription_expired(db, relationship, today):
+        raise ConversationError(409, EXPIRED_BLOCK)
     exercise = db.get(Exercise, data.exercise_id)
-    # Solo ejercicios vigentes de la biblioteca del entrenador del vínculo (los de la rutina del alumno).
-    if exercise is None or exercise.deleted_at is not None or exercise.trainer_id != relationship.trainer_id:
+    # Vigentes de la biblioteca del entrenador, o dados de baja pero todavía presentes en la rutina vigente.
+    if exercise is None or exercise.trainer_id != relationship.trainer_id:
         raise ConversationError(422, EXERCISE_NOT_FOUND, [{"field": "exercise_id", "message": EXERCISE_NOT_FOUND}])
+    if exercise.deleted_at is not None:
+        from backend.src.services.student_routine_service import current_exercise_ids
+
+        if exercise.id not in current_exercise_ids(db, relationship):
+            raise ConversationError(422, EXERCISE_NOT_FOUND, [{"field": "exercise_id", "message": EXERCISE_NOT_FOUND}])
     if data.session_id is not None:
         session = db.get(WorkoutSession, data.session_id)
         if session is None or session.relationship_id != relationship.id or session.student_id != relationship.student_id:
@@ -119,6 +136,71 @@ def pending_queries_by_student(db: Session, user: User) -> list[PendingQueriesGr
                 student_name=parties(db, relationship).student_name,
                 relationship_id=relationship.id,
                 queries=message_views(db, relationship, messages, user.id),
+            )
+        )
+    return groups
+
+
+def trainer_queries_history(
+    db: Session, user: User, student_id: str | None = None
+) -> list[TrainerQueryHistoryGroup]:
+    """US-62 (AUD-05): historial completo de consultas técnicas (pendientes y respondidas) de alumnos activos."""
+    if user.role != TRAINER_ROLE:
+        raise ConversationError(403, ONLY_TRAINERS)
+    if user.trainer_profile is None:
+        return []
+    filters = [
+        TrainingRelationship.trainer_id == user.trainer_profile.id,
+        TrainingRelationship.status == ACTIVE,
+        ConversationMessage.kind == TECHNICAL_QUERY,
+    ]
+    if student_id is not None:
+        filters.append(TrainingRelationship.student_id == student_id)
+    queries = list(
+        db.scalars(
+            select(ConversationMessage)
+            .join(TrainingRelationship, ConversationMessage.relationship_id == TrainingRelationship.id)
+            .where(*filters)
+            .order_by(ConversationMessage.created_at.desc(), ConversationMessage.id.desc())
+        )
+    )
+    if not queries:
+        return []
+    replies = list(
+        db.scalars(
+            select(ConversationMessage)
+            .where(ConversationMessage.reply_to_message_id.in_([q.id for q in queries]))
+            .order_by(ConversationMessage.created_at, ConversationMessage.id)
+        )
+    )
+    replies_by_query: dict[str, list[ConversationMessage]] = {}
+    for item in replies:
+        if item.reply_to_message_id:
+            replies_by_query.setdefault(item.reply_to_message_id, []).append(item)
+
+    by_relationship: dict[str, list[ConversationMessage]] = {}
+    for q in queries:
+        by_relationship.setdefault(q.relationship_id, []).append(q)
+
+    groups: list[TrainerQueryHistoryGroup] = []
+    for relationship_id, rel_queries in by_relationship.items():
+        relationship = db.get(TrainingRelationship, relationship_id)
+        if relationship is None:
+            continue
+        rel_replies = [r for q in rel_queries for r in replies_by_query.get(q.id, [])]
+        views = {view.id: view for view in message_views(db, relationship, rel_queries + rel_replies, user.id)}
+        groups.append(
+            TrainerQueryHistoryGroup(
+                student_id=relationship.student_id,
+                student_name=parties(db, relationship).student_name,
+                relationship_id=relationship.id,
+                threads=[
+                    ExerciseQueryThread(
+                        query=views[q.id],
+                        replies=[views[r.id] for r in replies_by_query.get(q.id, [])],
+                    )
+                    for q in rel_queries
+                ],
             )
         )
     return groups
@@ -202,10 +284,15 @@ def acknowledge_note(db: Session, user: User, note_id: str, session_id: str | No
     if (
         note is None
         or relationship is None
+        or relationship.status != ACTIVE
         or user.student_profile is None
         or relationship.student_id != user.student_profile.id
     ):
         raise ConversationError(404, NOTE_NOT_FOUND)
+    if session_id is not None:
+        session = db.get(WorkoutSession, session_id)
+        if session is None or session.relationship_id != relationship.id or session.student_id != relationship.student_id:
+            raise ConversationError(422, SESSION_INVALID, [{"field": "session_id", "message": SESSION_INVALID}])
     if note.acknowledged_at is None:
         note.acknowledged_at = utc_now()
         note.acknowledged_session_id = session_id

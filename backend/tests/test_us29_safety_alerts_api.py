@@ -1191,15 +1191,14 @@ def test_ca2_late_report_interruption_different_zone_and_relationship_isolation(
         zones=[{"zone": "Knee", "intensity": "DISCOMFORT"}],
     )
 
-    # Reporte tardío sobre sess_0 perteneciente al vínculo terminado con trainer_1
+    # Reporte tardío sobre sess_0 perteneciente al vínculo terminado con trainer_1: rechazado con 409 (AUD-12 / US-35)
     monkeypatch.setattr(body_map_report_service, "utc_now", lambda: datetime(2026, 8, 2, 15, 0, tzinfo=UTC).replace(tzinfo=None))
-    _report_body_map(
-        api,
-        student,
-        context="POST_SESSION",
-        session_id=sess_0,
-        zones=[{"zone": "Knee", "intensity": "DISCOMFORT"}],
+    terminated_report = api.post(
+        REPORTS_PATH,
+        headers=student,
+        json={"context": "POST_SESSION", "session_id": sess_0, "zones": [{"zone": "Knee", "intensity": "DISCOMFORT"}]},
     )
+    assert terminated_report.status_code == 409
 
     assert api.get(TRAINER_ALERTS_PATH, headers=trainer_1).json() == []
     assert api.get(TRAINER_ALERTS_PATH, headers=trainer_2).json() == []

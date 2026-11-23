@@ -23,7 +23,11 @@ def termination_path(student_id: str) -> str:
 
 
 @pytest.fixture
-def setup(client):
+def setup(client, monkeypatch):
+    monkeypatch.setattr(
+        "backend.src.services.subscription_service.current_date",
+        lambda: date.fromisoformat(TODAY),
+    )
     api, sessions = client
     trainer = register_and_login(api, "coach@example.com", "TRAINER")
     student = register_and_login(api, "alumna@example.com", "STUDENT")
@@ -31,6 +35,7 @@ def setup(client):
     with sessions() as db:
         profile = db.scalar(select(TrainerProfile).join(User).where(User.email == "coach@example.com"))
         profile.max_students = 5
+        db.get(TrainingRelationship, relationship_id).start_date = date(2026, 11, 1)
         db.commit()
     return api, sessions, trainer, student, relationship_id, student_id
 

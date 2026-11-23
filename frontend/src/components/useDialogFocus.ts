@@ -1,4 +1,5 @@
 import { type RefObject, useEffect, useRef } from 'react';
+import { resolveDialogTabTarget } from '../utils/dialogFocus.mjs';
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -28,21 +29,27 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>, onClose: () =
       if (event.key !== 'Tab') return;
       const items = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE));
       if (items.length === 0) return;
-      const firstItem = items[0];
-      const lastItem = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === firstItem) {
+      const activeElement = document.activeElement as HTMLElement | null;
+      const activeIndex = activeElement ? items.indexOf(activeElement) : -1;
+      const targetIndex = resolveDialogTabTarget(
+        items.map((element) => (
+          element instanceof HTMLInputElement && element.type === 'radio'
+            ? { isRadio: true, name: element.name, checked: element.checked }
+            : {}
+        )),
+        activeIndex,
+        event.shiftKey,
+      );
+      if (targetIndex !== null) {
         event.preventDefault();
-        lastItem.focus();
-      } else if (!event.shiftKey && document.activeElement === lastItem) {
-        event.preventDefault();
-        firstItem.focus();
+        items[targetIndex].focus();
       }
     }
 
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      previouslyFocused?.focus?.();
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
   }, [ref]);
 }

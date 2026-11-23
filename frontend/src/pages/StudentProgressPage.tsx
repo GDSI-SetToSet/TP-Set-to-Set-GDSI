@@ -1,6 +1,7 @@
 import { ArrowLeft } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AchievementCelebration } from '../components/AchievementCelebration';
 import { AchievementsSection } from '../components/AchievementsSection';
 import { StreakCard } from '../components/StreakCard';
 import { ConsistencyChart, LoadChart, LoadChartLegend } from '../components/StudentProgressCharts';
@@ -74,7 +75,24 @@ export function StudentProgressPage() {
           <h1>Mi evolución</h1>
         </div>
         {streak && <StreakCard streak={streak} />}
-        {achievements && <AchievementsSection overview={achievements} />}
+        {achievements && (
+          <>
+            <AchievementCelebration
+              preloadedItems={achievements.unlocked}
+              onDismissed={(celebratedIds) => {
+                setAchievements((current) => (current ? {
+                  ...current,
+                  unlocked: current.unlocked.map((item) => (
+                    celebratedIds.includes(item.id)
+                      ? { ...item, pending_celebration: false }
+                      : item
+                  )),
+                } : current));
+              }}
+            />
+            <AchievementsSection overview={achievements} />
+          </>
+        )}
 
         <div className="training-evolution__controls">
           <label>Período

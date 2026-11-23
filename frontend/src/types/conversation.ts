@@ -57,6 +57,13 @@ export interface ExerciseQueryThread {
   replies: MessageView[];
 }
 
+export interface TrainerQueryHistoryGroup {
+  student_id: string;
+  student_name: string;
+  relationship_id: string;
+  threads: ExerciseQueryThread[];
+}
+
 export interface TechnicalNoteView {
   id: string;
   relationship_id: string;

@@ -6,6 +6,7 @@ import { studentNotificationPath, trainerNotificationPath } from '../constants/r
 import { useAuth } from '../context/AuthContext';
 import { getNotifications, markNotificationAsRead } from '../services/discoveryService';
 import type { NotificationItem } from '../types/discovery';
+import { formatNotificationTime } from '../utils/notificationFormat.mjs';
 
 interface NotificationBellProps {
   onNotificationClick?: (notification: NotificationItem) => void;
@@ -20,27 +21,55 @@ export function NotificationBell({ onNotificationClick }: NotificationBellProps)
   const [loading, setLoading] = useState(false);
   const [actionError, setActionError] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
+  const requestSeqRef = useRef(0);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      requestSeqRef.current += 1;
+    };
+  }, []);
 
   const loadNotifications = useCallback(async () => {
     if (!user?.role) return;
+    const seq = ++requestSeqRef.current;
     setLoading(true);
     try {
       const data = await getNotifications(undefined, undefined, undefined, user.role);
+      if (!mountedRef.current || requestSeqRef.current !== seq) return;
       setNotifications(data.items);
       setUnreadCount(data.unread_count);
       setActionError('');
     } catch {
+      if (!mountedRef.current || requestSeqRef.current !== seq) return;
       setActionError('No se pudieron cargar las notificaciones. Intentá nuevamente.');
     } finally {
-      setLoading(false);
+      if (mountedRef.current && requestSeqRef.current === seq) {
+        setLoading(false);
+      }
     }
   }, [user?.role]);
 
   useEffect(() => {
-    if (!user?.role) return;
-    loadNotifications();
-    const interval = setInterval(loadNotifications, 30000);
-    return () => clearInterval(interval);
+    if (!user?.role) return undefined;
+    void loadNotifications();
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void loadNotifications();
+      }
+    }, 30000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void loadNotifications();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [loadNotifications, user?.role]);
 
   // Close on outside click or Escape
@@ -64,9 +93,11 @@ export function NotificationBell({ onNotificationClick }: NotificationBellProps)
   async function markAsRead(notif: NotificationItem): Promise<boolean> {
     if (!notif.is_read) {
       if (!user?.role) return false;
+      requestSeqRef.current += 1;
       setActionError('');
       try {
         const updated = await markNotificationAsRead(notif.id, user.role);
+        if (!mountedRef.current) return false;
         setNotifications((prev) =>
           prev.map((item) => (item.id === notif.id ? updated : item)),
         );
@@ -162,13 +193,8 @@ export function NotificationBell({ onNotificationClick }: NotificationBellProps)
                   <div className="notification-item__body">
                     <h5 className="notification-item__title">{notif.title}</h5>
                     <p className="notification-item__message">{notif.message}</p>
-                    <time className="notification-item__time">
-                      {new Date(notif.created_at).toLocaleDateString('es-AR', {
-                        day: '2-digit',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                    <time className="notification-item__time" dateTime={notif.created_at}>
+                      {formatNotificationTime(notif.created_at)}
                     </time>
                   </div>
                   {!notif.is_read && <span className="notification-item__dot" aria-label="No leída" />}

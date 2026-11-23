@@ -32,10 +32,17 @@ class StudentAchievement(Base):
 
 class AchievementCongratulation(Base):
     __tablename__ = "achievement_congratulations"
+    __table_args__ = (
+        UniqueConstraint(
+            "achievement_id",
+            "trainer_id",
+            name="uq_achievement_congratulations_achievement_trainer",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     achievement_id: Mapped[str] = mapped_column(
-        ForeignKey("student_achievements.id", ondelete="CASCADE"), unique=True, nullable=False
+        ForeignKey("student_achievements.id", ondelete="CASCADE"), nullable=False
     )
     trainer_id: Mapped[str] = mapped_column(ForeignKey("trainer_profiles.id", ondelete="CASCADE"), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)

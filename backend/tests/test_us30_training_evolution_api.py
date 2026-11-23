@@ -111,10 +111,10 @@ def test_progression_per_exercise_with_partial_week_excluded_from_status(client,
     assert exercise["status"] == "progressing" and exercise["metric"] == "max_weight"
     assert exercise["start"] == {"weight": 10.0, "reps": 8} and exercise["current"] == {"weight": 20.0, "reps": 8}
     assert exercise["change_pct"] == 100.0
-    # US-59 guarda un solo récord vigente por ejercicio: lo marca la sesión del récord actual (la de 50 kg),
-    # no una mejora anterior que luego fue superada.
-    assert exercise["last_improvement"]["is_pr"] is False
-    assert [p["is_pr"] for p in exercise["points"]] == [False, False, False, True]
+    # US-65 FR-001a / AUD-08: primera sesión es línea base (False) y cada mejora posterior
+    # que supera la marca acumulada preserva su marcador de PR histórico en evolución.
+    assert exercise["last_improvement"]["is_pr"] is True
+    assert [p["is_pr"] for p in exercise["points"]] == [False, True, True, True]
     assert [p["weight"] for p in exercise["points"]] == [10.0, 15.0, 20.0, 50.0]
     assert [p["is_partial"] for p in exercise["points"]] == [False, False, False, True]
     assert exercise["points"][0]["target_weight"] == 10.0 and exercise["points"][0]["rpe"] == 7

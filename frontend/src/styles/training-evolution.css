@@ -164,7 +164,7 @@
   .training-evolution__review-item { display: grid; align-content: start; grid-template-columns: minmax(0, 1fr); gap: 4px; min-height: 0; padding: 10px 12px; border: 1px solid #dbe3ef; border-radius: 10px; background: #f8faff; line-height: 1.35; }
   .training-evolution__review-item .training-evolution__badge { width: fit-content; max-width: 100%; white-space: normal; }
   .training-evolution__review-label { min-width: 0; overflow-wrap: anywhere; }
-  .training-evolution__review-item .training-evolution__link { display: inline-flex; align-items: center; width: fit-content; max-width: 100%; min-height: 36px; margin-top: 2px; }
+  .training-evolution__review-item .training-evolution__link { display: inline-flex; align-items: center; width: fit-content; max-width: 100%; min-height: 44px; margin-top: 2px; }
   .training-evolution__group-chart > .training-evolution__chart-frame { display: none; }
   .training-evolution__group-chart-mobile { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
   .training-evolution__group-chart-mobile li { display: grid; gap: 6px; min-width: 0; padding: 8px 0; border-bottom: 1px solid #e2e8f0; background: transparent; }
