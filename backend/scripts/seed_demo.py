@@ -30,7 +30,7 @@ from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
 from backend.src.core.database import Base, SessionLocal, engine
 from backend.src.core.migrations import apply_migrations
 from backend.src.core.security import hash_password
-from backend.src.core.storage import UPLOADS_DIR
+from backend.src.core.storage import RECEIPTS_DIR, UPLOADS_DIR
 from backend.src.core.video_urls import parse_video_url
 from backend.src.models.assigned_routine import (
     AssignedRoutine,
@@ -41,6 +41,7 @@ from backend.src.models.assigned_routine import (
 from backend.src.models.body_map_report import BodyMapPainReport, BodyMapPainReportZone
 from backend.src.models.effort_feedback import EffortFeedback
 from backend.src.models.exercise import Exercise
+from backend.src.models.exercise_replacement_log import ExerciseReplacementLog
 from backend.src.models.health_questionnaire import HealthQuestionnaire
 from backend.src.models.informal_payment import InformalPayment
 from backend.src.models.medical_clearance import MedicalClearance
@@ -2003,10 +2004,29 @@ def clean_demo_data(db: Session, verbose: bool = True) -> dict[str, int]:
                 db.delete(rcl)
             db.delete(sr)
 
-    # 2a. Pagos informales de vínculos demo (US-34). Excepción documentada en el plan de la
-    # feature 011: la app nunca borra pagos, pero la purga de la demo elimina todo su grafo.
-    # El DELETE masivo no dispara el guard before_delete del ORM y se limita a usuarios demo.
+    # 2a. Pagos informales de vínculos demo (US-34) y sus comprobantes en disco (US-71).
     if student_ids or trainer_ids:
+        demo_payments = db.scalars(
+            select(InformalPayment).where(
+                (InformalPayment.student_id.in_(student_ids))
+                | (InformalPayment.trainer_id.in_(trainer_ids))
+            )
+        ).all()
+        receipt_rel_dirs: set[str] = set()
+        for dp in demo_payments:
+            if dp.receipt_path:
+                Path(dp.receipt_path).unlink(missing_ok=True)
+                receipt_rel_dirs.add(dp.relationship_id)
+        for rel_dir in receipt_rel_dirs:
+            r_dir = RECEIPTS_DIR / rel_dir
+            if r_dir.exists():
+                for f in r_dir.iterdir():
+                    f.unlink(missing_ok=True)
+                try:
+                    r_dir.rmdir()
+                except OSError:
+                    pass
+
         result = db.execute(
             delete(InformalPayment)
             .where(
@@ -2063,9 +2083,20 @@ def clean_demo_data(db: Session, verbose: bool = True) -> dict[str, int]:
         ).all():
             db.delete(rt)
 
-        for ex in db.scalars(
+        demo_exercises = db.scalars(
             select(Exercise).where(Exercise.trainer_id.in_(trainer_ids))
-        ).all():
+        ).all()
+        demo_exercise_ids = [ex.id for ex in demo_exercises]
+        if demo_exercise_ids:
+            db.execute(
+                delete(ExerciseReplacementLog)
+                .where(
+                    (ExerciseReplacementLog.original_exercise_id.in_(demo_exercise_ids))
+                    | (ExerciseReplacementLog.replacement_exercise_id.in_(demo_exercise_ids))
+                )
+                .execution_options(synchronize_session=False)
+            )
+        for ex in demo_exercises:
             db.delete(ex)
 
     # 5. Aptos médicos de alumnos demo (y sus archivos en disco)

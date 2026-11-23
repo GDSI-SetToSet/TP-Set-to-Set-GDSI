@@ -333,6 +333,7 @@ def prepare_sprint6_demo_data(
             db, valentina_user, rel_valentina.id,
             TechnicalQueryCreate(exercise_id=_exercise(db, lucas, "Sentadilla con Barra").id,
                                  body="En la última serie se me levantan los talones al bajar. ¿Qué estoy haciendo mal?", set_number=3),
+            today=today,
         )
         send_message(
             db, lucas_user, rel_valentina.id,
@@ -343,6 +344,7 @@ def prepare_sprint6_demo_data(
             db, valentina_user, rel_valentina.id,
             TechnicalQueryCreate(exercise_id=_exercise(db, lucas, "Peso Muerto").id,
                                  body="En el peso muerto siento la zona lumbar al subir. ¿Cómo lo corrijo?"),
+            today=today,
         )
         send_message(db, valentina_user, rel_valentina.id, MessageCreate(body="¡Gracias! Te dejé otra consulta sobre el peso muerto."))
 

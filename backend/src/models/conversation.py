@@ -51,7 +51,9 @@ class ConversationMessage(Base):
     # Copia del nombre: la tarjeta de la consulta sobrevive si el ejercicio se elimina.
     exercise_id: Mapped[str | None] = mapped_column(ForeignKey("exercises.id", ondelete="SET NULL"), nullable=True)
     exercise_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
-    session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    session_id: Mapped[str | None] = mapped_column(
+        ForeignKey("workout_sessions.id", ondelete="SET NULL"), nullable=True
+    )
     set_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     reply_to_message_id: Mapped[str | None] = mapped_column(
         ForeignKey("conversation_messages.id", ondelete="CASCADE"), nullable=True
@@ -76,4 +78,6 @@ class TechnicalNote(Base):
     exercise_name: Mapped[str] = mapped_column(String(150), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    acknowledged_session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    acknowledged_session_id: Mapped[str | None] = mapped_column(
+        ForeignKey("workout_sessions.id", ondelete="SET NULL"), nullable=True
+    )

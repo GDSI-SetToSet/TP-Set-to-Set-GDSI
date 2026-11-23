@@ -31,7 +31,7 @@ def _blank_to_none(value: object) -> object:
 
 class MessageCreate(BaseModel):
     body: str | None = Field(default=None, validate_default=True)
-    reply_to_message_id: str | None = None
+    reply_to_message_id: str | None = Field(default=None, max_length=36)
     pin_as_technical_note: bool = False
 
     @field_validator("body", mode="before")
@@ -46,9 +46,9 @@ class MessageCreate(BaseModel):
 
 
 class TechnicalQueryCreate(BaseModel):
-    exercise_id: str | None = Field(default=None, validate_default=True)
+    exercise_id: str | None = Field(default=None, max_length=36, validate_default=True)
     body: str | None = Field(default=None, validate_default=True)
-    session_id: str | None = None
+    session_id: str | None = Field(default=None, max_length=36)
     set_number: int | None = None
 
     @field_validator("exercise_id", mode="before")
@@ -81,7 +81,12 @@ class TechnicalQueryCreate(BaseModel):
 
 
 class NoteAcknowledge(BaseModel):
-    session_id: str | None = None
+    session_id: str | None = Field(default=None, max_length=36)
+
+    @field_validator("session_id", mode="before")
+    @classmethod
+    def normalize_session(cls, value: object) -> object:
+        return _blank_to_none(value)
 
 
 class ExerciseRef(BaseModel):
@@ -146,6 +151,13 @@ class PendingQueriesGroup(BaseModel):
 class ExerciseQueryThread(BaseModel):
     query: MessageView
     replies: list[MessageView]
+
+
+class TrainerQueryHistoryGroup(BaseModel):
+    student_id: str
+    student_name: str
+    relationship_id: str
+    threads: list[ExerciseQueryThread]
 
 
 class TechnicalNoteView(BaseModel):
