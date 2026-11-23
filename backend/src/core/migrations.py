@@ -185,8 +185,8 @@ TARGET_COLUMNS: tuple[ColumnMigration, ...] = (
     ColumnMigration(
         table="informal_payments",
         column="confirmed_by_user_id",
-        sqlite_type="VARCHAR(36)",
-        postgres_type="VARCHAR(36)",
+        sqlite_type="VARCHAR(36) REFERENCES users(id)",
+        postgres_type="VARCHAR(36) REFERENCES users(id)",
         nullable=True,
     ),
     ColumnMigration(
@@ -199,8 +199,8 @@ TARGET_COLUMNS: tuple[ColumnMigration, ...] = (
     ColumnMigration(
         table="informal_payments",
         column="rejected_by_user_id",
-        sqlite_type="VARCHAR(36)",
-        postgres_type="VARCHAR(36)",
+        sqlite_type="VARCHAR(36) REFERENCES users(id)",
+        postgres_type="VARCHAR(36) REFERENCES users(id)",
         nullable=True,
     ),
     ColumnMigration(
@@ -271,6 +271,13 @@ TARGET_COLUMNS: tuple[ColumnMigration, ...] = (
         column="baseline_blocks",
         sqlite_type="JSON",
         postgres_type="JSON",
+        nullable=True,
+    ),
+    ColumnMigration(
+        table="workout_sessions",
+        column="weekly_target",
+        sqlite_type="INTEGER",
+        postgres_type="INTEGER",
         nullable=True,
     ),
 )
@@ -359,6 +366,7 @@ def _migrate_sqlite_workout_sessions_check_constraint(eng: Engine, inspector) ->
                         started_at DATETIME NOT NULL,
                         finished_at DATETIME,
                         rpe INTEGER,
+                        weekly_target INTEGER,
                         CONSTRAINT ck_workout_sessions_rpe_range CHECK (rpe IS NULL OR (rpe >= 1 AND rpe <= 10)),
                         FOREIGN KEY(student_id) REFERENCES student_profiles (id) ON DELETE CASCADE,
                         FOREIGN KEY(relationship_id) REFERENCES training_relationships (id) ON DELETE CASCADE
@@ -370,6 +378,8 @@ def _migrate_sqlite_workout_sessions_check_constraint(eng: Engine, inspector) ->
                 ]
                 if "rpe" in cols:
                     cols_target.append("rpe")
+                if "weekly_target" in cols:
+                    cols_target.append("weekly_target")
                 cols_to_copy = [c for c in cols_target if c in cols]
                 cols_str = ", ".join(cols_to_copy)
                 conn.execute(text(f"INSERT INTO _workout_sessions_new ({cols_str}) SELECT {cols_str} FROM workout_sessions"))
@@ -791,6 +801,255 @@ def _migrate_sqlite_exercise_replacement_logs(eng: Engine) -> list[str]:
     return [key]
 
 
+def _migrate_sqlite_achievement_congratulations(eng: Engine) -> list[str]:
+    """Migra achievement_congratulations en SQLite para unicidad compuesta (achievement_id, trainer_id)."""
+    fresh_inspector = inspect(eng)
+    existing_tables = set(fresh_inspector.get_table_names())
+    if "achievement_congratulations" not in existing_tables:
+        return []
+
+    has_legacy_single = False
+    has_composite_unique = False
+    with eng.connect() as conn:
+        for idx in conn.execute(text("PRAGMA index_list('achievement_congratulations')")).fetchall():
+            idx_name = idx[1]
+            is_unique = bool(idx[2])
+            if not is_unique:
+                continue
+            cols = [row[2] for row in conn.execute(text(f"PRAGMA index_info('{idx_name}')")).fetchall()]
+            if cols == ["achievement_id"]:
+                has_legacy_single = True
+            elif set(cols) == {"achievement_id", "trainer_id"} and len(cols) == 2:
+                has_composite_unique = True
+
+    if has_composite_unique and not has_legacy_single:
+        return []
+
+    with eng.connect() as conn:
+        dbapi = conn.connection.dbapi_connection
+        if hasattr(dbapi, "execute"):
+            dbapi.execute("PRAGMA foreign_keys=OFF;")
+        try:
+            with conn.begin():
+                conn.execute(
+                    text(
+                        """
+                        CREATE TABLE _achievement_congratulations_new (
+                            id VARCHAR(36) PRIMARY KEY,
+                            achievement_id VARCHAR(36) NOT NULL,
+                            trainer_id VARCHAR(36) NOT NULL,
+                            message TEXT NOT NULL,
+                            created_at DATETIME NOT NULL,
+                            seen_at DATETIME,
+                            CONSTRAINT uq_achievement_congratulations_achievement_trainer
+                                UNIQUE (achievement_id, trainer_id),
+                            FOREIGN KEY(achievement_id) REFERENCES student_achievements (id) ON DELETE CASCADE,
+                            FOREIGN KEY(trainer_id) REFERENCES trainer_profiles (id) ON DELETE CASCADE
+                        )
+                        """
+                    )
+                )
+                conn.execute(
+                    text(
+                        "INSERT INTO _achievement_congratulations_new "
+                        "(id, achievement_id, trainer_id, message, created_at, seen_at) "
+                        "SELECT id, achievement_id, trainer_id, message, created_at, seen_at "
+                        "FROM achievement_congratulations"
+                    )
+                )
+                conn.execute(text("DROP TABLE achievement_congratulations"))
+                conn.execute(
+                    text("ALTER TABLE _achievement_congratulations_new RENAME TO achievement_congratulations")
+                )
+        finally:
+            if hasattr(dbapi, "execute"):
+                dbapi.execute("PRAGMA foreign_keys=ON;")
+
+    key = "achievement_congratulations.uq_achievement_congratulations_achievement_trainer:sqlite_table_rebuild"
+    logger.info("Migración de tabla aplicada en SQLite: %s", key)
+    return [key]
+
+
+def _migrate_sqlite_technical_notes_fk(eng: Engine) -> list[str]:
+    """Agrega la clave foránea de technical_notes.acknowledged_session_id a workout_sessions en SQLite."""
+    fresh_inspector = inspect(eng)
+    existing_tables = set(fresh_inspector.get_table_names())
+    if not {"technical_notes", "workout_sessions"}.issubset(existing_tables):
+        return []
+
+    has_fk = any(
+        fk.get("referred_table") == "workout_sessions"
+        and fk.get("constrained_columns") == ["acknowledged_session_id"]
+        for fk in fresh_inspector.get_foreign_keys("technical_notes")
+    )
+    if has_fk:
+        return []
+
+    with eng.connect() as conn:
+        dbapi = conn.connection.dbapi_connection
+        if hasattr(dbapi, "execute"):
+            dbapi.execute("PRAGMA foreign_keys=OFF;")
+        try:
+            with conn.begin():
+                conn.execute(
+                    text(
+                        """
+                        UPDATE technical_notes
+                        SET acknowledged_session_id = NULL
+                        WHERE acknowledged_session_id IS NOT NULL
+                          AND NOT EXISTS (
+                            SELECT 1 FROM workout_sessions ws
+                            WHERE ws.id = technical_notes.acknowledged_session_id
+                          )
+                        """
+                    )
+                )
+                conn.execute(
+                    text(
+                        """
+                        CREATE TABLE _technical_notes_new (
+                            id VARCHAR(36) PRIMARY KEY,
+                            relationship_id VARCHAR(36) NOT NULL,
+                            message_id VARCHAR(36) UNIQUE NOT NULL,
+                            exercise_id VARCHAR(36),
+                            exercise_name VARCHAR(150) NOT NULL,
+                            created_at DATETIME NOT NULL,
+                            acknowledged_at DATETIME,
+                            acknowledged_session_id VARCHAR(36),
+                            FOREIGN KEY(relationship_id) REFERENCES training_relationships (id) ON DELETE CASCADE,
+                            FOREIGN KEY(message_id) REFERENCES conversation_messages (id) ON DELETE CASCADE,
+                            FOREIGN KEY(exercise_id) REFERENCES exercises (id) ON DELETE SET NULL,
+                            FOREIGN KEY(acknowledged_session_id) REFERENCES workout_sessions (id) ON DELETE SET NULL
+                        )
+                        """
+                    )
+                )
+                conn.execute(
+                    text(
+                        "INSERT INTO _technical_notes_new "
+                        "(id, relationship_id, message_id, exercise_id, exercise_name, "
+                        "created_at, acknowledged_at, acknowledged_session_id) "
+                        "SELECT id, relationship_id, message_id, exercise_id, exercise_name, "
+                        "created_at, acknowledged_at, acknowledged_session_id "
+                        "FROM technical_notes"
+                    )
+                )
+                conn.execute(text("DROP TABLE technical_notes"))
+                conn.execute(text("ALTER TABLE _technical_notes_new RENAME TO technical_notes"))
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_technical_notes_relationship_id "
+                        "ON technical_notes (relationship_id)"
+                    )
+                )
+        finally:
+            if hasattr(dbapi, "execute"):
+                dbapi.execute("PRAGMA foreign_keys=ON;")
+
+    key = "technical_notes.fk_technical_notes_acknowledged_session:sqlite_table_rebuild"
+    logger.info("Migración de tabla aplicada en SQLite: %s", key)
+    return [key]
+
+
+def _migrate_sqlite_conversation_messages_fk(eng: Engine) -> list[str]:
+    """Agrega la clave foránea de conversation_messages.session_id a workout_sessions en SQLite."""
+    fresh_inspector = inspect(eng)
+    existing_tables = set(fresh_inspector.get_table_names())
+    if not {"conversation_messages", "workout_sessions"}.issubset(existing_tables):
+        return []
+
+    has_fk = any(
+        fk.get("referred_table") == "workout_sessions"
+        and fk.get("constrained_columns") == ["session_id"]
+        for fk in fresh_inspector.get_foreign_keys("conversation_messages")
+    )
+    if has_fk:
+        return []
+
+    with eng.connect() as conn:
+        dbapi = conn.connection.dbapi_connection
+        if hasattr(dbapi, "execute"):
+            dbapi.execute("PRAGMA foreign_keys=OFF;")
+        try:
+            with conn.begin():
+                conn.execute(
+                    text(
+                        """
+                        UPDATE conversation_messages
+                        SET session_id = NULL
+                        WHERE session_id IS NOT NULL
+                          AND NOT EXISTS (
+                            SELECT 1 FROM workout_sessions ws
+                            WHERE ws.id = conversation_messages.session_id
+                          )
+                        """
+                    )
+                )
+                conn.execute(
+                    text(
+                        """
+                        CREATE TABLE _conversation_messages_new (
+                            id VARCHAR(36) PRIMARY KEY,
+                            relationship_id VARCHAR(36) NOT NULL,
+                            sender_user_id VARCHAR(36) NOT NULL,
+                            sender_role VARCHAR(16) NOT NULL,
+                            kind VARCHAR(24) NOT NULL,
+                            body TEXT NOT NULL,
+                            exercise_id VARCHAR(36),
+                            exercise_name VARCHAR(150),
+                            session_id VARCHAR(36),
+                            set_number INTEGER,
+                            reply_to_message_id VARCHAR(36),
+                            created_at DATETIME NOT NULL,
+                            read_at DATETIME,
+                            CONSTRAINT ck_conversation_messages_sender_role CHECK (sender_role IN ('TRAINER', 'STUDENT')),
+                            CONSTRAINT ck_conversation_messages_kind CHECK (kind IN ('TEXT', 'TECHNICAL_QUERY')),
+                            CONSTRAINT ck_conversation_messages_query_exercise CHECK (kind <> 'TECHNICAL_QUERY' OR exercise_name IS NOT NULL),
+                            CONSTRAINT ck_conversation_messages_reply_kind CHECK (reply_to_message_id IS NULL OR kind = 'TEXT'),
+                            FOREIGN KEY(relationship_id) REFERENCES training_relationships (id) ON DELETE CASCADE,
+                            FOREIGN KEY(sender_user_id) REFERENCES users (id) ON DELETE CASCADE,
+                            FOREIGN KEY(exercise_id) REFERENCES exercises (id) ON DELETE SET NULL,
+                            FOREIGN KEY(session_id) REFERENCES workout_sessions (id) ON DELETE SET NULL,
+                            FOREIGN KEY(reply_to_message_id) REFERENCES conversation_messages (id) ON DELETE CASCADE
+                        )
+                        """
+                    )
+                )
+                conn.execute(
+                    text(
+                        "INSERT INTO _conversation_messages_new "
+                        "(id, relationship_id, sender_user_id, sender_role, kind, body, "
+                        "exercise_id, exercise_name, session_id, set_number, reply_to_message_id, "
+                        "created_at, read_at) "
+                        "SELECT id, relationship_id, sender_user_id, sender_role, kind, body, "
+                        "exercise_id, exercise_name, session_id, set_number, reply_to_message_id, "
+                        "created_at, read_at "
+                        "FROM conversation_messages"
+                    )
+                )
+                conn.execute(text("DROP TABLE conversation_messages"))
+                conn.execute(text("ALTER TABLE _conversation_messages_new RENAME TO conversation_messages"))
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_conversation_messages_relationship_created "
+                        "ON conversation_messages (relationship_id, created_at)"
+                    )
+                )
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_conversation_messages_reply_to "
+                        "ON conversation_messages (reply_to_message_id)"
+                    )
+                )
+        finally:
+            if hasattr(dbapi, "execute"):
+                dbapi.execute("PRAGMA foreign_keys=ON;")
+
+    key = "conversation_messages.fk_conversation_messages_session_id:sqlite_table_rebuild"
+    logger.info("Migración de tabla aplicada en SQLite: %s", key)
+    return [key]
+
+
 def apply_migrations(target_engine: Engine | None = None) -> list[str]:
     """Aplica de forma aditiva e idempotente las columnas faltantes y ampliaciones de tipo en tablas existentes."""
     eng = target_engine or engine
@@ -956,6 +1215,146 @@ def apply_migrations(target_engine: Engine | None = None) -> list[str]:
                 )
             )
 
+        if "notifications" in existing_tables:
+            notif_insp = inspect(conn)
+            notif_cols = {c["name"] for c in notif_insp.get_columns("notifications")}
+            notif_idx_names = {i.get("name") for i in notif_insp.get_indexes("notifications")}
+            if (
+                "uq_notifications_streak_reset" not in notif_idx_names
+                and {"id", "recipient_id", "type", "related_entity_id"}.issubset(notif_cols)
+            ):
+                conn.execute(
+                    text(
+                        """
+                        DELETE FROM notifications
+                        WHERE type = 'STREAK_RESET'
+                          AND related_entity_id IS NOT NULL
+                          AND id NOT IN (
+                            SELECT MIN(id) FROM notifications
+                            WHERE type = 'STREAK_RESET' AND related_entity_id IS NOT NULL
+                            GROUP BY recipient_id, related_entity_id
+                          )
+                        """
+                    )
+                )
+                conn.execute(
+                    text(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS uq_notifications_streak_reset "
+                        "ON notifications (recipient_id, related_entity_id) "
+                        "WHERE type = 'STREAK_RESET'"
+                    )
+                )
+                applied.append("notifications.uq_notifications_streak_reset:unique_index")
+
+        if {"technical_notes", "workout_sessions"}.issubset(existing_tables):
+            conn.execute(
+                text(
+                    """
+                    UPDATE technical_notes
+                    SET acknowledged_session_id = NULL
+                    WHERE acknowledged_session_id IS NOT NULL
+                      AND NOT EXISTS (
+                        SELECT 1 FROM workout_sessions ws
+                        WHERE ws.id = technical_notes.acknowledged_session_id
+                      )
+                    """
+                )
+            )
+            if not is_sqlite:
+                tn_insp = inspect(conn)
+                has_tn_fk = any(
+                    fk.get("referred_table") == "workout_sessions"
+                    and fk.get("constrained_columns") == ["acknowledged_session_id"]
+                    for fk in tn_insp.get_foreign_keys("technical_notes")
+                )
+                if not has_tn_fk:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE technical_notes "
+                            "ADD CONSTRAINT fk_technical_notes_acknowledged_session "
+                            "FOREIGN KEY (acknowledged_session_id) REFERENCES workout_sessions (id) ON DELETE SET NULL"
+                        )
+                    )
+                    applied.append("technical_notes.fk_technical_notes_acknowledged_session:foreign_key")
+
+        if {"conversation_messages", "workout_sessions"}.issubset(existing_tables):
+            conn.execute(
+                text(
+                    """
+                    UPDATE conversation_messages
+                    SET session_id = NULL
+                    WHERE session_id IS NOT NULL
+                      AND NOT EXISTS (
+                        SELECT 1 FROM workout_sessions ws
+                        WHERE ws.id = conversation_messages.session_id
+                      )
+                    """
+                )
+            )
+            if not is_sqlite:
+                cm_insp = inspect(conn)
+                has_cm_fk = any(
+                    fk.get("referred_table") == "workout_sessions"
+                    and fk.get("constrained_columns") == ["session_id"]
+                    for fk in cm_insp.get_foreign_keys("conversation_messages")
+                )
+                if not has_cm_fk:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE conversation_messages "
+                            "ADD CONSTRAINT fk_conversation_messages_session_id "
+                            "FOREIGN KEY (session_id) REFERENCES workout_sessions (id) ON DELETE SET NULL"
+                        )
+                    )
+                    applied.append("conversation_messages.fk_conversation_messages_session_id:foreign_key")
+
+        if not is_sqlite and {"informal_payments", "users"}.issubset(existing_tables):
+            ip_insp = inspect(conn)
+            ip_fks = {
+                tuple(fk.get("constrained_columns") or [])
+                for fk in ip_insp.get_foreign_keys("informal_payments")
+                if fk.get("referred_table") == "users"
+            }
+            for col_name, fk_name in (
+                ("confirmed_by_user_id", "fk_informal_payments_confirmed_by_user"),
+                ("rejected_by_user_id", "fk_informal_payments_rejected_by_user"),
+            ):
+                if (col_name,) not in ip_fks:
+                    conn.execute(
+                        text(
+                            f"ALTER TABLE informal_payments "
+                            f"ADD CONSTRAINT {fk_name} FOREIGN KEY ({col_name}) REFERENCES users (id)"
+                        )
+                    )
+                    applied.append(f"informal_payments.{fk_name}:foreign_key")
+
+        if not is_sqlite and "achievement_congratulations" in existing_tables:
+            ac_insp = inspect(conn)
+            for uq in ac_insp.get_unique_constraints("achievement_congratulations"):
+                uq_cols = uq.get("column_names") or []
+                uq_name = uq.get("name")
+                if uq_name and uq_cols == ["achievement_id"]:
+                    conn.execute(text(f'ALTER TABLE achievement_congratulations DROP CONSTRAINT IF EXISTS "{uq_name}"'))
+                    applied.append(f"achievement_congratulations.{uq_name}:drop_legacy_unique")
+            for idx in ac_insp.get_indexes("achievement_congratulations"):
+                idx_cols = idx.get("column_names") or []
+                idx_name = idx.get("name")
+                if idx.get("unique") and idx_cols == ["achievement_id"] and idx_name:
+                    conn.execute(text(f'DROP INDEX IF EXISTS "{idx_name}"'))
+                    applied.append(f"achievement_congratulations.{idx_name}:drop_legacy_unique_index")
+            ac_uqs = {u.get("name") for u in inspect(conn).get_unique_constraints("achievement_congratulations")}
+            if "uq_achievement_congratulations_achievement_trainer" not in ac_uqs:
+                conn.execute(
+                    text(
+                        "ALTER TABLE achievement_congratulations "
+                        "ADD CONSTRAINT uq_achievement_congratulations_achievement_trainer "
+                        "UNIQUE (achievement_id, trainer_id)"
+                    )
+                )
+                applied.append(
+                    "achievement_congratulations.uq_achievement_congratulations_achievement_trainer:unique_constraint"
+                )
+
     # 5. Migración de restricciones CHECK y UNIQUE en SQLite existente mediante reconstrucción segura de tabla
     if is_sqlite:
         sqlite_ck_applied = _migrate_sqlite_workout_sessions_check_constraint(eng, inspector)
@@ -964,6 +1363,9 @@ def apply_migrations(target_engine: Engine | None = None) -> list[str]:
         applied.extend(sqlite_uq_applied)
         sqlite_repl_applied = _migrate_sqlite_exercise_replacement_logs(eng)
         applied.extend(sqlite_repl_applied)
+        applied.extend(_migrate_sqlite_achievement_congratulations(eng))
+        applied.extend(_migrate_sqlite_technical_notes_fk(eng))
+        applied.extend(_migrate_sqlite_conversation_messages_fk(eng))
 
     return applied
 

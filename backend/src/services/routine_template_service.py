@@ -1,4 +1,4 @@
-from decimal import Decimal
+from datetime import date
 from typing import Any
 
 from fastapi import status
@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from backend.src.core.constants import VALIDATION_ERROR_MESSAGE
 from backend.src.models.assigned_routine import AssignedRoutine
+from backend.src.models.conversation import TechnicalNote
 from backend.src.models.exercise import Exercise
 from backend.src.models.exercise_replacement_log import ExerciseReplacementLog
 from backend.src.models.notification import Notification
@@ -253,7 +254,21 @@ def _resolve_from_initial_routine(
     return None
 
 
-def get_assigned_student_template(db: Session, user: User) -> RoutineTemplate | dict | None:
+def _ensure_subscription_not_expired(
+    db: Session, relationship: TrainingRelationship, today: date | None = None
+) -> None:
+    from backend.src.services.student_subscription_service import (
+        EXPIRED_BLOCK,
+        is_subscription_expired,
+    )
+
+    if is_subscription_expired(db, relationship, today):
+        raise RoutineTemplateError(status.HTTP_409_CONFLICT, EXPIRED_BLOCK)
+
+
+def get_assigned_student_template(
+    db: Session, user: User, today: date | None = None
+) -> RoutineTemplate | dict | None:
     profile = get_student_profile(db, user)
     relationship = db.scalar(
         select(TrainingRelationship)
@@ -266,6 +281,7 @@ def get_assigned_student_template(db: Session, user: User) -> RoutineTemplate | 
     )
     if relationship is None:
         return None
+    _ensure_subscription_not_expired(db, relationship, today)
     return _resolve_from_initial_routine(db, relationship)
 
 
@@ -319,9 +335,10 @@ def _iter_routine_exercises(routine_view: RoutineTemplate | dict):
 
 
 def update_student_routine_modality(
-    db: Session, user: User, payload: RoutineModalityUpdate
+    db: Session, user: User, payload: RoutineModalityUpdate, today: date | None = None
 ) -> RoutineTemplate | dict:
     relationship, routine_view = _resolve_student_active_routine(db, user)
+    _ensure_subscription_not_expired(db, relationship, today)
     target_modality = payload.modality
 
     if target_modality == "HOME":
@@ -424,23 +441,18 @@ def _snapshot_day_blocks(routine_view: RoutineTemplate | dict, day_name: str) ->
 
 
 def start_student_workout_session(
-    db: Session, user: User, payload: WorkoutSessionStartInput
+    db: Session, user: User, payload: WorkoutSessionStartInput, today: date | None = None
 ) -> WorkoutSession:
     from backend.src.services.session_adjustment_service import (
         apply_pending_adjustments,
         relationship_write_lock,
-    )
-    from backend.src.services.student_subscription_service import (
-        EXPIRED_BLOCK,
-        is_subscription_expired,
     )
 
     user_id = user.id
     relationship, _ = _resolve_student_active_routine(db, user)
     relationship_id = relationship.id
     # US-71 (FR-006): con la suscripción vencida se bloquea el inicio de sesiones nuevas.
-    if is_subscription_expired(db, relationship):
-        raise RoutineTemplateError(status.HTTP_409_CONFLICT, EXPIRED_BLOCK)
+    _ensure_subscription_not_expired(db, relationship, today)
     with relationship_write_lock(db, relationship_id, refresh_snapshot=True):
         reloaded_user = db.get(User, user_id)
         if reloaded_user is None:
@@ -451,6 +463,9 @@ def start_student_workout_session(
         relationship, routine_view = _resolve_student_active_routine(db, reloaded_user)
         if locked_rel is not None:
             relationship = locked_rel
+        if relationship.status != "ACTIVE":
+            raise RoutineTemplateError(status.HTTP_409_CONFLICT, "Tu vínculo con este entrenador ya no está activo.")
+        _ensure_subscription_not_expired(db, relationship, today)
         if apply_pending_adjustments(db, relationship.id, commit=False):  # US-26: la sesión que esperaban quedó abandonada
             relationship, routine_view = _resolve_student_active_routine(db, reloaded_user)
         routine_id = routine_view.id if isinstance(routine_view, RoutineTemplate) else routine_view["id"]
@@ -478,6 +493,7 @@ def start_student_workout_session(
             day_name=payload.day_name,
             modality=relationship.routine_modality or "GYM",
             started_at=now,
+            weekly_target=len(valid_day_names) if valid_day_names else None,
         )
         db.add(session)
         db.flush()
@@ -509,7 +525,7 @@ def start_student_workout_session(
 
 
 def finish_student_workout_session(
-    db: Session, user: User, session_id: str, rpe: int | None = None
+    db: Session, user: User, session_id: str, rpe: int | None = None, today: date | None = None
 ) -> WorkoutSession:
     profile = get_student_profile(db, user)
     rel_id = db.scalar(
@@ -527,9 +543,15 @@ def finish_student_workout_session(
     )
 
     with relationship_write_lock(db, rel_id, refresh_snapshot=True):
-        db.scalar(
-            select(TrainingRelationship.id).where(TrainingRelationship.id == rel_id).with_for_update()
+        locked_rel = db.scalar(
+            select(TrainingRelationship).where(TrainingRelationship.id == rel_id).with_for_update()
         )
+        if locked_rel is None or locked_rel.status != "ACTIVE":
+            raise RoutineTemplateError(
+                status.HTTP_409_CONFLICT,
+                "Tu vínculo con este entrenador ya no está activo.",
+            )
+        _ensure_subscription_not_expired(db, locked_rel, today)
         # MED-01: Bloqueo pesimista para serializar concurrencia y prevenir carreras
         session = db.scalar(
             select(WorkoutSession)
@@ -546,6 +568,14 @@ def finish_student_workout_session(
                 create_excessive_effort_alert,
             )
 
+            if session.weekly_target is None:
+                from backend.src.services.abandonment_risk_service import (
+                    _weekly_trainings,
+                )
+
+                weekly_days = _weekly_trainings(db, locked_rel, utc_now())[0]
+                if weekly_days > 0:
+                    session.weekly_target = weekly_days
             session.finished_at = utc_now()
             if rpe is not None:
                 previous_rpe = session.rpe
@@ -594,6 +624,12 @@ def update_student_workout_session_rpe(
     )
     if session is None:
         raise RoutineTemplateError(status.HTTP_404_NOT_FOUND, "No encontramos este entrenamiento.")
+    relationship = db.get(TrainingRelationship, session.relationship_id)
+    if relationship is None or relationship.status != "ACTIVE":
+        raise RoutineTemplateError(
+            status.HTTP_409_CONFLICT,
+            "Tu vínculo con este entrenador ya no está activo.",
+        )
     if session.finished_at is None:
         raise RoutineTemplateError(
             VALIDATION_ERROR_STATUS,
@@ -616,9 +652,10 @@ def update_student_workout_session_rpe(
 
 
 def create_student_workout_log(
-    db: Session, user: User, payload: WorkoutSetLogInput
+    db: Session, user: User, payload: WorkoutSetLogInput, today: date | None = None
 ) -> WorkoutSetLog:
     relationship, routine_view = _resolve_student_active_routine(db, user)
+    _ensure_subscription_not_expired(db, relationship, today)
     routine_id = routine_view.id if isinstance(routine_view, RoutineTemplate) else routine_view["id"]
     exercises_by_id = {ex.id: ex for _, _, _, _, ex in _iter_routine_exercises(routine_view)}
 
@@ -652,6 +689,20 @@ def create_student_workout_log(
             "Podés saltearlo; tu entrenador ya fue avisado."
         )
         raise RoutineTemplateError(VALIDATION_ERROR_STATUS, detail, [{"field": "exercise_id", "message": detail}])
+
+    # US-62 (AUD-06): exigir lectura confirmada ("Entendido") antes de registrar series del ejercicio.
+    pending_note = db.scalar(
+        select(TechnicalNote.id).where(
+            TechnicalNote.relationship_id == relationship.id,
+            TechnicalNote.exercise_id == exercise.id,
+            TechnicalNote.acknowledged_at.is_(None),
+        )
+    )
+    if pending_note is not None:
+        raise RoutineTemplateError(
+            status.HTTP_409_CONFLICT,
+            f'Tenés una nota técnica pendiente de lectura en "{exercise.name}". Confirmala antes de registrar series.',
+        )
 
     workout_session = None
     if payload.session_id:
@@ -706,94 +757,44 @@ def create_student_workout_log(
     db.add(log_entry)
     db.flush()
 
-    # US-59: Detección y persistencia de nuevo récord personal (PR)
-    is_personal_record = False
+    # US-59 + US-65 FR-001a: detección unificada y persistencia de nuevo récord personal (PR)
+    from backend.src.services.personal_record_service import (
+        evaluate_live_set_pr,
+        sync_personal_record,
+    )
+
+    # CONC-01: Serialización pesimista sobre el perfil del alumno (aggregate root)
+    db.scalar(
+        select(StudentProfile.id)
+        .where(StudentProfile.id == relationship.student_id)
+        .with_for_update()
+    )
+    existing_pr = db.scalar(
+        select(PersonalRecord)
+        .where(
+            PersonalRecord.student_id == relationship.student_id,
+            PersonalRecord.exercise_id == exercise.id,
+        )
+        .with_for_update()
+    )
+
+    pr_eval = evaluate_live_set_pr(db, relationship.student_id, exercise.id, log_entry)
+    is_personal_record = pr_eval.is_pr
     is_initial_pr = False
-    pr_previous_weight_kg: float | None = None
+    pr_previous_weight_kg: float | None = (
+        pr_eval.previous_mark[0] if (pr_eval.is_pr and pr_eval.previous_mark is not None) else None
+    )
 
-    if payload.weight_kg is not None and payload.weight_kg > 0:
-        current_weight = Decimal(str(payload.weight_kg))
+    if is_personal_record:
+        sync_personal_record(db, relationship.student_id, exercise.id, existing_pr=existing_pr)
 
-        # CONC-01: Serialización pesimista sobre el perfil del alumno (aggregate root)
-        # para coordinar la evaluación y evitar colisiones concurrentes en el primer PR
-        db.scalar(
-            select(StudentProfile.id)
-            .where(StudentProfile.id == relationship.student_id)
-            .with_for_update()
-        )
-
-        existing_pr = db.scalar(
-            select(PersonalRecord).where(
-                PersonalRecord.student_id == relationship.student_id,
-                PersonalRecord.exercise_id == exercise.id,
-            ).with_for_update()
-        )
-
-        if existing_pr is None:
-            # Comprobar si existían registros históricos previos de peso > 0
-            historical_max = db.scalar(
-                select(WorkoutSetLog).where(
-                    WorkoutSetLog.student_id == relationship.student_id,
-                    WorkoutSetLog.exercise_id == exercise.id,
-                    WorkoutSetLog.id != log_entry.id,
-                    WorkoutSetLog.weight_kg > 0,
-                ).order_by(WorkoutSetLog.weight_kg.desc(), WorkoutSetLog.recorded_at.desc())
-            )
-            if historical_max is not None:
-                if current_weight > historical_max.weight_kg:
-                    is_personal_record = True
-                    is_initial_pr = False
-                    pr_previous_weight_kg = float(historical_max.weight_kg)
-                    new_pr = PersonalRecord(
-                        student_id=relationship.student_id,
-                        exercise_id=exercise.id,
-                        weight_kg=log_entry.weight_kg,
-                        reps_completed=log_entry.reps_completed,
-                        workout_set_log_id=log_entry.id,
-                        achieved_at=log_entry.recorded_at,
-                    )
-                    db.add(new_pr)
-                else:
-                    sync_pr = PersonalRecord(
-                        student_id=relationship.student_id,
-                        exercise_id=exercise.id,
-                        weight_kg=historical_max.weight_kg,
-                        reps_completed=historical_max.reps_completed,
-                        workout_set_log_id=historical_max.id,
-                        achieved_at=historical_max.recorded_at,
-                    )
-                    db.add(sync_pr)
-            else:
-                is_personal_record = True
-                is_initial_pr = True
-                pr_previous_weight_kg = None
-                new_pr = PersonalRecord(
-                    student_id=relationship.student_id,
-                    exercise_id=exercise.id,
-                    weight_kg=log_entry.weight_kg,
-                    reps_completed=log_entry.reps_completed,
-                    workout_set_log_id=log_entry.id,
-                    achieved_at=log_entry.recorded_at,
-                )
-                db.add(new_pr)
-        else:
-            if current_weight > existing_pr.weight_kg:
-                is_personal_record = True
-                is_initial_pr = False
-                pr_previous_weight_kg = float(existing_pr.weight_kg)
-                existing_pr.weight_kg = log_entry.weight_kg
-                existing_pr.reps_completed = log_entry.reps_completed
-                existing_pr.workout_set_log_id = log_entry.id
-                existing_pr.achieved_at = log_entry.recorded_at
-
-        # US-59: Notificar al entrenador del vínculo activo si hubo nuevo PR
         trainer_user_id = relationship.trainer.user_id if relationship.trainer else None
         if not trainer_user_id:
             trainer_profile = db.get(TrainerProfile, relationship.trainer_id)
             if trainer_profile:
                 trainer_user_id = trainer_profile.user_id
 
-        if is_personal_record and trainer_user_id:
+        if trainer_user_id:
             already_notified = db.scalar(
                 select(Notification.id).where(
                     Notification.recipient_id == trainer_user_id,
@@ -811,16 +812,31 @@ def create_student_workout_log(
                 if not student_name:
                     student_name = "Tu alumno"
 
-                curr_weight_str = f"{float(log_entry.weight_kg):.2f}".rstrip("0").rstrip(".")
+                prev_weight, prev_reps = pr_eval.previous_mark or (0.0, 0)
+                curr_weight = float(log_entry.weight_kg or 0)
+                curr_weight_str = f"{curr_weight:.2f}".rstrip("0").rstrip(".")
+                prev_weight_str = f"{prev_weight:.2f}".rstrip("0").rstrip(".")
                 title = f"¡Nuevo récord personal de {student_name}!"
 
-                if is_initial_pr:
+                if curr_weight == 0:
                     message = (
-                        f"{student_name} registró su primer récord en {exercise.name}: "
-                        f"{curr_weight_str} kg ({log_entry.reps_completed} reps)."
+                        f"{student_name} superó su récord personal en {exercise.name}: "
+                        f"{log_entry.reps_completed} reps (sin carga). "
+                        f"Récord anterior: {prev_reps} reps."
+                    )
+                elif prev_weight == 0:
+                    message = (
+                        f"{student_name} superó su récord personal en {exercise.name}: "
+                        f"{curr_weight_str} kg ({log_entry.reps_completed} reps). "
+                        f"Récord anterior: {prev_reps} reps sin carga."
+                    )
+                elif curr_weight == prev_weight:
+                    message = (
+                        f"{student_name} superó su récord personal en {exercise.name}: "
+                        f"{curr_weight_str} kg ({log_entry.reps_completed} reps). "
+                        f"Récord anterior: {prev_weight_str} kg ({prev_reps} reps)."
                     )
                 else:
-                    prev_weight_str = f"{pr_previous_weight_kg:.2f}".rstrip("0").rstrip(".")
                     message = (
                         f"{student_name} superó su récord personal en {exercise.name}: "
                         f"{curr_weight_str} kg ({log_entry.reps_completed} reps). "
@@ -848,8 +864,11 @@ def create_student_workout_log(
     return log_entry
 
 
-def delete_student_workout_log(db: Session, user: User, log_id: str) -> None:
+def delete_student_workout_log(
+    db: Session, user: User, log_id: str, today: date | None = None
+) -> None:
     relationship, routine_view = _resolve_student_active_routine(db, user)
+    _ensure_subscription_not_expired(db, relationship, today)
     routine_id = routine_view.id if isinstance(routine_view, RoutineTemplate) else routine_view["id"]
     log_entry = db.scalar(
         select(WorkoutSetLog).where(
@@ -888,24 +907,28 @@ def delete_student_workout_log(db: Session, user: User, log_id: str) -> None:
             PersonalRecord.exercise_id == log_entry.exercise_id,
         ).with_for_update()
     )
-    if pr and pr.workout_set_log_id == log_entry.id:
-        remaining_max = db.scalar(
-            select(WorkoutSetLog).where(
-                WorkoutSetLog.student_id == relationship.student_id,
-                WorkoutSetLog.exercise_id == log_entry.exercise_id,
-                WorkoutSetLog.id != log_entry.id,
-                WorkoutSetLog.weight_kg > 0,
-            ).order_by(WorkoutSetLog.weight_kg.desc(), WorkoutSetLog.recorded_at.desc())
+    orphan_notifications = db.scalars(
+        select(Notification).where(
+            Notification.type == "PERSONAL_RECORD",
+            Notification.related_entity_id == log_entry.id,
         )
-        if remaining_max is not None:
-            pr.weight_kg = remaining_max.weight_kg
-            pr.reps_completed = remaining_max.reps_completed
-            pr.workout_set_log_id = remaining_max.id
-            pr.achieved_at = remaining_max.recorded_at
-        else:
-            db.delete(pr)
+    ).all()
+    for notif in orphan_notifications:
+        db.delete(notif)
+
+    exercise_id = log_entry.exercise_id
+    student_id = relationship.student_id
+    if pr is not None and pr.workout_set_log_id == log_entry.id:
+        db.delete(pr)
+        db.flush()
+        pr = None
 
     db.delete(log_entry)
+    db.flush()
+
+    from backend.src.services.personal_record_service import sync_personal_record
+
+    sync_personal_record(db, student_id, exercise_id, existing_pr=pr)
     db.commit()
 
 

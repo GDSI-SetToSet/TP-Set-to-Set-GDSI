@@ -8,9 +8,10 @@ estaban cumplidos antes de la funcionalidad se otorgan en silencio (retroactivos
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time
+from datetime import UTC, datetime, time
 
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.src.core.constants import STUDENT_ROLE, TRAINER_ROLE
@@ -26,9 +27,11 @@ from backend.src.schemas.achievement import (
     CongratulationView,
     LockedAchievement,
 )
-from backend.src.services.daily_routine_tracking_service import _as_utc
 from backend.src.services.notification_service import create_notification
-from backend.src.services.session_comparison_service import _number
+from backend.src.services.personal_record_service import (
+    compute_exercise_pr_timeline,
+    load_student_logs,
+)
 from backend.src.services.streak_service import (
     monday,
     relationship_week_data,
@@ -40,7 +43,6 @@ from backend.src.services.trainer_student_service import (
     _active_relationship,
     _trainer_profile,
 )
-from backend.src.services.training_evolution_service import Best, _best
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +66,7 @@ CATALOG: tuple[Definition, ...] = (
     Definition("FIRST_SESSION", "Primera sesión", "Completaste tu primera sesión de entrenamiento.", 1, "sessions"),
     Definition("TEN_SESSIONS", "10 sesiones", "Completaste 10 sesiones de entrenamiento.", 10, "sessions"),
     Definition("STREAK_4_WEEKS", "Racha de 4 semanas", "Cumpliste tu objetivo semanal 4 semanas seguidas.", 4, "streak"),
-    Definition("FIRST_PR", "Primer récord personal", "Superaste tu mejor peso en un ejercicio por primera vez.", 1, "records"),
+    Definition("FIRST_PR", "Primer récord personal", "Superaste tu mejor marca en un ejercicio por primera vez.", 1, "records"),
     Definition("FIVE_PRS", "5 récords personales", "Lograste 5 récords personales.", 5, "records"),
 )
 BY_CODE = {item.code: item for item in CATALOG}
@@ -97,43 +99,17 @@ def _session_dates(db: Session, profile: StudentProfile) -> list[datetime]:
 
 
 def _record_dates(db: Session, profile: StudentProfile) -> list[datetime]:
-    """Momento de cada récord: mejor serie del día que supera la mejor marca anterior del ejercicio (US-65).
-
-    La primera carga de un ejercicio establece la marca inicial y no cuenta como récord.
-    Superar implica más peso, o el mismo peso con más repeticiones (y sin carga, más repeticiones).
-    """
-    logs = list(
-        db.scalars(
-            select(WorkoutSetLog)
-            .where(WorkoutSetLog.student_id == profile.id)
-            .order_by(WorkoutSetLog.recorded_at, WorkoutSetLog.set_number)
-        )
-    )
-    by_day: dict[str, dict[date, list[WorkoutSetLog]]] = defaultdict(lambda: defaultdict(list))
+    """Momento de cada récord según regla unificada US-65 FR-001a (en sesiones finalizadas)."""
+    logs = load_student_logs(db, profile.id, finished_only=True)
+    by_exercise: dict[str, list[WorkoutSetLog]] = defaultdict(list)
     for log in logs:
-        by_day[log.exercise_id][_as_utc(log.recorded_at).date()].append(log)
+        by_exercise[log.exercise_id].append(log)
 
-    dates: list[datetime] = []
-    for days in by_day.values():
-        rows: list[tuple[Best, datetime]] = []
-        for _, day_logs in sorted(days.items()):
-            best = _best(day_logs)
-            if best is None:
-                continue
-            winning = next(
-                log
-                for log in day_logs
-                if (reps := _number(log.reps_completed)) is not None
-                and (float(log.weight_kg or 0), int(reps)) == best
-            )
-            rows.append((best, _naive(winning.recorded_at)))
-        if not rows:
-            continue
-        top = rows[0][0]
-        for best, moment in rows[1:]:
-            if best > top:
-                dates.append(moment)
-                top = best
+    dates = [
+        _naive(event.log.recorded_at)
+        for ex_logs in by_exercise.values()
+        for event in compute_exercise_pr_timeline(ex_logs)
+    ]
     dates.sort()
     return dates
 
@@ -143,8 +119,10 @@ def _streak_unlock(db: Session, profile: StudentProfile, weeks: int) -> datetime
     data = relationship_week_data(db, relationship) if relationship else None
     if data is None:
         return None
-    weekly, first_week, done_by_week = data
-    reached = streak_reached_on(weekly, first_week, done_by_week, monday(utc_now().date()), weeks)
+    weekly, first_week, done_by_week, week_targets = data
+    reached = streak_reached_on(
+        weekly, first_week, done_by_week, monday(utc_now().date()), weeks, weekly_targets=week_targets
+    )
     return datetime.combine(reached, time.min) if reached else None
 
 
@@ -176,11 +154,12 @@ def _unlock_date(definition: Definition, progress: Progress, db: Session, profil
 def evaluate_achievements(
     db: Session, profile: StudentProfile, trigger_session: WorkoutSession | None = None
 ) -> list[StudentAchievement]:
-    """Otorga los logros alcanzados y devuelve los nuevos.
+    """Otorga los logros alcanzados y devuelve los nuevos (protegido contra concurrencia).
 
     Es "nuevo" (celebra y notifica) el hito que alcanzó la sesión que acaba de finalizar o la racha
     que se completó esta semana; el resto estaba cumplido de antes y se otorga en silencio.
     """
+    db.scalar(select(StudentProfile.id).where(StudentProfile.id == profile.id).with_for_update())
     existing = set(db.scalars(select(StudentAchievement.code).where(StudentAchievement.student_id == profile.id)))
     pending = [item for item in CATALOG if item.code not in existing]
     if not pending:
@@ -205,9 +184,14 @@ def evaluate_achievements(
             celebrated_at=None if fresh else now,
             created_at=now,
         )
-        db.add(achievement)
-        created.append(achievement)
-    db.flush()
+        try:
+            with db.begin_nested():
+                db.add(achievement)
+                db.flush()
+            created.append(achievement)
+        except IntegrityError:
+            # Otro trabajador ya otorgó (student_id, code) concurrentemente.
+            continue
     for achievement in created:
         if not achievement.retroactive:
             _notify_unlocked(db, profile, achievement)
@@ -273,14 +257,20 @@ def _congratulation_view(db: Session, congratulation: AchievementCongratulation 
     )
 
 
-def _items(db: Session, achievements: list[StudentAchievement]) -> list[AchievementItem]:
+def _items(
+    db: Session, achievements: list[StudentAchievement], trainer_id: str | None = None
+) -> list[AchievementItem]:
     ids = [item.id for item in achievements]
-    congratulations = {}
+    congratulations: dict[str, AchievementCongratulation] = {}
     if ids:
-        congratulations = {
-            c.achievement_id: c
-            for c in db.scalars(select(AchievementCongratulation).where(AchievementCongratulation.achievement_id.in_(ids)))
-        }
+        stmt = select(AchievementCongratulation).where(AchievementCongratulation.achievement_id.in_(ids))
+        if trainer_id is not None:
+            stmt = stmt.where(AchievementCongratulation.trainer_id == trainer_id)
+        stmt = stmt.order_by(AchievementCongratulation.created_at.desc())
+        for cong in db.scalars(stmt):
+            existing = congratulations.get(cong.achievement_id)
+            if existing is None or (existing.seen_at is not None and cong.seen_at is None):
+                congratulations[cong.achievement_id] = cong
     result = []
     for achievement in sorted(achievements, key=lambda item: item.unlocked_at, reverse=True):
         definition = BY_CODE[achievement.code]
@@ -314,11 +304,13 @@ def _locked(progress: Progress, unlocked_codes: set[str]) -> list[LockedAchievem
     ]
 
 
-def _overview(db: Session, profile: StudentProfile) -> AchievementsOverview:
+def _overview(
+    db: Session, profile: StudentProfile, trainer_id: str | None = None
+) -> AchievementsOverview:
     achievements = list(db.scalars(select(StudentAchievement).where(StudentAchievement.student_id == profile.id)))
     progress = _progress(db, profile)
     return AchievementsOverview(
-        unlocked=_items(db, achievements),
+        unlocked=_items(db, achievements, trainer_id=trainer_id),
         locked=_locked(progress, {item.code for item in achievements}),
     )
 
@@ -355,13 +347,23 @@ def _own_achievement(db: Session, user: User, achievement_id: str) -> StudentAch
 def mark_congratulation_seen(db: Session, user: User, achievement_id: str) -> None:
     """Escenario 4: el alumno vio la felicitación (se muestra una sola vez)."""
     achievement = _own_achievement(db, user, achievement_id)
-    congratulation = db.scalar(
-        select(AchievementCongratulation).where(AchievementCongratulation.achievement_id == achievement.id)
+    congratulations = list(
+        db.scalars(
+            select(AchievementCongratulation).where(AchievementCongratulation.achievement_id == achievement.id)
+        )
     )
-    if congratulation is None:
+    if not congratulations:
         raise AchievementError(404, NOT_FOUND)
-    if congratulation.seen_at is None:
-        congratulation.seen_at = utc_now()
+    if any(c.seen_at is None for c in congratulations):
+        now = utc_now()
+        db.execute(
+            update(AchievementCongratulation)
+            .where(
+                AchievementCongratulation.achievement_id == achievement.id,
+                AchievementCongratulation.seen_at.is_(None),
+            )
+            .values(seen_at=now)
+        )
         db.commit()
 
 
@@ -369,11 +371,14 @@ def get_trainer_student_achievements(db: Session, user: User, student_id: str) -
     """El entrenador ve los logros de su alumno activo y puede felicitarlo."""
     trainer = _trainer_profile(db, user)
     _active_relationship(db, trainer.id, student_id)
-    return _overview(db, db.get(StudentProfile, student_id))
+    profile = db.get(StudentProfile, student_id)
+    if profile is not None and evaluate_achievements(db, profile):
+        db.commit()
+    return _overview(db, profile, trainer_id=trainer.id)
 
 
 def congratulate(db: Session, user: User, achievement_id: str, message: str) -> AchievementItem:
-    """Escenario 4: felicitación del entrenador (una por logro) que el alumno ve en su próxima sesión."""
+    """Escenario 4: felicitación del entrenador (una por entrenador y logro) que el alumno ve en su próxima sesión."""
     if user.role != TRAINER_ROLE:
         raise TrainerStudentError(403, "Esta acción está disponible solo para entrenadores.")
     trainer = _trainer_profile(db, user)
@@ -381,12 +386,22 @@ def congratulate(db: Session, user: User, achievement_id: str, message: str) -> 
     if achievement is None:
         raise AchievementError(404, NOT_FOUND)
     _active_relationship(db, trainer.id, achievement.student_id)  # 404 si no es su alumno activo
-    if db.scalar(select(AchievementCongratulation.id).where(AchievementCongratulation.achievement_id == achievement.id)):
+    if db.scalar(
+        select(AchievementCongratulation.id).where(
+            AchievementCongratulation.achievement_id == achievement.id,
+            AchievementCongratulation.trainer_id == trainer.id,
+        )
+    ):
         raise AchievementError(409, ALREADY_CONGRATULATED)
     congratulation = AchievementCongratulation(
         achievement_id=achievement.id, trainer_id=trainer.id, message=message, created_at=utc_now()
     )
-    db.add(congratulation)
+    try:
+        with db.begin_nested():
+            db.add(congratulation)
+            db.flush()
+    except IntegrityError as error:
+        raise AchievementError(409, ALREADY_CONGRATULATED) from error
     profile = db.get(StudentProfile, achievement.student_id)
     definition = BY_CODE[achievement.code]
     trainer_name = (trainer.full_name or "").strip() or user.email
@@ -395,9 +410,9 @@ def congratulate(db: Session, user: User, achievement_id: str, message: str) -> 
         recipient_id=profile.user_id,
         type=CONGRATULATION,
         title=f"{trainer_name} te felicitó por tu logro: {definition.title}",
-        message="La vas a ver al abrir tu próxima sesión de entrenamiento.",
+        message="Podés verla en Mi evolución o al abrir tu próxima sesión de entrenamiento.",
         related_entity_type="StudentAchievement",
         related_entity_id=achievement.id,
     )
     db.commit()
-    return _items(db, [achievement])[0]
+    return _items(db, [achievement], trainer_id=trainer.id)[0]

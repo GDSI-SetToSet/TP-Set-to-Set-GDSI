@@ -36,8 +36,16 @@ from backend.src.services.effort_feedback_service import (
     CATEGORY_LABELS,
     list_student_effort_feedback,
 )
+from backend.src.services.personal_record_service import (
+    compute_exercise_pr_timeline,
+    load_student_logs,
+)
 from backend.src.services.session_adjustment_service import list_student_adjustments
 from backend.src.services.session_comparison_service import _planned_entries
+from backend.src.services.streak_service import (
+    _relationship_streak,
+    student_routine_relationship,
+)
 from backend.src.services.student_service import get_or_create_profile
 from backend.src.services.training_evolution_service import (
     NO_GROUP,
@@ -54,14 +62,6 @@ from backend.src.services.training_evolution_service import (
 
 IMPROVING_WEEKS = 4  # "mejorando": al menos una mejora en las últimas 4 semanas completas
 IMPROVED = ("weight_increased", "reps_increased", "bodyweight_reps_increased")
-
-
-def _streak(full_weeks: list) -> StreakSummary:
-    best = run = 0
-    for week in full_weeks:
-        run = run + 1 if week.completed >= week.scheduled else 0
-        best = max(best, run)
-    return StreakSummary(current_weeks=run, best_weeks=best)  # `run` al final = racha que llega a la última semana completa
 
 
 def _message_key(status: str, kind: str, start: Best, current: Best) -> str:
@@ -123,14 +123,12 @@ def get_student_progress(
     current_monday = _monday(today)
     range_start = current_monday - timedelta(weeks=PERIOD_WEEKS[period] - 1) if period in PERIOD_WEEKS else None
 
-    # ponytail: se leen todas las series del alumno; agregar en SQL si el historial crece (SC-001).
-    logs = list(
-        db.scalars(
-            select(WorkoutSetLog).where(WorkoutSetLog.student_id == profile.id).order_by(WorkoutSetLog.recorded_at, WorkoutSetLog.set_number)
-        )
-    )
+    # ponytail: se leen las series de sesiones finalizadas (o sin sesión); agregar en SQL si crece (SC-001).
+    logs = load_student_logs(db, profile.id, finished_only=True)
+    by_exercise_logs: dict[str, list[WorkoutSetLog]] = defaultdict(list)
     by_day: dict[str, dict[date, list[WorkoutSetLog]]] = defaultdict(lambda: defaultdict(list))
     for log in logs:
+        by_exercise_logs[log.exercise_id].append(log)
         by_day[log.exercise_id][_as_utc(log.recorded_at).date()].append(log)
     info = {ex.id: ex for ex in db.scalars(select(Exercise).where(Exercise.id.in_(by_day)))}
     group_of = lambda eid: info[eid].target_muscle_group if eid in info else NO_GROUP
@@ -142,14 +140,13 @@ def get_student_progress(
         if rows:
             history[eid] = rows
 
-    # Récords y primera fecha, sobre todo el historial: la marca previa no depende del período.
+    # Récords unificados con personal_record_service (FR-001a): la primera sesión/carga nunca es récord.
     record_days: dict[str, dict[date, Best]] = defaultdict(dict)  # eid -> día -> marca anterior
-    for eid, rows in history.items():
-        top = rows[0][1]
-        for day, best in rows[1:]:
-            if best > top:
-                record_days[eid][day] = top
-                top = best
+    record_best_by_day: dict[str, dict[date, Best]] = defaultdict(dict)
+    for eid, ex_logs in by_exercise_logs.items():
+        for ev in compute_exercise_pr_timeline(ex_logs):
+            record_days[eid][ev.day] = ev.previous
+            record_best_by_day[eid][ev.day] = ev.best
 
     in_period = lambda day: range_start is None or day >= range_start
     records = sorted(
@@ -160,10 +157,18 @@ def get_student_progress(
             )
             for eid, days in record_days.items()
             for day, previous in days.items()
-            if in_period(day) and (best := dict(history[eid])[day])
+            if in_period(day) and (best := record_best_by_day[eid].get(day) or dict(history[eid]).get(day))
         ),
         key=lambda r: (r.date, r.name), reverse=True,
     )
+
+    planned_cache: dict[tuple[str, str], list[dict]] = {}
+
+    def planned(routine_id: str, day_name: str) -> list[dict]:
+        key = (routine_id, day_name)
+        if key not in planned_cache:
+            planned_cache[key] = _planned_entries(db, routine_id, day_name)
+        return planned_cache[key]
 
     exercises: list[ExerciseEvolution] = []
     improving = 0
@@ -184,8 +189,8 @@ def get_student_progress(
         targets: dict[date, float | None] = {}
         for day, day_logs in by_day[eid].items():
             if in_period(day):
-                planned = _planned_entries(db, day_logs[0].routine_id, day_logs[0].day_name)
-                target = next((p["target_weight_kg"] for p in planned if p["exercise_id"] == eid), None)
+                planned_entries = planned(day_logs[0].routine_id, day_logs[0].day_name)
+                target = next((p["target_weight_kg"] for p in planned_entries if p["exercise_id"] == eid), None)
                 targets[day] = float(target) if target is not None else None
         exercises.append(ExerciseEvolution(
             exercise_id=eid, name=info[eid].name if eid in info else by_day[eid][period_rows[0][0]][0].exercise_name,
@@ -200,23 +205,37 @@ def get_student_progress(
             ],
         ))
     muscle_groups = sorted({e.muscle_group for e in exercises})
-    streak_weeks: list = []
-    relationship = db.scalar(
-        select(TrainingRelationship).where(
-            TrainingRelationship.student_id == profile.id, TrainingRelationship.status == "ACTIVE"
-        )
+    streak_summary = StreakSummary(current_weeks=0, best_weeks=0)
+    naive_now = _as_utc(now).replace(tzinfo=None)
+    relationship = student_routine_relationship(db, profile, now=naive_now) or db.scalar(
+        select(TrainingRelationship)
+        .where(TrainingRelationship.student_id == profile.id, TrainingRelationship.status == "ACTIVE")
+        .order_by(TrainingRelationship.start_date.desc())
     )
     consistency = []
     if relationship is not None:
         finished = [
             _as_utc(s.finished_at).date()
-            for s in db.scalars(select(WorkoutSession).where(WorkoutSession.student_id == profile.id, WorkoutSession.finished_at.is_not(None)))
+            for s in db.scalars(
+                select(WorkoutSession).where(
+                    WorkoutSession.relationship_id == relationship.id,
+                    WorkoutSession.finished_at.is_not(None),
+                )
+            )
         ]
         all_weeks = adherence_weeks(db, relationship, now, finished, date.min)
-        streak_weeks = [w for w in all_weeks if not w.is_partial]
         consistency = [w for w in all_weeks if range_start is None or w.period_start >= range_start]
+        rel_streak, _ = _relationship_streak(db, relationship, now=naive_now)
+        streak_summary = StreakSummary(
+            current_weeks=rel_streak.current_weeks,
+            best_weeks=rel_streak.max_weeks,
+        )
 
-    summary = ProgressSummary(improving_exercises_last_4w=improving, streak=_streak(streak_weeks), records_in_period=len(records))
+    summary = ProgressSummary(
+        improving_exercises_last_4w=improving,
+        streak=streak_summary,
+        records_in_period=len(records),
+    )
     new_exercises = sorted(
         (
             NewExercise(exercise_id=e.exercise_id, name=e.name, first_date=history[e.exercise_id][0][0])

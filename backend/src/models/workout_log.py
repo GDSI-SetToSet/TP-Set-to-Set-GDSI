@@ -39,6 +39,7 @@ class WorkoutSession(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     rpe: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    weekly_target: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class WorkoutSetLog(Base):
