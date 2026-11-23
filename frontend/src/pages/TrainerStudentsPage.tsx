@@ -30,7 +30,10 @@ export function TrainerStudentsPage() {
   const selectedStudentIdRef = useRef<string | null>(selectedStudentId);
   selectedStudentIdRef.current = selectedStudentId;
   const detailTrackerRef = useRef(createScopedRequestTracker());
+  const handledDetailNavKeyRef = useRef('');
   const routineStatus = searchParams.get('routineStatus');
+  const notificationStudentId = searchParams.get('studentId');
+  const notificationView = searchParams.get('view');
 
   useEffect(() => {
     const initialTracker = createScopedRequestTracker();
@@ -114,6 +117,23 @@ export function TrainerStudentsPage() {
     void loadStudentDetail(studentId);
   }
 
+  const detailNavKey = notificationStudentId && notificationView === 'detail'
+    ? `${notificationStudentId}|${notificationView}`
+    : '';
+  useEffect(() => {
+    if (loading || !detailNavKey || handledDetailNavKeyRef.current === detailNavKey || !notificationStudentId) return;
+    handledDetailNavKeyRef.current = detailNavKey;
+    selectedStudentIdRef.current = notificationStudentId;
+    setSelectedStudentId(notificationStudentId);
+    if (detailStudentId !== notificationStudentId || !studentDetail) {
+      setStudentDetail(null);
+      setDetailStudentId(null);
+      setDetailError('');
+      setDetailLoading(true);
+      void loadStudentDetail(notificationStudentId);
+    }
+  }, [loading, detailNavKey, notificationStudentId, detailStudentId, studentDetail, loadStudentDetail]);
+
   if (loading) return <main className="loading-screen"><span className="loading-mark" /> Cargando alumnos…</main>;
 
   return (
@@ -141,10 +161,11 @@ export function TrainerStudentsPage() {
             key={listVersion}
             templates={templates}
             aiRoutines={aiRoutines}
-            initialStudentId={searchParams.get('studentId') ?? undefined}
+            initialStudentId={notificationStudentId ?? undefined}
             initialSessionId={searchParams.get('sessionId') ?? undefined}
             initialEventId={searchParams.get('eventId') ?? undefined}
             initialEventType={searchParams.get('eventType') ?? undefined}
+            initialView={notificationView ?? undefined}
             onStudentSelect={selectStudent}
             selectedStudentId={selectedStudentId}
             safetyRefreshKey={safetyRefreshKey}

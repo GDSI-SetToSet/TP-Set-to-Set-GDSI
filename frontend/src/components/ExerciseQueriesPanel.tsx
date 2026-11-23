@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp, MessageCircleQuestion, Pin } from 'lucide-react';
-import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { getApiErrorInfo } from '../services/errorMessage';
 import { createTechnicalQuery, getExerciseQueries } from '../services/conversationService';
 import type { ExerciseQueryThread } from '../types/conversation';
@@ -24,13 +24,28 @@ export function ExerciseQueriesPanel({ relationshipId, exerciseId, exerciseName,
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
+  const requestSeqRef = useRef(0);
+
+  useEffect(() => {
+    requestSeqRef.current += 1;
+    setThreads(null);
+    setLoadError('');
+    setSent(false);
+    setError('');
+  }, [relationshipId, exerciseId]);
 
   const load = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
     try {
-      setThreads(await getExerciseQueries(relationshipId, exerciseId));
-      setLoadError('');
+      const loaded = await getExerciseQueries(relationshipId, exerciseId);
+      if (requestSeqRef.current === seq) {
+        setThreads(loaded);
+        setLoadError('');
+      }
     } catch {
-      setLoadError('No pudimos cargar las consultas de este ejercicio.');
+      if (requestSeqRef.current === seq) {
+        setLoadError('No pudimos cargar las consultas de este ejercicio.');
+      }
     }
   }, [relationshipId, exerciseId]);
 

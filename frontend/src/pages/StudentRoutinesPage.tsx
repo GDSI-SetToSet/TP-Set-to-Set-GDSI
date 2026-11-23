@@ -15,9 +15,14 @@ import {
   syncSessionAfterRpe,
 } from '../utils/sessionRpeState.mjs';
 import {
+  canStartExerciseSet,
   elapsedSessionSeconds,
   parseSessionTimestamp,
+  resolveEffectiveExercise,
+  resolveRoutineAccessState,
   resolveSessionTimerState,
+  resolveWorkoutHistoryRoutineId,
+  shouldClearPersonalRecordAlert,
   shouldShowPersonalRecordAlert,
   type SessionTimerState,
 } from './studentRoutineSessionState.mjs';
@@ -116,6 +121,8 @@ interface ProblemDetailPayload {
 }
 
 interface PersonalRecordAlert {
+  logId?: string;
+  exerciseId?: string;
   exerciseName: string;
   weightKg: number;
   reps: string;
@@ -180,6 +187,8 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   // US-62: conversación del vínculo de la rutina y notas técnicas fijadas pendientes de confirmar.
   const [queryRelationshipId, setQueryRelationshipId] = useState<string | null>(null);
   const [technicalNotes, setTechnicalNotes] = useState<TechnicalNoteView[]>([]);
+  const [notesLoaded, setNotesLoaded] = useState(false);
+  const [notesError, setNotesError] = useState(false);
   const [adjustments, setAdjustments] = useState<StudentAdjustmentNotice[]>([]);
   const [unseenFeedback, setUnseenFeedback] = useState<EffortFeedback[]>([]);
   const [effortFeedbackError, setEffortFeedbackError] = useState(false);
@@ -190,55 +199,99 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     ? sessionTimerState.startedAtMs
     : null;
 
+  // US-71 (FR-006): verificación fail-closed de suscripciones y mantenimiento de historiales en solo lectura.
+  const [subscriptions, setSubscriptions] = useState<SubscriptionSummary[]>([]);
+  const [subscriptionsLoaded, setSubscriptionsLoaded] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState(false);
+  const [routineStatusCode, setRoutineStatusCode] = useState<number | null>(null);
+
   useEffect(() => {
-    Promise.all([
+    let active = true;
+    setLoading(true);
+    setError('');
+    setRoutineStatusCode(null);
+    setSubscriptionError(false);
+
+    Promise.allSettled([
       getAssignedStudentRoutine(),
-      getAssignedRoutineWorkoutLogs().catch(() => []),
-      getAssignedRoutineWorkoutSessions().catch(() => []),
-      getStudentZoneHistory().catch(() => []),
-      getStudentAdjustments().catch(() => []),
+      listStudentSubscriptions(),
+      getAssignedRoutineWorkoutLogs(),
+      getAssignedRoutineWorkoutSessions(),
+      getStudentZoneHistory(),
+      getStudentAdjustments(),
     ])
-      .then(([assigned, logs, sessions, zones, adjusted]) => {
-        setAdjustments(adjusted);
-        setRoutine(assigned);
-        setSelectedDayId(assigned?.days.some((day) => day.id === requestedDayId) ? requestedDayId ?? '' : assigned?.days[0]?.id ?? '');
-        setWorkoutLogs(logs);
-        setWorkoutSessions(sessions);
-        setZoneHistory(zones);
+      .then(([routineRes, subsRes, logsRes, sessionsRes, zonesRes, adjustedRes]) => {
+        if (!active) return;
+
+        if (subsRes.status === 'fulfilled') {
+          setSubscriptions(subsRes.value);
+          setSubscriptionsLoaded(true);
+          setSubscriptionError(false);
+        } else {
+          setSubscriptions([]);
+          setSubscriptionsLoaded(false);
+          setSubscriptionError(true);
+        }
+
+        if (adjustedRes.status === 'fulfilled') setAdjustments(adjustedRes.value);
+        if (logsRes.status === 'fulfilled') setWorkoutLogs(logsRes.value);
+        if (sessionsRes.status === 'fulfilled') setWorkoutSessions(sessionsRes.value);
+        if (zonesRes.status === 'fulfilled') setZoneHistory(zonesRes.value);
+
+        if (routineRes.status === 'fulfilled') {
+          const assigned = routineRes.value;
+          setRoutine(assigned);
+          setSelectedDayId(assigned?.days.some((day) => day.id === requestedDayId) ? requestedDayId ?? '' : assigned?.days[0]?.id ?? '');
+        } else {
+          const status = isAxiosError(routineRes.reason) ? (routineRes.reason.response?.status ?? null) : null;
+          setRoutine(null);
+          setRoutineStatusCode(status);
+          if (status !== 409) {
+            setError('No pudimos cargar tu rutina. Intentá nuevamente.');
+          }
+        }
       })
-      .catch(() => setError('No pudimos cargar tu rutina. Intentá nuevamente.'))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [requestedDayId, sessionMode]);
 
   // US-62: la consulta técnica viaja por la conversación del vínculo con el entrenador de esta rutina.
   const routineTrainerId = routine?.trainer_id ?? null;
-  // US-71 (FR-006): con la suscripción vencida, la rutina queda bloqueada hasta que el entrenador confirme un pago.
-  const [routineSubscription, setRoutineSubscription] = useState<SubscriptionSummary | null>(null);
+  const routineSubscription: SubscriptionSummary | null = routineTrainerId
+    ? (subscriptions.find((item) => item.trainer_id === routineTrainerId) ?? null)
+    : (subscriptions.find((item) => item.status === 'VENCIDA') ?? null);
+
   useEffect(() => {
-    if (!routineTrainerId) return undefined;
+    if (!routineTrainerId) {
+      setQueryRelationshipId(null);
+      setTechnicalNotes([]);
+      setNotesLoaded(false);
+      setNotesError(false);
+      return undefined;
+    }
     let cancelled = false;
-    listStudentSubscriptions()
-      .then((items) => { if (!cancelled) setRoutineSubscription(items.find((item) => item.trainer_id === routineTrainerId) ?? null); })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
-  }, [routineTrainerId]);
-  useEffect(() => {
-    if (!routineTrainerId) return undefined;
-    let cancelled = false;
-    listConversations()
-      .then((items) => {
+    setNotesLoaded(false);
+    setNotesError(false);
+    Promise.all([listConversations(), getPendingTechnicalNotes()])
+      .then(([items, notes]) => {
         if (cancelled) return;
         const match = items.find((item) => item.trainer_id === routineTrainerId && item.can_send);
         setQueryRelationshipId(match?.relationship_id ?? null);
-        if (match) {
-          getPendingTechnicalNotes()
-            .then((notes) => { if (!cancelled) setTechnicalNotes(notes.filter((note) => note.relationship_id === match.relationship_id)); })
-            .catch(() => undefined);
-        }
+        setTechnicalNotes(match ? notes.filter((note) => note.relationship_id === match.relationship_id) : []);
+        setNotesLoaded(true);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (cancelled) return;
+        setNotesError(true);
+        setNotesLoaded(false);
+      });
     return () => { cancelled = true; };
-  }, [routineTrainerId]);
+  }, [routineTrainerId, sessionMode, sessionId]);
 
   function pendingNotesFor(exerciseId: string): TechnicalNoteView[] {
     return technicalNotes.filter((note) => note.exercise_id === exerciseId);
@@ -348,56 +401,17 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   }, [sessionMode, sessionId, selectedDayId]);
 
   if (loading) return <main className="loading-screen"><span className="loading-mark" /> Cargando tu rutina…</main>;
-  if (routineSubscription?.status === 'VENCIDA') {
-    return (
-      <main className="profile-shell">
-        <header className="profile-header">
-          <Link to={ROUTES.studentHome} className="profile-back"><ArrowLeft size={18} /> Volver al inicio</Link>
-        </header>
-        <section className="profile-card routine-locked" role="alert" aria-labelledby="routine-locked-title">
-          <div className="profile-heading">
-            <span>RUTINA BLOQUEADA</span>
-            <h1 id="routine-locked-title">Tu suscripción está vencida</h1>
-            <p>
-              Venció el {formatIsoDate(routineSubscription.due_date)}. Para volver a entrenar, informá tu pago a {routineSubscription.trainer_name}
-              {' '}y esperá a que lo confirme. Tu historial, tu evolución y tus mensajes siguen disponibles.
-            </p>
-            {routineSubscription.pending_payment_count > 0 && (
-              <p className="routine-locked__pending">Ya informaste un pago: falta que tu entrenador lo confirme.</p>
-            )}
-          </div>
-          <div className="routine-locked__actions">
-            <Link to={`${ROUTES.studentActivePlans}?payments=${encodeURIComponent(routineSubscription.relationship_id)}`} className="profile-cta">
-              Informar pago
-            </Link>
-            <Link to={ROUTES.studentProgress} className="plan-cancel">Ver mi evolución</Link>
-          </div>
-        </section>
-      </main>
-    );
-  }
 
-  const activeModality: RoutineModality = routine?.modality ?? 'GYM';
-  const isHomeModality = activeModality === 'HOME';
-  const selectedDay = routine?.days.find((day) => day.id === selectedDayId) ?? routine?.days[0];
-  const selectedNotice = noticeForDay(adjustments, selectedDay?.name);
-  const totalDuration = selectedDay?.blocks.reduce((total, block) => total + (block.estimated_duration_minutes ?? 0), 0) ?? 0;
-  const showCelebration = searchParams.get('completed') === '1';
-  const showPrAlertBanner = shouldShowPersonalRecordAlert(prAlertBanner, {
-    sessionMode,
-    sessionId,
-    dayName: selectedDay?.name,
+  const accessState = resolveRoutineAccessState({
+    routineStatusCode,
+    subscription: routineSubscription,
+    subscriptionError: subscriptionError && !subscriptionsLoaded,
   });
-  const showPrCelebration = shouldShowPersonalRecordAlert(prCelebration, {
-    sessionMode,
-    sessionId,
-    dayName: selectedDay?.name,
-  });
-  const currentSessionLogs = workoutLogs.filter((log) => Boolean(sessionId) && log.session_id === sessionId);
+  const historyRoutineId = resolveWorkoutHistoryRoutineId(routine, workoutSessions, workoutLogs);
   const routineWorkoutSummaries = (() => {
-    const routineLogs = workoutLogs.filter((entry) => routine && entry.routine_id === routine.id);
+    const routineLogs = workoutLogs.filter((entry) => historyRoutineId && entry.routine_id === historyRoutineId);
     const completedSessions = workoutSessions.filter((session) =>
-      routine && session.routine_id === routine.id && session.finished_at,
+      historyRoutineId && session.routine_id === historyRoutineId && session.finished_at,
     );
     const summaries: RoutineWorkoutSummary[] = completedSessions.map((session) => {
       const logs = routineLogs.filter((log) => log.session_id === session.id);
@@ -457,21 +471,232 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     }
     return summaries.sort((left, right) => right.recordedAt.localeCompare(left.recordedAt));
   })();
-  const getRecordedSetCount = (item: RoutineExercise) => currentSessionLogs.filter(
-    (log) => log.exercise_id === item.exercise.id && log.day_name === (selectedDay?.name ?? ''),
-  ).length;
+
+  const isProgressExpanded = accessState !== 'OK' || historyExpanded;
+  const readonlyHistorySections = (
+    <>
+      <section className="student-routine-history student-routine-history--progress" aria-labelledby="workout-history-heading">
+        <header className="student-routine-history__header">
+          <div className="student-routine-history__title">
+            <History size={20} />
+            <h3 id="workout-history-heading">Tu progreso con esta rutina</h3>
+          </div>
+          {accessState === 'OK' && (
+            <button
+              type="button"
+              className="student-routine-history__toggle"
+              aria-expanded={historyExpanded}
+              aria-controls="routine-progress-content"
+              onClick={() => setHistoryExpanded((expanded) => !expanded)}
+            >
+              {historyExpanded ? 'Ocultar progreso' : 'Mostrar progreso'}
+              <ChevronDown size={18} aria-hidden="true" />
+            </button>
+          )}
+        </header>
+        <div id="routine-progress-content" className="student-routine-history__content" hidden={!isProgressExpanded}>
+          <div className="student-routine-history__tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={historyTab === 'workouts'}
+              className={`student-routine-history__tab-btn ${historyTab === 'workouts' ? 'student-routine-history__tab-btn--active' : ''}`}
+              onClick={() => setHistoryTab('workouts')}
+            >
+              Entrenamientos ({routineWorkoutSummaries.length})
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={historyTab === 'bodymap'}
+              className={`student-routine-history__tab-btn ${historyTab === 'bodymap' ? 'student-routine-history__tab-btn--active' : ''}`}
+              onClick={() => setHistoryTab('bodymap')}
+            >
+              Historial de zonas ({zoneHistory.length})
+            </button>
+          </div>
+          {historyTab === 'workouts' ? (
+            <>
+              <p className="student-routine-history__subtitle">Resumen de tus entrenamientos anteriores, con promedios de las series registradas.</p>
+              {routineWorkoutSummaries.length === 0 ? (
+                <p className="student-routine-history__empty">Todavía no hay entrenamientos registrados para esta rutina. Cuando termines uno, vas a poder consultar acá tu progreso.</p>
+              ) : (
+                <ul className="student-routine-history__list">
+                  {routineWorkoutSummaries.map((workout) => (
+                    <li key={workout.key} className="student-routine-history__item student-routine-history__item--workout">
+                      <div className="student-routine-history__item-main">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                          <strong>{workout.day}</strong>
+                          {workout.rpe !== null && workout.rpe !== undefined ? (
+                            <span className="student-routine-session__rpe-badge student-routine-session__rpe-badge--reported">
+                              RPE: {workout.rpe}/10
+                            </span>
+                          ) : (
+                            <span className="student-routine-session__rpe-badge student-routine-session__rpe-badge--unreported">
+                              {RPE_UNREPORTED_LABEL}
+                            </span>
+                          )}
+                        </div>
+                        <time className="student-routine-history__date" dateTime={workout.recordedAt}>{new Date(workout.recordedAt).toLocaleDateString('es-AR')}</time>
+                        <span className="student-routine-history__meta">{workout.logs.length} {workout.logs.length === 1 ? 'serie registrada' : 'series registradas'}</span>
+                        <span className="student-routine-history__averages">
+                          Promedios: {workout.averageReps === null ? 'repeticiones —' : `${workout.averageReps.toFixed(1)} reps`} · {workout.averageWeight === null ? 'carga —' : `${workout.averageWeight.toFixed(1)} kg`} · {workout.averageDuration === null ? 'duración —' : `${workout.averageDuration.toFixed(0)} s por serie`}<br />Duración total: {workout.totalDuration === null ? 'No disponible' : formatWorkoutDuration(workout.totalDuration)}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="student-routine-history__subtitle">Evolución y registro de sensaciones por zona corporal.</p>
+              {zoneHistory.length === 0 ? (
+                <p className="student-routine-history__empty">Todavía no tenés zonas reportadas en tus entrenamientos.</p>
+              ) : (
+                <ul className="student-routine-history__list">
+                  {zoneHistory.map((item) => (
+                    <li key={item.id} className="student-routine-history__item">
+                      <div className="student-routine-history__item-main">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                          <strong>{item.zone_display || item.zone}</strong>
+                          <span className={`body-map-history-badge body-map-history-badge--${item.intensity.toLowerCase()}`}>
+                            {item.intensity === 'PAIN' ? 'Dolor' : item.intensity === 'DISCOMFORT' ? 'Molestia' : 'Carga normal'}
+                          </span>
+                        </div>
+                        <time className="student-routine-history__date" dateTime={item.created_at}>
+                          {new Date(item.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
+                        </time>
+                        <span className="student-routine-history__meta">
+                          Contexto: {item.context === 'IN_EXERCISE' ? 'Durante ejercicio' : 'Fin de sesión'}
+                          {item.exercise_name ? ` · Ejercicio: ${item.exercise_name}` : ''}
+                        </span>
+                        {item.action_taken && (
+                          <span className="student-routine-history__meta">
+                            Acción tomada: {item.action_taken === 'VARIANT_ACCEPTED' ? 'Variante aceptada' : item.action_taken === 'EXERCISE_SKIPPED' ? 'Ejercicio salteado' : item.action_taken}
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </div>
+      </section>
+      <section className="effort-feedback-history" aria-labelledby="effort-feedback-history-heading">
+        <h2 id="effort-feedback-history-heading">Devoluciones de tu entrenador</h2>
+        {effortFeedbackError
+          ? <p className="form-alert" role="alert">No pudimos cargar las devoluciones de tu entrenador. Intentá nuevamente más tarde.</p>
+          : <EffortFeedbackList
+              items={effortFeedback}
+              highlightUnseen
+              emptyMessage="Todavía no recibiste devoluciones de tu entrenador. Cuando revise el esfuerzo que reportás al terminar cada sesión, las vas a ver acá."
+            />}
+      </section>
+    </>
+  );
+
+  if (accessState === 'EXPIRED') {
+    const payUrl = routineSubscription
+      ? `${ROUTES.studentActivePlans}?reportPayment=${encodeURIComponent(routineSubscription.relationship_id)}`
+      : ROUTES.studentActivePlans;
+    return (
+      <main className="profile-shell">
+        <header className="profile-header">
+          <Link to={ROUTES.studentHome} className="profile-back"><ArrowLeft size={18} /> Volver al inicio</Link>
+        </header>
+        <section className="profile-card routine-locked" role="alert" aria-labelledby="routine-locked-title">
+          <div className="profile-heading">
+            <span>RUTINA BLOQUEADA</span>
+            <h1 id="routine-locked-title">Tu suscripción está vencida</h1>
+            <p>
+              {routineSubscription
+                ? `Venció el ${formatIsoDate(routineSubscription.due_date)}. Para volver a entrenar, informá tu pago a ${routineSubscription.trainer_name} y esperá a que lo confirme. Tu historial, tu evolución y tus mensajes siguen disponibles.`
+                : 'Tu suscripción está vencida. Para volver a entrenar, informá tu pago a tu entrenador y esperá a que lo confirme. Tu historial, tu evolución y tus mensajes siguen disponibles.'}
+            </p>
+            {routineSubscription && routineSubscription.pending_payment_count > 0 && (
+              <p className="routine-locked__pending">Ya informaste un pago: falta que tu entrenador lo confirme.</p>
+            )}
+          </div>
+          <div className="routine-locked__actions">
+            <Link to={payUrl} className="profile-cta">
+              Informar pago
+            </Link>
+            <Link to={ROUTES.studentProgress} className="plan-cancel">Ver mi evolución</Link>
+          </div>
+        </section>
+        <section className="profile-card student-daily-routine">
+          {readonlyHistorySections}
+        </section>
+      </main>
+    );
+  }
+
+  if (accessState === 'UNVERIFIED') {
+    return (
+      <main className="profile-shell">
+        <header className="profile-header">
+          <Link to={ROUTES.studentHome} className="profile-back"><ArrowLeft size={18} /> Volver al inicio</Link>
+        </header>
+        <section className="profile-card routine-locked" role="alert" aria-labelledby="routine-unverified-title">
+          <div className="profile-heading">
+            <span>VERIFICACIÓN PENDIENTE</span>
+            <h1 id="routine-unverified-title">No pudimos verificar tu suscripción</h1>
+            <p>Por seguridad no podemos habilitar el entrenamiento hasta confirmar el estado de tu cuota. Podés consultar tu historial debajo o reintentar.</p>
+          </div>
+          <div className="routine-locked__actions">
+            <Link to={ROUTES.studentActivePlans} className="profile-cta">Ir a Mis entrenadores</Link>
+            <Link to={ROUTES.studentProgress} className="plan-cancel">Ver mi evolución</Link>
+          </div>
+        </section>
+        <section className="profile-card student-daily-routine">
+          {readonlyHistorySections}
+        </section>
+      </main>
+    );
+  }
+
+  const activeModality: RoutineModality = routine?.modality ?? 'GYM';
+  const isHomeModality = activeModality === 'HOME';
+  const selectedDay = routine?.days.find((day) => day.id === selectedDayId) ?? routine?.days[0];
+  const selectedNotice = noticeForDay(adjustments, selectedDay?.name);
+  const totalDuration = selectedDay?.blocks.reduce((total, block) => total + (block.estimated_duration_minutes ?? 0), 0) ?? 0;
+  const showCelebration = searchParams.get('completed') === '1';
+  const showPrAlertBanner = shouldShowPersonalRecordAlert(prAlertBanner, {
+    sessionMode,
+    sessionId,
+    dayName: selectedDay?.name,
+  });
+  const showPrCelebration = shouldShowPersonalRecordAlert(prCelebration, {
+    sessionMode,
+    sessionId,
+    dayName: selectedDay?.name,
+  });
+  const currentSessionLogs = workoutLogs.filter((log) => Boolean(sessionId) && log.session_id === sessionId);
+  const getRecordedSetCount = (item: RoutineExercise) => {
+    const effective = resolveEffectiveExercise(item, replacements);
+    return currentSessionLogs.filter(
+      (log) => log.exercise_id === effective.id && log.day_name === (selectedDay?.name ?? ''),
+    ).length;
+  };
   const activeSetSeconds = activeSet ? Math.max(0, Math.floor((clockNow - activeSet.startedAt) / 1000)) : 0;
   const formatClock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
-  const getPreviousLog = (item: RoutineExercise) => workoutLogs
-    .filter((log) => log.exercise_id === item.exercise.id && log.session_id !== sessionId)
-    .sort((left, right) => right.recorded_at.localeCompare(left.recorded_at))[0];
+  const getPreviousLog = (item: RoutineExercise) => {
+    const effective = resolveEffectiveExercise(item, replacements);
+    return workoutLogs
+      .filter((log) => log.exercise_id === effective.id && log.session_id !== sessionId)
+      .sort((left, right) => right.recorded_at.localeCompare(left.recorded_at))[0];
+  };
 
   const getDraftForItem = (item: RoutineExercise): SetLogDraft => {
     const existing = logDrafts[item.id];
     if (existing) return existing;
+    const effective = resolveEffectiveExercise(item, replacements);
     const recordedSetNumbers = new Set(currentSessionLogs
-      .filter((log) => log.exercise_id === item.exercise.id && log.day_name === (selectedDay?.name ?? ''))
+      .filter((log) => log.exercise_id === effective.id && log.day_name === (selectedDay?.name ?? ''))
       .map((log) => log.set_number));
     let nextSet = 1;
     while (nextSet <= item.sets && recordedSetNumbers.has(nextSet)) nextSet += 1;
@@ -533,19 +758,46 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       const startedAt = parseSessionTimestamp(session.started_at);
       if (startedAt === null) throw new Error('La sesión no devolvió una fecha de inicio válida.');
       window.localStorage.setItem(`workout-started-at:${session.id}`, String(startedAt));
-      // US-26: al iniciar se aplican los ajustes pendientes del entrenador; se recarga la rutina vigente.
-      const [refreshed, adjusted] = await Promise.all([
+      // US-26 + US-62: al iniciar se aplican los ajustes pendientes y se recargan las notas técnicas obligatorias.
+      const [refreshed, adjusted, freshNotes, conversations] = await Promise.all([
         getAssignedStudentRoutine().catch(() => routine),
         getStudentAdjustments().catch(() => adjustments),
+        getPendingTechnicalNotes().catch(() => null),
+        queryRelationshipId ? Promise.resolve(null) : listConversations().catch(() => null),
       ]);
+      let activeRelId = queryRelationshipId;
+      if (!activeRelId && conversations && routineTrainerId) {
+        const match = conversations.find((item) => item.trainer_id === routineTrainerId && item.can_send);
+        activeRelId = match?.relationship_id ?? null;
+        setQueryRelationshipId(activeRelId);
+      }
+      if (freshNotes !== null) {
+        setTechnicalNotes(activeRelId ? freshNotes.filter((note) => note.relationship_id === activeRelId) : freshNotes);
+        setNotesLoaded(true);
+        setNotesError(false);
+      } else {
+        setNotesLoaded(false);
+        setNotesError(true);
+      }
       const refreshedDay = refreshed?.days.find((day) => day.name === selectedDay.name) ?? selectedDay;
       if (refreshed) setRoutine(refreshed);
       setAdjustments(adjusted);
       setLogDrafts({});
       setSelectedDayId(refreshedDay.id);
       navigate(ROUTES.studentRoutineSession + '?day=' + encodeURIComponent(refreshedDay.id) + '&session=' + encodeURIComponent(session.id) + '&startedAt=' + encodeURIComponent(String(startedAt)));
-    } catch {
-      setLogError('No pudimos iniciar el entrenamiento. Intentá nuevamente.');
+    } catch (caught) {
+      const status = isAxiosError(caught) ? caught.response?.status : undefined;
+      const detail = isAxiosError(caught) ? caught.response?.data?.detail : undefined;
+      if (status === 409) {
+        setRoutineStatusCode(409);
+        void listStudentSubscriptions()
+          .then((items) => {
+            setSubscriptions(items);
+            setSubscriptionsLoaded(true);
+          })
+          .catch(() => undefined);
+      }
+      setLogError(typeof detail === 'string' ? detail : 'No pudimos iniciar el entrenamiento. Intentá nuevamente.');
     } finally {
       setStartingWorkout(false);
     }
@@ -593,7 +845,19 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   };
 
   const handleStartSet = (item: RoutineExercise) => {
-    if (activeRest || activeSet || finishedSet || blockedExerciseIds.includes(item.exercise.id)) return;
+    const effective = resolveEffectiveExercise(item, replacements);
+    if (!canStartExerciseSet({
+      sessionMode: true,
+      notesLoaded,
+      notesError,
+      pendingNotesCount: pendingNotesFor(effective.id).length,
+      blocked: blockedExerciseIds.includes(effective.id),
+      activeSet,
+      finishedSet,
+      activeRest,
+    })) {
+      return;
+    }
     setActiveSet({ exerciseId: item.id, startedAt: Date.now() });
   };
 
@@ -607,6 +871,15 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
   const handleRecordSet = async (item: RoutineExercise) => {
     if (!routine || !selectedDay || savingExerciseId || finishedSet?.exerciseId !== item.id || (sessionMode && !sessionId)) return;
     setLogError('');
+    const effective = resolveEffectiveExercise(item, replacements);
+    if (sessionMode && (!notesLoaded || notesError)) {
+      setLogError('No pudimos verificar tus notas técnicas pendientes. Recargá la página antes de registrar.');
+      return;
+    }
+    if (pendingNotesFor(effective.id).length > 0) {
+      setLogError('Confirmá la nota técnica de este ejercicio antes de registrar la serie.');
+      return;
+    }
     const draft = getDraftForItem(item);
     const parsedSet = Number.parseInt(draft.setNumber, 10);
     const parsedWeight = draft.weightKg.trim() === '' ? null : Number.parseFloat(draft.weightKg);
@@ -616,7 +889,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       return;
     }
     if (sessionMode && currentSessionLogs.some((log) =>
-      log.exercise_id === item.exercise.id && log.day_name === selectedDay.name && log.set_number === parsedSet,
+      log.exercise_id === effective.id && log.day_name === selectedDay.name && log.set_number === parsedSet,
     )) {
       setLogError('Esa serie ya está marcada como completada.');
       return;
@@ -637,7 +910,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
     setSavingExerciseId(item.id);
     try {
       const created = await createAssignedRoutineWorkoutLog({
-        exercise_id: replacements[item.id]?.exercise_id ?? item.exercise.id,
+        exercise_id: effective.id,
         day_name: selectedDay.name,
         set_number: parsedSet,
         reps_completed: draft.repsCompleted.trim(),
@@ -650,11 +923,13 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       setWorkoutLogs(updatedLogs);
       if (created.is_personal_record) {
         const alertData: PersonalRecordAlert = {
+          logId: created.id,
+          exerciseId: created.exercise_id,
           exerciseName: created.exercise_name,
           weightKg: created.weight_kg ?? parsedWeight ?? 0,
           reps: created.reps_completed,
           previousWeightKg: created.pr_previous_weight_kg ?? null,
-          isInitial: Boolean(created.is_initial_pr),
+          isInitial: false,
           sessionId: created.session_id,
           dayName: created.day_name,
         };
@@ -665,14 +940,17 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       const allRequiredSetsDone = Boolean(selectedDay) && selectedDay.blocks
         .flatMap((block) => block.exercises)
         .filter((exercise) => !skipped.includes(exercise.id))
-        .every((exercise) => updatedLogs.filter((log) =>
-          log.session_id === sessionId
-          && log.day_name === selectedDay.name
-          && log.exercise_id === exercise.exercise.id,
-        ).length >= exercise.sets);
+        .every((exercise) => {
+          const exId = resolveEffectiveExercise(exercise, replacements).id;
+          return updatedLogs.filter((log) =>
+            log.session_id === sessionId
+            && log.day_name === selectedDay.name
+            && log.exercise_id === exId,
+          ).length >= exercise.sets;
+        });
       setAutoFinishPending(allRequiredSetsDone);
       if (item.rest_seconds > 0) {
-        setActiveRest({ exerciseName: item.exercise.name, durationSeconds: item.rest_seconds, key: created.id });
+        setActiveRest({ exerciseName: effective.name, durationSeconds: item.rest_seconds, key: created.id });
       } else if (allRequiredSetsDone) {
         scheduleAutoFinish();
       }
@@ -704,8 +982,10 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
       await deleteAssignedRoutineWorkoutLog(log.id);
       const updatedLogs = workoutLogs.filter((item) => item.id !== log.id);
       setWorkoutLogs(updatedLogs);
+      setPrCelebration((current) => (shouldClearPersonalRecordAlert(current, log) ? null : current));
+      setPrAlertBanner((current) => (shouldClearPersonalRecordAlert(current, log) ? null : current));
       const routineExercise = selectedDay?.blocks.flatMap((block) => block.exercises)
-        .find((item) => item.exercise.id === log.exercise_id);
+        .find((item) => resolveEffectiveExercise(item, replacements).id === log.exercise_id);
       if (routineExercise) setLogDrafts((current) => {
         const next = { ...current };
         delete next[routineExercise.id];
@@ -715,11 +995,14 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
         ? selectedDay.blocks
           .flatMap((block) => block.exercises)
           .filter((exercise) => !skipped.includes(exercise.id))
-          .every((exercise) => updatedLogs.filter((item) =>
-            item.session_id === sessionId
-            && item.day_name === selectedDay.name
-            && item.exercise_id === exercise.exercise.id,
-          ).length >= exercise.sets)
+          .every((exercise) => {
+            const exId = resolveEffectiveExercise(exercise, replacements).id;
+            return updatedLogs.filter((item) =>
+              item.session_id === sessionId
+              && item.day_name === selectedDay.name
+              && item.exercise_id === exId,
+            ).length >= exercise.sets;
+          })
         : false;
       setAutoFinishPending(allRequiredSetsDone);
     } catch {
@@ -920,11 +1203,9 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                 <div className="student-routine-pr-banner__content">
                   <span className="student-routine-pr-banner__icon" aria-hidden="true">🏆</span>
                   <div className="student-routine-pr-banner__text">
-                    <strong>{prAlertBanner.isInitial ? '¡Primer récord registrado!' : '¡Nuevo récord personal (PR)!'}</strong>
+                    <strong>¡Nuevo récord personal (PR)!</strong>
                     <p>
-                      {prAlertBanner.isInitial
-                        ? `Estableciste tu marca inicial en ${prAlertBanner.exerciseName} con ${prAlertBanner.weightKg} kg (${prAlertBanner.reps} reps). ¡Tu entrenador ya fue notificado!`
-                        : `Superaste tu récord anterior en ${prAlertBanner.exerciseName}: lograste ${prAlertBanner.weightKg} kg (${prAlertBanner.reps} reps)${prAlertBanner.previousWeightKg !== null ? ` (superando tu marca previa de ${prAlertBanner.previousWeightKg} kg)` : ''}. ¡Tu entrenador ya fue avisado!`}
+                      Superaste tu récord anterior en {prAlertBanner.exerciseName}: lograste {prAlertBanner.weightKg} kg ({prAlertBanner.reps} reps){prAlertBanner.previousWeightKg !== null ? ` (superando tu marca previa de ${prAlertBanner.previousWeightKg} kg)` : ''}. ¡Tu entrenador ya fue avisado!
                     </p>
                   </div>
                 </div>
@@ -959,11 +1240,24 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                 </header>
                 <ol>
                   {block.exercises.filter((item) => !skipped.includes(item.id)).map((item) => {
+                    const effectiveExercise = resolveEffectiveExercise(item, replacements);
                     const draft = getDraftForItem(item);
                     const previousLog = getPreviousLog(item);
                     const itemSessionLogs = currentSessionLogs
-                      .filter((log) => log.exercise_id === item.exercise.id && log.day_name === selectedDay?.name)
+                      .filter((log) => log.exercise_id === effectiveExercise.id && log.day_name === selectedDay?.name)
                       .sort((left, right) => left.set_number - right.set_number);
+                    const isEffectiveBlocked = blockedExerciseIds.includes(effectiveExercise.id);
+                    const pendingNotes = pendingNotesFor(effectiveExercise.id);
+                    const allowStartSet = canStartExerciseSet({
+                      sessionMode,
+                      notesLoaded,
+                      notesError,
+                      pendingNotesCount: pendingNotes.length,
+                      blocked: isEffectiveBlocked,
+                      activeSet,
+                      finishedSet,
+                      activeRest,
+                    });
                     return (
                       <li key={item.id}>
                         <div className="student-routine-exercise__summary">
@@ -1077,24 +1371,30 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                           </dl>
                         )}
                         {sessionMode && (
-                          <TechnicalNoteNotice notes={pendingNotesFor(item.exercise.id)} onAcknowledge={handleAcknowledgeNote} />
+                          <TechnicalNoteNotice notes={pendingNotes} onAcknowledge={handleAcknowledgeNote} />
+                        )}
+                        {sessionMode && !notesLoaded && !notesError && (
+                          <p className="student-routine-exercise__checklist-status" role="status">Verificando notas técnicas…</p>
+                        )}
+                        {sessionMode && notesError && (
+                          <p className="form-alert" role="alert">No pudimos verificar tus notas técnicas pendientes. Recargá la página antes de iniciar.</p>
                         )}
                         {queryRelationshipId && (
                           <ExerciseQueriesPanel
                             relationshipId={queryRelationshipId}
-                            exerciseId={item.exercise.id}
-                            exerciseName={item.exercise.name}
+                            exerciseId={effectiveExercise.id}
+                            exerciseName={effectiveExercise.name}
                             sets={item.sets}
                             sessionId={sessionMode ? sessionId : null}
                           />
                         )}
-                        {(replacements[item.id] || !blockedExerciseIds.includes(item.exercise.id)) && <div className="student-routine-exercise__logger">
-                        {sessionMode && !blockedExerciseIds.includes(item.exercise.id) && pendingNotesFor(item.exercise.id).length === 0 && !activeSet && !finishedSet && !activeRest && <div className="student-routine-exercise__session-actions"><button type="button" className="student-routine-exercise__log-btn" disabled={getRecordedSetCount(item) >= item.sets} onClick={() => handleStartSet(item)}>{getRecordedSetCount(item) >= item.sets ? 'Series completadas' : 'Iniciar serie'}</button></div>}
+                        {!isEffectiveBlocked && <div className="student-routine-exercise__logger">
+                        {allowStartSet && <div className="student-routine-exercise__session-actions"><button type="button" className="student-routine-exercise__log-btn" disabled={getRecordedSetCount(item) >= item.sets} onClick={() => handleStartSet(item)}>{getRecordedSetCount(item) >= item.sets ? 'Series completadas' : 'Iniciar serie'}</button></div>}
                         {sessionMode && activeSet?.exerciseId === item.id && <div className="student-routine-exercise__session-actions">
                           <span className="student-routine-exercise__elapsed-clock" role="timer" aria-label="Duración de la serie">{formatClock(activeSetSeconds)}</span>
                           <button type="button" className="student-routine-exercise__log-btn" onClick={() => handleFinishSet(item)}>Finalizar serie</button>
                         </div>}
-                        {sessionMode && <ul className="student-routine-exercise__checklist" aria-label={`Checklist de series de ${item.exercise.name}`}>
+                        {sessionMode && <ul className="student-routine-exercise__checklist" aria-label={`Checklist de series de ${effectiveExercise.name}`}>
                           {Array.from({ length: item.sets }, (_, index) => {
                             const setNumber = index + 1;
                             const log = itemSessionLogs.find((entry) => entry.set_number === setNumber);
@@ -1107,7 +1407,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                                   checked={Boolean(log)}
                                   disabled={!log || deletingLogId === log.id || finishingWorkout}
                                   onChange={() => { if (log) void handleUncheckSet(log); }}
-                                  aria-label={log ? `Desmarcar serie ${setNumber} de ${item.exercise.name}` : `Serie ${setNumber} pendiente`}
+                                  aria-label={log ? `Desmarcar serie ${setNumber} de ${effectiveExercise.name}` : `Serie ${setNumber} pendiente`}
                                 />
                                 <span className="student-routine-exercise__checklist-copy">
                                   <strong>{log ? `Serie ${setNumber} completada` : `Serie ${setNumber}`}</strong>
@@ -1118,8 +1418,8 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                             </li>;
                           })}
                         </ul>}
-                        {sessionMode && finishedSet?.exerciseId === item.id && !blockedExerciseIds.includes(item.exercise.id) && <p className="student-routine-exercise__elapsed">Duración de la serie: {finishedSet.durationSeconds} s</p>}
-                        {sessionMode && finishedSet?.exerciseId === item.id && !blockedExerciseIds.includes(item.exercise.id) && <div className="student-routine-exercise__logger">
+                        {sessionMode && finishedSet?.exerciseId === item.id && !isEffectiveBlocked && <p className="student-routine-exercise__elapsed">Duración de la serie: {finishedSet.durationSeconds} s</p>}
+                        {sessionMode && finishedSet?.exerciseId === item.id && !isEffectiveBlocked && <div className="student-routine-exercise__logger">
                           {previousLog && <p className="student-routine-exercise__previous-reference">
                             Sesión anterior ({new Date(previousLog.recorded_at).toLocaleDateString('es-AR')}): {previousLog.reps_completed} reps · {previousLog.weight_kg === null ? 'sin peso registrado' : `${previousLog.weight_kg} kg`}
                           </p>}
@@ -1172,124 +1472,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
               </section>
             ))}
 
-            {!sessionMode && <section className="student-routine-history student-routine-history--progress" aria-labelledby="workout-history-heading">
-              <header className="student-routine-history__header">
-                <div className="student-routine-history__title">
-                  <History size={20} />
-                  <h3 id="workout-history-heading">Tu progreso con esta rutina</h3>
-                </div>
-                <button
-                  type="button"
-                  className="student-routine-history__toggle"
-                  aria-expanded={historyExpanded}
-                  aria-controls="routine-progress-content"
-                  onClick={() => setHistoryExpanded((expanded) => !expanded)}
-                >
-                  {historyExpanded ? 'Ocultar progreso' : 'Mostrar progreso'}
-                  <ChevronDown size={18} aria-hidden="true" />
-                </button>
-              </header>
-              <div id="routine-progress-content" className="student-routine-history__content" hidden={!historyExpanded}>
-                <div className="student-routine-history__tabs" role="tablist">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={historyTab === 'workouts'}
-                    className={`student-routine-history__tab-btn ${historyTab === 'workouts' ? 'student-routine-history__tab-btn--active' : ''}`}
-                    onClick={() => setHistoryTab('workouts')}
-                  >
-                    Entrenamientos ({routineWorkoutSummaries.length})
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={historyTab === 'bodymap'}
-                    className={`student-routine-history__tab-btn ${historyTab === 'bodymap' ? 'student-routine-history__tab-btn--active' : ''}`}
-                    onClick={() => setHistoryTab('bodymap')}
-                  >
-                    Historial de zonas ({zoneHistory.length})
-                  </button>
-                </div>
-              {historyTab === 'workouts' ? (
-                <>
-                  <p className="student-routine-history__subtitle">Resumen de tus entrenamientos anteriores, con promedios de las series registradas.</p>
-                  {routineWorkoutSummaries.length === 0 ? (
-                    <p className="student-routine-history__empty">Todavía no hay entrenamientos registrados para esta rutina. Cuando termines uno, vas a poder consultar acá tu progreso.</p>
-                  ) : (
-                    <ul className="student-routine-history__list">
-                      {routineWorkoutSummaries.map((workout) => (
-                        <li key={workout.key} className="student-routine-history__item student-routine-history__item--workout">
-                          <div className="student-routine-history__item-main">
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                              <strong>{workout.day}</strong>
-                              {workout.rpe !== null && workout.rpe !== undefined ? (
-                                <span className="student-routine-session__rpe-badge student-routine-session__rpe-badge--reported">
-                                  RPE: {workout.rpe}/10
-                                </span>
-                              ) : (
-                                <span className="student-routine-session__rpe-badge student-routine-session__rpe-badge--unreported">
-                                  {RPE_UNREPORTED_LABEL}
-                                </span>
-                              )}
-                            </div>
-                            <time className="student-routine-history__date" dateTime={workout.recordedAt}>{new Date(workout.recordedAt).toLocaleDateString('es-AR')}</time>
-                            <span className="student-routine-history__meta">{workout.logs.length} {workout.logs.length === 1 ? 'serie registrada' : 'series registradas'}</span>
-                            <span className="student-routine-history__averages">
-                              Promedios: {workout.averageReps === null ? 'repeticiones —' : `${workout.averageReps.toFixed(1)} reps`} · {workout.averageWeight === null ? 'carga —' : `${workout.averageWeight.toFixed(1)} kg`} · {workout.averageDuration === null ? 'duración —' : `${workout.averageDuration.toFixed(0)} s por serie`}<br />Duración total: {workout.totalDuration === null ? 'No disponible' : formatWorkoutDuration(workout.totalDuration)}
-                            </span>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </>
-              ) : (
-                <>
-                  <p className="student-routine-history__subtitle">Evolución y registro de sensaciones por zona corporal.</p>
-                  {zoneHistory.length === 0 ? (
-                    <p className="student-routine-history__empty">Todavía no tenés zonas reportadas en tus entrenamientos.</p>
-                  ) : (
-                    <ul className="student-routine-history__list">
-                      {zoneHistory.map((item) => (
-                        <li key={item.id} className="student-routine-history__item">
-                          <div className="student-routine-history__item-main">
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                              <strong>{item.zone_display || item.zone}</strong>
-                              <span className={`body-map-history-badge body-map-history-badge--${item.intensity.toLowerCase()}`}>
-                                {item.intensity === 'PAIN' ? 'Dolor' : item.intensity === 'DISCOMFORT' ? 'Molestia' : 'Carga normal'}
-                              </span>
-                            </div>
-                            <time className="student-routine-history__date" dateTime={item.created_at}>
-                              {new Date(item.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
-                            </time>
-                            <span className="student-routine-history__meta">
-                              Contexto: {item.context === 'IN_EXERCISE' ? 'Durante ejercicio' : 'Fin de sesión'}
-                              {item.exercise_name ? ` · Ejercicio: ${item.exercise_name}` : ''}
-                            </span>
-                            {item.action_taken && (
-                              <span className="student-routine-history__meta">
-                                Acción tomada: {item.action_taken === 'VARIANT_ACCEPTED' ? 'Variante aceptada' : item.action_taken === 'EXERCISE_SKIPPED' ? 'Ejercicio salteado' : item.action_taken}
-                              </span>
-                            )}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </>
-              )}
-              </div>
-            </section>}
-            {!sessionMode && <section className="effort-feedback-history" aria-labelledby="effort-feedback-history-heading">
-              <h2 id="effort-feedback-history-heading">Devoluciones de tu entrenador</h2>
-              {effortFeedbackError
-                ? <p className="form-alert" role="alert">No pudimos cargar las devoluciones de tu entrenador. Intentá nuevamente más tarde.</p>
-                : <EffortFeedbackList
-                    items={effortFeedback}
-                    highlightUnseen
-                    emptyMessage="Todavía no recibiste devoluciones de tu entrenador. Cuando revise el esfuerzo que reportás al terminar cada sesión, las vas a ver acá."
-                  />}
-            </section>}
+            {!sessionMode && readonlyHistorySections}
             {sessionMode && sessionId && <section className="student-routine-history student-routine-history--current" aria-labelledby="current-workout-history-heading">
               <header className="student-routine-history__header">
                 <div className="student-routine-history__title"><History size={20} /><h3 id="current-workout-history-heading">Historial de este entrenamiento</h3></div>
@@ -1396,10 +1579,8 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
             </div>
             <div className="workout-celebration__card workout-pr-card">
               <span className="workout-celebration__icon workout-pr-icon" aria-hidden="true">🏆</span>
-              <span className="workout-pr-badge-pill">{prCelebration.isInitial ? 'Primer récord' : 'Nuevo récord personal'}</span>
-              <h2 id="pr-celebration-title">
-                {prCelebration.isInitial ? '¡Primer récord registrado!' : '¡Nuevo récord personal!'}
-              </h2>
+              <span className="workout-pr-badge-pill">Nuevo récord personal</span>
+              <h2 id="pr-celebration-title">¡Nuevo récord personal!</h2>
               <p className="workout-pr-exercise-name">{prCelebration.exerciseName}</p>
               <div className="workout-pr-stat-box">
                 <span className="workout-pr-stat-weight">{prCelebration.weightKg} kg</span>
@@ -1411,7 +1592,7 @@ export function StudentRoutinesPage({ sessionMode = false }: { sessionMode?: boo
                 </p>
               ) : (
                 <p className="workout-pr-comparison">
-                  ¡Excelente comienzo! Estableciste tu primera marca en este ejercicio. Tu entrenador ya fue notificado.
+                  Superaste tu marca anterior en este ejercicio. Tu entrenador ya fue notificado.
                 </p>
               )}
               <button

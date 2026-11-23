@@ -128,9 +128,11 @@ interface PaymentHistoryProps {
   onChanged: (result: PaymentMutationResult) => void;
   /** US-71: el alumno ve el historial sin acciones de revisión y "Informar pago" en lugar de "Registrar pago". */
   viewer?: 'trainer' | 'student';
+  /** US-35: oculta acciones de carga cuando el vínculo fue dado de baja (solo lectura). */
+  readOnly?: boolean;
 }
 
-export function PaymentHistory({ history, onRegister, onChanged, viewer = 'trainer' }: PaymentHistoryProps) {
+export function PaymentHistory({ history, onRegister, onChanged, viewer = 'trainer', readOnly = false }: PaymentHistoryProps) {
   const isTrainer = viewer === 'trainer';
   const { subscription, payments } = history;
   const [reasonTarget, setReasonTarget] = useState<{ kind: ReasonKind; payment: PaymentView } | null>(null);
@@ -172,9 +174,11 @@ export function PaymentHistory({ history, onRegister, onChanged, viewer = 'train
             desde el {formatIsoDate(subscription.start_date)}
           </p>
         </div>
-        <button type="button" className="profile-save" onClick={() => onRegister()}>
-          <Plus size={16} aria-hidden="true" /> {isTrainer ? 'Registrar pago' : 'Informar pago'}
-        </button>
+        {!readOnly && (
+          <button type="button" className="profile-save" onClick={() => onRegister()}>
+            <Plus size={16} aria-hidden="true" /> {isTrainer ? 'Registrar pago' : 'Informar pago'}
+          </button>
+        )}
       </div>
 
       <dl className="payment-history__summary">

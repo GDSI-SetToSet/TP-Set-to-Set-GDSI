@@ -43,19 +43,29 @@ export function SubscriptionAlert({ role }: { role: 'TRAINER' | 'STUDENT' }) {
   const urgent = items.filter((item) => item.status !== 'AL_DIA');
   if (urgent.length === 0) return null;
   const expired = urgent.some((item) => item.status === 'VENCIDA');
+  const firstReportRelationshipId = (
+    urgent.find((item) => item.status === 'VENCIDA') ?? urgent[0]
+  )?.relationship_id;
   return (
     <div className={`subscription-alert${expired ? ' subscription-alert--expired' : ''}`} role="alert">
       <AlertTriangle size={20} aria-hidden="true" />
       <div>
         {urgent.map((item) => (
           <p key={item.relationship_id}>
-            Tu suscripción con {item.trainer_name} vence el <strong>{formatIsoDate(item.due_date)}</strong> ({dueDescription(item).toLowerCase()}).
+            Tu suscripción con {item.trainer_name} {item.status === 'VENCIDA' ? 'venció' : 'vence'} el <strong>{formatIsoDate(item.due_date)}</strong> ({dueDescription(item).toLowerCase()}).
             {item.status === 'VENCIDA' && ' Tu rutina está bloqueada hasta que tu entrenador confirme un pago.'}
             {item.pending_payment_count > 0 && ' Ya informaste un pago: falta que tu entrenador lo confirme.'}
           </p>
         ))}
       </div>
-      <Link to={ROUTES.studentActivePlans} className="subscription-alert__link">
+      <Link
+        to={
+          firstReportRelationshipId
+            ? `${ROUTES.studentActivePlans}?reportPayment=${encodeURIComponent(firstReportRelationshipId)}`
+            : ROUTES.studentActivePlans
+        }
+        className="subscription-alert__link"
+      >
         Informar pago <ArrowRight size={16} aria-hidden="true" />
       </Link>
     </div>

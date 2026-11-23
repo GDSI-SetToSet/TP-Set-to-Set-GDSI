@@ -8,6 +8,7 @@ import type {
   PendingQueriesGroup,
   TechnicalNoteView,
   TechnicalQueryPayload,
+  TrainerQueryHistoryGroup,
 } from '../types/conversation';
 
 const BASE = '/api/v1/conversations';
@@ -54,6 +55,13 @@ export async function getExerciseQueries(relationshipId: string, exerciseId: str
 
 export async function getPendingTechnicalQueries(): Promise<PendingQueriesGroup[]> {
   const { data } = await api.get<PendingQueriesGroup[]>('/api/v1/trainers/me/technical-queries');
+  return data;
+}
+
+export async function getTechnicalQueriesHistory(studentId?: string): Promise<TrainerQueryHistoryGroup[]> {
+  const { data } = await api.get<TrainerQueryHistoryGroup[]>('/api/v1/trainers/me/technical-queries/history', {
+    params: studentId ? { student_id: studentId } : undefined,
+  });
   return data;
 }
 

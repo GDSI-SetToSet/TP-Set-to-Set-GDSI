@@ -62,6 +62,8 @@ export function SessionSummaryDialog({ sessionId, onClose, onRpeSaved, onZonesRe
   const [savingRpe, setSavingRpe] = useState(false);
   const [rpeError, setRpeError] = useState('');
   const closeButton = useRef<HTMLButtonElement>(null);
+  const ratingOpenRef = useRef(ratingOpen);
+  ratingOpenRef.current = ratingOpen;
 
   useEffect(() => {
     let cancelled = false;
@@ -103,7 +105,15 @@ export function SessionSummaryDialog({ sessionId, onClose, onRpeSaved, onZonesRe
 
   useEffect(() => {
     closeButton.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onCloseRef.current(); };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      if (ratingOpenRef.current) {
+        setRatingOpen(false);
+      } else {
+        onCloseRef.current();
+      }
+    };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);

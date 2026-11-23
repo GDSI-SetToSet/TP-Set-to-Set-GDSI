@@ -218,8 +218,28 @@
 .conversation__readonly { margin: 0; padding: 14px 16px; border-top: 1px solid var(--pf-border); color: var(--pf-muted); }
 
 /* ── Bandeja de consultas técnicas (entrenador) ── */
+.technical-queries__tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.technical-queries__tab {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--pf-input-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--pf-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.technical-queries__tab.is-active {
+  border-color: var(--pf-accent);
+  background: var(--pf-bg);
+  color: var(--pf-ink);
+}
+.technical-queries__tab:focus-visible { outline: 3px solid var(--pf-focus); outline-offset: 2px; }
 .technical-queries__toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin: 16px 0; }
 .technical-queries__toolbar p { margin: 0; color: var(--pf-muted); }
+.technical-queries__history-replies { display: grid; gap: 8px; margin-top: 6px; padding-left: 12px; border-left: 3px solid var(--pf-accent); }
+.technical-queries__reply-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--pf-muted); font-size: .82rem; }
 .technical-queries__group { margin-top: 18px; }
 .technical-queries__group-header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
 .technical-queries__group-header h2 { margin: 0; color: var(--pf-ink); font-size: 1.1rem; }

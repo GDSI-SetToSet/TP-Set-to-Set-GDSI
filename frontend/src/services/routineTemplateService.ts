@@ -1,4 +1,5 @@
 import { api } from './api';
+import { localDateInputValue } from '../utils/dailyRoutineFormat.mjs';
 import type {
   EffortFeedback,
   EffortFeedbackInput,
@@ -41,23 +42,37 @@ export async function getStudentRoutineTemplates(): Promise<RoutineTemplate[]> {
 }
 
 export async function getAssignedStudentRoutine(): Promise<RoutineTemplate | null> {
-  const { data } = await api.get<RoutineTemplate | null>(STUDENT_ASSIGNED_PATH);
+  const { data } = await api.get<RoutineTemplate | null>(STUDENT_ASSIGNED_PATH, {
+    params: { date: localDateInputValue() },
+  });
   return data;
 }
 
 export async function updateAssignedRoutineModality(modality: RoutineModality): Promise<RoutineTemplate> {
-  const { data } = await api.put<RoutineTemplate>(`${STUDENT_ASSIGNED_PATH}/modality`, { modality });
+  const { data } = await api.put<RoutineTemplate>(
+    `${STUDENT_ASSIGNED_PATH}/modality`,
+    { modality },
+    { params: { date: localDateInputValue() } },
+  );
   return data;
 }
 
 export async function startAssignedWorkoutSession(dayName: string): Promise<WorkoutSession> {
-  const { data } = await api.post<WorkoutSession>(`${STUDENT_ASSIGNED_PATH}/workout-sessions`, { day_name: dayName });
+  const { data } = await api.post<WorkoutSession>(
+    `${STUDENT_ASSIGNED_PATH}/workout-sessions`,
+    { day_name: dayName },
+    { params: { date: localDateInputValue() } },
+  );
   return data;
 }
 
 export async function finishAssignedWorkoutSession(sessionId: string, rpe?: number | null): Promise<WorkoutSession> {
   const payload = rpe !== undefined && rpe !== null ? { rpe } : {};
-  const { data } = await api.post<WorkoutSession>(`${STUDENT_ASSIGNED_PATH}/workout-sessions/${sessionId}/finish`, payload);
+  const { data } = await api.post<WorkoutSession>(
+    `${STUDENT_ASSIGNED_PATH}/workout-sessions/${sessionId}/finish`,
+    payload,
+    { params: { date: localDateInputValue() } },
+  );
   return data;
 }
 
@@ -87,7 +102,9 @@ export async function markEffortFeedbackSeen(feedbackId: string): Promise<Effort
 }
 
 export async function deleteAssignedRoutineWorkoutLog(logId: string): Promise<void> {
-  await api.delete(`${STUDENT_ASSIGNED_PATH}/workout-logs/${logId}`);
+  await api.delete(`${STUDENT_ASSIGNED_PATH}/workout-logs/${logId}`, {
+    params: { date: localDateInputValue() },
+  });
 }
 
 export async function getAssignedRoutineWorkoutSessions(): Promise<WorkoutSession[]> {
@@ -104,7 +121,9 @@ export async function getAssignedRoutineWorkoutLogs(exerciseId?: string): Promis
 }
 
 export async function createAssignedRoutineWorkoutLog(payload: WorkoutSetLogInput): Promise<WorkoutSetLog> {
-  const { data } = await api.post<WorkoutSetLog>(`${STUDENT_ASSIGNED_PATH}/workout-logs`, payload);
+  const { data } = await api.post<WorkoutSetLog>(`${STUDENT_ASSIGNED_PATH}/workout-logs`, payload, {
+    params: { date: localDateInputValue() },
+  });
   return data;
 }
 
