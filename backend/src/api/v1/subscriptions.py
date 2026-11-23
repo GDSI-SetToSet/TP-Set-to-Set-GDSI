@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from backend.src.api.errors import field_name
 from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
+from backend.src.core.storage import sanitize_filename
 from backend.src.models.user import User
 from backend.src.schemas.informal_payment import (
     PaymentCreate,
@@ -33,6 +34,7 @@ from backend.src.services.student_subscription_service import (
     receipt_for_download,
     report_payment,
 )
+from backend.src.services.subscription_service import validated_local_date
 
 router = APIRouter(prefix=API_V1_PREFIX, tags=["subscriptions"])
 CurrentUser = Annotated[User, Depends(get_current_user)]
@@ -62,7 +64,8 @@ def validation_problem(error: ValidationError) -> HTTPException:
 def own_subscriptions(user: CurrentUser, db: DbDep, day: LocalDate = None) -> list[SubscriptionSummary]:
     """US-71 escenarios 1, 2 y 4: vencimiento y estado de cada vínculo activo."""
     try:
-        return list_student_subscriptions(db, user, day or date.today())
+        resolved_day = validated_local_date(day, PaymentError)
+        return list_student_subscriptions(db, user, resolved_day)
     except PaymentError as error:
         handle_error(error)
 
@@ -73,7 +76,8 @@ def own_subscription_payments(
 ) -> PaymentHistory:
     """US-71 escenario 5: historial de pagos del vínculo con su estado."""
     try:
-        return get_student_payment_history(db, user, relationship_id, day or date.today())
+        resolved_day = validated_local_date(day, PaymentError)
+        return get_student_payment_history(db, user, relationship_id, resolved_day)
     except PaymentError as error:
         handle_error(error)
 
@@ -97,13 +101,17 @@ async def own_subscription_report_payment(
 ) -> PaymentMutationResult:
     """US-71 escenario 3: el alumno informa un pago (con comprobante opcional)."""
     try:
+        resolved_day = validated_local_date(day, PaymentError)
+    except PaymentError as error:
+        handle_error(error)
+    try:
         data = PaymentCreate(
             paid_on=paid_on, amount=amount, method=method, months_covered=months_covered, note=note
         )
     except ValidationError as error:
         raise validation_problem(error) from error
     try:
-        return await report_payment(db, user, relationship_id, data, receipt, day or date.today())
+        return await report_payment(db, user, relationship_id, data, receipt, resolved_day)
     except PaymentError as error:
         handle_error(error)
 
@@ -115,4 +123,9 @@ def payment_receipt(payment_id: str, user: CurrentUser, db: DbDep):
         payment, path = receipt_for_download(db, user, payment_id)
     except PaymentError as error:
         handle_error(error)
-    return FileResponse(path=str(path), media_type=payment.receipt_mime_type, filename=payment.receipt_filename)
+    return FileResponse(
+        path=str(path),
+        media_type=payment.receipt_mime_type,
+        filename=sanitize_filename(payment.receipt_filename),
+        headers={"X-Content-Type-Options": "nosniff"},
+    )

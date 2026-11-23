@@ -1,4 +1,5 @@
 from copy import deepcopy
+from datetime import date
 
 from fastapi import status
 from sqlalchemy import select
@@ -534,7 +535,7 @@ def current_exercise_ids(db: Session, relationship: TrainingRelationship) -> set
     return {e["exercise_id"] for _, e in _entries(days)}
 
 
-def student_assigned_view(db: Session, user: User) -> dict | None:
+def student_assigned_view(db: Session, user: User, today: date | None = None) -> dict | None:
     """Versión vigente de la copia del alumno (nunca el borrador); None si aún no hay copia."""
     profile = get_student_profile(db, user)
     routine = db.scalar(
@@ -546,4 +547,15 @@ def student_assigned_view(db: Session, user: User) -> dict | None:
             StudentRoutine.status != "UNASSIGNED",
         )
     )
-    return render(db, routine) if routine else None
+    if routine is None:
+        return None
+    relationship = db.get(TrainingRelationship, routine.relationship_id)
+    if relationship is not None:
+        from backend.src.services.student_subscription_service import (
+            EXPIRED_BLOCK,
+            is_subscription_expired,
+        )
+
+        if is_subscription_expired(db, relationship, today):
+            raise RoutineTemplateError(status.HTTP_409_CONFLICT, EXPIRED_BLOCK)
+    return render(db, routine)

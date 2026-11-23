@@ -28,10 +28,10 @@ from backend.src.services.trainer_service import (
 
 
 class TrainerStudentError(Exception):
-    def __init__(self, status_code: int, detail: str):
+    def __init__(self, status_code: int, detail: str, errors: list[dict[str, str]] | None = None):
         self.status_code = status_code
         self.detail = detail
-        self.errors = None
+        self.errors = errors
         super().__init__(detail)
 
 

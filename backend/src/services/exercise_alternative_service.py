@@ -32,6 +32,13 @@ def _context(db: Session, user: User, exercise_id: str) -> tuple[TrainingRelatio
         relationship, view = routines._resolve_student_active_routine(db, user)
     except routines.RoutineTemplateError as error:
         raise ExerciseError(error.status_code, error.detail) from error
+    from backend.src.services.student_subscription_service import (
+        EXPIRED_BLOCK,
+        is_subscription_expired,
+    )
+
+    if is_subscription_expired(db, relationship):
+        raise ExerciseError(status.HTTP_409_CONFLICT, EXPIRED_BLOCK)
     in_routine = {e.id: e for *_, e in routines._iter_routine_exercises(view)}
     if exercise_id not in in_routine:
         raise ExerciseError(status.HTTP_404_NOT_FOUND, "Ejercicio no encontrado en tu rutina.")

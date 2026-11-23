@@ -43,7 +43,7 @@ class PaymentCreate(BaseModel):
     method: str | None = Field(default=None, validate_default=True)
     months_covered: int | None = Field(default=None, validate_default=True)
     note: str | None = None
-    replaces_payment_id: str | None = None
+    replaces_payment_id: str | None = Field(default=None, max_length=36)
 
     @field_validator("paid_on", mode="before")
     @classmethod
