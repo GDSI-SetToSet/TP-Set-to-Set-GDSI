@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session
 from backend.src.models.assigned_routine import AssignedRoutine
 from backend.src.models.effort_feedback import EffortFeedback
 from backend.src.models.exercise import Exercise
-from backend.src.models.personal_record import PersonalRecord
 from backend.src.models.routine_template import RoutineTemplate
 from backend.src.models.student_routine import StudentRoutine
 from backend.src.models.training_relationship import TrainingRelationship
@@ -43,6 +42,10 @@ from backend.src.schemas.trainer_student import (
 from backend.src.services import routine_template_service
 from backend.src.services.abandonment_risk_service import _weekly_trainings
 from backend.src.services.daily_routine_tracking_service import _as_utc
+from backend.src.services.personal_record_service import (
+    compute_exercise_pr_timeline,
+    load_student_logs,
+)
 from backend.src.services.session_comparison_service import (
     _number,
     _planned_entries,
@@ -218,13 +221,19 @@ def get_training_evolution(
         return info.target_muscle_group if info else NO_GROUP
 
     muscle_groups = sorted({group_of(log.exercise_id) for log in all_logs})
-    log_ids = {log.id: log for log in all_logs}
-    pr_keys = {
-        (log_ids[row].session_id, log_ids[row].exercise_id)
-        for row in db.scalars(
-            select(PersonalRecord.workout_set_log_id).where(PersonalRecord.workout_set_log_id.in_(log_ids))
+    exercise_ids_seen = {log.exercise_id for log in all_logs}
+    pr_keys: set[tuple[str | None, str]] = set()
+    if exercise_ids_seen:
+        finished_history_logs = load_student_logs(
+            db, student_id, exercise_ids=exercise_ids_seen, finished_only=True
         )
-    }
+        history_by_exercise: dict[str, list[WorkoutSetLog]] = defaultdict(list)
+        for item in finished_history_logs:
+            history_by_exercise[item.exercise_id].append(item)
+        for ex_id, ex_logs in history_by_exercise.items():
+            for event in compute_exercise_pr_timeline(ex_logs):
+                if event.log.session_id is not None:
+                    pr_keys.add((event.log.session_id, ex_id))
     feedback = {
         row.session_id: row.comment or row.category
         for row in db.scalars(select(EffortFeedback).where(EffortFeedback.relationship_id == relationship.id))
@@ -263,7 +272,7 @@ def get_training_evolution(
         start, current = shown[0][1], shown[-1][1]
         start_main = _main(start, kind)
         change = round((_main(current, kind) - start_main) / start_main * 100, 1) if status != "few_data" and start_main > 0 else None
-        improved_session = next((s for s, f, _ in entries if f.date() == improved_on), None) if improved_on else None
+        improved_sessions = [s for s, f, _ in entries if f.date() == improved_on] if improved_on else []
 
         buckets: dict[date, list[tuple[WorkoutSession, datetime, Best]]] = defaultdict(list)
         for entry in entries:
@@ -288,8 +297,11 @@ def get_training_evolution(
         exercises.append(ExerciseProgress(
             exercise_id=exercise_id, name=name, muscle_group=group, metric=kind,
             start=_result(start), current=_result(current), change_pct=change,
-            last_improvement=LastImprovement(date=improved_on, is_pr=(improved_session.id, exercise_id) in pr_keys)
-            if improved_session else None,
+            last_improvement=LastImprovement(
+                date=improved_on,
+                is_pr=any((s.id, exercise_id) in pr_keys for s in improved_sessions),
+            )
+            if improved_on else None,
             status=status, points=points,
         ))
     order = {"declined": 0, "stalled": 1, "progressing": 2, "unchanged": 3, "few_data": 4, "no_metric": 5}

@@ -1,6 +1,7 @@
+from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
@@ -25,6 +26,7 @@ from backend.src.services.assigned_routine_service import (
     update_assigned_routine,
 )
 from backend.src.services.student_service import StudentProfileError
+from backend.src.services.subscription_service import validated_local_date
 from backend.src.services.trainer_service import TrainerProfileError
 
 router = APIRouter(prefix=API_V1_PREFIX, tags=["assigned-routines"])
@@ -118,9 +120,14 @@ def approve_routine(routine_id: str, user: CurrentUser, db: DbDep) -> AssignedRo
 
 
 @router.get("/students/me/assigned-routine", response_model=AssignedRoutineResponse | None)
-def get_student_assigned_routine(user: CurrentUser, db: DbDep) -> AssignedRoutineResponse | None:
+def get_student_assigned_routine(
+    user: CurrentUser,
+    db: DbDep,
+    day: Annotated[date | None, Query(alias="date")] = None,
+) -> AssignedRoutineResponse | None:
     try:
-        routine = get_active_routine_for_student(db, user)
+        resolved_day = validated_local_date(day, AssignedRoutineError, allow_none=True)
+        routine = get_active_routine_for_student(db, user, today=resolved_day)
         return AssignedRoutineResponse.model_validate(routine) if routine else None
     except ServiceErrors as error:
         handle_error(error)

@@ -41,6 +41,14 @@ def payment_body(**overrides) -> dict:
     return body
 
 
+@pytest.fixture(autouse=True)
+def freeze_today(monkeypatch):
+    monkeypatch.setattr(
+        "backend.src.services.subscription_service.current_date",
+        lambda: date.fromisoformat(TODAY),
+    )
+
+
 @pytest.fixture
 def trainer_with_student(client):
     api, sessions = client
@@ -365,12 +373,15 @@ def test_foreign_trainer_gets_not_found(trainer_with_student):
     assert api.post(void_path("no-existe"), json={"reason": "Motivo válido"}, headers=headers).status_code == 404
 
 
-def test_terminated_relationship_hides_history_and_blocks_void(trainer_with_student):
+def test_terminated_relationship_keeps_readonly_history_and_blocks_mutations(trainer_with_student):
     api, sessions, headers, relationship_id, student_id = trainer_with_student
     payment = register(api, headers, student_id).json()["payment"]
     with sessions() as db:
         db.get(TrainingRelationship, relationship_id).status = "TERMINATED"
         db.commit()
 
-    assert api.get(payments_path(student_id), headers=headers).status_code == 404
+    history = api.get(payments_path(student_id), headers=headers)
+    assert history.status_code == 200
+    assert [p["id"] for p in history.json()["payments"]] == [payment["id"]]
+    assert api.post(payments_path(student_id), json=payment_body(), headers=headers).status_code == 404
     assert api.post(void_path(payment["id"]), json={"reason": "Motivo válido"}, headers=headers).status_code == 404

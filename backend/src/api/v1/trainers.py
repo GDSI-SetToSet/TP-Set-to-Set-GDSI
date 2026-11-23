@@ -62,6 +62,7 @@ from backend.src.services.safety_alert_service import (
 from backend.src.services.session_comparison_service import compare_session
 from backend.src.services.streak_service import get_trainer_student_streak
 from backend.src.services.student_termination_service import terminate_student
+from backend.src.services.subscription_service import validated_local_date
 from backend.src.services.trainer_service import (
     TrainerProfileError,
     archive_plan,
@@ -106,7 +107,10 @@ def handle_error(error: TrainerProfileError) -> None:
 
 
 def handle_student_error(error: TrainerStudentError) -> None:
-    raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+    detail: str | dict[str, object] = error.detail
+    if error.errors is not None:
+        detail = {"detail": error.detail, "errors": error.errors}
+    raise HTTPException(status_code=error.status_code, detail=detail) from error
 
 
 def handle_safety_alert_error(error: SafetyAlertError) -> None:
@@ -150,7 +154,8 @@ def own_students_subscriptions(
 ) -> list[SubscriptionSummary]:
     """US-34: estado de la suscripción de cada alumno activo (vencidas primero)."""
     try:
-        return list_subscriptions(db, user, day or date.today(), subscription_status)
+        resolved_day = validated_local_date(day, PaymentError)
+        return list_subscriptions(db, user, resolved_day, subscription_status)
     except PaymentError as error:
         handle_error(error)
 
@@ -161,7 +166,8 @@ def own_student_payment_history(
 ) -> PaymentHistory:
     """US-34: suscripción e historial completo de pagos del alumno, incluidos los anulados."""
     try:
-        return get_payment_history(db, user, student_id, day or date.today())
+        resolved_day = validated_local_date(day, PaymentError)
+        return get_payment_history(db, user, student_id, resolved_day)
     except PaymentError as error:
         handle_error(error)
 
@@ -176,7 +182,8 @@ def own_student_register_payment(
 ) -> PaymentMutationResult:
     """US-34: registra un pago recibido por fuera de la app y extiende el vencimiento."""
     try:
-        return register_payment(db, user, student_id, payload, day or date.today())
+        resolved_day = validated_local_date(day, PaymentError)
+        return register_payment(db, user, student_id, payload, resolved_day)
     except PaymentError as error:
         handle_error(error)
 
@@ -187,7 +194,8 @@ def own_student_void_payment(
 ) -> PaymentMutationResult:
     """US-34: anula un pago con motivo obligatorio; los pagos nunca se eliminan."""
     try:
-        return void_payment(db, user, payment_id, payload.reason, day or date.today())
+        resolved_day = validated_local_date(day, PaymentError)
+        return void_payment(db, user, payment_id, payload.reason, resolved_day)
     except PaymentError as error:
         handle_error(error)
 
@@ -198,7 +206,8 @@ def own_student_confirm_payment(
 ) -> PaymentMutationResult:
     """US-71 escenario 6: confirma un pago informado por el alumno; extiende el vencimiento."""
     try:
-        return confirm_payment(db, user, payment_id, day or date.today())
+        resolved_day = validated_local_date(day, PaymentError)
+        return confirm_payment(db, user, payment_id, resolved_day)
     except PaymentError as error:
         handle_error(error)
 
@@ -209,7 +218,8 @@ def own_student_reject_payment(
 ) -> PaymentMutationResult:
     """US-71 escenario 6: rechaza un pago informado indicando el motivo."""
     try:
-        return reject_payment(db, user, payment_id, payload.reason, day or date.today())
+        resolved_day = validated_local_date(day, PaymentError)
+        return reject_payment(db, user, payment_id, payload.reason, resolved_day)
     except PaymentError as error:
         handle_error(error)
 
@@ -267,7 +277,8 @@ def own_student_termination(
 ) -> StudentTerminationResult:
     """US-35: da de baja al alumno con el motivo indicado; libera el cupo y revoca accesos."""
     try:
-        return terminate_student(db, user, student_id, payload, day or date.today())
+        resolved_day = validated_local_date(day, TrainerStudentError)
+        return terminate_student(db, user, student_id, payload, resolved_day)
     except TrainerStudentError as error:
         handle_student_error(error)
 

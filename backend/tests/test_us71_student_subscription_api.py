@@ -38,6 +38,10 @@ def reject_path(payment_id: str) -> str:
 def receipts_dir(tmp_path, monkeypatch):
     target = tmp_path / "receipts"
     monkeypatch.setattr("backend.src.services.student_subscription_service.RECEIPTS_DIR", target)
+    monkeypatch.setattr(
+        "backend.src.services.subscription_service.current_date",
+        lambda: date.fromisoformat(TODAY),
+    )
     return target
 
 
@@ -53,11 +57,11 @@ def setup(client):
     return api, sessions, trainer, student, relationship_id, student_id
 
 
-def report(api, headers, relationship_id, receipt=None, **fields):
+def report(api, headers, relationship_id, receipt=None, query_date=TODAY, **fields):
     data = {"paid_on": TODAY, "amount": "12500.00", "method": "TRANSFERENCIA", "months_covered": "1"}
     data.update(fields)
     files = {"receipt": receipt} if receipt else None
-    return api.post(payments_path(relationship_id), params={"date": TODAY}, data=data, files=files, headers=headers)
+    return api.post(payments_path(relationship_id), params={"date": query_date}, data=data, files=files, headers=headers)
 
 
 def notifications(sessions, email: str, kind: str) -> list[Notification]:
@@ -75,8 +79,12 @@ def notifications(sessions, email: str, kind: str) -> list[Notification]:
     ("today", "status", "days"),
     [("2026-10-15", "AL_DIA", 17), ("2026-10-28", "POR_VENCER", 4), (TODAY, "VENCIDA", -9)],
 )
-def test_student_sees_plan_due_date_and_status(setup, today, status, days):
+def test_student_sees_plan_due_date_and_status(setup, monkeypatch, today, status, days):
     api, _, _, student, relationship_id, _ = setup
+    monkeypatch.setattr(
+        "backend.src.services.subscription_service.current_date",
+        lambda: date.fromisoformat(today),
+    )
 
     response = api.get(SUBSCRIPTIONS, params={"date": today}, headers=student)
 
@@ -257,17 +265,18 @@ def test_expired_subscription_blocks_new_sessions_until_confirmation(client, mon
     _, relationship_id, _ = setup_routine_and_assignment(api, sessions, trainer, "student71@example.com")
     future = date.today() + timedelta(days=45)  # el primer mes ya venció
     monkeypatch.setattr("backend.src.services.student_subscription_service.current_date", lambda: future)
+    monkeypatch.setattr("backend.src.services.subscription_service.current_date", lambda: future)
     start = f"{ASSIGNED_PATH}/workout-sessions"
 
     blocked = api.post(start, headers=student, json={"day_name": "Día 1"})
     assert blocked.status_code == 409
     assert "suscripción está vencida" in blocked.json()["detail"]
 
-    payment = report(api, student, relationship_id)
+    payment = report(api, student, relationship_id, query_date=future.isoformat(), paid_on=future.isoformat())
     assert payment.status_code == 201
     assert api.post(start, headers=student, json={"day_name": "Día 1"}).status_code == 409  # pendiente no desbloquea
 
-    api.post(confirm_path(payment.json()["payment"]["id"]), headers=trainer)
+    api.post(confirm_path(payment.json()["payment"]["id"]), params={"date": future.isoformat()}, headers=trainer)
     assert api.post(start, headers=student, json={"day_name": "Día 1"}).status_code == 201
 
 

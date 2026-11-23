@@ -22,6 +22,11 @@ RECEIPTS_DIR = Path("backend/uploads/payment_receipts")
 ALLOWED_MIME_TYPES: frozenset[str] = frozenset(
     {"application/pdf", "image/jpeg", "image/png"}
 )
+_MAGIC_SIGNATURES: dict[str, tuple[bytes, ...]] = {
+    "application/pdf": (b"%PDF-",),
+    "image/jpeg": (b"\xff\xd8\xff",),
+    "image/png": (b"\x89PNG\r\n\x1a\n",),
+}
 MAX_FILE_SIZE_BYTES: int = 10 * 1024 * 1024  # 10 MB
 _UNSAFE_CHARS_RE = re.compile(
     r"[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069<>:\"|?*]"
@@ -81,7 +86,7 @@ async def save_upload(student_id: str, file: UploadFile, base: Path | None = Non
             "Formato no soportado. Solo se aceptan archivos PDF, JPEG o PNG."
         )
 
-    content = await file.read()
+    content = await file.read(MAX_FILE_SIZE_BYTES + 1)
     if len(content) > MAX_FILE_SIZE_BYTES:
         raise StorageError(
             "El archivo supera el tamaño máximo permitido de 10 MB."
@@ -100,6 +105,10 @@ async def save_upload(student_id: str, file: UploadFile, base: Path | None = Non
     )
     if any(content.startswith(sig) for sig in DANGEROUS_SIGNATURES):
         raise StorageError("Archivo no permitido: contiene ejecutables o scripts no autorizados.")
+
+    expected_signatures = _MAGIC_SIGNATURES.get(file.content_type or "", ())
+    if not any(content.startswith(sig) for sig in expected_signatures):
+        raise StorageError("El contenido del archivo no corresponde a un PDF, JPEG o PNG válido.")
 
     # La base se resuelve en cada llamada (no como valor por defecto) para respetar UPLOADS_DIR parcheado.
     root = base if base is not None else UPLOADS_DIR

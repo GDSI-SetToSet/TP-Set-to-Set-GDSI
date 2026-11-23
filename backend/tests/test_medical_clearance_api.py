@@ -52,7 +52,7 @@ def test_student_can_upload_images(client, student_token_headers):
     assert response.json()["mime_type"] == "image/jpeg"
 
     # PNG
-    png_content = b"\x89PNG test image"
+    png_content = b"\x89PNG\r\n\x1a\n test image"
     files = {"file": ("apto.png", io.BytesIO(png_content), "image/png")}
     response = test_client.post(URL_ME, headers=student_token_headers, files=files, data={"issue_date": "2026-09-20"})
     assert response.status_code == status.HTTP_201_CREATED
@@ -87,13 +87,13 @@ def test_empty_file_is_rejected(client, student_token_headers):
 def test_new_upload_archives_previous_version(client, student_token_headers):
     test_client, session_factory = client
     # First upload
-    f1 = {"file": ("first.pdf", io.BytesIO(b"content1"), "application/pdf")}
+    f1 = {"file": ("first.pdf", io.BytesIO(b"%PDF-1.4 content1"), "application/pdf")}
     r1 = test_client.post(URL_ME, headers=student_token_headers, files=f1, data={"issue_date": "2026-08-01"})
     assert r1.status_code == status.HTTP_201_CREATED
     first_id = r1.json()["id"]
 
     # Second upload
-    f2 = {"file": ("second.pdf", io.BytesIO(b"content2"), "application/pdf")}
+    f2 = {"file": ("second.pdf", io.BytesIO(b"%PDF-1.4 content2"), "application/pdf")}
     r2 = test_client.post(URL_ME, headers=student_token_headers, files=f2, data={"issue_date": "2026-10-01"})
     assert r2.status_code == status.HTTP_201_CREATED
     second_id = r2.json()["id"]
@@ -111,7 +111,7 @@ def test_get_own_medical_clearance_metadata(client, student_token_headers):
     assert test_client.get(URL_ME, headers=student_token_headers).status_code == status.HTTP_404_NOT_FOUND
 
     # After upload -> 200
-    files = {"file": ("apto.pdf", io.BytesIO(b"content"), "application/pdf")}
+    files = {"file": ("apto.pdf", io.BytesIO(b"%PDF-1.4 content"), "application/pdf")}
     test_client.post(URL_ME, headers=student_token_headers, files=files, data={"issue_date": "2026-10-01"})
 
     response = test_client.get(URL_ME, headers=student_token_headers)
@@ -143,7 +143,7 @@ def test_unauthorized_trainer_cannot_download_student_clearance(client, student_
     profile_id = test_client.get("/api/v1/students/me/profile", headers=student_token_headers).json()["id"]
     download_url = f"/api/v1/students/{profile_id}/medical-clearance/download"
 
-    files = {"file": ("secret.pdf", io.BytesIO(b"confidential"), "application/pdf")}
+    files = {"file": ("secret.pdf", io.BytesIO(b"%PDF-1.4 confidential"), "application/pdf")}
     test_client.post(URL_ME, headers=student_token_headers, files=files, data={"issue_date": "2026-10-01"})
 
     # Trainer without access -> 403 Forbidden

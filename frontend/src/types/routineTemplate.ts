@@ -123,6 +123,7 @@ export interface SessionPersonalRecord {
   weight_kg: number;
   reps_completed: string;
   previous_weight_kg: number | null;
+  previous_reps?: number | null;
 }
 
 export interface SessionHistoryComparison {
@@ -174,6 +175,7 @@ export interface WorkoutSetLog {
   is_personal_record?: boolean;
   is_initial_pr?: boolean;
   pr_previous_weight_kg?: number | null;
+  pr_previous_reps?: number | null;
 }
 
 export interface PersonalRecord {

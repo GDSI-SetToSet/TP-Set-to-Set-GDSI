@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -61,11 +62,13 @@ from backend.src.services.student_routine_service import (
     template_conflicts,
 )
 from backend.src.services.student_service import StudentProfileError
+from backend.src.services.subscription_service import validated_local_date
 from backend.src.services.trainer_service import TrainerProfileError
 
 router = APIRouter(prefix=f"{API_V1_PREFIX}/routine-templates", tags=["routine-templates"])
 student_router = APIRouter(prefix=f"{API_V1_PREFIX}/students/me/routine-templates", tags=["routine-templates"])
 CurrentUser = Annotated[User, Depends(get_current_user)]
+LocalDate = Annotated[date | None, Query(alias="date", description="Fecha local del alumno (hoy).")]
 ServiceErrors = (RoutineTemplateError, TrainerProfileError, StudentProfileError)
 
 
@@ -208,12 +211,13 @@ def list_available_templates(user: CurrentUser, db: DbDep) -> list[RoutineTempla
 
 
 @student_router.get("/assigned", response_model=RoutineTemplateResponse | None)
-def assigned_routine(user: CurrentUser, db: DbDep) -> RoutineTemplateResponse | None:
+def assigned_routine(user: CurrentUser, db: DbDep, day: LocalDate = None) -> RoutineTemplateResponse | None:
     try:
-        own_copy = student_assigned_view(db, user)
+        resolved_day = validated_local_date(day, RoutineTemplateError, allow_none=True)
+        own_copy = student_assigned_view(db, user, today=resolved_day)
         if own_copy is not None:
             return RoutineTemplateResponse.model_validate(own_copy)
-        template = get_assigned_student_template(db, user)
+        template = get_assigned_student_template(db, user, today=resolved_day)
         return RoutineTemplateResponse.model_validate(template) if template else None
     except ServiceErrors as error:
         handle_error(error)
@@ -221,10 +225,11 @@ def assigned_routine(user: CurrentUser, db: DbDep) -> RoutineTemplateResponse | 
 
 @student_router.put("/assigned/modality", response_model=RoutineTemplateResponse)
 def change_assigned_routine_modality(
-    payload: RoutineModalityUpdate, user: CurrentUser, db: DbDep
+    payload: RoutineModalityUpdate, user: CurrentUser, db: DbDep, day: LocalDate = None
 ) -> RoutineTemplateResponse:
     try:
-        updated = update_student_routine_modality(db, user, payload)
+        resolved_day = validated_local_date(day, RoutineTemplateError, allow_none=True)
+        updated = update_student_routine_modality(db, user, payload, today=resolved_day)
         return RoutineTemplateResponse.model_validate(updated)
     except ServiceErrors as error:
         handle_error(error)
@@ -236,10 +241,13 @@ def change_assigned_routine_modality(
     status_code=status.HTTP_201_CREATED,
 )
 def start_workout_session(
-    payload: WorkoutSessionStartInput, user: CurrentUser, db: DbDep
+    payload: WorkoutSessionStartInput, user: CurrentUser, db: DbDep, day: LocalDate = None
 ) -> WorkoutSessionResponse:
     try:
-        return WorkoutSessionResponse.model_validate(start_student_workout_session(db, user, payload))
+        resolved_day = validated_local_date(day, RoutineTemplateError, allow_none=True)
+        return WorkoutSessionResponse.model_validate(
+            start_student_workout_session(db, user, payload, today=resolved_day)
+        )
     except ServiceErrors as error:
         handle_error(error)
 
@@ -253,11 +261,13 @@ def finish_workout_session(
     user: CurrentUser,
     db: DbDep,
     payload: WorkoutSessionFinishInput | None = None,
+    day: LocalDate = None,
 ) -> WorkoutSessionResponse:
     try:
+        resolved_day = validated_local_date(day, RoutineTemplateError, allow_none=True)
         rpe = payload.rpe if payload else None
         return WorkoutSessionResponse.model_validate(
-            finish_student_workout_session(db, user, session_id, rpe=rpe)
+            finish_student_workout_session(db, user, session_id, rpe=rpe, today=resolved_day)
         )
     except ServiceErrors as error:
         handle_error(error)
@@ -286,9 +296,10 @@ def report_workout_session_rpe(
 
 
 @student_router.delete("/assigned/workout-logs/{log_id}", status_code=status.HTTP_204_NO_CONTENT)
-def uncheck_assigned_routine_workout_log(log_id: str, user: CurrentUser, db: DbDep) -> None:
+def uncheck_assigned_routine_workout_log(log_id: str, user: CurrentUser, db: DbDep, day: LocalDate = None) -> None:
     try:
-        delete_student_workout_log(db, user, log_id)
+        resolved_day = validated_local_date(day, RoutineTemplateError, allow_none=True)
+        delete_student_workout_log(db, user, log_id, today=resolved_day)
     except ServiceErrors as error:
         handle_error(error)
 
@@ -340,10 +351,11 @@ def get_assigned_routine_workout_logs(
     status_code=status.HTTP_201_CREATED,
 )
 def record_assigned_routine_workout_log(
-    payload: WorkoutSetLogInput, user: CurrentUser, db: DbDep
+    payload: WorkoutSetLogInput, user: CurrentUser, db: DbDep, day: LocalDate = None
 ) -> WorkoutSetLogResponse:
     try:
-        created = create_student_workout_log(db, user, payload)
+        resolved_day = validated_local_date(day, RoutineTemplateError, allow_none=True)
+        created = create_student_workout_log(db, user, payload, today=resolved_day)
         return WorkoutSetLogResponse.model_validate(created)
     except ServiceErrors as error:
         handle_error(error)

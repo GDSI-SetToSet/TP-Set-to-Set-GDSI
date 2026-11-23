@@ -418,11 +418,13 @@ def get_assigned_routine_detail(db: Session, user: User, routine_id: str) -> Ass
     return routine
 
 
-def get_active_routine_for_student(db: Session, user: User) -> AssignedRoutine | None:
+def get_active_routine_for_student(
+    db: Session, user: User, today: date | None = None
+) -> AssignedRoutine | None:
     student_profile = get_student_profile(db, user)
     # Busca la rutina aprobada más reciente del alumno con vínculo activo
     query = (
-        select(AssignedRoutine)
+        select(AssignedRoutine, TrainingRelationship)
         .join(
             TrainingRelationship,
             (TrainingRelationship.student_id == AssignedRoutine.student_id)
@@ -435,7 +437,18 @@ def get_active_routine_for_student(db: Session, user: User) -> AssignedRoutine |
         )
         .order_by(AssignedRoutine.approved_at.desc(), AssignedRoutine.created_at.desc())
     )
-    return db.scalars(query).first()
+    row = db.execute(query).first()
+    if row is None:
+        return None
+    routine, relationship = row
+    from backend.src.services.student_subscription_service import (
+        EXPIRED_BLOCK,
+        is_subscription_expired,
+    )
+
+    if is_subscription_expired(db, relationship, today):
+        raise AssignedRoutineError(status.HTTP_409_CONFLICT, EXPIRED_BLOCK)
+    return routine
 
 
 def update_assigned_routine(

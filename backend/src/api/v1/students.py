@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
+from backend.src.core.storage import sanitize_filename
 from backend.src.models.student_profile import StudentProfile
 from backend.src.models.user import User
 from backend.src.schemas.medical_clearance import MedicalClearanceResponse
@@ -214,7 +215,8 @@ def download_student_medical_clearance(student_id: str, user: CurrentUser, db: D
         return FileResponse(
             path=str(path),
             media_type=clearance.mime_type,
-            filename=clearance.original_filename,
+            filename=sanitize_filename(clearance.original_filename),
+            headers={"X-Content-Type-Options": "nosniff"},
         )
     except StudentProfileError as error:
         handle_error(error)

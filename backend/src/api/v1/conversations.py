@@ -1,8 +1,9 @@
 """Rutas del canal de mensajes (US-21) y de las consultas técnicas (US-62)."""
 
+from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from backend.src.api.v1.deps import DbDep, get_current_user
 from backend.src.core.config import API_V1_PREFIX
@@ -17,6 +18,7 @@ from backend.src.schemas.conversation import (
     PendingQueriesGroup,
     TechnicalNoteView,
     TechnicalQueryCreate,
+    TrainerQueryHistoryGroup,
 )
 from backend.src.services.conversation_service import (
     ConversationError,
@@ -25,12 +27,14 @@ from backend.src.services.conversation_service import (
     mark_read,
     send_message,
 )
+from backend.src.services.subscription_service import validated_local_date
 from backend.src.services.technical_query_service import (
     acknowledge_note,
     create_query,
     exercise_threads,
     list_pending_notes,
     pending_queries_by_student,
+    trainer_queries_history,
 )
 
 router = APIRouter(prefix=API_V1_PREFIX, tags=["conversations"])
@@ -88,11 +92,16 @@ def conversation_read(relationship_id: str, user: CurrentUser, db: DbDep) -> Res
     status_code=status.HTTP_201_CREATED,
 )
 def conversation_technical_query(
-    relationship_id: str, payload: TechnicalQueryCreate, user: CurrentUser, db: DbDep
+    relationship_id: str,
+    payload: TechnicalQueryCreate,
+    user: CurrentUser,
+    db: DbDep,
+    day: Annotated[date | None, Query(alias="date")] = None,
 ) -> MessageView:
     """US-62 escenario 1: consulta técnica del alumno sobre un ejercicio."""
     try:
-        return create_query(db, user, relationship_id, payload)
+        resolved_day = validated_local_date(day, ConversationError, allow_none=True)
+        return create_query(db, user, relationship_id, payload, today=resolved_day)
     except ConversationError as error:
         handle_error(error)
 
@@ -116,6 +125,19 @@ def trainer_pending_queries(user: CurrentUser, db: DbDep) -> list[PendingQueries
     """US-62 escenario 2: bandeja de consultas pendientes agrupadas por alumno."""
     try:
         return pending_queries_by_student(db, user)
+    except ConversationError as error:
+        handle_error(error)
+
+
+@router.get("/trainers/me/technical-queries/history", response_model=list[TrainerQueryHistoryGroup])
+def trainer_technical_queries_history(
+    user: CurrentUser,
+    db: DbDep,
+    student_id: Annotated[str | None, Query()] = None,
+) -> list[TrainerQueryHistoryGroup]:
+    """US-62 (AUD-05): historial de consultas técnicas (pendientes y respondidas) de alumnos activos."""
+    try:
+        return trainer_queries_history(db, user, student_id=student_id)
     except ConversationError as error:
         handle_error(error)
 

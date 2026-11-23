@@ -65,6 +65,7 @@ interface RoutineAssignmentPanelProps {
   initialSessionId?: string;
   initialEventId?: string;
   initialEventType?: string;
+  initialView?: string;
   onStudentSelect?: (studentId: string) => void;
   selectedStudentId?: string | null;
   /** Contenido del detalle del alumno seleccionado; se muestra debajo de su fila. */
@@ -83,6 +84,7 @@ export function RoutineAssignmentPanel({
   initialSessionId,
   initialEventId,
   initialEventType,
+  initialView,
   onStudentSelect,
   selectedStudentId,
   renderStudentDetail,
@@ -126,7 +128,10 @@ export function RoutineAssignmentPanel({
   const [notificationContextMessage, setNotificationContextMessage] = useState('');
   const [progressLoadingFor, setProgressLoadingFor] = useState<string | null>(null);
   const [progressErrorFor, setProgressErrorFor] = useState<string | null>(null);
-  const openedFromNotification = useRef(false);
+  const handledNotificationKey = useRef('');
+  const notificationKey = initialStudentId
+    ? `${initialStudentId}|${initialSessionId ?? ''}|${initialEventId ?? ''}|${initialEventType ?? ''}|${initialView ?? ''}`
+    : '';
   const initialLoadTrackerRef = useRef(createScopedRequestTracker());
   const globalAlertsTrackerRef = useRef(createScopedRequestTracker());
   const studentAlertsTrackerRef = useRef(createScopedRequestTracker());
@@ -337,11 +342,15 @@ export function RoutineAssignmentPanel({
   }, [loading, students]);
 
   useEffect(() => {
-    if (!initialStudentId || loading || openedFromNotification.current) return;
+    if (!notificationKey || !initialStudentId || loading || handledNotificationKey.current === notificationKey) return;
     const student = students.find((item) => item.student_id === initialStudentId);
-    openedFromNotification.current = true;
+    handledNotificationKey.current = notificationKey;
     if (!student) {
       setNotificationContextMessage('No encontramos este alumno entre tus vínculos activos. Puede que ya no esté disponible.');
+      return;
+    }
+    setNotificationContextMessage('');
+    if (initialView === 'detail') {
       return;
     }
     setOpenProgressFor(student.relationship_id);
@@ -356,10 +365,10 @@ export function RoutineAssignmentPanel({
       setExpandedSessionDetails((current) => ({ ...current, [initialSessionId]: true }));
       setHighlightedSessionId(initialSessionId);
     }
-  }, [initialStudentId, initialSessionId, initialEventId, initialEventType, loading, students]);
+  }, [notificationKey, initialStudentId, initialSessionId, initialEventId, initialEventType, initialView, loading, students]);
 
   useEffect(() => {
-    if (!initialStudentId || loading || !openedFromNotification.current) return;
+    if (!notificationKey || !initialStudentId || loading || initialView === 'detail' || handledNotificationKey.current !== notificationKey) return;
     const student = students.find((item) => item.student_id === initialStudentId);
     if (!student) return;
 

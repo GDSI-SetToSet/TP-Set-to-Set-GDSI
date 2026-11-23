@@ -359,9 +359,17 @@ def create_body_map_report(
                 safe_var = _evaluate_safe_variant_for_report(db, profile.id, exercise, payload.zones)
             return _build_report_response(cand, safe_variant=safe_var)
 
-    # 4. Determinar relación activa (si hay sesión, respetar el vínculo al que pertenece la sesión)
+    # 4. Determinar relación activa (si hay sesión, exigir que su vínculo siga ACTIVE)
     relationship = _get_active_relationship(db, profile.id)
-    relationship_id = session.relationship_id if session else (relationship.id if relationship else None)
+    if session is not None:
+        session_relationship = db.get(TrainingRelationship, session.relationship_id)
+        if session_relationship is None or session_relationship.status != "ACTIVE":
+            raise BodyMapReportError(
+                status.HTTP_409_CONFLICT,
+                "Tu vínculo con este entrenador ya no está activo.",
+            )
+        relationship = session_relationship
+    relationship_id = relationship.id if relationship else None
 
     # 5. Evaluación de variante segura si aplica
     safe_variant_eval = None

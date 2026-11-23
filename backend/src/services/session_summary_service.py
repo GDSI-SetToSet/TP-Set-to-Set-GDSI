@@ -6,8 +6,6 @@ documentadas en `taskify/specs/008-workout-feedback-and-communication/research.m
 """
 
 import re
-from collections import defaultdict
-from decimal import Decimal
 from typing import Any
 
 from fastapi import status
@@ -79,39 +77,30 @@ def _programmed_sets(db: Session, user: User, session: WorkoutSession) -> int | 
 def _session_personal_records(
     db: Session, session: WorkoutSession, logs: list[WorkoutSetLog]
 ) -> list[dict[str, Any]]:
-    """PRs logrados en la sesión: el máximo de la sesión supera todo lo registrado antes."""
-    by_exercise: dict[str, list[WorkoutSetLog]] = defaultdict(list)
-    for log in logs:
-        by_exercise[log.exercise_id].append(log)
+    """PRs logrados en la sesión según US-65 FR-001a (la primera carga es marca base)."""
+    from backend.src.services.personal_record_service import (
+        compute_exercise_pr_timeline,
+        load_student_logs,
+    )
 
+    if not logs:
+        return []
+    exercise_ids = sorted({log.exercise_id for log in logs})
     records: list[dict[str, Any]] = []
-    for exercise_id, exercise_logs in by_exercise.items():
-        best = max(exercise_logs, key=lambda log: (log.weight_kg or Decimal(0), log.recorded_at))
-        best_weight = best.weight_kg or Decimal(0)
-        if best_weight <= 0:
-            continue
-        first_recorded_at = min(log.recorded_at for log in exercise_logs)
-        previous_max = db.scalar(
-            select(WorkoutSetLog.weight_kg)
-            .where(
-                WorkoutSetLog.student_id == session.student_id,
-                WorkoutSetLog.exercise_id == exercise_id,
-                WorkoutSetLog.recorded_at < first_recorded_at,
-                WorkoutSetLog.weight_kg > 0,
-                (WorkoutSetLog.session_id.is_(None)) | (WorkoutSetLog.session_id != session.id),
-            )
-            .order_by(WorkoutSetLog.weight_kg.desc())
-            .limit(1)
-        )
-        if previous_max is not None and best_weight <= previous_max:
+    for exercise_id in exercise_ids:
+        all_ex_logs = load_student_logs(db, session.student_id, exercise_id=exercise_id)
+        timeline = compute_exercise_pr_timeline(all_ex_logs)
+        match = next((ev for ev in timeline if ev.group_key == ("session", session.id)), None)
+        if match is None:
             continue
         records.append(
             {
                 "exercise_id": exercise_id,
-                "exercise_name": best.exercise_name,
-                "weight_kg": float(best_weight),
-                "reps_completed": best.reps_completed,
-                "previous_weight_kg": float(previous_max) if previous_max is not None else None,
+                "exercise_name": match.log.exercise_name,
+                "weight_kg": float(match.best[0]),
+                "reps_completed": match.log.reps_completed,
+                "previous_weight_kg": float(match.previous[0]),
+                "previous_reps": int(match.previous[1]),
             }
         )
     return sorted(records, key=lambda record: record["exercise_name"])

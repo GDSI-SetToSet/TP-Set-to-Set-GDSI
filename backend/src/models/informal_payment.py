@@ -48,6 +48,17 @@ class InformalPayment(Base):
             name="ck_informal_payments_status",
         ),
         CheckConstraint(
+            "source IN ('TRAINER', 'STUDENT')",
+            name="ck_informal_payments_source",
+        ),
+        CheckConstraint(
+            "(status = 'RECHAZADO' AND rejected_at IS NOT NULL AND rejected_by_user_id IS NOT NULL"
+            " AND rejection_reason IS NOT NULL)"
+            " OR (status <> 'RECHAZADO' AND rejected_at IS NULL AND rejected_by_user_id IS NULL"
+            " AND rejection_reason IS NULL)",
+            name="ck_informal_payments_reject_fields",
+        ),
+        CheckConstraint(
             "(status = 'ANULADO' AND voided_at IS NOT NULL AND voided_by_user_id IS NOT NULL"
             " AND void_reason IS NOT NULL)"
             " OR (status <> 'ANULADO' AND voided_at IS NULL AND voided_by_user_id IS NULL"

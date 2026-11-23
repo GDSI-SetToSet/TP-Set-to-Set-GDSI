@@ -74,6 +74,22 @@ def _relationship(db: Session, trainer: TrainerProfile, student_id: str) -> Trai
         raise PaymentError(error.status_code, error.detail) from error
 
 
+def _relationship_for_read(db: Session, trainer: TrainerProfile, student_id: str) -> TrainingRelationship:
+    """Permite leer historial de pagos de un vínculo activo o ya finalizado (US-35 / AUD-17)."""
+    relationship = db.scalar(
+        select(TrainingRelationship)
+        .where(
+            TrainingRelationship.trainer_id == trainer.id,
+            TrainingRelationship.student_id == student_id,
+            TrainingRelationship.status.in_(("ACTIVE", "TERMINATED")),
+        )
+        .order_by(TrainingRelationship.start_date.desc())
+    )
+    if relationship is None:
+        raise PaymentError(404, "No se encontró un vínculo activo con ese alumno.")
+    return relationship
+
+
 def _student_name(student: StudentProfile, email: str) -> str:
     name = " ".join(part for part in (student.first_name, student.last_name) if part).strip()
     return name or email
@@ -267,9 +283,9 @@ def single_view(db: Session, payment: InformalPayment) -> PaymentView:
 
 
 def get_payment_history(db: Session, user: User, student_id: str, today: date) -> PaymentHistory:
-    """Escenario 5: suscripción e historial completo, incluidos los anulados."""
+    """Escenario 5: suscripción e historial completo, incluidos los anulados (también en solo lectura tras la baja)."""
     trainer = _trainer(db, user)
-    relationship = _relationship(db, trainer, student_id)
+    relationship = _relationship_for_read(db, trainer, student_id)
     payments = relationship_payments(db, relationship.id)
     return PaymentHistory(
         subscription=relationship_summary(db, relationship, today),
@@ -338,7 +354,7 @@ def void_payment(
 ) -> PaymentMutationResult:
     """Escenarios 5 y 6: anula un pago con motivo; nunca lo borra."""
     trainer = _trainer(db, user)
-    payment = db.get(InformalPayment, payment_id)
+    payment = db.scalar(select(InformalPayment).where(InformalPayment.id == payment_id).with_for_update())
     if payment is None or payment.trainer_id != trainer.id:
         raise PaymentError(404, PAYMENT_NOT_FOUND)
     relationship = db.get(TrainingRelationship, payment.relationship_id)
@@ -364,7 +380,7 @@ def void_payment(
 
 def _pending_payment_of_trainer(db: Session, user: User, payment_id: str) -> tuple[InformalPayment, TrainingRelationship]:
     trainer = _trainer(db, user)
-    payment = db.get(InformalPayment, payment_id)
+    payment = db.scalar(select(InformalPayment).where(InformalPayment.id == payment_id).with_for_update())
     if payment is None or payment.trainer_id != trainer.id:
         raise PaymentError(404, PAYMENT_NOT_FOUND)
     relationship = db.get(TrainingRelationship, payment.relationship_id)
@@ -403,7 +419,7 @@ def confirm_payment(db: Session, user: User, payment_id: str, today: date) -> Pa
         "PAYMENT_CONFIRMED",
         "Tu entrenador confirmó tu pago",
         f"Pago del {payment.paid_on.strftime('%d/%m/%Y')} confirmado. Tu suscripción vence el {summary.due_date.strftime('%d/%m/%Y')}.",
-        payment.id,
+        relationship.id,
     )
     db.commit()
     db.refresh(payment)
@@ -423,7 +439,7 @@ def reject_payment(db: Session, user: User, payment_id: str, reason: str, today:
         "PAYMENT_REJECTED",
         "Tu entrenador rechazó un pago informado",
         f"Pago del {payment.paid_on.strftime('%d/%m/%Y')}. Motivo: {reason}",
-        payment.id,
+        relationship.id,
     )
     db.commit()
     db.refresh(payment)
