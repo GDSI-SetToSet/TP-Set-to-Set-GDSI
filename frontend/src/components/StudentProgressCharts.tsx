@@ -5,7 +5,7 @@ import { formatDay, formatNumber, formatRange, niceTicks, xLabelIndexes } from '
 
 const MAX_W = 640;
 const H = 220;
-const PAD = { top: 20, right: 14, bottom: 30, left: 48 };
+const PAD = { top: 36, right: 14, bottom: 30, left: 48 };
 const BLUE = 'var(--student-chart-series, #1d4ed8)';
 const GOLD = '#b45309';
 const INNER_H = H - PAD.top - PAD.bottom;
@@ -101,7 +101,7 @@ export function ConsistencyChart({ weeks }: { weeks: ConsistencyWeek[] }) {
                 stroke={w.is_partial ? '#64748b' : 'none'} strokeWidth="1.5" strokeDasharray={w.is_partial ? '4 3' : undefined}><title>{tip(w)}</title></rect>
               {w.completed > 0 && <rect x={x - barW / 2} y={y(Math.min(w.completed, max))} width={barW} height={INNER_H - (y(Math.min(w.completed, max)) - PAD.top)} fill={BLUE}><title>{tip(w)}</title></rect>}
               {isWeekDone(w) && <text x={x} y={y(Math.max(w.scheduled, w.completed)) - 4} textAnchor="middle" className="training-evolution__tick">✓</text>}
-              {w.is_partial && <text x={x} y={PAD.top - 6} textAnchor="end" className="training-evolution__partial">{currentWeekLabel(w)}</text>}
+              {w.is_partial && <text x={width - 2} y={12} textAnchor="end" className="training-evolution__partial">{currentWeekLabel(w)}</text>}
             </g>
           );
         })}
