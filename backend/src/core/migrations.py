@@ -1099,7 +1099,11 @@ def apply_migrations(target_engine: Engine | None = None) -> list[str]:
         for m in TARGET_COLUMNS:
             if m.table not in existing_tables:
                 continue
-            cols = {c["name"] for c in inspector.get_columns(m.table)}
+            # Reflect through the migration connection. Using an Engine-bound
+            # inspector here can check out a second connection while this
+            # transaction holds ALTER TABLE locks, leaving that inspection
+            # blocked by the migration itself.
+            cols = {c["name"] for c in inspect(conn).get_columns(m.table)}
             if m.column not in cols:
                 col_type = m.sqlite_type if is_sqlite else m.postgres_type
                 default = m.sqlite_default if is_sqlite else m.postgres_default
@@ -1119,7 +1123,7 @@ def apply_migrations(target_engine: Engine | None = None) -> list[str]:
             for alt in TARGET_TYPE_ALTERATIONS:
                 if alt.table not in existing_tables:
                     continue
-                cols = {c["name"]: c for c in inspector.get_columns(alt.table)}
+                cols = {c["name"]: c for c in inspect(conn).get_columns(alt.table)}
                 if alt.column in cols:
                     curr_col = cols[alt.column]
                     curr_len = getattr(curr_col["type"], "length", None)
@@ -1135,7 +1139,7 @@ def apply_migrations(target_engine: Engine | None = None) -> list[str]:
             for ck in TARGET_CHECK_CONSTRAINTS:
                 if ck.table not in existing_tables:
                     continue
-                existing_cks = {c.get("name") for c in inspector.get_check_constraints(ck.table)}
+                existing_cks = {c.get("name") for c in inspect(conn).get_check_constraints(ck.table)}
                 if ck.name not in existing_cks:
                     stmt = f"ALTER TABLE {ck.table} ADD CONSTRAINT {ck.name} CHECK ({ck.expression})"
                     conn.execute(text(stmt))
@@ -1145,7 +1149,7 @@ def apply_migrations(target_engine: Engine | None = None) -> list[str]:
 
         # 4. Restricción de unicidad compuesta en body_map_pain_reports (PostgreSQL)
         if not is_sqlite and "body_map_pain_reports" in existing_tables:
-            unique_constraints = inspector.get_unique_constraints("body_map_pain_reports")
+            unique_constraints = inspect(conn).get_unique_constraints("body_map_pain_reports")
             for uq in unique_constraints:
                 uq_cols = uq.get("column_names") or []
                 uq_name = uq.get("name")
@@ -1155,7 +1159,7 @@ def apply_migrations(target_engine: Engine | None = None) -> list[str]:
                     applied.append(key)
                     logger.info("Restricción UNIQUE heredada eliminada: %s", key)
 
-            indexes = inspector.get_indexes("body_map_pain_reports")
+            indexes = inspect(conn).get_indexes("body_map_pain_reports")
             for idx in indexes:
                 idx_cols = idx.get("column_names") or []
                 idx_name = idx.get("name")
@@ -1165,7 +1169,7 @@ def apply_migrations(target_engine: Engine | None = None) -> list[str]:
                     applied.append(key)
                     logger.info("Índice UNIQUE heredado eliminado: %s", key)
 
-            existing_uq_names = {u.get("name") for u in inspector.get_unique_constraints("body_map_pain_reports")}
+            existing_uq_names = {u.get("name") for u in inspect(conn).get_unique_constraints("body_map_pain_reports")}
             if "uq_body_map_student_idempotency" not in existing_uq_names:
                 conn.execute(
                     text(
@@ -1178,7 +1182,7 @@ def apply_migrations(target_engine: Engine | None = None) -> list[str]:
                 applied.append(key)
                 logger.info("Restricción UNIQUE compuesta aplicada: %s", key)
 
-            existing_idx_names = {i.get("name") for i in inspector.get_indexes("body_map_pain_reports")}
+            existing_idx_names = {i.get("name") for i in inspect(conn).get_indexes("body_map_pain_reports")}
             if "ix_body_map_pain_reports_idempotency_key" not in existing_idx_names:
                 conn.execute(
                     text(
