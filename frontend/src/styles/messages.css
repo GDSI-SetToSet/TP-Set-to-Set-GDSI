@@ -55,17 +55,6 @@
 }
 .messages__item-bottom { display: flex; gap: 8px; align-items: center; justify-content: space-between; min-height: 4px; }
 .messages__ended { color: var(--pf-muted); font-size: .78rem; font-style: italic; }
-.messages__unread {
-  margin-left: auto;
-  min-width: 24px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--pf-accent);
-  color: #fff;
-  font-size: .78rem;
-  font-weight: 700;
-  text-align: center;
-}
 .messages__thread {
   display: flex;
   flex-direction: column;
@@ -279,12 +268,14 @@
   font-weight: 600;
   cursor: pointer;
 }
-.exercise-queries__panel { display: grid; gap: 10px; margin-top: 10px; padding: 12px; border-radius: 12px; background: #f6f8f5; }
-.exercise-queries__history { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
-.exercise-queries__history li { display: grid; gap: 4px; padding: 10px; border-radius: 10px; background: #fff; }
+.exercise-queries__panel { display: grid; gap: 10px; width: 100%; min-width: 0; box-sizing: border-box; margin-top: 10px; padding: 12px; border-radius: 12px; background: #f6f8f5; }
+.exercise-queries__history { display: grid; min-width: 0; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.exercise-queries__history > li { display: grid; min-width: 0; gap: 6px; padding: 10px; border-radius: 10px; background: #fff; }
 .exercise-queries__history p { margin: 0; overflow-wrap: anywhere; }
+.exercise-queries__history > li > p:not(.exercise-queries__question):not(.exercise-queries__pending) { padding: 8px 10px; border-radius: 8px; background: #f6f8f5; white-space: pre-wrap; }
 .exercise-queries__question { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; color: #52665b; font-size: .82rem; }
-.exercise-queries__reply { margin-left: 12px; padding-left: 10px; border-left: 3px solid #397050; }
+.exercise-queries__reply { min-width: 0; margin-left: 12px; padding: 8px 0 0 10px; border-left: 3px solid #b8cdbd; }
+.exercise-queries__reply > p:not(.exercise-queries__question) { padding: 8px 10px; border-radius: 8px; background: #eef6ef; white-space: pre-wrap; }
 .exercise-queries__pending,
 .exercise-queries__empty { color: #52665b; font-size: .88rem; font-style: italic; }
 .exercise-queries__form { display: grid; gap: 6px; }

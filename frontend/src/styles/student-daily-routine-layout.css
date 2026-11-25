@@ -93,7 +93,7 @@
   list-style: none;
   counter-reset: routine-exercise;
 }
-.student-daily-routine .student-daily-routine__block li {
+.student-daily-routine .student-daily-routine__block > ol > li {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr);
   align-items: start;
@@ -101,7 +101,7 @@
   padding: 14px 16px;
   counter-increment: routine-exercise;
 }
-.student-daily-routine .student-daily-routine__block li::before {
+.student-daily-routine .student-daily-routine__block > ol > li::before {
   grid-column: 1;
   grid-row: 1;
   content: counter(routine-exercise) ".";
@@ -110,17 +110,17 @@
   font-weight: 700;
   text-align: right;
 }
-.student-daily-routine .student-daily-routine__block li > .student-routine-exercise__summary,
-.student-daily-routine .student-daily-routine__block li > p,
-.student-daily-routine .student-daily-routine__block li > dl,
-.student-daily-routine .student-daily-routine__block li > .student-routine-exercise__logger,
-.student-daily-routine .student-daily-routine__block li > .student-routine-exercise__quick-actions,
-.student-daily-routine .student-daily-routine__block li > .technical-note,
-.student-daily-routine .student-daily-routine__block li > .exercise-queries {
+.student-daily-routine .student-daily-routine__block > ol > li > .student-routine-exercise__summary,
+.student-daily-routine .student-daily-routine__block > ol > li > p,
+.student-daily-routine .student-daily-routine__block > ol > li > dl,
+.student-daily-routine .student-daily-routine__block > ol > li > .student-routine-exercise__logger,
+.student-daily-routine .student-daily-routine__block > ol > li > .student-routine-exercise__quick-actions,
+.student-daily-routine .student-daily-routine__block > ol > li > .technical-note,
+.student-daily-routine .student-daily-routine__block > ol > li > .exercise-queries {
   grid-column: 2;
   min-width: 0;
 }
-.student-daily-routine .student-daily-routine__block li > .student-routine-exercise__summary {
+.student-daily-routine .student-daily-routine__block > ol > li > .student-routine-exercise__summary {
   grid-row: 1;
 }
 .student-routine-exercise__title-row {
@@ -146,14 +146,14 @@
   background: #dcfce7;
   color: #166534;
 }
-.student-daily-routine .student-daily-routine__block li > p {
+.student-daily-routine .student-daily-routine__block > ol > li > p {
   margin: 0;
   font-size: 14px;
 }
-.student-daily-routine .student-daily-routine__block li h4 {
+.student-daily-routine .student-daily-routine__block > ol > li h4 {
   margin: 0;
 }
-.student-daily-routine .student-daily-routine__block li > .student-routine-exercise__summary p {
+.student-daily-routine .student-daily-routine__block > ol > li > .student-routine-exercise__summary p {
   margin: 4px 0 0;
   color: var(--pf-body);
   font-size: 14px;
@@ -396,7 +396,7 @@
   .student-daily-routine .student-daily-routine__summary > strong {
     align-self: start;
   }
-  .student-daily-routine .student-daily-routine__block li {
+  .student-daily-routine .student-daily-routine__block > ol > li {
     grid-template-columns: 24px minmax(0, 1fr);
     gap: 6px 10px;
     padding: 12px;
