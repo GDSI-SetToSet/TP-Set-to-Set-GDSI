@@ -153,10 +153,10 @@
 .student-daily-routine__block > header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .student-daily-routine__block h3 { margin: 0; color: var(--pf-ink); font: 700 17px 'Manrope'; }
 .student-daily-routine__block > header span { color: var(--pf-label); font-size: 14px; font-weight: 700; }
-.student-daily-routine__block ol { margin: 14px 0 0; padding-left: 24px; display: grid; gap: 10px; }
-.student-daily-routine__block li { padding: 12px; border-radius: 10px; background: var(--pf-arch-bg); color: var(--pf-body); }
-.student-daily-routine__block li h4 { margin: 0; color: var(--pf-ink); font: 700 15px 'Manrope'; }
-.student-daily-routine__block li p { margin: 4px 0 0; font-size: 14px; }
+.student-daily-routine__block > ol { margin: 14px 0 0; padding-left: 24px; display: grid; gap: 10px; }
+.student-daily-routine__block > ol > li { padding: 12px; border-radius: 10px; background: var(--pf-arch-bg); color: var(--pf-body); }
+.student-daily-routine__block > ol > li > h4 { margin: 0; color: var(--pf-ink); font: 700 15px 'Manrope'; }
+.student-daily-routine__block > ol > li > p { margin: 4px 0 0; font-size: 14px; }
 
 @media (max-width: 960px) {
   .student-daily-routine__summary { grid-template-columns: minmax(0, 1fr) auto; }
