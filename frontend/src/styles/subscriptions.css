@@ -265,6 +265,6 @@
 .active-plan-card__subscription-actions .plan-cancel { min-height: 44px; padding: 0 16px; }
 
 .routine-locked__pending { font-weight: 700; }
-.routine-locked__actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.routine-locked__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 20px; }
 .routine-locked__actions .profile-cta,
-.routine-locked__actions .plan-cancel { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; text-decoration: none; }
+.routine-locked__actions .plan-cancel { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 0; padding: 0 18px; text-decoration: none; }
